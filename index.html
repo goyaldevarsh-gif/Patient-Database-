@@ -207,6 +207,7 @@ const ICONS = {
   file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>',
   x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+  upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
 
@@ -306,7 +307,9 @@ function renderListView() {
     + '<div class="row between" style="margin-bottom:10px;">'
     + '<div><h1 style="font-size:18px;font-weight:800;margin:0;">Surgical Case Log</h1><p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">'+PATIENTS.length+' case'+(PATIENTS.length!==1?'s':'')+' on record</p></div>'
     + '<div class="row gap2">'
+    + '<button class="icon-btn" data-action="trigger-import" title="Import backup">'+ic('upload')+'</button>'
     + '<button class="icon-btn" data-action="export-backup" title="Export backup">'+ic('download')+'</button>'
+    + '<input type="file" accept=".zip,application/zip" id="import-file-input" style="display:none;">'
     + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:5px;padding:9px 12px;" data-action="go-add">'+ic('plus')+' Add</button>'
     + '</div></div>'
     + '<div class="search-wrap">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search name, diagnosis, procedure\u2026" value="'+esc(SEARCH)+'"></div>'
@@ -564,6 +567,36 @@ async function exportBackup() {
   }
 }
 
+const IMPORT_IMG_REGEX = /^images\/([^/]+)\/(?:preop|followup_([^/]+))\/([^/]+)\.jpg$/;
+
+async function importBackup(file) {
+  if (typeof JSZip === 'undefined') { toast('Import tool load nahi hua \u2014 internet check karo'); return; }
+  toast('Restoring backup\u2026');
+  try {
+    const zip = await JSZip.loadAsync(file);
+    const casesEntry = zip.file('cases.json');
+    if (!casesEntry) { toast('Invalid backup file \u2014 cases.json nahi mila'); return; }
+    const casesJson = await casesEntry.async('string');
+    const patients = JSON.parse(casesJson);
+    for (const p of patients) { await dbPutPatient(p); }
+
+    const imagePaths = Object.keys(zip.files).filter(path => IMPORT_IMG_REGEX.test(path) && !zip.files[path].dir);
+    let imgCount = 0;
+    for (const path of imagePaths) {
+      const m = path.match(IMPORT_IMG_REGEX);
+      const patientId = m[1], followUpId = m[2] || null, imageId = m[3];
+      const blob = await zip.file(path).async('blob');
+      await dbAddImage({ id: imageId, patientId, followUpId, blob, createdAt: Date.now() });
+      imgCount++;
+    }
+    await refreshPatients();
+    render();
+    toast('Restored '+patients.length+' case(s), '+imgCount+' photo(s)');
+  } catch (err) {
+    toast('Import failed: '+err.message);
+  }
+}
+
 /* ================= Events ================= */
 
 document.addEventListener('click', async (e) => {
@@ -684,6 +717,7 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'export-backup') { await exportBackup(); return; }
+  if (action === 'trigger-import') { document.getElementById('import-file-input').click(); return; }
 });
 
 async function render_only_current_view() {
@@ -692,6 +726,13 @@ async function render_only_current_view() {
 
 document.addEventListener('change', async (e) => {
   const t = e.target;
+
+  if (t.id === 'import-file-input') {
+    const file = t.files && t.files[0];
+    if (file) await importBackup(file);
+    t.value = '';
+    return;
+  }
 
   if (t.matches && t.matches('[data-photo-input]')) {
     const which = t.dataset.photoInput;
