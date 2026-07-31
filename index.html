@@ -684,7 +684,6 @@ function conditionOptionsHtml(selected) {
 
 function renderAddView() {
   const isSurgical = AP_TEMP.caseType === 'surgical';
-  const isCtev = AP_TEMP.condition === 'ctev';
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px row gap3" style="padding:14px 16px;">'
     + '<button class="icon-btn" data-action="cancel-add">'+ic('back')+'</button>'
@@ -704,10 +703,13 @@ function renderAddView() {
     + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
     + '</div>'
     + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label><textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea></div>'
-    + '<div><label class="field-label">Condition (drives Education content'+(isCtev?' + CTEV tracking':'')+(AP_TEMP.condition==='ra'?' + RA tracking':'')+')</label><select class="select" id="ap-condition">'+conditionOptionsHtml(AP_TEMP.condition)+'</select></div>'
-    + (isCtev ? '<div><label class="field-label">Laterality</label><div class="seg">'
+    + '<div><label class="field-label">Special tracking (optional)</label><div class="seg">'
+    + [['','None'],['ctev','CTEV'],['ra','RA']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.condition===v?' active':'')+'" data-action="ap-set-special" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div></div>'
+    + (AP_TEMP.condition==='ctev' ? '<div><label class="field-label">Laterality</label><div class="seg">'
         + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.laterality===v?' active':'')+'" data-action="ap-set-laterality" data-value="'+v+'">'+l+'</button>').join('')
         + '</div></div>' : '')
+    + '<p style="font-size:11px;color:#94a3b8;margin:-8px 0 0;">Baaki general conditions (Knee OA, ACL, etc.) ke liye Education tab se select karo case save hone ke baad.</p>'
 
     + (isSurgical ? (
         '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
@@ -1982,6 +1984,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; render(); return; }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
   if (action === 'ap-set-laterality') { syncApTempFromDom(); AP_TEMP.laterality = el.dataset.value; render(); return; }
+  if (action === 'ap-set-special') { syncApTempFromDom(); AP_TEMP.condition = el.dataset.value; render(); return; }
 
   if (action === 'ap-remove-photo') { AP_PHOTOS = AP_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('ap-thumbs').innerHTML = thumbGridHtml(AP_PHOTOS,'ap-remove-photo'); return; }
   if (action === 'fu-remove-photo') { FU_PHOTOS = FU_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-thumbs').innerHTML = thumbGridHtml(FU_PHOTOS,'fu-remove-photo'); return; }
