@@ -225,6 +225,7 @@ const ICONS = {
   camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
   clipboard:'<path d="M9 2h6a1 1 0 0 1 1 1v1H8V3a1 1 0 0 1 1-1z"/><rect x="6" y="4" width="12" height="17" rx="1.5"/><line x1="9" y1="10.5" x2="15" y2="10.5"/><line x1="9" y1="14.5" x2="15" y2="14.5"/>',
+  book:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
   calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
   file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/>',
   x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
@@ -253,6 +254,8 @@ let EXPANDED_INVESTIGATION = new Set();
 let ADD_PRESCRIPTION_OPEN = false;
 let RX_TEMP = null; // { date, medicines:[{id,name,dose,frequency,duration,instructions}], advice, followUpDate }
 let PRINT_RX = null; // {patient, prescription} when viewing a prescription in print mode
+let EDU_SEARCH = null; // null = use patient's diagnosis as default query
+let PRINT_EDU = null; // {patient, edu} when viewing education content in print mode
 let SETTINGS_OPEN = false;
 let ACTIVE_URLS = [];
 
@@ -794,10 +797,231 @@ function renderPrintView() {
     + '</div>';
 }
 
+/* ================= Patient Education library ================= */
+
+const EDU_LIBRARY = [
+  { id:'knee_oa', name:'Knee Osteoarthritis', keywords:['knee oa','knee osteoarthritis','oa knee','degenerative knee'],
+    whatIsIt:'This is wear-and-tear of the cartilage cushion inside your knee joint, causing the bones to rub against each other. It is very common with age and gets worse gradually.',
+    causes:'Age, extra body weight, old injuries, and family history all increase the chances of knee OA.',
+    treatment:'Weight loss, quadriceps strengthening exercises, walking aids if needed, pain relief medicines, and knee braces. Injections or knee replacement surgery are options if symptoms are severe.',
+    recovery:'This is a long-term condition managed step-by-step. Most people improve significantly with exercise and lifestyle changes before surgery is needed.',
+    homeCare:'Do quadriceps strengthening exercises daily. Avoid sitting cross-legged or squatting. Use a raised chair and Western toilet if possible. Apply hot fomentation for stiffness.',
+    redFlags:'See your doctor urgently if the knee suddenly swells a lot, becomes red and hot, or you develop fever \u2014 this could mean infection.' },
+
+  { id:'hip_oa', name:'Hip Osteoarthritis', keywords:['hip oa','hip osteoarthritis','avn hip','avascular necrosis'],
+    whatIsIt:'This is wear-and-tear (or in some cases, loss of blood supply \u2014 AVN) of the hip joint cartilage, causing pain, stiffness, and difficulty walking.',
+    causes:'Age-related wear, steroid use, alcohol use, old injuries, or unknown causes can lead to hip joint damage.',
+    treatment:'Activity modification, pain relief medicines, physiotherapy, walking aids, and in advanced cases, hip replacement surgery.',
+    recovery:'Early-stage disease can be managed conservatively for years. Once the joint is significantly damaged, hip replacement gives excellent long-term relief.',
+    homeCare:'Avoid deep squatting and sitting on the floor. Use a chair and Western toilet. Keep walking within comfort, avoid high-impact activity.',
+    redFlags:'Sudden severe pain after a fall, or inability to bear weight, needs urgent evaluation to rule out fracture.' },
+
+  { id:'tkr', name:'Total Knee Replacement (Post-op)', keywords:['tkr','total knee replacement','knee replacement post op'],
+    whatIsIt:'Your damaged knee joint surfaces have been replaced with an artificial implant to relieve pain and restore movement.',
+    causes:'This surgery is done for advanced arthritis or joint damage that no longer responds to conservative treatment.',
+    treatment:'Post-op physiotherapy is the most important part of recovery \u2014 knee bending and straightening exercises, walking with a walker/stick, and pain management.',
+    recovery:'Most patients walk with support within 1\u20132 days and without support by 4\u20136 weeks. Full recovery and muscle strength can take 3\u20136 months.',
+    homeCare:'Do your knee bending/straightening exercises as taught, several times a day. Keep the wound clean and dry. Ice the knee for swelling. Avoid twisting the knee.',
+    redFlags:'Contact your surgeon urgently for: increasing redness/discharge from the wound, fever, calf swelling or pain (possible clot), or sudden increase in pain.' },
+
+  { id:'thr', name:'Total Hip Replacement (Post-op)', keywords:['thr','total hip replacement','hip replacement post op'],
+    whatIsIt:'Your damaged hip joint has been replaced with an artificial implant (ball and socket) to relieve pain and restore movement.',
+    causes:'Done for advanced arthritis, avascular necrosis, or fracture that cannot be fixed any other way.',
+    treatment:'Physiotherapy for walking and hip-safe movements, pain management, and gradually increasing activity as advised by your surgeon.',
+    recovery:'Walking with support usually starts within 1\u20132 days. Hip precautions are followed for about 6 weeks while the tissues heal.',
+    homeCare:'Avoid crossing your legs, bending the hip beyond 90 degrees, or sitting on low seats/floor for the first 6 weeks. Use a raised toilet seat and chair. Sleep with a pillow between your knees if advised.',
+    redFlags:'Seek urgent care for sudden severe hip pain with inability to walk (possible dislocation), wound redness/discharge, fever, or calf swelling.' },
+
+  { id:'acl', name:'ACL Tear / Reconstruction', keywords:['acl','anterior cruciate','acl tear','acl injury','acl reconstruction'],
+    whatIsIt:'The ACL is a key ligament that stabilises the knee, commonly injured during sports involving sudden twisting, pivoting, or landing awkwardly.',
+    causes:'Sports injuries (football, basketball, running with sudden direction change), road traffic accidents, or falls.',
+    treatment:'Depends on activity level and instability \u2014 options include physiotherapy alone, or ACL reconstruction surgery using a graft, followed by structured rehab.',
+    recovery:'Return to daily activities by 6\u201312 weeks; return to sport typically takes 6\u20139 months with a structured rehabilitation program.',
+    homeCare:'Follow your rehab program strictly \u2014 quadriceps and hamstring strengthening, balance training. Avoid pivoting sports until cleared by your surgeon.',
+    redFlags:'Repeated giving-way of the knee, locking, or new swelling should be reported to your surgeon.' },
+
+  { id:'meniscus', name:'Meniscus Tear', keywords:['meniscus','meniscal tear','torn cartilage knee'],
+    whatIsIt:'The meniscus is a cushion of cartilage in the knee that can tear from twisting injuries or wear-and-tear with age.',
+    causes:'Sports injuries with twisting, squatting with a loaded knee, or age-related degeneration.',
+    treatment:'Many tears heal or settle with physiotherapy and activity modification. Some tears (especially locking the knee) may need keyhole (arthroscopic) surgery.',
+    recovery:'Conservative recovery takes 4\u20136 weeks. After arthroscopic surgery, most people return to normal activity in 4\u20138 weeks depending on the repair done.',
+    homeCare:'Avoid deep squatting and twisting movements. Ice and elevate for swelling. Do quadriceps strengthening exercises.',
+    redFlags:'A knee that suddenly locks and cannot be straightened needs prompt evaluation.' },
+
+  { id:'rotator_cuff', name:'Rotator Cuff Tear', keywords:['rotator cuff','cuff tear','shoulder tear'],
+    whatIsIt:'The rotator cuff is a group of muscles/tendons that move and stabilise the shoulder. A tear causes pain and weakness, especially lifting the arm.',
+    causes:'Age-related wear and tear, repetitive overhead activity, or a fall/injury.',
+    treatment:'Physiotherapy and pain management for partial tears; arthroscopic repair surgery for larger or symptomatic tears.',
+    recovery:'Conservative treatment: 6\u201312 weeks. After surgery: shoulder is protected in a sling for several weeks, with gradual physiotherapy over 4\u20136 months.',
+    homeCare:'Avoid heavy lifting and overhead activity until advised. Do pendulum and gentle range-of-motion exercises as taught.',
+    redFlags:'Sudden inability to lift the arm at all after an injury needs prompt evaluation.' },
+
+  { id:'shoulder_dislocation', name:'Shoulder Dislocation', keywords:['shoulder dislocation','dislocated shoulder'],
+    whatIsIt:'The ball of the shoulder joint has slipped out of its socket, usually after a fall or sports injury.',
+    causes:'Falls onto an outstretched arm, direct blow to the shoulder, or forceful twisting during sports.',
+    treatment:'The shoulder is put back in place (reduction), followed by a sling for support and physiotherapy. Recurrent dislocations may need surgery.',
+    recovery:'Sling for 2\u20133 weeks, followed by gradual strengthening exercises over 6\u201312 weeks.',
+    homeCare:'Wear the sling as advised. Avoid raising the arm sideways or behind your back until cleared. Start gentle exercises only as instructed.',
+    redFlags:'Numbness/tingling in the arm or hand, or repeated dislocations with minor movements, should be reported.' },
+
+  { id:'ankle_sprain', name:'Ankle Sprain', keywords:['ankle sprain','twisted ankle','sprained ankle'],
+    whatIsIt:'Stretching or tearing of the ligaments around the ankle, usually from rolling or twisting the foot.',
+    causes:'Sports, uneven walking surfaces, or missteps.',
+    treatment:'RICE protocol (Rest, Ice, Compression, Elevation), pain relief, and gradual return to activity with an ankle support/brace.',
+    recovery:'Mild sprains: 1\u20132 weeks. Moderate to severe sprains: 4\u20136 weeks with balance/strengthening exercises.',
+    homeCare:'Ice for 15\u201320 minutes every few hours for the first 48 hours. Use a compression bandage. Elevate the foot when resting. Avoid weight-bearing if very painful.',
+    redFlags:'Inability to bear any weight at all, or severe swelling/deformity, needs an X-ray to rule out fracture.' },
+
+  { id:'fracture_cast', name:'Fracture \u2014 General Cast Care', keywords:['fracture','cast care','plaster care','pop cast'],
+    whatIsIt:'A broken bone that has been immobilised in a cast/splint to allow it to heal in the correct position.',
+    causes:'Falls, accidents, or sports injuries.',
+    treatment:'Immobilisation in a cast or splint for several weeks, with periodic X-rays to check healing.',
+    recovery:'Most fractures take 6\u20128 weeks to heal, though this varies by bone and age. Physiotherapy is often needed after the cast is removed to regain movement and strength.',
+    homeCare:'Keep the cast dry and clean. Keep the limb elevated to reduce swelling. Wiggle fingers/toes regularly. Do not insert objects inside the cast to scratch.',
+    redFlags:'Contact your doctor urgently for: fingers/toes turning blue or numb, severe pain not relieved by medicine, or a foul smell/discharge from the cast.' },
+
+  { id:'distal_radius', name:'Distal Radius (Wrist) Fracture', keywords:['distal radius','wrist fracture','colles fracture'],
+    whatIsIt:'A break in the forearm bone near the wrist, one of the most common fractures, often from a fall onto an outstretched hand.',
+    causes:'Falls, especially in osteoporotic (weak) bones in older adults, or high-impact injuries in younger people.',
+    treatment:'Depending on severity: cast immobilisation alone, or surgery with a plate/pins if the bone is displaced or unstable.',
+    recovery:'Cast treatment: 4\u20136 weeks. After surgery, gentle finger movement starts early, with wrist physiotherapy once healing allows.',
+    homeCare:'Keep fingers moving regularly to prevent stiffness. Keep the arm elevated. Keep the cast/wound dry.',
+    redFlags:'Numbness in the fingers, severe swelling, or fingers turning pale/blue needs urgent review.' },
+
+  { id:'tennis_elbow', name:'Tennis Elbow (Lateral Epicondylitis)', keywords:['tennis elbow','lateral epicondylitis','elbow pain'],
+    whatIsIt:'Overuse injury of the tendons on the outer side of the elbow, causing pain with gripping or lifting.',
+    causes:'Repetitive gripping/wrist movements \u2014 racquet sports, manual work, computer use, or repetitive lifting.',
+    treatment:'Rest from aggravating activity, physiotherapy (eccentric strengthening exercises), a tennis-elbow brace, and pain relief. Injections are used in resistant cases.',
+    recovery:'Most cases improve over 6\u201312 weeks with activity modification and exercises; some take longer.',
+    homeCare:'Avoid heavy gripping and repetitive wrist movements. Use an elbow brace during aggravating activity. Do gentle stretching and strengthening exercises as taught.',
+    redFlags:'None specific \u2014 but if pain doesn\u2019t improve after several weeks of home care, follow up for further evaluation.' },
+
+  { id:'plantar_fasciitis', name:'Plantar Fasciitis', keywords:['plantar fasciitis','heel pain','foot pain morning'],
+    whatIsIt:'Inflammation of the thick tissue band on the sole of the foot, causing heel pain that is classically worst with the first steps in the morning.',
+    causes:'Prolonged standing, being overweight, tight calf muscles, or unsupportive footwear.',
+    treatment:'Calf and plantar fascia stretching exercises, supportive footwear/insoles, activity modification, and pain relief. Injections in resistant cases.',
+    recovery:'Most people improve over 6\u201312 weeks with consistent stretching and supportive footwear.',
+    homeCare:'Stretch your calf and the sole of your foot every morning before standing. Wear cushioned, supportive shoes \u2014 avoid walking barefoot on hard floors. Apply ice after activity.',
+    redFlags:'None specific \u2014 seek review if pain worsens despite home care or if there is numbness/tingling in the foot.' },
+
+  { id:'frozen_shoulder', name:'Frozen Shoulder (Adhesive Capsulitis)', keywords:['frozen shoulder','adhesive capsulitis','stiff shoulder'],
+    whatIsIt:'Gradual stiffening and thickening of the shoulder capsule, causing pain and progressive loss of movement, often without a clear injury.',
+    causes:'More common in diabetics, after prolonged shoulder immobility, or sometimes with no clear cause.',
+    treatment:'Physiotherapy and gentle stretching exercises, pain relief, and steroid injections in some cases. Rarely, a procedure to release the stiffness is needed if it doesn\u2019t improve.',
+    recovery:'This condition typically passes through stages (freezing, frozen, thawing) over 1\u20132 years, though treatment can speed up recovery of movement.',
+    homeCare:'Do your shoulder stretching exercises daily, even though it is uncomfortable \u2014 consistency matters more than intensity. Apply heat before stretching.',
+    redFlags:'None specific to this condition \u2014 but sudden weakness (not just stiffness) should be reviewed.' },
+
+  { id:'lbp', name:'Low Back Pain (Mechanical)', keywords:['low back pain','lbp','backache','back pain'],
+    whatIsIt:'Pain arising from the muscles, joints, or discs of the lower back, usually related to posture, strain, or minor wear-and-tear \u2014 not from anything serious.',
+    causes:'Poor posture, heavy lifting, prolonged sitting, weak core muscles, or minor disc/joint strain.',
+    treatment:'Staying active (avoiding bed rest), core strengthening exercises, pain relief medicines if needed, and posture correction.',
+    recovery:'Most episodes improve significantly within 4\u20136 weeks with activity and exercise.',
+    homeCare:'Keep moving \u2014 avoid prolonged bed rest. Do core strengthening exercises as taught. Maintain good posture while sitting/lifting (bend knees, keep back straight).',
+    redFlags:'Seek urgent care for: numbness in the groin/inner thighs, loss of bladder/bowel control, or new leg weakness \u2014 these need same-day evaluation.' },
+
+  { id:'sciatica', name:'Sciatica / Disc Herniation', keywords:['sciatica','disc herniation','slip disc','pivd','disc prolapse'],
+    whatIsIt:'Pain that radiates from the lower back down the leg, usually due to a disc pressing on a nerve root.',
+    causes:'Disc bulging or herniation, often from lifting, twisting, or age-related disc wear.',
+    treatment:'Most cases improve with physiotherapy, activity modification, and pain relief medicines over several weeks. Injections or surgery are considered if there is no improvement or if there is significant weakness.',
+    recovery:'The majority of cases improve within 6\u201312 weeks without surgery.',
+    homeCare:'Avoid prolonged sitting and heavy lifting. Do the specific exercises advised by your physiotherapist. Use proper lifting technique (bend at knees, not back).',
+    redFlags:'Seek urgent care for: numbness in the groin/inner thighs, loss of bladder/bowel control, or progressive leg weakness \u2014 these need same-day evaluation.' },
+
+  { id:'ra', name:'Rheumatoid Arthritis', keywords:['ra','rheumatoid arthritis','rheumatoid'],
+    whatIsIt:'An autoimmune condition where the body\u2019s immune system mistakenly attacks the joints, causing pain, swelling, and stiffness \u2014 usually in both hands/feet symmetrically.',
+    causes:'The exact cause is unknown, but it involves the immune system attacking joint tissue. It is not caused by anything you did.',
+    treatment:'Long-term medicines (DMARDs) to control the disease and prevent joint damage, along with pain relief and physiotherapy. Regular monitoring blood tests are needed for some medicines.',
+    recovery:'This is a lifelong condition, but with regular medicine and follow-up, most people achieve good disease control and near-normal function.',
+    homeCare:'Take your medicines regularly, even when feeling well \u2014 stopping suddenly can cause flares. Keep joints moving with gentle exercise. Report any new symptoms to your doctor promptly.',
+    redFlags:'New neck pain with arm symptoms, unexplained fever, or a new red/hot joint should be reported urgently \u2014 these can be serious in RA.' },
+
+  { id:'ctev', name:'CTEV (Clubfoot)', keywords:['ctev','clubfoot','club foot'],
+    whatIsIt:'A condition present at birth where the baby\u2019s foot is turned inward and downward. It is very treatable, especially when started early.',
+    causes:'The exact cause is often unknown; it may run in families. It is not caused by anything the mother did during pregnancy.',
+    treatment:'The Ponseti method \u2014 weekly gentle casting to gradually correct the foot position, often followed by a small procedure (tenotomy) and then a foot abduction brace worn for years to prevent relapse.',
+    recovery:'Most feet are well-corrected within 6\u20138 weeks of casting. The brace phase (worn most of the day initially, then only at night/naps) continues until about 4\u20135 years of age and is essential to prevent the foot from turning back.',
+    homeCare:'Keep the cast dry and check toes for colour/warmth. Once bracing starts, the brace must be worn as prescribed \u2014 skipping it is the most common reason for relapse.',
+    redFlags:'Toes turning blue/cold under a cast, or the foot appearing to turn back despite brace wear, should be reported to your doctor.' },
+];
+
+function searchEduLibrary(query) {
+  const q = (query||'').trim().toLowerCase();
+  if (!q) return [];
+  return EDU_LIBRARY.filter(e => e.name.toLowerCase().includes(q) || e.keywords.some(k => k.includes(q) || q.includes(k)));
+}
+
+function renderEduResultsHtml(query) {
+  const results = searchEduLibrary(query);
+  if (query.trim() && !results.length) {
+    return '<p style="font-size:12px;color:#94a3b8;text-align:center;padding:16px 0;">Is keyword se koi match nahi mila. Alag keyword try karo (e.g. \u201cknee OA\u201d, \u201cACL\u201d, \u201cfracture\u201d).</p>';
+  }
+  if (!results.length) return '';
+  return '<div style="display:flex;flex-direction:column;gap:8px;">' + results.map(e =>
+    '<button class="patient-card" data-action="view-edu" data-id="'+e.id+'" style="padding:12px 14px;">'
+    + '<span style="font-weight:700;font-size:13.5px;">'+esc(e.name)+'</span>'
+    + '<span style="color:#cbd5e1;">'+ic('chevron')+'</span>'
+    + '</button>'
+  ).join('') + '</div>';
+}
+
+function renderEducationTab(p) {
+  const query = EDU_SEARCH!=null ? EDU_SEARCH : (p.diagnosis || '');
+  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
+    + '<div class="search-wrap">'+ic('search')+'<input class="search-input" id="edu-search-input" placeholder="Diagnosis keyword (e.g. knee OA, ACL, fracture)" value="'+esc(query)+'"></div>'
+    + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">Patient ke diagnosis se auto-filled hai \u2014 chaho to badal do.</p>'
+    + '<div id="edu-results">'+renderEduResultsHtml(query)+'</div>'
+    + '</div>';
+}
+
+function renderEduPrintView() {
+  if (!PRINT_EDU) { VIEW='list'; return renderListView(); }
+  const { patient, edu } = PRINT_EDU;
+  const profile = loadProfile();
+  const sections = [
+    ['What is it?', edu.whatIsIt], ['Why does it happen?', edu.causes], ['Treatment', edu.treatment],
+    ['Recovery', edu.recovery], ['Home care tips', edu.homeCare], ['When to seek help', edu.redFlags],
+  ];
+  return '<div class="no-print row between px" style="padding:14px 16px;position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
+    + '<button class="icon-btn" data-action="close-edu-print">'+ic('back')+'</button>'
+    + '<div class="row gap2">'
+    + (eduWaLink(patient, edu, profile) ? '<a href="'+esc(eduWaLink(patient, edu, profile))+'" target="_blank" rel="noopener" class="btn" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' WhatsApp</a>' : '')
+    + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
+    + '</div></div>'
+    + '<div class="rx-sheet">'
+    + '<div class="rx-letterhead">'
+    + '<div><div class="rx-clinic-name">'+esc(profile.clinicName||'\u2014')+'</div><div class="rx-clinic-addr">'+esc(profile.clinicAddress||'').replace(/\n/g,'<br>')+'</div></div>'
+    + '<div style="text-align:right;"><div class="rx-doc-name">'+esc(profile.doctorName||'\u2014')+'</div><div class="rx-clinic-addr">'+esc(profile.qualifications||'')+'</div></div>'
+    + '</div>'
+    + '<div class="rx-patient-row"><span><b>Patient:</b> '+esc(patient.name)+'</span><span><b>Date:</b> '+fmtDate(todayStr())+'</span></div>'
+    + '<div class="rx-symbol" style="font-size:17px;">'+esc(edu.name)+'</div>'
+    + sections.filter(s=>s[1]).map(s => '<div style="margin-bottom:12px;"><div style="font-weight:800;font-size:12.5px;color:#5b21b6;margin-bottom:3px;">'+s[0]+'</div><div style="font-size:13px;line-height:1.55;color:#334155;">'+esc(s[1])+'</div></div>').join('')
+    + '</div>';
+}
+
+function eduWaMessage(patient, edu, profile) {
+  let lines = [];
+  lines.push('*' + edu.name + '*');
+  lines.push('(from ' + (profile.clinicName || profile.doctorName || 'your doctor') + ')');
+  lines.push('');
+  const sections = [
+    ['What is it?', edu.whatIsIt], ['Why does it happen?', edu.causes], ['Treatment', edu.treatment],
+    ['Recovery', edu.recovery], ['Home care tips', edu.homeCare], ['When to seek help', edu.redFlags],
+  ];
+  sections.forEach(([label, text]) => { if (text) { lines.push('*'+label+'*'); lines.push(text); lines.push(''); } });
+  return lines.join('\n').trim();
+}
+function eduWaLink(patient, edu, profile) {
+  const digits = toWaNumber(patient.whatsapp);
+  if (!digits) return null;
+  return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(eduWaMessage(patient, edu, profile));
+}
+
 async function renderTabBody(p) {
   const el = document.getElementById('tab-body');
   if (!el) return;
   if (TAB === 'overview') { el.innerHTML = renderOverviewTab(p); return; }
+  if (TAB === 'education') { el.innerHTML = renderEducationTab(p); return; }
   el.innerHTML = '<div class="px" style="padding-top:30px;text-align:center;color:#94a3b8;">Loading\u2026</div>';
   if (TAB === 'preop') el.innerHTML = await renderPreopTab(p);
   else if (TAB === 'followups') el.innerHTML = await renderFollowupsTab(p);
@@ -811,6 +1035,7 @@ const TABS = [
   {key:'followups', label:'Follow-ups', icon:'calendar'},
   {key:'investigations', label:'Investigations', icon:'file'},
   {key:'prescriptions', label:'Rx', icon:'printer'},
+  {key:'education', label:'Education', icon:'book'},
 ];
 
 function renderDetailShell(p) {
@@ -840,6 +1065,7 @@ async function render() {
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
+  if (VIEW === 'edu-print') { app.innerHTML = renderEduPrintView(); return; }
   if (VIEW === 'detail') {
     const p = getPatient(SELECTED_ID);
     if (!p) { VIEW='list'; return render(); }
@@ -1191,6 +1417,15 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'close-print') { PRINT_RX = null; VIEW = 'detail'; TAB = 'prescriptions'; render(); return; }
+  if (action === 'view-edu') {
+    const p = getPatient(SELECTED_ID);
+    const edu = EDU_LIBRARY.find(e => e.id === el.dataset.id);
+    if (!edu) return;
+    PRINT_EDU = { patient: p, edu };
+    VIEW = 'edu-print'; render();
+    return;
+  }
+  if (action === 'close-edu-print') { PRINT_EDU = null; EDU_SEARCH = null; VIEW = 'detail'; TAB = 'education'; render(); return; }
   if (action === 'do-print') { window.print(); return; }
 });
 
@@ -1268,6 +1503,13 @@ document.addEventListener('change', async (e) => {
   }
 });
 
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'edu-search-input') {
+    EDU_SEARCH = e.target.value;
+    const resEl = document.getElementById('edu-results');
+    if (resEl) resEl.innerHTML = renderEduResultsHtml(EDU_SEARCH);
+  }
+});
 document.addEventListener('blur', async (e) => {
   if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
 }, true);
