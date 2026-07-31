@@ -721,7 +721,7 @@ function renderAddView() {
       ))
 
     + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number ya +country code ke saath" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
-    + (isSurgical ? '<div><label class="field-label">Pre-op imaging (X-ray/CT/MRI photos)</label><div id="ap-thumbs">'+thumbGridHtml(AP_PHOTOS,'ap-remove-photo')+'</div></div>' : '')
+    + '<div><label class="field-label">Clinical images (X-ray/CT/MRI, agar ho)</label><div id="ap-thumbs">'+thumbGridHtml(AP_PHOTOS,'ap-remove-photo')+'</div></div>'
     + '<div><label class="field-label">Notes</label><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
@@ -743,7 +743,7 @@ function renderOverviewTab(p) {
     + '</div>'
     + (!isSurgical ? '<button class="btn btn-block" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical case</button>' : '<button class="btn btn-block" data-action="convert-to-opd">'+ic('back')+' Convert back to OPD</button>')
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
-    + (isSurgical ? '<div class="stat-card"><div class="stat-label">Pre-op photos</div><div class="stat-value mono">'+p.preOpImageCount+'</div></div>' : '<div class="stat-card"><div class="stat-label">Case type</div><div class="stat-value" style="font-size:14px;">OPD follow-up</div></div>')
+    + '<div class="stat-card"><div class="stat-label">Clinical images</div><div class="stat-value mono">'+p.preOpImageCount+'</div></div>'
     + '<div class="stat-card"><div class="stat-label">Follow-up visits</div><div class="stat-value mono">'+(p.followUps||[]).length+'</div></div>'
     + '</div>'
     + '<div class="card" style="'+(overdue?'border-color:var(--red-border);background:var(--red-bg);':'')+'">'
@@ -795,7 +795,7 @@ async function renderPreopTab(p) {
   grid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple id="preop-add-input" style="display:none;"></label>';
   grid += '</div>';
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
-    + (images.length ? grid : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">Koi pre-op photo nahi hai abhi.</div>'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">'))
+    + (images.length ? grid : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">Koi clinical image nahi hai abhi.</div>'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">'))
     + '</div>';
 }
 
@@ -1504,7 +1504,7 @@ async function renderTabBody(p) {
 
 function visibleTabs(p) {
   const tabs = [{key:'overview', label:'Overview', icon:'info'}];
-  if (p.caseType === 'surgical') tabs.push({key:'preop', label:'Pre-op', icon:'camera'});
+  tabs.push({key:'preop', label:'Imaging', icon:'camera'});
   if (p.condition === 'ctev') tabs.push({key:'ctev', label:'CTEV', icon:'foot'});
   if (p.condition === 'ra') tabs.push({key:'ra', label:'RA', icon:'pill'});
   tabs.push({key:'followups', label:'Follow-ups', icon:'calendar'});
@@ -2004,14 +2004,12 @@ document.addEventListener('click', async (e) => {
     p.surgeryDate = AP_TEMP.surgeryDate;
     p.whatsapp = AP_TEMP.whatsapp;
     p.notes = AP_TEMP.notes;
-    p.preOpImageCount = AP_TEMP.caseType === 'surgical' ? AP_PHOTOS.length : 0;
+    p.preOpImageCount = AP_PHOTOS.length;
     if (p.condition === 'ctev') p.ctev = newCtevShape();
     if (p.condition === 'ra') p.ra = newRaShape();
     await dbPutPatient(p);
-    if (p.caseType === 'surgical') {
-      for (const ph of AP_PHOTOS) {
-        await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now() });
-      }
+    for (const ph of AP_PHOTOS) {
+      await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now() });
     }
     await refreshPatients();
     AP_PHOTOS = [];
