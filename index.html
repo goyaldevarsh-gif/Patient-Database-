@@ -95,6 +95,7 @@
   .empty-icon-wrap { background:#eef2ff; border-radius:999px; padding:16px; color:var(--accent); }
 
   .fu-card { border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .overdue-note { font-size:11px; font-weight:700; color:var(--red); margin-top:3px; display:flex; align-items:center; gap:4px; }
   .bottom-bar { position:sticky; bottom:0; border-top:1px solid var(--border); background:#fff; padding:10px 12px; display:flex; gap:8px; }
 
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
@@ -208,6 +209,8 @@ const ICONS = {
   x:'<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
   download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
+  message:'<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+  alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
 
@@ -222,6 +225,8 @@ let TAB = 'overview';
 let ARMED_DELETE = null;
 let ADD_FOLLOWUP_OPEN = false;
 let EXPANDED_FOLLOWUP = new Set();
+let ADD_INVESTIGATION_OPEN = false;
+let EXPANDED_INVESTIGATION = new Set();
 let ACTIVE_URLS = [];
 
 function revokeActiveUrls() { ACTIVE_URLS.forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); ACTIVE_URLS = []; }
@@ -231,13 +236,30 @@ function trackUrl(u) { ACTIVE_URLS.push(u); return u; }
 let AP_PHOTOS = [];
 // temp state for add-followup photo staging
 let FU_PHOTOS = [];
+// temp state for add-investigation photo staging
+let INV_PHOTOS = [];
 
 function newPatientShape() {
   return {
     id: uid(), name:'', age:'', sex:'M', diagnosis:'', surgeryType:'Arthroplasty', procedure:'',
-    side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'',
-    preOpImageCount:0, followUps:[], createdAt: Date.now(),
+    side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
+    nextFollowUpDate:'',
+    preOpImageCount:0, followUps:[], investigations:[], createdAt: Date.now(),
   };
+}
+function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
+
+function toWaNumber(raw) {
+  let digits = String(raw||'').replace(/\D/g,'');
+  if (!digits) return '';
+  if (digits.length === 10) digits = '91' + digits; // assume India if no country code given
+  return digits;
+}
+function waLink(patient) {
+  const digits = toWaNumber(patient.whatsapp);
+  if (!digits) return null;
+  const msg = 'Hi ' + patient.name + ', this is regarding your ' + (patient.procedure || 'appointment') + '.';
+  return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
 }
 
 async function refreshPatients() { PATIENTS = await dbGetAllPatients(); }
@@ -267,7 +289,11 @@ function renderListView() {
       if (!(p.name.toLowerCase().includes(q) || (p.diagnosis||'').toLowerCase().includes(q) || (p.procedure||'').toLowerCase().includes(q))) return false;
     }
     return true;
-  }).sort((a,b) => new Date(b.surgeryDate) - new Date(a.surgeryDate));
+  }).sort((a,b) => {
+    const aOver = isOverdue(a.nextFollowUpDate), bOver = isOverdue(b.nextFollowUpDate);
+    if (aOver !== bOver) return aOver ? -1 : 1;
+    return new Date(b.surgeryDate) - new Date(a.surgeryDate);
+  });
 
   let chips = '<div class="chips">';
   ['all', ...SURGERY_TYPES].forEach(t => {
@@ -292,6 +318,7 @@ function renderListView() {
         + '<span class="mono" style="font-size:11px;color:#94a3b8;">'+esc(p.age)+'/'+esc(p.sex)+'</span></div>'
         + '<div style="font-size:12px;color:#64748b;margin-top:2px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
         + '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
+        + (isOverdue(p.nextFollowUpDate) ? '<div class="overdue-note">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+'</div>' : '')
         + '<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
         + '<span class="badge badge-'+TYPE_BADGE[p.surgeryType]+'">'+p.surgeryType+'</span>'
         + '<span class="badge badge-slate">'+ic('camera')+p.preOpImageCount+' pre-op \u00b7 '+fuImgCount+' f/u</span>'
@@ -340,8 +367,9 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId) {
     const previewUrl = trackUrl(URL.createObjectURL(blob));
     targetArray.push({ tempId: uid(), blob, previewUrl, label:'' });
   }
+  const removeAction = containerId==='ap-thumbs' ? 'ap-remove-photo' : containerId==='inv-thumbs' ? 'inv-remove-photo' : 'fu-remove-photo';
   const container = document.getElementById(containerId);
-  if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbGridHtml(targetArray, containerId==='ap-thumbs'?'ap-remove-photo':'fu-remove-photo')+'</div>';
+  if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbGridHtml(targetArray, removeAction)+'</div>';
   toast('Added');
 }
 
@@ -367,6 +395,7 @@ function renderAddView() {
     + '<div><label class="field-label">Side</label><select class="select" id="ap-side"><option>Left</option><option>Right</option><option>Bilateral</option><option>N/A</option></select></div>'
     + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+todayStr()+'"></div>'
     + '</div>'
+    + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number ya +country code ke saath"></div>'
     + '<div><label class="field-label">Pre-op imaging (X-ray/CT/MRI photos)</label><div id="ap-thumbs">'+thumbGridHtml(AP_PHOTOS,'ap-remove-photo')+'</div></div>'
     + '<div><label class="field-label">Notes</label><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026"></textarea></div>'
     + '</div>'
@@ -380,10 +409,22 @@ function renderAddView() {
 /* ================= Detail view: tabs ================= */
 
 function renderOverviewTab(p) {
+  const overdue = isOverdue(p.nextFollowUpDate);
   return '<div class="px" style="display:flex;flex-direction:column;gap:12px;padding-top:14px;padding-bottom:20px;">'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
     + '<div class="stat-card"><div class="stat-label">Pre-op photos</div><div class="stat-value mono">'+p.preOpImageCount+'</div></div>'
     + '<div class="stat-card"><div class="stat-label">Follow-up visits</div><div class="stat-value mono">'+(p.followUps||[]).length+'</div></div>'
+    + '</div>'
+    + '<div class="card" style="'+(overdue?'border-color:var(--red-border);background:var(--red-bg);':'')+'">'
+    + '<label class="field-label" style="'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up due'+(overdue?' \u2014 OVERDUE':'')+'</label>'
+    + '<input class="input" type="date" data-field="nextFollowUpDate" value="'+esc(p.nextFollowUpDate)+'">'
+    + '</div>'
+    + '<div class="card">'
+    + '<label class="field-label">WhatsApp number</label>'
+    + '<input class="input" type="tel" data-field="whatsapp" placeholder="10-digit number (India) ya +country code ke saath" value="'+esc(p.whatsapp)+'" style="margin-bottom:10px;">'
+    + (waLink(p)
+        ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Message on WhatsApp</a>'
+        : '<p style="font-size:11.5px;color:#94a3b8;">Number save karo message bhejne ke liye.</p>')
     + '</div>'
     + '<div class="card">'
     + '<label class="field-label">Diagnosis</label><textarea class="textarea" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'
@@ -408,7 +449,7 @@ function confirmBtn(action, id) {
 }
 
 async function renderPreopTab(p) {
-  const images = (await dbGetImagesByPatient(p.id)).filter(im => !im.followUpId);
+  const images = (await dbGetImagesByPatient(p.id)).filter(im => !im.followUpId && !im.investigationId);
   revokeActiveUrls();
   let grid = '<div class="thumb-grid">';
   images.forEach(im => {
@@ -467,6 +508,51 @@ async function renderFollowupsTab(p) {
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
 }
 
+async function renderInvestigationsTab(p) {
+  const allImages = await dbGetImagesByPatient(p.id);
+  revokeActiveUrls();
+  let addBlock;
+  if (!ADD_INVESTIGATION_OPEN) {
+    addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inv">'+ic('plus')+' Add investigation</button>';
+  } else {
+    addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
+      + '<label class="field-label">Investigation name</label><input class="input" id="inv-label" placeholder="e.g. CBC, MRI knee, USG abdomen" style="margin-bottom:10px;">'
+      + '<label class="field-label">Date</label><input class="input" type="date" id="inv-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
+      + '<label class="field-label">Photos / report images</label><div id="inv-thumbs">'+thumbGridHtml(INV_PHOTOS,'inv-remove-photo')+'</div>'
+      + '<label class="field-label" style="margin-top:10px;">Notes</label><textarea class="textarea" id="inv-notes" rows="2" placeholder="Key findings, impression\u2026"></textarea>'
+      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-inv">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-inv">Save investigation</button></div>'
+      + '</div>';
+  }
+
+  let list = '';
+  [...(p.investigations||[])].reverse().forEach(inv => {
+    const expanded = EXPANDED_INVESTIGATION.has(inv.id);
+    const invImages = allImages.filter(im => im.investigationId === inv.id);
+    let body = '';
+    if (expanded) {
+      let grid = '<div class="thumb-grid">';
+      invImages.forEach(im => {
+        const url = trackUrl(URL.createObjectURL(im.blob));
+        grid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
+      });
+      grid += '<label class="add-photo-tile" data-inv-add="'+inv.id+'">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-inv-input="'+inv.id+'" style="display:none;"></label>';
+      grid += '</div>';
+      body = grid + (inv.notes ? '<p style="font-size:12.5px;color:#64748b;margin-top:8px;">'+esc(inv.notes)+'</p>' : '');
+    }
+    list += '<div class="fu-card">'
+      + '<div class="row between" style="cursor:pointer;" data-action="toggle-inv" data-id="'+inv.id+'">'
+      + '<span style="font-weight:800;">'+esc(inv.label)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(inv.date)+'</span></span>'
+      + '<div class="row gap2">'
+      + '<span class="badge badge-slate">'+ic('camera')+(inv.imageCount||0)+'</span>'
+      + confirmBtn('delete-inv', inv.id)
+      + '</div></div>'
+      + body
+      + '</div>';
+  });
+
+  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
+}
+
 async function renderTabBody(p) {
   const el = document.getElementById('tab-body');
   if (!el) return;
@@ -474,12 +560,14 @@ async function renderTabBody(p) {
   el.innerHTML = '<div class="px" style="padding-top:30px;text-align:center;color:#94a3b8;">Loading\u2026</div>';
   if (TAB === 'preop') el.innerHTML = await renderPreopTab(p);
   else if (TAB === 'followups') el.innerHTML = await renderFollowupsTab(p);
+  else if (TAB === 'investigations') el.innerHTML = await renderInvestigationsTab(p);
 }
 
 const TABS = [
   {key:'overview', label:'Overview', icon:'info'},
   {key:'preop', label:'Pre-op', icon:'camera'},
   {key:'followups', label:'Follow-ups', icon:'calendar'},
+  {key:'investigations', label:'Investigations', icon:'file'},
 ];
 
 function renderDetailShell(p) {
@@ -491,6 +579,7 @@ function renderDetailShell(p) {
     + '<button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button>'
     + '<div style="min-width:0;flex:1;"><h2 style="font-size:16px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</h2>'
     + '<p style="font-size:11px;color:#94a3b8;margin:1px 0 0;">'+p.surgeryType+' \u00b7 '+esc(p.procedure||'')+'</p></div>'
+    + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
     + confirmBtn('delete-patient', p.id)
     + '</div>'
     + '<div class="px" style="padding-bottom:10px;"><select class="select" style="font-weight:700;" data-field="status">'+statusOptions+'</select></div>'
@@ -551,7 +640,9 @@ async function exportBackup() {
     for (const p of allPatients) {
       const images = await dbGetImagesByPatient(p.id);
       for (const im of images) {
-        const folder = im.followUpId ? ('images/'+p.id+'/followup_'+im.followUpId) : ('images/'+p.id+'/preop');
+        const folder = im.followUpId ? ('images/'+p.id+'/followup_'+im.followUpId)
+          : im.investigationId ? ('images/'+p.id+'/investigation_'+im.investigationId)
+          : ('images/'+p.id+'/preop');
         zip.file(folder+'/'+im.id+'.jpg', im.blob);
       }
     }
@@ -567,7 +658,7 @@ async function exportBackup() {
   }
 }
 
-const IMPORT_IMG_REGEX = /^images\/([^/]+)\/(?:preop|followup_([^/]+))\/([^/]+)\.jpg$/;
+const IMPORT_IMG_REGEX = /^images\/([^/]+)\/(?:preop|followup_([^/]+)|investigation_([^/]+))\/([^/]+)\.jpg$/;
 
 async function importBackup(file) {
   if (typeof JSZip === 'undefined') { toast('Import tool load nahi hua \u2014 internet check karo'); return; }
@@ -584,9 +675,9 @@ async function importBackup(file) {
     let imgCount = 0;
     for (const path of imagePaths) {
       const m = path.match(IMPORT_IMG_REGEX);
-      const patientId = m[1], followUpId = m[2] || null, imageId = m[3];
+      const patientId = m[1], followUpId = m[2] || null, investigationId = m[3] || null, imageId = m[4];
       const blob = await zip.file(path).async('blob');
-      await dbAddImage({ id: imageId, patientId, followUpId, blob, createdAt: Date.now() });
+      await dbAddImage({ id: imageId, patientId, followUpId, investigationId, blob, createdAt: Date.now() });
       imgCount++;
     }
     await refreshPatients();
@@ -619,6 +710,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'ap-remove-photo') { AP_PHOTOS = AP_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('ap-thumbs').innerHTML = thumbGridHtml(AP_PHOTOS,'ap-remove-photo'); return; }
   if (action === 'fu-remove-photo') { FU_PHOTOS = FU_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-thumbs').innerHTML = thumbGridHtml(FU_PHOTOS,'fu-remove-photo'); return; }
+  if (action === 'inv-remove-photo') { INV_PHOTOS = INV_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('inv-thumbs').innerHTML = thumbGridHtml(INV_PHOTOS,'inv-remove-photo'); return; }
 
   if (action === 'save-patient') {
     const name = document.getElementById('ap-name').value.trim();
@@ -633,6 +725,7 @@ document.addEventListener('click', async (e) => {
     p.procedure = document.getElementById('ap-procedure').value;
     p.side = document.getElementById('ap-side').value;
     p.surgeryDate = document.getElementById('ap-date').value;
+    p.whatsapp = document.getElementById('ap-whatsapp').value;
     p.notes = document.getElementById('ap-notes').value;
     p.preOpImageCount = AP_PHOTOS.length;
     await dbPutPatient(p);
@@ -672,6 +765,48 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'open-add-inv') { INV_PHOTOS = []; ADD_INVESTIGATION_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'cancel-add-inv') { ADD_INVESTIGATION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'submit-inv') {
+    const p = getPatient(SELECTED_ID);
+    const label = document.getElementById('inv-label').value.trim() || 'Investigation';
+    const date = document.getElementById('inv-date').value;
+    const notes = document.getElementById('inv-notes').value;
+    const inv = { id: uid(), label, date, notes, imageCount: INV_PHOTOS.length };
+    p.investigations = p.investigations || [];
+    p.investigations.push(inv);
+    await dbPutPatient(p);
+    for (const ph of INV_PHOTOS) {
+      await dbAddImage({ id: uid(), patientId: p.id, investigationId: inv.id, blob: ph.blob, createdAt: Date.now() });
+    }
+    await refreshPatients();
+    INV_PHOTOS = []; ADD_INVESTIGATION_OPEN = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+
+  if (action === 'toggle-inv') {
+    const id = el.dataset.id;
+    if (EXPANDED_INVESTIGATION.has(id)) EXPANDED_INVESTIGATION.delete(id); else EXPANDED_INVESTIGATION.add(id);
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+
+  if (action === 'delete-inv' && el.dataset.confirm) {
+    const p = getPatient(SELECTED_ID);
+    const inv = (p.investigations||[]).find(i => i.id === el.dataset.id);
+    if (inv) {
+      const imgs = await dbGetImagesByPatient(p.id);
+      for (const im of imgs.filter(i => i.investigationId === inv.id)) await dbDeleteImage(im.id);
+    }
+    p.investigations = (p.investigations||[]).filter(i => i.id !== el.dataset.id);
+    await dbPutPatient(p);
+    await refreshPatients();
+    ARMED_DELETE = null;
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+
   if (action === 'arm-delete') {
     ARMED_DELETE = el.dataset.arm;
     await render_only_current_view();
@@ -705,11 +840,23 @@ document.addEventListener('click', async (e) => {
   if (action === 'view-image') { openImageViewer(el.dataset.url, el.dataset.imgid); return; }
   if (action === 'viewer-close') { closeImageViewer(); return; }
   if (action === 'viewer-delete') {
-    await dbDeleteImage(el.dataset.imgid);
-    closeImageViewer();
+    const imgId = el.dataset.imgid;
     const p = getPatient(SELECTED_ID);
-    if (!p.followUps || TAB === 'preop') {
-      p.preOpImageCount = (await dbGetImagesByPatient(p.id)).filter(i=>!i.followUpId).length;
+    const allImagesBefore = await dbGetImagesByPatient(p.id);
+    const imgRecord = allImagesBefore.find(i => i.id === imgId);
+    await dbDeleteImage(imgId);
+    closeImageViewer();
+    if (imgRecord) {
+      const remaining = await dbGetImagesByPatient(p.id);
+      if (imgRecord.followUpId) {
+        const fu = (p.followUps||[]).find(f => f.id === imgRecord.followUpId);
+        if (fu) fu.imageCount = remaining.filter(i => i.followUpId === imgRecord.followUpId).length;
+      } else if (imgRecord.investigationId) {
+        const inv = (p.investigations||[]).find(i => i.id === imgRecord.investigationId);
+        if (inv) inv.imageCount = remaining.filter(i => i.investigationId === imgRecord.investigationId).length;
+      } else {
+        p.preOpImageCount = remaining.filter(i => !i.followUpId && !i.investigationId).length;
+      }
       await dbPutPatient(p); await refreshPatients();
     }
     await renderTabBody(getPatient(SELECTED_ID));
@@ -738,10 +885,12 @@ document.addEventListener('change', async (e) => {
     const which = t.dataset.photoInput;
     if (which === 'ap-remove-photo') await handlePhotoInputChange(t, AP_PHOTOS, 'ap-thumbs');
     else if (which === 'fu-remove-photo') await handlePhotoInputChange(t, FU_PHOTOS, 'fu-thumbs');
+    else if (which === 'inv-remove-photo') await handlePhotoInputChange(t, INV_PHOTOS, 'inv-thumbs');
     return;
   }
   if (t.dataset && t.dataset.field) {
     await patchField(t.dataset.field, t.value);
+    if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate') { await render(); }
     return;
   }
   if (t.id === 'preop-add-input') {
@@ -753,7 +902,7 @@ document.addEventListener('change', async (e) => {
       const blob = await resizeImageFile(file);
       await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob, createdAt: Date.now() });
     }
-    p.preOpImageCount = (await dbGetImagesByPatient(p.id)).filter(i=>!i.followUpId).length;
+    p.preOpImageCount = (await dbGetImagesByPatient(p.id)).filter(i=>!i.followUpId && !i.investigationId).length;
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
@@ -770,6 +919,22 @@ document.addEventListener('change', async (e) => {
     }
     const fu = (p.followUps||[]).find(f => f.id === fuId);
     if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (t.dataset && t.dataset.invInput) {
+    const invId = t.dataset.invInput;
+    const files = Array.from(t.files || []);
+    if (!files.length) return;
+    const p = getPatient(SELECTED_ID);
+    toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+    for (const file of files) {
+      const blob = await resizeImageFile(file);
+      await dbAddImage({ id: uid(), patientId: p.id, investigationId: invId, blob, createdAt: Date.now() });
+    }
+    const inv = (p.investigations||[]).find(i => i.id === invId);
+    if (inv) inv.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.investigationId===invId).length;
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
