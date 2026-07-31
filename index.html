@@ -11,6 +11,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Case Log">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.1/index.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&display=swap');
   :root {
@@ -218,11 +219,28 @@ async function dbDeleteImagesByPatient(patientId) {
 
 /* ================= Image resize (with safe fallback) ================= */
 
-function resizeImageFile(file, maxDim, quality) {
+async function toDisplayableBlob(file) {
+  // iPhone photos are often HEIC/HEIF, which <img>/canvas cannot decode directly in the browser.
+  // Convert to JPEG first so it can actually be previewed, stored, and displayed later.
+  const isHeic = /heic|heif/i.test(file.type || '') || /\.(heic|heif)$/i.test(file.name || '');
+  if (isHeic && typeof heic2any !== 'undefined') {
+    try {
+      const converted = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.85 });
+      return Array.isArray(converted) ? converted[0] : converted;
+    } catch (err) {
+      return file; // fallback to original if conversion fails
+    }
+  }
+  return file;
+}
+
+async function resizeImageFile(file, maxDim, quality) {
   maxDim = maxDim || 1600; quality = quality || 0.82;
+  let workingFile;
+  try { workingFile = await toDisplayableBlob(file); } catch (e) { workingFile = file; }
   return new Promise((resolve) => {
     try {
-      const url = URL.createObjectURL(file);
+      const url = URL.createObjectURL(workingFile);
       const img = new Image();
       img.onload = () => {
         try {
@@ -237,13 +255,13 @@ function resizeImageFile(file, maxDim, quality) {
           ctx.drawImage(img, 0, 0, width, height);
           canvas.toBlob((blob) => {
             URL.revokeObjectURL(url);
-            resolve(blob || file); // fallback to original if toBlob fails
+            resolve(blob || workingFile); // fallback to (converted) original if toBlob fails
           }, 'image/jpeg', quality);
-        } catch (err) { URL.revokeObjectURL(url); resolve(file); }
+        } catch (err) { URL.revokeObjectURL(url); resolve(workingFile); }
       };
-      img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(workingFile); };
       img.src = url;
-    } catch (err) { resolve(file); }
+    } catch (err) { resolve(workingFile); }
   });
 }
 
