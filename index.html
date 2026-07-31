@@ -18,10 +18,27 @@
     --ink:#0f172a; --muted:#64748b; --border:#e2e8f0; --bg:#ffffff; --bg-soft:#f8fafc;
     --accent:#4338ca; --accent-dark:#3730a3;
     --amber:#b45309; --amber-bg:#fef3c7; --amber-border:#fde68a;
+    --orange:#c2410c; --orange-bg:#ffedd5; --orange-border:#fed7aa;
     --emerald:#047857; --emerald-bg:#d1fae5; --emerald-border:#a7f3d0;
     --red:#b91c1c; --red-bg:#fee2e2; --red-border:#fecaca;
     --slate:#475569; --slate-bg:#f1f5f9; --slate-border:#e2e8f0;
   }
+  .score-badge { display:inline-flex; flex-direction:column; align-items:flex-start; border-radius:9px; border:1px solid; padding:5px 9px; }
+  .score-remission { color:var(--emerald); background:var(--emerald-bg); border-color:var(--emerald-border); }
+  .score-low { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
+  .score-moderate { color:var(--orange); background:var(--orange-bg); border-color:var(--orange-border); }
+  .score-high { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
+  .score-badge .sl { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; opacity:0.85; }
+  .score-badge .sv { font-family:'JetBrains Mono',monospace; font-weight:800; font-size:14px; line-height:1.1; }
+  .scorer-group { border:1px solid var(--border); border-radius:12px; background:rgba(248,250,252,0.7); padding:10px 12px; margin-bottom:8px; }
+  .scorer-group-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:#94a3b8; }
+  .scorer-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 0; }
+  .scorer-btns { display:flex; gap:4px; flex-shrink:0; }
+  .scorer-btn { width:34px; height:26px; border-radius:6px; border:1px solid var(--border); background:#fff; color:#64748b; font-weight:700; font-size:11.5px; font-family:'JetBrains Mono',monospace; }
+  .scorer-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .scorer-total { display:flex; align-items:center; justify-content:space-between; border-radius:10px; padding:9px 14px; background:#0f172a; color:#fff; font-weight:800; margin-top:2px; font-size:13px; }
+  .info-help-btn { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:var(--slate-bg); color:var(--slate); border:none; font-size:11px; font-weight:800; font-family:'Fraunces',serif; font-style:italic; margin-left:5px; vertical-align:middle; }
+  .help-box { background:#eef2ff; border:1px solid #c7d2fe; border-radius:10px; padding:10px 12px; font-size:12px; color:#3730a3; line-height:1.5; margin-top:8px; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; background:#fff; color:var(--ink); }
   body { font-family:'Inter',system-ui,sans-serif; font-size:14px; -webkit-font-smoothing:antialiased; }
@@ -295,6 +312,8 @@ const ICONS = {
   message:'<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
   alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
   gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  foot:'<ellipse cx="9.5" cy="15" rx="5.2" ry="4.6"/><ellipse cx="14.7" cy="8.2" rx="4" ry="4.6"/>',
+  pill:'<path d="M10.5 20.5L3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"/><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"/>',
   printer:'<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
@@ -340,13 +359,81 @@ function nextPatientCode() {
 
 function newPatientShape() {
   return {
-    id: uid(), patientCode: nextPatientCode(), name:'', age:'', sex:'M', diagnosis:'', surgeryType:'Arthroplasty', procedure:'',
+    id: uid(), patientCode: nextPatientCode(), name:'', age:'', sex:'M', diagnosis:'',
+    caseType:'surgical', condition:'', laterality:'bilateral',
+    surgeryType:'Arthroplasty', procedure:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
     nextFollowUpDate:'',
-    preOpImageCount:0, followUps:[], investigations:[], prescriptions:[], createdAt: Date.now(),
+    preOpImageCount:0, followUps:[], investigations:[], prescriptions:[],
+    ctev: null, ra: null,
+    createdAt: Date.now(),
   };
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
+
+function newCtevShape() {
+  return { castingSessions: [], tenotomy: { left:{done:false,date:'',type:'Percutaneous Achilles tenotomy',notes:''}, right:{done:false,date:'',type:'Percutaneous Achilles tenotomy',notes:''} },
+    brace: { type:'Foot abduction brace (boots + bar)', startDate:'', regimen:'23 hrs/day for first 3 months, then naps + nights till 4\u20135 yrs', complianceLogs:[] } };
+}
+function newRaShape() {
+  return { rf:'unknown', accp:'unknown', cspineFlag:false, cspineNotes:'',
+    treatment:{ dmards:'', biologics:'', steroids:'', nsaids:'' }, visits:[], nextLabsDate:'' };
+}
+
+/* ---- CTEV: Pirani scoring ---- */
+const PIRANI_COMPONENTS = [
+  { key:'medial_crease', label:'Medial crease', group:'midfoot' },
+  { key:'curved_lateral_border', label:'Curved lateral border', group:'midfoot' },
+  { key:'talar_head_coverage', label:'Lateral head of talus coverage', group:'midfoot' },
+  { key:'posterior_crease', label:'Posterior crease', group:'hindfoot' },
+  { key:'empty_heel', label:'Empty heel', group:'hindfoot' },
+  { key:'rigid_equinus', label:'Rigidity of equinus', group:'hindfoot' },
+];
+const PIRANI_SCORE_OPTIONS = [0, 0.5, 1];
+function emptyPiraniComponents() { const c={}; PIRANI_COMPONENTS.forEach(p=>c[p.key]=0); return c; }
+function piraniTotal(components) { return PIRANI_COMPONENTS.reduce((s,p)=>s+(components[p.key]||0),0); }
+function piraniSubtotal(components, group) { return PIRANI_COMPONENTS.filter(p=>p.group===group).reduce((s,p)=>s+(components[p.key]||0),0); }
+function feetForLaterality(lat) {
+  if (lat === 'bilateral') return ['left','right'];
+  if (lat === 'unilateral-left') return ['left'];
+  if (lat === 'unilateral-right') return ['right'];
+  return [];
+}
+const FOOT_LABEL = { left:'Left foot', right:'Right foot' };
+const FOOT_COLOR = { left:'#0d9488', right:'#4f46e5' };
+
+/* ---- RA: DAS28 / CDAI / SDAI scoring ---- */
+function calcDAS28ESR(tjc, sjc, esr, ptGlobal100) {
+  if (tjc==null||sjc==null||esr==null||ptGlobal100==null||esr<=0) return null;
+  return 0.56*Math.sqrt(tjc) + 0.28*Math.sqrt(sjc) + 0.70*Math.log(esr) + 0.014*ptGlobal100;
+}
+function calcDAS28CRP(tjc, sjc, crpMgL, ptGlobal100) {
+  if (tjc==null||sjc==null||crpMgL==null||ptGlobal100==null||crpMgL<0) return null;
+  return 0.56*Math.sqrt(tjc) + 0.28*Math.sqrt(sjc) + 0.36*Math.log(crpMgL+1) + 0.014*ptGlobal100 + 0.96;
+}
+function calcCDAI(tjc, sjc, ptGlobal10, phGlobal10) {
+  if (tjc==null||sjc==null||ptGlobal10==null||phGlobal10==null) return null;
+  return tjc + sjc + ptGlobal10 + phGlobal10;
+}
+function calcSDAI(tjc, sjc, ptGlobal10, phGlobal10, crpMgL) {
+  if (tjc==null||sjc==null||ptGlobal10==null||phGlobal10==null||crpMgL==null) return null;
+  return tjc + sjc + ptGlobal10 + phGlobal10 + (crpMgL/10);
+}
+function bandDAS28(s) { if (s==null) return null; if (s<2.6) return {label:'Remission',cls:'remission'}; if (s<=3.2) return {label:'Low activity',cls:'low'}; if (s<=5.1) return {label:'Moderate activity',cls:'moderate'}; return {label:'High activity',cls:'high'}; }
+function bandCDAI(s) { if (s==null) return null; if (s<=2.8) return {label:'Remission',cls:'remission'}; if (s<=10) return {label:'Low activity',cls:'low'}; if (s<=22) return {label:'Moderate activity',cls:'moderate'}; return {label:'High activity',cls:'high'}; }
+function bandSDAI(s) { if (s==null) return null; if (s<=3.3) return {label:'Remission',cls:'remission'}; if (s<=11) return {label:'Low activity',cls:'low'}; if (s<=26) return {label:'Moderate activity',cls:'moderate'}; return {label:'High activity',cls:'high'}; }
+function computeRaVisitScores(v) {
+  const das28esr = calcDAS28ESR(v.tjc, v.sjc, v.esr, v.ptGlobal);
+  const das28crp = calcDAS28CRP(v.tjc, v.sjc, v.crp, v.ptGlobal);
+  const ptGlobal10 = v.ptGlobal!=null ? v.ptGlobal/10 : null;
+  const cdai = calcCDAI(v.tjc, v.sjc, ptGlobal10, v.phGlobal);
+  const sdai = calcSDAI(v.tjc, v.sjc, ptGlobal10, v.phGlobal, v.crp);
+  return { das28esr, das28crp, cdai, sdai };
+}
+function raScoreBadgeHtml(label, value, band) {
+  if (value == null || !band) return '';
+  return '<div class="score-badge score-'+band.cls+'"><span class="sl">'+label+'</span><span class="sv">'+value.toFixed(2)+'</span></div>';
+}
 
 // Pre-filled defaults used only when no profile has been saved yet in localStorage.
 // Still fully editable from the Settings screen afterward.
@@ -514,12 +601,14 @@ function renderListView() {
         + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:15px;">'+esc(p.name)+'</span>'
         + '<span class="mono" style="font-size:11px;color:#94a3b8;">'+esc(p.age)+'/'+esc(p.sex)+'</span></div>'
         + '<div style="font-size:11px;color:#a5b4c7;margin-top:1px;" class="mono">'+esc(p.patientCode||'')+'</div>'
-        + '<div style="font-size:12px;color:#64748b;margin-top:2px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
+        + (p.caseType==='surgical'
+            ? '<div style="font-size:12px;color:#64748b;margin-top:2px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
+            : '<div style="font-size:12px;color:#64748b;margin-top:2px;">OPD \u00b7 '+fmtDate(p.surgeryDate)+'</div>')
         + '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
         + (isOverdue(p.nextFollowUpDate) ? '<div class="overdue-note">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+'</div>' : '')
         + '<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
-        + '<span class="badge badge-'+TYPE_BADGE[p.surgeryType]+'">'+p.surgeryType+'</span>'
-        + '<span class="badge badge-slate">'+ic('camera')+p.preOpImageCount+' pre-op \u00b7 '+fuImgCount+' f/u</span>'
+        + (p.caseType==='surgical' ? '<span class="badge badge-'+TYPE_BADGE[p.surgeryType]+'">'+p.surgeryType+'</span>' : '<span class="badge badge-slate">OPD</span>')
+        + (p.caseType==='surgical' ? '<span class="badge badge-slate">'+ic('camera')+p.preOpImageCount+' pre-op \u00b7 '+fuImgCount+' f/u</span>' : '<span class="badge badge-slate">'+ic('camera')+fuImgCount+' f/u</span>')
         + '</div></div>'
         + '<span style="color:#cbd5e1;margin-left:8px;">'+ic('chevron')+'</span>'
         + '</button>';
@@ -574,29 +663,65 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId) {
 
 /* ================= Add patient view ================= */
 
+let AP_TEMP = null;
+function initApTemp() {
+  AP_TEMP = { name:'', age:'', sex:'M', diagnosis:'', caseType:'surgical', condition:'', laterality:'bilateral',
+    surgeryType:'Arthroplasty', procedure:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'' };
+}
+function syncApTempFromDom() {
+  ['name','age','diagnosis','procedure','whatsapp','notes'].forEach(f => { const el = document.getElementById('ap-'+f); if (el) AP_TEMP[f] = el.value; });
+  const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
+  const sideEl = document.getElementById('ap-side'); if (sideEl) AP_TEMP.side = sideEl.value;
+  const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
+}
+function conditionOptionsHtml(selected) {
+  let html = '<option value=""'+(!selected?' selected':'')+'>\u2014 Select condition \u2014</option>';
+  html += EDU_LIBRARY.map(e => '<option value="'+e.id+'"'+(selected===e.id?' selected':'')+'>'+esc(e.name.en)+'</option>').join('');
+  html += '<option value="other"'+(selected==='other'?' selected':'')+'>Other / not listed</option>';
+  return html;
+}
+
 function renderAddView() {
+  const isSurgical = AP_TEMP.caseType === 'surgical';
+  const isCtev = AP_TEMP.condition === 'ctev';
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px row gap3" style="padding:14px 16px;">'
     + '<button class="icon-btn" data-action="cancel-add">'+ic('back')+'</button>'
-    + '<h2 style="font-size:16px;font-weight:800;margin:0;">New surgical case</h2>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">New case</h2>'
     + '</div>'
     + '<div class="px" style="padding-top:16px;display:flex;flex-direction:column;gap:16px;">'
-    + '<div><label class="field-label">Patient name</label><input class="input" id="ap-name" placeholder="Patient name"></div>'
+
+    + '<div><label class="field-label">Case type</label><div class="seg">'
+    + '<button class="seg-btn'+(AP_TEMP.caseType==='opd'?' active':'')+'" data-action="ap-set-casetype" data-value="opd">OPD (non-surgical)</button>'
+    + '<button class="seg-btn'+(AP_TEMP.caseType==='surgical'?' active':'')+'" data-action="ap-set-casetype" data-value="surgical">Surgical</button>'
+    + '</div></div>'
+
+    + '<div><label class="field-label">Patient name</label><input class="input" id="ap-name" placeholder="Patient name" value="'+esc(AP_TEMP.name)+'"></div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
-    + '<div><label class="field-label">Age</label><input class="input" type="number" id="ap-age" placeholder="Age"></div>'
+    + '<div><label class="field-label">Age</label><input class="input" type="number" id="ap-age" placeholder="Age" value="'+esc(AP_TEMP.age)+'"></div>'
     + '<div><label class="field-label">Sex</label><div class="seg">'
-    + ['M','F'].map(s=>'<button class="seg-btn'+(s==='M'?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
+    + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
     + '</div>'
-    + '<div><label class="field-label">Diagnosis</label><textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4"></textarea></div>'
-    + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option>'+t+'</option>').join('')+'</select></div>'
-    + '<div><label class="field-label">Procedure</label><input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement"></div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
-    + '<div><label class="field-label">Side</label><select class="select" id="ap-side"><option>Left</option><option>Right</option><option>Bilateral</option><option>N/A</option></select></div>'
-    + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+todayStr()+'"></div>'
-    + '</div>'
-    + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number ya +country code ke saath"></div>'
-    + '<div><label class="field-label">Pre-op imaging (X-ray/CT/MRI photos)</label><div id="ap-thumbs">'+thumbGridHtml(AP_PHOTOS,'ap-remove-photo')+'</div></div>'
-    + '<div><label class="field-label">Notes</label><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026"></textarea></div>'
+    + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label><textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea></div>'
+    + '<div><label class="field-label">Condition (drives Education content'+(isCtev?' + CTEV tracking':'')+(AP_TEMP.condition==='ra'?' + RA tracking':'')+')</label><select class="select" id="ap-condition">'+conditionOptionsHtml(AP_TEMP.condition)+'</select></div>'
+    + (isCtev ? '<div><label class="field-label">Laterality</label><div class="seg">'
+        + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.laterality===v?' active':'')+'" data-action="ap-set-laterality" data-value="'+v+'">'+l+'</button>').join('')
+        + '</div></div>' : '')
+
+    + (isSurgical ? (
+        '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
+        + '<div><label class="field-label">Procedure</label><input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
+        + '<div><label class="field-label">Side</label><select class="select" id="ap-side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(AP_TEMP.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
+        + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
+        + '</div>'
+      ) : (
+        '<div><label class="field-label">Visit date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
+      ))
+
+    + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number ya +country code ke saath" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
+    + (isSurgical ? '<div><label class="field-label">Pre-op imaging (X-ray/CT/MRI photos)</label><div id="ap-thumbs">'+thumbGridHtml(AP_PHOTOS,'ap-remove-photo')+'</div></div>' : '')
+    + '<div><label class="field-label">Notes</label><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
     + '<button class="btn" style="flex:1;" data-action="cancel-add">Cancel</button>'
@@ -609,12 +734,15 @@ function renderAddView() {
 
 function renderOverviewTab(p) {
   const overdue = isOverdue(p.nextFollowUpDate);
+  const isSurgical = p.caseType === 'surgical';
   return '<div class="px" style="display:flex;flex-direction:column;gap:12px;padding-top:14px;padding-bottom:20px;">'
-    + '<div class="row between" style="padding:2px 2px 0;">'
+    + '<div class="row between" style="padding:2px 2px 0;flex-wrap:wrap;gap:6px;">'
     + (p.patientCode ? '<span class="badge badge-indigo mono" style="font-size:12px;">'+ic('clipboard')+esc(p.patientCode)+'</span>' : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>')
+    + '<span class="badge badge-'+(isSurgical?'indigo':'slate')+'">'+(isSurgical?'Surgical':'OPD')+'</span>'
     + '</div>'
+    + (!isSurgical ? '<button class="btn btn-block" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical case</button>' : '')
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
-    + '<div class="stat-card"><div class="stat-label">Pre-op photos</div><div class="stat-value mono">'+p.preOpImageCount+'</div></div>'
+    + (isSurgical ? '<div class="stat-card"><div class="stat-label">Pre-op photos</div><div class="stat-value mono">'+p.preOpImageCount+'</div></div>' : '<div class="stat-card"><div class="stat-label">Case type</div><div class="stat-value" style="font-size:14px;">OPD follow-up</div></div>')
     + '<div class="stat-card"><div class="stat-label">Follow-up visits</div><div class="stat-value mono">'+(p.followUps||[]).length+'</div></div>'
     + '</div>'
     + '<div class="card" style="'+(overdue?'border-color:var(--red-border);background:var(--red-bg);':'')+'">'
@@ -629,17 +757,22 @@ function renderOverviewTab(p) {
         : '<p style="font-size:11.5px;color:#94a3b8;">Number save karo message bhejne ke liye.</p>')
     + '</div>'
     + '<div class="card">'
-    + '<label class="field-label">Diagnosis</label><textarea class="textarea" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'
+    + '<label class="field-label">Diagnosis (free text)</label><textarea class="textarea" rows="2" data-field="diagnosis" style="margin-bottom:10px;">'+esc(p.diagnosis)+'</textarea>'
+    + '<label class="field-label">Condition (Education'+(p.condition==='ctev'?' + CTEV tracking':'')+(p.condition==='ra'?' + RA tracking':'')+')</label>'
+    + '<select class="select" data-field="condition">'+conditionOptionsHtml(p.condition)+'</select>'
+    + (p.condition==='ctev' ? '<div style="margin-top:10px;"><label class="field-label">Laterality</label><select class="select" data-field="laterality">'
+        + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<option value="'+v+'"'+(p.laterality===v?' selected':'')+'>'+l+'</option>').join('')
+        + '</select></div>' : '')
     + '</div>'
-    + '<div class="card" style="display:flex;flex-direction:column;gap:10px;">'
-    + '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
-    + '<div><label class="field-label">Procedure</label><input class="input" data-field="procedure" value="'+esc(p.procedure)+'"></div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
-    + '<div><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
-    + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
-    + '</div>'
-    + '<div><label class="field-label">Age</label><input class="input" type="number" data-field="age" value="'+esc(p.age)+'"></div>'
-    + '</div>'
+    + (isSurgical ? '<div class="card" style="display:flex;flex-direction:column;gap:10px;">'
+      + '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
+      + '<div><label class="field-label">Procedure</label><input class="input" data-field="procedure" value="'+esc(p.procedure)+'"></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+      + '<div><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
+      + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
+      + '</div>'
+      + '<div><label class="field-label">Age</label><input class="input" type="number" data-field="age" value="'+esc(p.age)+'"></div>'
+      + '</div>' : '<div class="card"><label class="field-label">Age</label><input class="input" type="number" data-field="age" value="'+esc(p.age)+'"></div>')
     + '<div class="card"><label class="field-label">Clinical notes</label><textarea class="textarea" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
     + '</div>';
 }
@@ -1219,10 +1352,19 @@ function renderEduResultsHtml(query) {
 }
 
 function renderEducationTab(p) {
-  const query = EDU_SEARCH!=null ? EDU_SEARCH : (p.diagnosis || '');
+  const query = EDU_SEARCH!=null ? EDU_SEARCH : '';
+  const directMatch = (p.condition && p.condition !== 'other') ? EDU_LIBRARY.find(e => e.id === p.condition) : null;
+  let directHtml = '';
+  if (directMatch && EDU_SEARCH === null) {
+    directHtml = '<button class="patient-card" data-action="view-edu" data-id="'+directMatch.id+'" style="padding:14px;margin-bottom:14px;border-color:var(--accent);background:#f5f6ff;">'
+      + '<span style="font-weight:800;font-size:14px;color:var(--accent-dark);">'+esc(directMatch.name.en)+' \u2014 patient ka set condition</span>'
+      + '<span style="color:var(--accent);">'+ic('chevron')+'</span>'
+      + '</button>';
+  }
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
-    + '<div class="search-wrap">'+ic('search')+'<input class="search-input" id="edu-search-input" placeholder="Diagnosis keyword (e.g. knee OA, ACL, fracture)" value="'+esc(query)+'"></div>'
-    + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">Patient ke diagnosis se auto-filled hai \u2014 chaho to badal do.</p>'
+    + directHtml
+    + '<div class="search-wrap">'+ic('search')+'<input class="search-input" id="edu-search-input" placeholder="Ya kisi aur condition ka keyword search karo (e.g. ACL, fracture)" value="'+esc(query)+'"></div>'
+    + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">'+(directMatch?'Overview tab mein condition dropdown se set hota hai. Yahan search se koi doosra bhi dikha sakte ho.':'Overview tab mein condition set karo, ya yahan keyword search karo.')+'</p>'
     + '<div id="edu-results">'+renderEduResultsHtml(query)+'</div>'
     + '</div>';
 }
@@ -1350,6 +1492,8 @@ async function renderTabBody(p) {
   if (!el) return;
   if (TAB === 'overview') { el.innerHTML = renderOverviewTab(p); return; }
   if (TAB === 'education') { el.innerHTML = renderEducationTab(p); return; }
+  if (TAB === 'ctev') { el.innerHTML = renderCtevTab(p); return; }
+  if (TAB === 'ra') { el.innerHTML = renderRaTab(p); return; }
   el.innerHTML = '<div class="px" style="padding-top:30px;text-align:center;color:#94a3b8;">Loading\u2026</div>';
   if (TAB === 'preop') el.innerHTML = await renderPreopTab(p);
   else if (TAB === 'followups') el.innerHTML = await renderFollowupsTab(p);
@@ -1357,24 +1501,239 @@ async function renderTabBody(p) {
   else if (TAB === 'prescriptions') el.innerHTML = renderPrescriptionsTab(p);
 }
 
-const TABS = [
-  {key:'overview', label:'Overview', icon:'info'},
-  {key:'preop', label:'Pre-op', icon:'camera'},
-  {key:'followups', label:'Follow-ups', icon:'calendar'},
-  {key:'investigations', label:'Investigations', icon:'file'},
-  {key:'prescriptions', label:'Rx', icon:'printer'},
-  {key:'education', label:'Education', icon:'book'},
-];
+function visibleTabs(p) {
+  const tabs = [{key:'overview', label:'Overview', icon:'info'}];
+  if (p.caseType === 'surgical') tabs.push({key:'preop', label:'Pre-op', icon:'camera'});
+  if (p.condition === 'ctev') tabs.push({key:'ctev', label:'CTEV', icon:'foot'});
+  if (p.condition === 'ra') tabs.push({key:'ra', label:'RA', icon:'pill'});
+  tabs.push({key:'followups', label:'Follow-ups', icon:'calendar'});
+  tabs.push({key:'investigations', label:'Investigations', icon:'file'});
+  tabs.push({key:'prescriptions', label:'Rx', icon:'printer'});
+  tabs.push({key:'education', label:'Education', icon:'book'});
+  return tabs;
+}
+
+/* ================= CTEV tracking tab ================= */
+
+let ADD_CTEV_SESSION_OPEN = false;
+let CTEV_SESSION_TEMP = null;
+let ADD_CTEV_BRACELOG_OPEN = false;
+let SHOW_PIRANI_HELP = false;
+let SHOW_RA_HELP = false;
+
+function initCtevSessionTemp() { CTEV_SESSION_TEMP = { date: todayStr(), notes:'', left: emptyPiraniComponents(), right: emptyPiraniComponents() }; }
+function syncCtevSessionFromDom() {
+  const d = document.getElementById('ctev-s-date'); if (d) CTEV_SESSION_TEMP.date = d.value;
+  const n = document.getElementById('ctev-s-notes'); if (n) CTEV_SESSION_TEMP.notes = n.value;
+}
+
+function renderPiraniScorerHtml(scopeId, foot, components) {
+  const groups = [['midfoot','Midfoot contracture score'], ['hindfoot','Hindfoot contracture score']];
+  let html = '';
+  groups.forEach(([g, label]) => {
+    html += '<div class="scorer-group">';
+    html += '<div class="row between" style="margin-bottom:6px;"><span class="scorer-group-title">'+label+'</span>';
+    html += '<span class="mono" id="'+scopeId+'-'+foot+'-sub-'+g+'" style="font-size:12px;font-weight:700;color:#475569;">'+piraniSubtotal(components,g)+'/3</span></div>';
+    PIRANI_COMPONENTS.filter(p=>p.group===g).forEach(pc => {
+      html += '<div class="scorer-row"><span class="scorer-row-label" style="font-size:13px;color:#334155;">'+pc.label+'</span><div class="scorer-btns">';
+      PIRANI_SCORE_OPTIONS.forEach(opt => {
+        const active = components[pc.key] === opt;
+        html += '<button type="button" class="scorer-btn'+(active?' active':'')+'" data-action="ctev-score" data-scope="'+scopeId+'" data-foot="'+foot+'" data-key="'+pc.key+'" data-value="'+opt+'" data-group="'+g+'">'+opt+'</button>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+  html += '<div class="scorer-total"><span>Total Pirani score</span><span class="mono" id="'+scopeId+'-'+foot+'-total">'+piraniTotal(components)+'/6</span></div>';
+  return html;
+}
+
+const PIRANI_HELP_HTML = '<div class="help-box"><b>Kaise score karein:</b> Har component ko <b>0</b> (normal), <b>0.5</b> (moderate abnormality), ya <b>1</b> (severe abnormality) do.<br><br>'
+  + '<b>Midfoot:</b> medial crease, curved lateral border, lateral talar head coverage.<br>'
+  + '<b>Hindfoot:</b> posterior crease, empty heel, rigid equinus.<br><br>'
+  + 'Total 0\u20136 \u2014 jitna zyada, utna severe. Har weekly casting visit pe score karke trend dekho.</div>';
+
+function renderCtevTab(p) {
+  const feet = feetForLaterality(p.laterality);
+  const ctev = p.ctev;
+  let html = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
+
+  html += '<div class="row" style="margin-bottom:10px;"><button class="info-help-btn" data-action="toggle-pirani-help">i</button><span style="font-size:12px;color:#64748b;margin-left:6px;">Pirani scoring guide</span></div>';
+  if (SHOW_PIRANI_HELP) html += PIRANI_HELP_HTML;
+
+  if (ctev.castingSessions.length > 1) {
+    const w=300,h=140,padL=26,padR=8,padT=10,padB=20, plotW=w-padL-padR, plotH=h-padT-padB, n=ctev.castingSessions.length;
+    const xFor = i => padL + (n===1?plotW/2:(i/(n-1))*plotW);
+    const yFor = score => padT + (1 - score/6) * plotH;
+    let grid = '';
+    [0,2,4,6].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="#94a3b8" text-anchor="end">'+v+'</text>'; });
+    let lines = '';
+    feet.forEach(f => {
+      const pts = []; ctev.castingSessions.forEach((s,i) => { if (s[f]) pts.push(xFor(i)+','+yFor(piraniTotal(s[f].components))); });
+      if (pts.length) { lines += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+FOOT_COLOR[f]+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'; ctev.castingSessions.forEach((s,i)=>{ if(s[f]) lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(piraniTotal(s[f].components))+'" r="3" fill="'+FOOT_COLOR[f]+'"/>'; }); }
+    });
+    html += '<div class="card" style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">Pirani trend</div><svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:140px;">'+grid+lines+'</svg></div>';
+  }
+
+  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Casting sessions</div>';
+  if (!ADD_CTEV_SESSION_OPEN) {
+    html += '<button class="btn btn-outline-dashed btn-block" data-action="ctev-open-add-session" style="margin-bottom:12px;">'+ic('plus')+' Add casting session #'+(ctev.castingSessions.length+1)+'</button>';
+  } else {
+    html += '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
+      + '<label class="field-label">Date</label><input class="input" type="date" id="ctev-s-date" value="'+esc(CTEV_SESSION_TEMP.date)+'" style="margin-bottom:10px;">'
+      + '<div style="display:'+(feet.length===2?'grid':'block')+';grid-template-columns:'+(feet.length===2?'1fr 1fr':'none')+';gap:12px;margin-bottom:10px;">';
+    feet.forEach(f => { html += '<div><p style="font-weight:800;font-size:11px;color:'+FOOT_COLOR[f]+';margin-bottom:6px;">'+FOOT_LABEL[f].toUpperCase()+'</p>'+renderPiraniScorerHtml('ctevs', f, CTEV_SESSION_TEMP[f])+'</div>'; });
+    html += '</div>'
+      + '<label class="field-label">Notes</label><textarea class="textarea" id="ctev-s-notes" rows="2" placeholder="Cast tolerance, skin check\u2026">'+esc(CTEV_SESSION_TEMP.notes)+'</textarea>'
+      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="ctev-cancel-add-session">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ctev-submit-session">Save session</button></div>'
+      + '</div>';
+  }
+  [...ctev.castingSessions].reverse().forEach(s => {
+    html += '<div class="fu-card"><div class="row between" style="margin-bottom:6px;"><span style="font-weight:800;">Session '+s.sessionNo+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(s.date)+'</span></span>'+(s.sessionNo!==1?confirmBtn('ctev-delete-session', s.id):'')+'</div>';
+    feet.forEach(f => { if (s[f]) { const t = piraniTotal(s[f].components); html += '<span style="font-size:12px;margin-right:10px;color:'+FOOT_COLOR[f]+';font-weight:700;">'+(f==='left'?'L':'R')+' '+t+'/6</span>'; } });
+    if (s.notes) html += '<p style="font-size:12px;color:#64748b;margin-top:6px;">'+esc(s.notes)+'</p>';
+    html += '</div>';
+  });
+
+  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin:16px 0 8px;">Tenotomy</div>';
+  feet.forEach(f => {
+    const t = ctev.tenotomy[f];
+    html += '<div class="card" style="margin-bottom:8px;">'
+      + '<div class="row between" style="margin-bottom:'+(t.done?'10px':'0')+';"><span style="font-weight:800;color:'+FOOT_COLOR[f]+';">'+FOOT_LABEL[f]+'</span>'
+      + '<button class="badge badge-'+(t.done?'indigo':'slate')+'" data-action="ctev-toggle-tenotomy" data-foot="'+f+'">'+(t.done?'Done':'Not yet done')+'</button></div>';
+    if (t.done) {
+      html += '<label class="field-label">Date</label><input class="input" type="date" data-ctev-field="tenotomy.'+f+'.date" value="'+esc(t.date)+'" style="margin-bottom:8px;">'
+        + '<label class="field-label">Notes</label><textarea class="textarea" rows="2" data-ctev-field="tenotomy.'+f+'.notes">'+esc(t.notes)+'</textarea>';
+    }
+    html += '</div>';
+  });
+
+  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin:16px 0 8px;">Brace</div>';
+  html += '<div class="card" style="margin-bottom:10px;">'
+    + '<label class="field-label">Regimen</label><textarea class="textarea" rows="2" data-ctev-field="brace.regimen">'+esc(ctev.brace.regimen)+'</textarea>'
+    + '<label class="field-label" style="margin-top:8px;">Start date</label><input class="input" type="date" data-ctev-field="brace.startDate" value="'+esc(ctev.brace.startDate)+'">'
+    + '</div>';
+  html += '<button class="btn btn-outline-dashed btn-block" data-action="ctev-open-add-brace-log" style="margin-bottom:10px;">'+ic('plus')+' Log brace compliance check</button>';
+  if (ADD_CTEV_BRACELOG_OPEN) {
+    html += '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:10px;">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
+      + '<div><label class="field-label">Visit date</label><input class="input" type="date" id="ctev-bl-date" value="'+todayStr()+'"></div>'
+      + '<div><label class="field-label">Hrs worn/day</label><input class="input" type="number" min="0" max="24" id="ctev-bl-hours" value="20"></div>'
+      + '</div>'
+      + '<textarea class="textarea" id="ctev-bl-notes" rows="2" placeholder="Compliance, skin issues\u2026" style="margin-bottom:8px;"></textarea>'
+      + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="ctev-cancel-add-bracelog">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ctev-submit-bracelog">Save</button></div>'
+      + '</div>';
+  }
+  [...ctev.brace.complianceLogs].reverse().forEach(l => {
+    html += '<div class="card" style="margin-bottom:8px;"><div class="row between"><span style="font-weight:700;">'+fmtDate(l.date)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+l.hoursPerDay+' hrs/day</span></span>'+confirmBtn('ctev-delete-brace-log', l.id)+'</div>'+(l.notes?'<p style="font-size:12px;color:#64748b;margin-top:4px;">'+esc(l.notes)+'</p>':'')+'</div>';
+  });
+
+  html += '</div>';
+  return html;
+}
+
+/* ================= RA tracking tab ================= */
+
+let ADD_RA_VISIT_OPEN = false;
+let RA_VISIT_TEMP = null;
+
+function initRaVisitTemp() { RA_VISIT_TEMP = { date: todayStr(), tjc:'', sjc:'', esr:'', crp:'', ptGlobal:'', phGlobal:'', treatmentNote:'', notes:'' }; }
+function syncRaVisitFromDom() {
+  ['date','tjc','sjc','esr','crp','ptGlobal','phGlobal','treatmentNote','notes'].forEach(f => { const el = document.getElementById('ra-v-'+f); if (el) RA_VISIT_TEMP[f] = el.value; });
+}
+function num(v) { if (v==='' || v==null) return null; const n = Number(v); return isNaN(n) ? null : n; }
+function raLiveScoresHtml() {
+  const v = { tjc:num(RA_VISIT_TEMP.tjc), sjc:num(RA_VISIT_TEMP.sjc), esr:num(RA_VISIT_TEMP.esr), crp:num(RA_VISIT_TEMP.crp), ptGlobal:num(RA_VISIT_TEMP.ptGlobal), phGlobal:num(RA_VISIT_TEMP.phGlobal) };
+  const sc = computeRaVisitScores(v);
+  return '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+    + raScoreBadgeHtml('DAS28-ESR', sc.das28esr, bandDAS28(sc.das28esr))
+    + raScoreBadgeHtml('DAS28-CRP', sc.das28crp, bandDAS28(sc.das28crp))
+    + raScoreBadgeHtml('CDAI', sc.cdai, bandCDAI(sc.cdai))
+    + raScoreBadgeHtml('SDAI', sc.sdai, bandSDAI(sc.sdai)) + '</div>';
+}
+
+const RA_HELP_HTML = '<div class="help-box"><b>TJC/SJC:</b> 28 joints mein se kitne tender/swollen hain, ginti karo.<br>'
+  + '<b>Patient Global:</b> patient khud apni disease activity 0\u2013100 VAS pe rate kare.<br>'
+  + '<b>Physician Global:</b> aapka assessment 0\u201310 pe.<br><br>'
+  + '<b>DAS28</b> ko ESR ya CRP chahiye. <b>CDAI</b> ko labs ki zaroorat nahi (jab labs available na ho tab useful). <b>SDAI</b> = CDAI + CRP.<br><br>'
+  + 'Sabme: Remission (green) &lt; Low &lt; Moderate &lt; High (red) activity.</div>';
+
+function renderRaTab(p) {
+  const ra = p.ra;
+  const overdueLabs = isOverdue(ra.nextLabsDate);
+  let html = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
+
+  html += '<div class="row" style="margin-bottom:10px;"><button class="info-help-btn" data-action="toggle-ra-help">i</button><span style="font-size:12px;color:#64748b;margin-left:6px;">DAS28 / CDAI / SDAI scoring guide</span></div>';
+  if (SHOW_RA_HELP) html += RA_HELP_HTML;
+
+  html += '<div class="card" style="margin-bottom:12px;">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">'
+    + '<div><label class="field-label">RF</label><select class="select" data-ra-field="rf">'+['positive','negative','unknown'].map(s=>'<option'+(ra.rf===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
+    + '<div><label class="field-label">Anti-CCP</label><select class="select" data-ra-field="accp">'+['positive','negative','unknown'].map(s=>'<option'+(ra.accp===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
+    + '</div>'
+    + '<button class="badge badge-'+(ra.cspineFlag?'red':'slate')+'" data-action="ra-toggle-cspine">'+ic('alert')+(ra.cspineFlag?'C-spine flagged':'No C-spine flag')+'</button>'
+    + (ra.cspineFlag ? '<div class="cspine-alert" style="margin-top:8px;">'+ic('alert')+' Intubation/positioning precautions \u2014 inform anaesthesia before any surgery.</div>' : '')
+    + '</div>';
+
+  html += '<div class="card" style="margin-bottom:12px;'+(overdueLabs?'border-color:var(--red-border);background:var(--red-bg);':'')+'">'
+    + '<label class="field-label" style="'+(overdueLabs?'color:#7f1d1d;':'')+'">Next monitoring labs due'+(overdueLabs?' \u2014 OVERDUE':'')+'</label>'
+    + '<input class="input" type="date" data-ra-field="nextLabsDate" value="'+esc(ra.nextLabsDate)+'"></div>';
+
+  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Treatment</div>';
+  html += '<div class="card" style="margin-bottom:12px;display:flex;flex-direction:column;gap:8px;">'
+    + '<div><label class="field-label">csDMARDs</label><textarea class="textarea" rows="2" data-ra-field="treatment.dmards">'+esc(ra.treatment.dmards)+'</textarea></div>'
+    + '<div><label class="field-label">Biologics</label><textarea class="textarea" rows="2" data-ra-field="treatment.biologics">'+esc(ra.treatment.biologics)+'</textarea></div>'
+    + '<div><label class="field-label">Steroids</label><textarea class="textarea" rows="2" data-ra-field="treatment.steroids">'+esc(ra.treatment.steroids)+'</textarea></div>'
+    + '<div><label class="field-label">NSAIDs</label><textarea class="textarea" rows="2" data-ra-field="treatment.nsaids">'+esc(ra.treatment.nsaids)+'</textarea></div>'
+    + '</div>';
+
+  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Visits</div>';
+  if (!ADD_RA_VISIT_OPEN) {
+    html += '<button class="btn btn-outline-dashed btn-block" data-action="ra-open-add-visit" style="margin-bottom:12px;">'+ic('plus')+' Add visit</button>';
+  } else {
+    html += '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
+      + '<label class="field-label">Date</label><input class="input" type="date" id="ra-v-date" value="'+esc(RA_VISIT_TEMP.date)+'" style="margin-bottom:10px;">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">'
+      + '<div><label class="field-label">TJC28</label><input class="input" type="number" min="0" max="28" id="ra-v-tjc" value="'+esc(RA_VISIT_TEMP.tjc)+'"></div>'
+      + '<div><label class="field-label">SJC28</label><input class="input" type="number" min="0" max="28" id="ra-v-sjc" value="'+esc(RA_VISIT_TEMP.sjc)+'"></div>'
+      + '<div><label class="field-label">ESR (mm/hr)</label><input class="input" type="number" min="0" id="ra-v-esr" value="'+esc(RA_VISIT_TEMP.esr)+'"></div>'
+      + '<div><label class="field-label">CRP (mg/L)</label><input class="input" type="number" min="0" id="ra-v-crp" value="'+esc(RA_VISIT_TEMP.crp)+'"></div>'
+      + '<div><label class="field-label">Patient global (0\u2013100)</label><input class="input" type="number" min="0" max="100" id="ra-v-ptGlobal" value="'+esc(RA_VISIT_TEMP.ptGlobal)+'"></div>'
+      + '<div><label class="field-label">Physician global (0\u201310)</label><input class="input" type="number" min="0" max="10" id="ra-v-phGlobal" value="'+esc(RA_VISIT_TEMP.phGlobal)+'"></div>'
+      + '</div>'
+      + '<div id="ra-live-scores" style="margin-bottom:10px;">'+raLiveScoresHtml()+'</div>'
+      + '<label class="field-label">Treatment change</label><input class="input" id="ra-v-treatmentNote" value="'+esc(RA_VISIT_TEMP.treatmentNote)+'" style="margin-bottom:10px;">'
+      + '<label class="field-label">Notes</label><textarea class="textarea" rows="2" id="ra-v-notes">'+esc(RA_VISIT_TEMP.notes)+'</textarea>'
+      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="ra-cancel-add-visit">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ra-submit-visit">Save visit</button></div>'
+      + '</div>';
+  }
+  [...ra.visits].reverse().forEach(v => {
+    const sc = computeRaVisitScores(v);
+    html += '<div class="fu-card"><div class="row between"><span style="font-weight:800;">'+fmtDate(v.date)+'</span>'+confirmBtn('ra-delete-visit', v.id)+'</div>'
+      + '<p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">TJC '+esc(v.tjc)+' \u00b7 SJC '+esc(v.sjc)+' \u00b7 ESR '+(v.esr??'\u2014')+' \u00b7 CRP '+(v.crp??'\u2014')+'</p>'
+      + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">'
+      + raScoreBadgeHtml('DAS28-ESR', sc.das28esr, bandDAS28(sc.das28esr)) + raScoreBadgeHtml('DAS28-CRP', sc.das28crp, bandDAS28(sc.das28crp))
+      + raScoreBadgeHtml('CDAI', sc.cdai, bandCDAI(sc.cdai)) + raScoreBadgeHtml('SDAI', sc.sdai, bandSDAI(sc.sdai)) + '</div>'
+      + (v.treatmentNote?'<p style="font-size:12px;color:#5b21b6;margin-top:6px;font-weight:600;">'+ic('pill')+' '+esc(v.treatmentNote)+'</p>':'')
+      + (v.notes?'<p style="font-size:12px;color:#64748b;margin-top:4px;">'+esc(v.notes)+'</p>':'')
+      + '</div>';
+  });
+
+  html += '</div>';
+  return html;
+}
 
 function renderDetailShell(p) {
-  let tabsHtml = TABS.map(t => '<button class="tab'+(TAB===t.key?' active':'')+'" data-action="set-tab" data-value="'+t.key+'">'+ic(t.icon)+t.label+'</button>').join('');
+  const tabs = visibleTabs(p);
+  if (!tabs.some(t => t.key === TAB)) TAB = 'overview';
+  let tabsHtml = tabs.map(t => '<button class="tab'+(TAB===t.key?' active':'')+'" data-action="set-tab" data-value="'+t.key+'">'+ic(t.icon)+t.label+'</button>').join('');
   let statusOptions = STATUS_OPTIONS.map(s => '<option'+(p.status===s?' selected':'')+'>'+s+'</option>').join('');
   return '<div style="padding-bottom:20px;">'
     + '<div class="sticky-top">'
     + '<div class="row gap3 px" style="padding:14px 16px 10px;">'
     + '<button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button>'
     + '<div style="min-width:0;flex:1;"><h2 style="font-size:16px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</h2>'
-    + '<p style="font-size:11px;color:#94a3b8;margin:1px 0 0;">'+p.surgeryType+' \u00b7 '+esc(p.procedure||'')+'</p></div>'
+    + '<p style="font-size:11px;color:#94a3b8;margin:1px 0 0;">'+(p.caseType==='surgical'?p.surgeryType+' \u00b7 '+esc(p.procedure||''):'OPD case')+'</p></div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
     + confirmBtn('delete-patient', p.id)
     + '</div>'
@@ -1494,7 +1853,7 @@ document.addEventListener('click', async (e) => {
   if (!el) return;
   const action = el.dataset.action;
 
-  if (action === 'go-add') { AP_PHOTOS = []; VIEW='add'; render(); return; }
+  if (action === 'go-add') { initApTemp(); AP_PHOTOS = []; VIEW='add'; render(); return; }
   if (action === 'assign-patient-code') {
     const p = getPatient(SELECTED_ID);
     p.patientCode = nextPatientCode();
@@ -1502,41 +1861,149 @@ document.addEventListener('click', async (e) => {
     render();
     return;
   }
+  if (action === 'convert-to-surgical') {
+    const p = getPatient(SELECTED_ID);
+    p.caseType = 'surgical';
+    await dbPutPatient(p); await refreshPatients();
+    render();
+    return;
+  }
+
+  if (action === 'toggle-pirani-help') { SHOW_PIRANI_HELP = !SHOW_PIRANI_HELP; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'toggle-ra-help') { SHOW_RA_HELP = !SHOW_RA_HELP; await renderTabBody(getPatient(SELECTED_ID)); return; }
+
+  if (action === 'ctev-open-add-session') { initCtevSessionTemp(); ADD_CTEV_SESSION_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ctev-cancel-add-session') { ADD_CTEV_SESSION_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ctev-score') {
+    const scope = el.dataset.scope, foot = el.dataset.foot, key = el.dataset.key, value = parseFloat(el.dataset.value), group = el.dataset.group;
+    const comp = CTEV_SESSION_TEMP[foot];
+    comp[key] = value;
+    const row = el.parentElement;
+    row.querySelectorAll('.scorer-btn').forEach(b => b.classList.toggle('active', parseFloat(b.dataset.value) === value));
+    document.getElementById(scope+'-'+foot+'-sub-'+group).textContent = piraniSubtotal(comp, group) + '/3';
+    document.getElementById(scope+'-'+foot+'-total').textContent = piraniTotal(comp) + '/6';
+    return;
+  }
+  if (action === 'ctev-submit-session') {
+    syncCtevSessionFromDom();
+    const p = getPatient(SELECTED_ID);
+    const feet = feetForLaterality(p.laterality);
+    const session = { id: uid(), sessionNo: p.ctev.castingSessions.length+1, date: CTEV_SESSION_TEMP.date, notes: CTEV_SESSION_TEMP.notes,
+      left: feet.includes('left') ? { components: CTEV_SESSION_TEMP.left } : null,
+      right: feet.includes('right') ? { components: CTEV_SESSION_TEMP.right } : null };
+    p.ctev.castingSessions.push(session);
+    ADD_CTEV_SESSION_OPEN = false;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ctev-delete-session' && el.dataset.confirm) {
+    const p = getPatient(SELECTED_ID);
+    p.ctev.castingSessions = p.ctev.castingSessions.filter(s => s.id !== el.dataset.id);
+    ARMED_DELETE = null;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ctev-toggle-tenotomy') {
+    const p = getPatient(SELECTED_ID), f = el.dataset.foot;
+    p.ctev.tenotomy[f].done = !p.ctev.tenotomy[f].done;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ctev-open-add-brace-log') { ADD_CTEV_BRACELOG_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ctev-cancel-add-bracelog') { ADD_CTEV_BRACELOG_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ctev-submit-bracelog') {
+    const p = getPatient(SELECTED_ID);
+    const date = document.getElementById('ctev-bl-date').value;
+    const hoursPerDay = Number(document.getElementById('ctev-bl-hours').value);
+    const notes = document.getElementById('ctev-bl-notes').value;
+    p.ctev.brace.complianceLogs.push({ id: uid(), date, hoursPerDay, notes });
+    ADD_CTEV_BRACELOG_OPEN = false;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ctev-delete-brace-log' && el.dataset.confirm) {
+    const p = getPatient(SELECTED_ID);
+    p.ctev.brace.complianceLogs = p.ctev.brace.complianceLogs.filter(l => l.id !== el.dataset.id);
+    ARMED_DELETE = null;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+
+  if (action === 'ra-toggle-cspine') {
+    const p = getPatient(SELECTED_ID);
+    p.ra.cspineFlag = !p.ra.cspineFlag;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ra-open-add-visit') { initRaVisitTemp(); ADD_RA_VISIT_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ra-cancel-add-visit') { ADD_RA_VISIT_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ra-submit-visit') {
+    syncRaVisitFromDom();
+    const p = getPatient(SELECTED_ID);
+    const visit = { id: uid(), date: RA_VISIT_TEMP.date, tjc: num(RA_VISIT_TEMP.tjc), sjc: num(RA_VISIT_TEMP.sjc),
+      esr: num(RA_VISIT_TEMP.esr), crp: num(RA_VISIT_TEMP.crp), ptGlobal: num(RA_VISIT_TEMP.ptGlobal), phGlobal: num(RA_VISIT_TEMP.phGlobal),
+      treatmentNote: RA_VISIT_TEMP.treatmentNote, notes: RA_VISIT_TEMP.notes };
+    p.ra.visits.push(visit);
+    ADD_RA_VISIT_OPEN = false;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ra-delete-visit' && el.dataset.confirm) {
+    const p = getPatient(SELECTED_ID);
+    p.ra.visits = p.ra.visits.filter(v => v.id !== el.dataset.id);
+    ARMED_DELETE = null;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'cancel-add') { AP_PHOTOS = []; VIEW='list'; render(); return; }
-  if (action === 'open-patient') { SELECTED_ID = el.dataset.id; VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); await render(); return; }
+  if (action === 'open-patient') { SELECTED_ID = el.dataset.id; VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); return; }
   if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
   if (action === 'set-tab') { TAB = el.dataset.value; ADD_FOLLOWUP_OPEN=false; const p = getPatient(SELECTED_ID); document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); await renderTabBody(p); return; }
 
-  if (action === 'ap-set-sex') {
-    document.querySelectorAll('[data-action="ap-set-sex"]').forEach(b => b.classList.toggle('active', b===el));
-    el.dataset.selected = 'true';
-    return;
-  }
+  if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; render(); return; }
+  if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
+  if (action === 'ap-set-laterality') { syncApTempFromDom(); AP_TEMP.laterality = el.dataset.value; render(); return; }
 
   if (action === 'ap-remove-photo') { AP_PHOTOS = AP_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('ap-thumbs').innerHTML = thumbGridHtml(AP_PHOTOS,'ap-remove-photo'); return; }
   if (action === 'fu-remove-photo') { FU_PHOTOS = FU_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-thumbs').innerHTML = thumbGridHtml(FU_PHOTOS,'fu-remove-photo'); return; }
   if (action === 'inv-remove-photo') { INV_PHOTOS = INV_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('inv-thumbs').innerHTML = thumbGridHtml(INV_PHOTOS,'inv-remove-photo'); return; }
 
   if (action === 'save-patient') {
-    const name = document.getElementById('ap-name').value.trim();
-    if (!name) { toast('Naam zaroori hai'); return; }
-    const sexBtn = document.querySelector('[data-action="ap-set-sex"].active');
+    syncApTempFromDom();
+    const conditionEl = document.getElementById('ap-condition');
+    if (conditionEl) AP_TEMP.condition = conditionEl.value;
+    if (!AP_TEMP.name.trim()) { toast('Naam zaroori hai'); return; }
     const p = newPatientShape();
-    p.name = name;
-    p.age = document.getElementById('ap-age').value;
-    p.sex = sexBtn ? sexBtn.dataset.value : 'M';
-    p.diagnosis = document.getElementById('ap-diagnosis').value;
-    p.surgeryType = document.getElementById('ap-type').value;
-    p.procedure = document.getElementById('ap-procedure').value;
-    p.side = document.getElementById('ap-side').value;
-    p.surgeryDate = document.getElementById('ap-date').value;
-    p.whatsapp = document.getElementById('ap-whatsapp').value;
-    p.notes = document.getElementById('ap-notes').value;
-    p.preOpImageCount = AP_PHOTOS.length;
+    p.name = AP_TEMP.name.trim();
+    p.age = AP_TEMP.age;
+    p.sex = AP_TEMP.sex;
+    p.diagnosis = AP_TEMP.diagnosis;
+    p.caseType = AP_TEMP.caseType;
+    p.condition = AP_TEMP.condition;
+    p.laterality = AP_TEMP.laterality;
+    p.surgeryType = AP_TEMP.surgeryType;
+    p.procedure = AP_TEMP.procedure;
+    p.side = AP_TEMP.side;
+    p.surgeryDate = AP_TEMP.surgeryDate;
+    p.whatsapp = AP_TEMP.whatsapp;
+    p.notes = AP_TEMP.notes;
+    p.preOpImageCount = AP_TEMP.caseType === 'surgical' ? AP_PHOTOS.length : 0;
+    if (p.condition === 'ctev') p.ctev = newCtevShape();
+    if (p.condition === 'ra') p.ra = newRaShape();
     await dbPutPatient(p);
-    for (const ph of AP_PHOTOS) {
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now() });
+    if (p.caseType === 'surgical') {
+      for (const ph of AP_PHOTOS) {
+        await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now() });
+      }
     }
     await refreshPatients();
     AP_PHOTOS = [];
@@ -1771,6 +2238,26 @@ async function render_only_current_view() {
 document.addEventListener('change', async (e) => {
   const t = e.target;
 
+  if (t.id === 'ap-condition') { syncApTempFromDom(); AP_TEMP.condition = t.value; render(); return; }
+
+  if (t.dataset && t.dataset.ctevField) {
+    const p = getPatient(SELECTED_ID);
+    const parts = t.dataset.ctevField.split('.');
+    if (parts.length === 3) p.ctev[parts[0]][parts[1]][parts[2]] = t.value;
+    else if (parts.length === 2) p.ctev[parts[0]][parts[1]] = t.value;
+    await dbPutPatient(p); await refreshPatients();
+    return;
+  }
+  if (t.dataset && t.dataset.raField) {
+    const p = getPatient(SELECTED_ID);
+    const parts = t.dataset.raField.split('.');
+    if (parts.length === 2) p.ra[parts[0]][parts[1]] = t.value;
+    else p.ra[parts[0]] = t.value;
+    await dbPutPatient(p); await refreshPatients();
+    if (t.dataset.raField === 'nextLabsDate') await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+
   if (t.id === 'import-file-input') {
     const file = t.files && t.files[0];
     if (file) await importBackup(file);
@@ -1785,9 +2272,19 @@ document.addEventListener('change', async (e) => {
     else if (which === 'inv-remove-photo') await handlePhotoInputChange(t, INV_PHOTOS, 'inv-thumbs');
     return;
   }
+  if (t.dataset && t.dataset.field === 'condition') {
+    const p = getPatient(SELECTED_ID);
+    p.condition = t.value;
+    if (p.condition === 'ctev' && !p.ctev) p.ctev = newCtevShape();
+    if (p.condition === 'ra' && !p.ra) p.ra = newRaShape();
+    await dbPutPatient(p); await refreshPatients();
+    if (TAB === 'ctev' || TAB === 'ra') TAB = 'overview';
+    await render();
+    return;
+  }
   if (t.dataset && t.dataset.field) {
     await patchField(t.dataset.field, t.value);
-    if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate') { await render(); }
+    if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality') { await render(); }
     return;
   }
   if (t.id === 'preop-add-input') {
@@ -1843,6 +2340,11 @@ document.addEventListener('input', (e) => {
     EDU_SEARCH = e.target.value;
     const resEl = document.getElementById('edu-results');
     if (resEl) resEl.innerHTML = renderEduResultsHtml(EDU_SEARCH);
+  }
+  if (e.target.id && e.target.id.startsWith('ra-v-') && ADD_RA_VISIT_OPEN) {
+    syncRaVisitFromDom();
+    const liveEl = document.getElementById('ra-live-scores');
+    if (liveEl) liveEl.innerHTML = raLiveScoresHtml();
   }
 });
 document.addEventListener('blur', async (e) => {
