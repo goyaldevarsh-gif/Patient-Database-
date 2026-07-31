@@ -105,6 +105,27 @@
   .modal-label { color:#fff; font-size:12px; margin-top:10px; opacity:0.8; }
 
   .toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); z-index:40; background:rgba(15,23,42,0.94); color:#fff; font-size:12px; font-weight:600; padding:8px 16px; border-radius:999px; }
+
+  .rx-sheet { max-width:520px; margin:0 auto; padding:22px 18px 40px; font-family:'Inter',sans-serif; color:#111827; }
+  .rx-letterhead { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #1e293b; padding-bottom:12px; margin-bottom:14px; }
+  .rx-clinic-name { font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:16px; }
+  .rx-clinic-addr { font-size:11px; color:#475569; line-height:1.5; }
+  .rx-doc-name { font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:14px; }
+  .rx-patient-row { display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; }
+  .rx-diagnosis { font-size:12.5px; color:#475569; font-style:italic; margin-bottom:14px; }
+  .rx-symbol { font-family:'Plus Jakarta Sans',sans-serif; font-size:22px; font-weight:800; font-style:italic; margin:6px 0 8px; }
+  .rx-table { width:100%; border-collapse:collapse; margin-bottom:16px; }
+  .rx-table td { padding:8px 4px; vertical-align:top; border-bottom:1px solid #f1f5f9; font-size:13.5px; }
+  .rx-num { width:22px; font-weight:700; color:#64748b; }
+  .rx-sub { font-size:12px; color:#64748b; }
+  .rx-advice { font-size:12.5px; margin-bottom:8px; line-height:1.5; }
+  .rx-sign { margin-top:50px; text-align:right; font-size:12px; color:#334155; }
+
+  @media print {
+    .no-print, .sticky-top, .toast { display:none !important; }
+    #app { max-width:none; }
+    body { background:#fff; }
+  }
 </style>
 </head>
 <body>
@@ -211,6 +232,8 @@ const ICONS = {
   upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>',
   message:'<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
   alert:'<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  printer:'<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
 
@@ -227,6 +250,10 @@ let ADD_FOLLOWUP_OPEN = false;
 let EXPANDED_FOLLOWUP = new Set();
 let ADD_INVESTIGATION_OPEN = false;
 let EXPANDED_INVESTIGATION = new Set();
+let ADD_PRESCRIPTION_OPEN = false;
+let RX_TEMP = null; // { date, medicines:[{id,name,dose,frequency,duration,instructions}], advice, followUpDate }
+let PRINT_RX = null; // {patient, prescription} when viewing a prescription in print mode
+let SETTINGS_OPEN = false;
 let ACTIVE_URLS = [];
 
 function revokeActiveUrls() { ACTIVE_URLS.forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); ACTIVE_URLS = []; }
@@ -244,10 +271,82 @@ function newPatientShape() {
     id: uid(), name:'', age:'', sex:'M', diagnosis:'', surgeryType:'Arthroplasty', procedure:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
     nextFollowUpDate:'',
-    preOpImageCount:0, followUps:[], investigations:[], createdAt: Date.now(),
+    preOpImageCount:0, followUps:[], investigations:[], prescriptions:[], createdAt: Date.now(),
   };
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
+
+// Pre-filled defaults used only when no profile has been saved yet in localStorage.
+// Still fully editable from the Settings screen afterward.
+const DEFAULT_PROFILE = {
+  doctorName: 'Dr. Devarsh Goyal',
+  qualifications: 'MBBS, MS Ortho (SMS Hospital, Jaipur), Dip. in FIFA Medicine',
+  regNumber: 'RMC-57415/32734',
+  clinicName: '',
+  clinicAddress: '',
+  clinicPhone: '+91-7852860654 / +91-8949060654'
+};
+
+const PROFILE_KEY = 'surgical-case-log-doctor-profile-v1';
+function loadProfile() {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    return raw ? JSON.parse(raw) : { ...DEFAULT_PROFILE };
+  } catch (e) { return { ...DEFAULT_PROFILE }; }
+}
+function saveProfile(profile) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); toast('Profile saved'); }
+  catch (e) { toast('Save failed'); }
+}
+function profileIsComplete(p) { return !!(p.doctorName && p.regNumber && p.clinicName); }
+
+const MED_LIB_KEY = 'surgical-case-log-medicine-library-v1';
+function loadMedLibrary() {
+  try { const raw = localStorage.getItem(MED_LIB_KEY); return raw ? JSON.parse(raw) : []; }
+  catch (e) { return []; }
+}
+function saveMedLibrary(lib) {
+  try { localStorage.setItem(MED_LIB_KEY, JSON.stringify(lib)); } catch (e) {}
+}
+function medPresetKey(m) { return [m.name, m.dose, m.frequency, m.duration, m.instructions].join('|').toLowerCase(); }
+function recordMedicinesUsed(medicines) {
+  const lib = loadMedLibrary();
+  medicines.forEach(m => {
+    if (!m.name.trim()) return;
+    const key = medPresetKey(m);
+    const existing = lib.find(x => medPresetKey(x) === key);
+    if (existing) { existing.useCount = (existing.useCount||1) + 1; existing.lastUsed = Date.now(); }
+    else lib.push({ id: uid(), name:m.name, dose:m.dose, frequency:m.frequency, duration:m.duration, instructions:m.instructions, useCount:1, lastUsed: Date.now() });
+  });
+  saveMedLibrary(lib);
+}
+function topMedPresets(n) {
+  return loadMedLibrary().sort((a,b) => (b.useCount-a.useCount) || (b.lastUsed-a.lastUsed)).slice(0, n||8);
+}
+function medNameSuggestions() {
+  const names = [...new Set(loadMedLibrary().map(m => m.name).filter(Boolean))];
+  return names;
+}
+
+function renderSettingsView() {
+  const pr = loadProfile();
+  return '<div style="padding-bottom:90px;">'
+    + '<div class="sticky-top px row gap3" style="padding:14px 16px;">'
+    + '<button class="icon-btn" data-action="close-settings">'+ic('back')+'</button>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">Doctor / clinic profile</h2>'
+    + '</div>'
+    + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
+    + '<p style="font-size:12px;color:#94a3b8;">Ye details prescription ke letterhead pe print hongi. Ek baar bhar do, kabhi bhi yahan se edit kar sakte ho.</p>'
+    + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="Dr. Devarsh Goyal"></div>'
+    + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
+    + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder="e.g. RMC-12345"></div>'
+    + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
+    + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="Full address">'+esc(pr.clinicAddress)+'</textarea></div>'
+    + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder="+91 ..."></div>'
+    + '</div>'
+    + '<div class="bottom-bar"><button class="btn btn-primary btn-block" data-action="save-settings">Save profile</button></div>'
+    + '</div>';
+}
 
 function toWaNumber(raw) {
   let digits = String(raw||'').replace(/\D/g,'');
@@ -260,6 +359,32 @@ function waLink(patient) {
   if (!digits) return null;
   const msg = 'Hi ' + patient.name + ', this is regarding your ' + (patient.procedure || 'appointment') + '.';
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
+}
+
+function rxWaMessage(patient, rx, profile) {
+  let lines = [];
+  lines.push('*Prescription \u2014 ' + (profile.clinicName || '') + '*');
+  lines.push('Dr. ' + (profile.doctorName || '') + (profile.qualifications ? ' (' + profile.qualifications + ')' : ''));
+  if (profile.regNumber) lines.push('Reg: ' + profile.regNumber);
+  lines.push('');
+  lines.push('Patient: ' + patient.name + ' (' + patient.age + '/' + patient.sex + ')');
+  lines.push('Date: ' + fmtDate(rx.date));
+  lines.push('');
+  lines.push('*Rx:*');
+  rx.medicines.forEach((m, i) => {
+    let l = (i+1) + '. ' + m.name + (m.dose ? ' - ' + m.dose : '');
+    lines.push(l);
+    let sub = [m.frequency, m.duration ? '\u00d7 ' + m.duration : '', m.instructions].filter(Boolean).join(' ');
+    if (sub) lines.push('   ' + sub);
+  });
+  if (rx.advice) { lines.push(''); lines.push('Advice: ' + rx.advice); }
+  if (rx.followUpDate) { lines.push('Follow-up: ' + fmtDate(rx.followUpDate)); }
+  return lines.join('\n');
+}
+function rxWaLink(patient, rx, profile) {
+  const digits = toWaNumber(patient.whatsapp);
+  if (!digits) return null;
+  return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(rxWaMessage(patient, rx, profile));
 }
 
 async function refreshPatients() { PATIENTS = await dbGetAllPatients(); }
@@ -334,6 +459,7 @@ function renderListView() {
     + '<div class="row between" style="margin-bottom:10px;">'
     + '<div><h1 style="font-size:18px;font-weight:800;margin:0;">Surgical Case Log</h1><p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">'+PATIENTS.length+' case'+(PATIENTS.length!==1?'s':'')+' on record</p></div>'
     + '<div class="row gap2">'
+    + '<button class="icon-btn" data-action="open-settings" title="Doctor / clinic profile">'+ic('gear')+'</button>'
     + '<button class="icon-btn" data-action="trigger-import" title="Import backup">'+ic('upload')+'</button>'
     + '<button class="icon-btn" data-action="export-backup" title="Export backup">'+ic('download')+'</button>'
     + '<input type="file" accept=".zip,application/zip" id="import-file-input" style="display:none;">'
@@ -553,6 +679,121 @@ async function renderInvestigationsTab(p) {
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
 }
 
+function initRxTemp() {
+  RX_TEMP = { date: todayStr(), medicines: [{id:uid(), name:'', dose:'', frequency:'', duration:'', instructions:''}], advice:'', followUpDate:'' };
+}
+function syncRxMedsFromDom() {
+  RX_TEMP.medicines.forEach(m => {
+    ['name','dose','frequency','duration','instructions'].forEach(f => {
+      const el = document.getElementById('rxm-'+m.id+'-'+f);
+      if (el) m[f] = el.value;
+    });
+  });
+}
+function renderRxMedRows() {
+  return RX_TEMP.medicines.map((m, idx) =>
+    '<div class="card" style="margin-bottom:8px;">'
+    + '<div class="row between" style="margin-bottom:8px;"><span style="font-weight:800;font-size:11px;color:#94a3b8;text-transform:uppercase;">Medicine '+(idx+1)+'</span>'
+    + (RX_TEMP.medicines.length>1 ? '<button class="icon-btn" data-action="rx-remove-med" data-id="'+m.id+'">'+ic('trash')+'</button>' : '')
+    + '</div>'
+    + '<input class="input" id="rxm-'+m.id+'-name" list="rx-med-names" placeholder="Medicine name" value="'+esc(m.name)+'" style="margin-bottom:8px;">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
+    + '<input class="input" id="rxm-'+m.id+'-dose" placeholder="Dose e.g. 500mg" value="'+esc(m.dose)+'">'
+    + '<input class="input" id="rxm-'+m.id+'-frequency" placeholder="Freq e.g. 1-0-1" value="'+esc(m.frequency)+'">'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+    + '<input class="input" id="rxm-'+m.id+'-duration" placeholder="Duration e.g. 5 days" value="'+esc(m.duration)+'">'
+    + '<input class="input" id="rxm-'+m.id+'-instructions" placeholder="e.g. after food" value="'+esc(m.instructions)+'">'
+    + '</div>'
+    + '</div>'
+  ).join('') + '<datalist id="rx-med-names">'+medNameSuggestions().map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>';
+}
+
+function renderQuickAddChips() {
+  const presets = topMedPresets(8);
+  if (!presets.length) return '';
+  return '<div style="margin-bottom:10px;">'
+    + '<label class="field-label">Quick add (pehle use ki hui)</label>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+    + presets.map(pr => '<button class="chip" data-action="rx-quick-add" data-id="'+pr.id+'" style="text-align:left;">'+esc(pr.name)+(pr.dose?' '+esc(pr.dose):'')+'</button>').join('')
+    + '</div></div>';
+}
+
+function renderPrescriptionsTab(p) {
+  let addBlock;
+  if (!ADD_PRESCRIPTION_OPEN) {
+    addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-rx">'+ic('plus')+' New prescription</button>';
+  } else {
+    const profile = loadProfile();
+    addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
+      + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">pehle complete karo</button>, warna letterhead adhoora rahega.</div>' : '')
+      + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
+      + renderQuickAddChips()
+      + '<div id="rx-med-rows">'+renderRxMedRows()+'</div>'
+      + '<button class="btn btn-outline-dashed btn-block" data-action="rx-add-med" style="margin-bottom:12px;">'+ic('plus')+' Add another medicine</button>'
+      + '<label class="field-label">Advice</label><textarea class="textarea" rows="2" id="rx-advice" placeholder="General advice, activity restriction\u2026">'+esc(RX_TEMP.advice)+'</textarea>'
+      + '<label class="field-label" style="margin-top:10px;">Follow-up date (optional)</label><input class="input" type="date" id="rx-followUpDate" value="'+esc(RX_TEMP.followUpDate)+'" style="margin-bottom:10px;">'
+      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-rx">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-rx">Save prescription</button></div>'
+      + '</div>';
+  }
+
+  let list = '';
+  [...(p.prescriptions||[])].reverse().forEach(rx => {
+    const medNames = rx.medicines.map(m=>m.name).filter(Boolean).join(', ');
+    list += '<div class="fu-card">'
+      + '<div class="row between">'
+      + '<span style="font-weight:800;">'+fmtDate(rx.date)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+rx.medicines.length+' medicine'+(rx.medicines.length!==1?'s':'')+'</span></span>'
+      + '<div class="row gap2">'
+      + '<button class="icon-btn" data-action="view-rx" data-id="'+rx.id+'" style="color:var(--accent);" title="View / Print">'+ic('printer')+'</button>'
+      + confirmBtn('delete-rx', rx.id)
+      + '</div></div>'
+      + (medNames ? '<p style="font-size:12px;color:#64748b;margin-top:4px;">'+esc(medNames)+'</p>' : '')
+      + '</div>';
+  });
+
+  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
+}
+
+function renderPrintView() {
+  if (!PRINT_RX) { VIEW='list'; return renderListView(); }
+  const { patient, rx } = PRINT_RX;
+  const profile = loadProfile();
+  const medsHtml = rx.medicines.map((m,i) =>
+    '<tr><td class="rx-num">'+(i+1)+'.</td><td>'
+    + '<b>'+esc(m.name)+'</b>'+(m.dose?' \u2014 '+esc(m.dose):'')
+    + '<br><span class="rx-sub">'+esc(m.frequency||'')+(m.duration?' \u00d7 '+esc(m.duration):'')+(m.instructions?' \u2014 '+esc(m.instructions):'')+'</span>'
+    + '</td></tr>'
+  ).join('');
+
+  return '<div class="no-print row between px" style="padding:14px 16px;position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
+    + '<button class="icon-btn" data-action="close-print">'+ic('back')+'</button>'
+    + '<div class="row gap2">'
+    + (rxWaLink(patient, rx, profile) ? '<a href="'+esc(rxWaLink(patient, rx, profile))+'" target="_blank" rel="noopener" class="btn" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' WhatsApp</a>' : '')
+    + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
+    + '</div>'
+    + '</div>'
+    + '<div class="rx-sheet">'
+    + '<div class="rx-letterhead">'
+    + '<div><div class="rx-clinic-name">'+esc(profile.clinicName||'\u2014')+'</div>'
+    + '<div class="rx-clinic-addr">'+esc(profile.clinicAddress||'').replace(/\n/g,'<br>')+'</div>'
+    + (profile.clinicPhone?'<div class="rx-clinic-addr">'+esc(profile.clinicPhone)+'</div>':'')+'</div>'
+    + '<div style="text-align:right;"><div class="rx-doc-name">'+esc(profile.doctorName||'\u2014')+'</div>'
+    + '<div class="rx-clinic-addr">'+esc(profile.qualifications||'')+'</div>'
+    + '<div class="rx-clinic-addr">Reg. No: '+esc(profile.regNumber||'\u2014')+'</div></div>'
+    + '</div>'
+    + '<div class="rx-patient-row">'
+    + '<span><b>Patient:</b> '+esc(patient.name)+' &nbsp; ('+esc(patient.age)+' / '+esc(patient.sex)+')</span>'
+    + '<span><b>Date:</b> '+fmtDate(rx.date)+'</span>'
+    + '</div>'
+    + (patient.diagnosis ? '<div class="rx-diagnosis">'+esc(patient.diagnosis)+'</div>' : '')
+    + '<div class="rx-symbol">R<sub>x</sub></div>'
+    + '<table class="rx-table">'+medsHtml+'</table>'
+    + (rx.advice ? '<div class="rx-advice"><b>Advice:</b> '+esc(rx.advice).replace(/\n/g,'<br>')+'</div>' : '')
+    + (rx.followUpDate ? '<div class="rx-advice"><b>Follow-up:</b> '+fmtDate(rx.followUpDate)+'</div>' : '')
+    + '<div class="rx-sign">_____________________<br>'+esc(profile.doctorName||'Signature')+'</div>'
+    + '</div>';
+}
+
 async function renderTabBody(p) {
   const el = document.getElementById('tab-body');
   if (!el) return;
@@ -561,6 +802,7 @@ async function renderTabBody(p) {
   if (TAB === 'preop') el.innerHTML = await renderPreopTab(p);
   else if (TAB === 'followups') el.innerHTML = await renderFollowupsTab(p);
   else if (TAB === 'investigations') el.innerHTML = await renderInvestigationsTab(p);
+  else if (TAB === 'prescriptions') el.innerHTML = renderPrescriptionsTab(p);
 }
 
 const TABS = [
@@ -568,6 +810,7 @@ const TABS = [
   {key:'preop', label:'Pre-op', icon:'camera'},
   {key:'followups', label:'Follow-ups', icon:'calendar'},
   {key:'investigations', label:'Investigations', icon:'file'},
+  {key:'prescriptions', label:'Rx', icon:'printer'},
 ];
 
 function renderDetailShell(p) {
@@ -595,6 +838,8 @@ async function render() {
   const app = document.getElementById('app');
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
+  if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
+  if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
   if (VIEW === 'detail') {
     const p = getPatient(SELECTED_ID);
     if (!p) { VIEW='list'; return render(); }
@@ -865,6 +1110,88 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'export-backup') { await exportBackup(); return; }
   if (action === 'trigger-import') { document.getElementById('import-file-input').click(); return; }
+
+  if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); return; }
+  if (action === 'close-settings') { VIEW = 'list'; render(); return; }
+  if (action === 'save-settings') {
+    const profile = {
+      doctorName: document.getElementById('pr-doctorName').value,
+      qualifications: document.getElementById('pr-qualifications').value,
+      regNumber: document.getElementById('pr-regNumber').value,
+      clinicName: document.getElementById('pr-clinicName').value,
+      clinicAddress: document.getElementById('pr-clinicAddress').value,
+      clinicPhone: document.getElementById('pr-clinicPhone').value,
+    };
+    saveProfile(profile);
+    VIEW = 'list'; render();
+    return;
+  }
+
+  if (action === 'open-add-rx') { initRxTemp(); ADD_PRESCRIPTION_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'cancel-add-rx') { ADD_PRESCRIPTION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'rx-add-med') {
+    syncRxMedsFromDom();
+    RX_TEMP.medicines.push({ id: uid(), name:'', dose:'', frequency:'', duration:'', instructions:'' });
+    document.getElementById('rx-med-rows').innerHTML = renderRxMedRows();
+    return;
+  }
+  if (action === 'rx-remove-med') {
+    syncRxMedsFromDom();
+    RX_TEMP.medicines = RX_TEMP.medicines.filter(m => m.id !== el.dataset.id);
+    document.getElementById('rx-med-rows').innerHTML = renderRxMedRows();
+    return;
+  }
+  if (action === 'rx-quick-add') {
+    syncRxMedsFromDom();
+    const preset = loadMedLibrary().find(m => m.id === el.dataset.id);
+    if (!preset) return;
+    const emptyRow = RX_TEMP.medicines.find(m => !m.name.trim() && !m.dose.trim() && !m.frequency.trim() && !m.duration.trim() && !m.instructions.trim());
+    if (emptyRow) {
+      emptyRow.name = preset.name; emptyRow.dose = preset.dose; emptyRow.frequency = preset.frequency;
+      emptyRow.duration = preset.duration; emptyRow.instructions = preset.instructions;
+    } else {
+      RX_TEMP.medicines.push({ id: uid(), name:preset.name, dose:preset.dose, frequency:preset.frequency, duration:preset.duration, instructions:preset.instructions });
+    }
+    document.getElementById('rx-med-rows').innerHTML = renderRxMedRows();
+    return;
+  }
+  if (action === 'submit-rx') {
+    syncRxMedsFromDom();
+    const date = document.getElementById('rx-date').value;
+    const advice = document.getElementById('rx-advice').value;
+    const followUpDate = document.getElementById('rx-followUpDate').value;
+    const medicines = RX_TEMP.medicines.filter(m => m.name.trim());
+    if (!medicines.length) { toast('Kam se kam ek medicine ka naam daalo'); return; }
+    recordMedicinesUsed(medicines);
+    const p = getPatient(SELECTED_ID);
+    const rx = { id: uid(), date, medicines, advice, followUpDate, createdAt: Date.now() };
+    p.prescriptions = p.prescriptions || [];
+    p.prescriptions.push(rx);
+    await dbPutPatient(p);
+    await refreshPatients();
+    ADD_PRESCRIPTION_OPEN = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'view-rx') {
+    const p = getPatient(SELECTED_ID);
+    const rx = (p.prescriptions||[]).find(r => r.id === el.dataset.id);
+    if (!rx) return;
+    PRINT_RX = { patient: p, rx };
+    VIEW = 'print'; render();
+    return;
+  }
+  if (action === 'delete-rx' && el.dataset.confirm) {
+    const p = getPatient(SELECTED_ID);
+    p.prescriptions = (p.prescriptions||[]).filter(r => r.id !== el.dataset.id);
+    await dbPutPatient(p);
+    await refreshPatients();
+    ARMED_DELETE = null;
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'close-print') { PRINT_RX = null; VIEW = 'detail'; TAB = 'prescriptions'; render(); return; }
+  if (action === 'do-print') { window.print(); return; }
 });
 
 async function render_only_current_view() {
