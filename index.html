@@ -155,6 +155,14 @@
   .edu-section.urgent .edu-checklist svg { color:var(--edu-red); }
   .edu-footer { margin:20px 22px 0; padding-top:12px; border-top:1px solid var(--edu-teal-border); font-size:10.5px; color:var(--edu-muted); display:flex; justify-content:space-between; }
 
+  .edu-hi { color:var(--edu-muted); margin-top:2px; }
+  .edu-subhead { font-weight:700; font-size:12px; color:var(--edu-gold); text-transform:uppercase; letter-spacing:0.04em; margin:14px 0 6px; }
+  .edu-subhead:first-child { margin-top:0; }
+  .edu-cross { flex-shrink:0; margin-top:1px; width:15px; height:15px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:var(--edu-red); }
+  .edu-quote { margin:18px 22px; padding:18px 20px; background:#fff; border-radius:14px; border:1px solid var(--edu-teal-border); text-align:center; }
+  .edu-quote-en { font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:16px; color:var(--edu-teal); line-height:1.4; }
+  .edu-quote-hi { font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:14.5px; color:var(--edu-muted); margin-top:8px; line-height:1.4; }
+
   @media print {
     .no-print, .sticky-top, .toast { display:none !important; }
     #app { max-width:none; }
@@ -304,9 +312,17 @@ let FU_PHOTOS = [];
 // temp state for add-investigation photo staging
 let INV_PHOTOS = [];
 
+const PATIENT_COUNTER_KEY = 'surgical-case-log-patient-counter-v1';
+function nextPatientCode() {
+  let n = 1;
+  try { n = parseInt(localStorage.getItem(PATIENT_COUNTER_KEY) || '0', 10) + 1; } catch (e) {}
+  try { localStorage.setItem(PATIENT_COUNTER_KEY, String(n)); } catch (e) {}
+  return 'PT' + String(n).padStart(4, '0');
+}
+
 function newPatientShape() {
   return {
-    id: uid(), name:'', age:'', sex:'M', diagnosis:'', surgeryType:'Arthroplasty', procedure:'',
+    id: uid(), patientCode: nextPatientCode(), name:'', age:'', sex:'M', diagnosis:'', surgeryType:'Arthroplasty', procedure:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
     nextFollowUpDate:'',
     preOpImageCount:0, followUps:[], investigations:[], prescriptions:[], createdAt: Date.now(),
@@ -449,7 +465,7 @@ function renderListView() {
     if (FILTER_TYPE !== 'all' && p.surgeryType !== FILTER_TYPE) return false;
     if (SEARCH) {
       const q = SEARCH.toLowerCase();
-      if (!(p.name.toLowerCase().includes(q) || (p.diagnosis||'').toLowerCase().includes(q) || (p.procedure||'').toLowerCase().includes(q))) return false;
+      if (!(p.name.toLowerCase().includes(q) || (p.diagnosis||'').toLowerCase().includes(q) || (p.procedure||'').toLowerCase().includes(q) || (p.patientCode||'').toLowerCase().includes(q))) return false;
     }
     return true;
   }).sort((a,b) => {
@@ -479,6 +495,7 @@ function renderListView() {
         + '<div style="min-width:0;flex:1;">'
         + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:15px;">'+esc(p.name)+'</span>'
         + '<span class="mono" style="font-size:11px;color:#94a3b8;">'+esc(p.age)+'/'+esc(p.sex)+'</span></div>'
+        + '<div style="font-size:11px;color:#a5b4c7;margin-top:1px;" class="mono">'+esc(p.patientCode||'')+'</div>'
         + '<div style="font-size:12px;color:#64748b;margin-top:2px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
         + '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
         + (isOverdue(p.nextFollowUpDate) ? '<div class="overdue-note">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+'</div>' : '')
@@ -575,6 +592,9 @@ function renderAddView() {
 function renderOverviewTab(p) {
   const overdue = isOverdue(p.nextFollowUpDate);
   return '<div class="px" style="display:flex;flex-direction:column;gap:12px;padding-top:14px;padding-bottom:20px;">'
+    + '<div class="row between" style="padding:2px 2px 0;">'
+    + (p.patientCode ? '<span class="badge badge-indigo mono" style="font-size:12px;">'+ic('clipboard')+esc(p.patientCode)+'</span>' : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>')
+    + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
     + '<div class="stat-card"><div class="stat-label">Pre-op photos</div><div class="stat-value mono">'+p.preOpImageCount+'</div></div>'
     + '<div class="stat-card"><div class="stat-label">Follow-up visits</div><div class="stat-value mono">'+(p.followUps||[]).length+'</div></div>'
@@ -820,7 +840,7 @@ function renderPrintView() {
     + '<div class="rx-clinic-addr">Reg. No: '+esc(profile.regNumber||'\u2014')+'</div></div>'
     + '</div>'
     + '<div class="rx-patient-row">'
-    + '<span><b>Patient:</b> '+esc(patient.name)+' &nbsp; ('+esc(patient.age)+' / '+esc(patient.sex)+')</span>'
+    + '<span><b>Patient:</b> '+esc(patient.name)+' &nbsp; ('+esc(patient.age)+' / '+esc(patient.sex)+')'+(patient.patientCode?' &nbsp; <span style="color:#94a3b8;">'+esc(patient.patientCode)+'</span>':'')+'</span>'
     + '<span><b>Date:</b> '+fmtDate(rx.date)+'</span>'
     + '</div>'
     + (patient.diagnosis ? '<div class="rx-diagnosis">'+esc(patient.diagnosis)+'</div>' : '')
@@ -832,160 +852,338 @@ function renderPrintView() {
     + '</div>';
 }
 
-/* ================= Patient Education library ================= */
-/* homeCare and redFlags are arrays of short bullet points (checklist-style display).
-   whatIsIt / causes / treatment / recovery stay as short explanatory paragraphs. */
+/* ================= Patient Education library (bilingual: English + Hindi) ================= */
 
 const EDU_LIBRARY = [
-  { id:'knee_oa', name:'Knee Osteoarthritis', keywords:['knee oa','knee osteoarthritis','oa knee','degenerative knee'],
-    whatIsIt:'This is wear-and-tear of the cartilage cushion inside your knee joint, causing the bones to rub against each other. It is very common with age and gets worse gradually.',
-    causes:'Age, extra body weight, old injuries, and family history all increase the chances of knee OA.',
-    treatment:'Weight loss, quadriceps strengthening exercises, walking aids if needed, pain relief medicines, and knee braces. Injections or knee replacement surgery are options if symptoms are severe.',
-    recovery:'This is a long-term condition managed step-by-step. Most people improve significantly with exercise and lifestyle changes before surgery is needed.',
-    homeCare:['Do quadriceps strengthening exercises daily','Avoid sitting cross-legged or squatting','Use a raised chair and Western toilet where possible','Apply hot fomentation for stiffness'],
-    redFlags:['Sudden major swelling of the knee','Knee becomes red and hot to touch','Fever along with knee pain'] },
+  { id:'knee_oa', keywords:['knee oa','knee osteoarthritis','oa knee','degenerative knee'],
+    name:{en:'Knee Osteoarthritis', hi:'\u0918\u0941\u091f\u0928\u0947 \u0915\u093e \u0913\u0938\u094d\u091f\u093f\u0913\u0906\u0930\u094d\u0925\u094d\u0930\u093e\u0907\u091f\u093f\u0938 (Knee OA)'},
+    whatIsIt:{en:'The cushion (cartilage) inside your knee joint has worn down with age, causing the bones to rub together. This is very common and gets worse gradually over years.',
+      hi:'\u0906\u092a\u0915\u0947 \u0918\u0941\u091f\u0928\u0947 \u0915\u0947 \u091c\u094b\u0921\u093c \u0915\u0947 \u0905\u0902\u0926\u0930 \u0915\u093e cushion (cartilage) umra ke saath ghis gaya hai, jisse haddiyan aapas mein ragadti hain. Ye bahut common hai aur saalon mein dheere-dheere badhta hai.'},
+    dos:{en:['Do quadriceps (thigh muscle) strengthening exercises daily','Keep your weight in a healthy range','Use a raised chair and Western-style toilet','Apply hot fomentation for stiffness','Use a walking stick if advised, in the opposite hand'],
+      hi:['Roz quadriceps (jaangh ki muscle) strengthening exercises karein','Apna weight healthy range mein rakhein','Raised chair aur Western toilet use karein','Stiffness ke liye garam sekaai (hot fomentation) karein','Agar bola gaya ho to stick opposite haath mein use karein']},
+    donts:{en:['Avoid sitting cross-legged or squatting (deep knee bending)','Avoid climbing stairs more than necessary','Don\u2019t ignore pain and keep overloading the knee'],
+      hi:['Cross-legged baithne ya squatting (deep knee bend) se bachein','Zaroorat se zyada seedhiyan chadhne se bachein','Dard ko ignore karke ghutne pe zyada load na daalein']},
+    nutrition:{en:'Maintain a healthy body weight \u2014 every kg lost significantly reduces knee load. Include calcium and Vitamin D rich foods (milk, dairy, eggs) and get some sunlight daily.',
+      hi:'Healthy body weight maintain karein \u2014 har kg kam hone se ghutne ka load kaafi kam hota hai. Calcium aur Vitamin D wale khaane (doodh, dairy, ande) lein aur roz thodi dhoop lein.'},
+    medication:{en:'Take pain-relief medicines only as prescribed, and only when needed \u2014 do not self-medicate long-term. Report any stomach upset or other side effects to your doctor.',
+      hi:'Pain-relief dawaiyan sirf prescribe ki hui hi lein, aur sirf zaroorat padne par \u2014 khud se lambe samay tak na lein. Pet mein takleef ya koi bhi side effect ho to doctor ko batayein.'},
+    physio:{en:'A structured quadriceps and hip-strengthening program, guided by a physiotherapist, is one of the most effective treatments \u2014 more important than most people realise.',
+      hi:'Physiotherapist ki dekh-rekh mein quadriceps aur hip-strengthening ka structured program is condition ke liye sabse effective treatments mein se ek hai \u2014 jitna log samajhte hain usse zyada zaroori hai.'},
+    redFlags:{en:['Sudden major swelling of the knee','Knee becomes red and hot to touch','Fever along with knee pain'],
+      hi:['Ghutne mein achanak bahut zyada sujan aa jaaye','Ghutna laal ho jaaye aur chhune mein garam lage','Ghutne ke dard ke saath bukhaar ho']},
+    quote:{en:'\u201cEvery step you take today is a step toward a stronger tomorrow.\u201d', hi:'\u201c\u0906\u091c \u0909\u0920\u093e\u092f\u093e \u0917\u092f\u093e \u0939\u0930 \u0915\u0926\u092e, \u0915\u0932 \u0915\u0940 \u092e\u091c\u092c\u0942\u0924\u0940 \u0915\u0940 \u0928\u0940\u0902\u0935 \u0939\u0948\u0964\u201d'} },
 
-  { id:'hip_oa', name:'Hip Osteoarthritis', keywords:['hip oa','hip osteoarthritis','avn hip','avascular necrosis'],
-    whatIsIt:'This is wear-and-tear (or in some cases, loss of blood supply \u2014 AVN) of the hip joint cartilage, causing pain, stiffness, and difficulty walking.',
-    causes:'Age-related wear, steroid use, alcohol use, old injuries, or unknown causes can lead to hip joint damage.',
-    treatment:'Activity modification, pain relief medicines, physiotherapy, walking aids, and in advanced cases, hip replacement surgery.',
-    recovery:'Early-stage disease can be managed conservatively for years. Once the joint is significantly damaged, hip replacement gives excellent long-term relief.',
-    homeCare:['Avoid deep squatting and sitting on the floor','Use a chair and Western toilet','Keep walking within comfort','Avoid high-impact activity'],
-    redFlags:['Sudden severe pain after a fall','Inability to bear any weight on the leg'] },
+  { id:'hip_oa', keywords:['hip oa','hip osteoarthritis','avn hip','avascular necrosis'],
+    name:{en:'Hip Osteoarthritis', hi:'\u0915\u0942\u0932\u094d\u0939\u0947 \u0915\u0940 \u0913\u0938\u094d\u091f\u093f\u0913\u0906\u0930\u094d\u0925\u094d\u0930\u093e\u0907\u091f\u093f\u0938 (Hip OA)'},
+    whatIsIt:{en:'Wear-and-tear (or in some cases, loss of blood supply \u2014 AVN) of the hip joint cartilage, causing pain, stiffness, and difficulty walking.',
+      hi:'Hip joint ke cartilage ka ghisna (ya kuch cases mein blood supply kam hona \u2014 AVN), jisse dard, akadan aur chalne mein takleef hoti hai.'},
+    dos:{en:['Keep walking within your comfort level','Use a chair and Western toilet','Do hip and core strengthening exercises as taught','Use a walking aid if advised'],
+      hi:['Apni comfort ke hisaab se chalte rahein','Chair aur Western toilet use karein','Sikhaye gaye hip aur core strengthening exercises karein','Agar bola gaya ho to walking aid use karein']},
+    donts:{en:['Avoid deep squatting and sitting on the floor','Avoid high-impact activity (running, jumping)','Don\u2019t ignore new or worsening limp'],
+      hi:['Deep squatting aur floor pe baithne se bachein','High-impact activity (running, jumping) se bachein','Naya ya badhta hua langdapan ignore na karein']},
+    nutrition:{en:'Calcium and Vitamin D rich foods support bone health. If AVN is related to steroid or alcohol use, discuss reducing these with your doctor.',
+      hi:'Calcium aur Vitamin D wale khaane bone health ke liye achhe hain. Agar AVN steroid ya alcohol se related hai, to inhe kam karne ke baare mein doctor se baat karein.'},
+    medication:{en:'Take pain relief only as prescribed. If you are on any steroid medication, never stop it suddenly without your doctor\u2019s advice.',
+      hi:'Pain relief sirf prescribe ki hui lein. Agar koi steroid dawai chal rahi hai, to doctor ki salaah ke bina achanak band na karein.'},
+    physio:{en:'Hip-strengthening and range-of-motion exercises help maintain function even before surgery is considered.',
+      hi:'Hip-strengthening aur range-of-motion exercises surgery se pehle bhi function maintain karne mein madad karti hain.'},
+    redFlags:{en:['Sudden severe pain after a fall','Inability to bear any weight on the leg'],
+      hi:['Girne ke baad achanak tez dard hona','Pair pe bilkul bhi weight na daal paana']},
+    quote:{en:'\u201cHealing takes time, and asking for help is a sign of strength.\u201d', hi:'\u201c\u0920\u0940\u0915 \u0939\u094b\u0928\u0947 \u092e\u0947\u0902 \u0938\u092e\u092f \u0932\u0917\u0924\u093e \u0939\u0948, \u0914\u0930 \u092e\u0926\u0926 \u092e\u093e\u0902\u0917\u0928\u093e \u0939\u093f\u092e\u094d\u092e\u0924 \u0915\u0940 \u092a\u0939\u091a\u093e\u0928 \u0939\u0948\u0964\u201d'} },
 
-  { id:'tkr', name:'Total Knee Replacement (Post-op)', keywords:['tkr','total knee replacement','knee replacement post op'],
-    whatIsIt:'Your damaged knee joint surfaces have been replaced with an artificial implant to relieve pain and restore movement.',
-    causes:'This surgery is done for advanced arthritis or joint damage that no longer responds to conservative treatment.',
-    treatment:'Post-op physiotherapy is the most important part of recovery \u2014 knee bending and straightening exercises, walking with a walker/stick, and pain management.',
-    recovery:'Most patients walk with support within 1\u20132 days and without support by 4\u20136 weeks. Full recovery and muscle strength can take 3\u20136 months.',
-    homeCare:['Do knee bending/straightening exercises several times a day, as taught','Keep the wound clean and dry','Ice the knee for swelling','Avoid twisting the knee'],
-    redFlags:['Increasing redness or discharge from the wound','Fever','Calf swelling or pain (possible clot)','Sudden increase in pain'] },
+  { id:'tkr', keywords:['tkr','total knee replacement','knee replacement post op'],
+    name:{en:'Total Knee Replacement (Post-op)', hi:'\u091f\u094b\u091f\u0932 \u0928\u0940 \u0930\u093f\u092a\u094d\u0932\u0947\u0938\u092e\u0947\u0902\u091f (TKR) \u0915\u0947 \u092c\u093e\u0926'},
+    whatIsIt:{en:'Your damaged knee joint surfaces have been replaced with an artificial implant to relieve pain and restore movement.',
+      hi:'Aapke damaged knee joint ki surfaces ko ek artificial implant se replace kiya gaya hai taaki dard kam ho aur movement wapas aaye.'},
+    dos:{en:['Do your knee bending/straightening exercises several times a day, exactly as taught','Walk with your walker/stick as advised','Keep the wound clean and dry','Ice the knee for swelling'],
+      hi:['Sikhaye gaye tareeke se din mein kai baar ghutna modne/seedha karne ki exercise karein','Walker/stick ke saath advise ke mutabik chalein','Wound ko saaf aur sookha rakhein','Sujan ke liye ice lagayein']},
+    donts:{en:['Don\u2019t twist the knee','Don\u2019t kneel or squat until your surgeon clears you','Don\u2019t skip your physiotherapy sessions'],
+      hi:['Ghutne ko twist na karein','Jab tak surgeon clear na kare, kneel ya squat na karein','Physiotherapy sessions miss na karein']},
+    nutrition:{en:'Eat protein-rich food (dal, eggs, paneer, milk) to help wound and tissue healing. Stay well hydrated.',
+      hi:'Protein-rich khaana (dal, ande, paneer, doodh) lein jisse wound aur tissue healing mein madad mile. Paani achhi tarah peete rahein.'},
+    medication:{en:'Take pain relief and blood-thinning medicines exactly as prescribed \u2014 do not stop blood thinners early without asking your surgeon.',
+      hi:'Pain relief aur blood-thinning dawaiyan bilkul prescribe ke mutabik lein \u2014 surgeon se puchhe bina blood thinners jaldi band na karein.'},
+    physio:{en:'Physiotherapy is the single most important part of recovery \u2014 consistent daily exercises determine how well your new knee moves.',
+      hi:'Physiotherapy recovery ka sabse zaroori hissa hai \u2014 roz consistent exercises hi decide karti hain ki naya ghutna kitna achha move karega.'},
+    redFlags:{en:['Increasing redness or discharge from the wound','Fever','Calf swelling or pain (possible clot)','Sudden increase in pain'],
+      hi:['Wound se badhta hua laalpan ya discharge','Bukhaar','Pindli mein sujan ya dard (clot ho sakta hai)','Dard ka achanak badh jaana']},
+    quote:{en:'\u201cEvery day of rehab is an investment in years of walking freely.\u201d', hi:'\u201c\u0930\u093f\u0939\u0948\u092c \u0915\u093e \u0939\u0930 \u0926\u093f\u0928 \u0906\u0928\u0947 \u0935\u093e\u0932\u0947 \u0938\u093e\u0932\u094b\u0902 \u0915\u0940 \u0906\u091c\u093c\u093e\u0926\u0940 \u092e\u0947\u0902 \u0928\u093f\u0935\u0947\u0936 \u0939\u0948\u0964\u201d'} },
 
-  { id:'thr', name:'Total Hip Replacement (Post-op)', keywords:['thr','total hip replacement','hip replacement post op'],
-    whatIsIt:'Your damaged hip joint has been replaced with an artificial implant (ball and socket) to relieve pain and restore movement.',
-    causes:'Done for advanced arthritis, avascular necrosis, or fracture that cannot be fixed any other way.',
-    treatment:'Physiotherapy for walking and hip-safe movements, pain management, and gradually increasing activity as advised by your surgeon.',
-    recovery:'Walking with support usually starts within 1\u20132 days. Hip precautions are followed for about 6 weeks while the tissues heal.',
-    homeCare:['Avoid crossing your legs','Avoid bending the hip beyond 90 degrees','Avoid sitting on low seats or the floor for 6 weeks','Use a raised toilet seat and chair','Sleep with a pillow between your knees if advised'],
-    redFlags:['Sudden severe hip pain with inability to walk (possible dislocation)','Wound redness or discharge','Fever','Calf swelling'] },
+  { id:'thr', keywords:['thr','total hip replacement','hip replacement post op'],
+    name:{en:'Total Hip Replacement (Post-op)', hi:'\u091f\u094b\u091f\u0932 \u0939\u093f\u092a \u0930\u093f\u092a\u094d\u0932\u0947\u0938\u092e\u0947\u0902\u091f (THR) \u0915\u0947 \u092c\u093e\u0926'},
+    whatIsIt:{en:'Your damaged hip joint has been replaced with an artificial implant (ball and socket) to relieve pain and restore movement.',
+      hi:'Aapke damaged hip joint ko ek artificial implant (ball and socket) se replace kiya gaya hai taaki dard kam ho aur movement wapas aaye.'},
+    dos:{en:['Use a raised toilet seat and chair','Sleep with a pillow between your knees if advised','Walk with support as advised','Do your hip-safe exercises daily'],
+      hi:['Raised toilet seat aur chair use karein','Agar bola gaya ho to ghutno ke beech takiya rakhkar soyein','Support ke saath advise ke mutabik chalein','Roz hip-safe exercises karein']},
+    donts:{en:['Don\u2019t cross your legs','Don\u2019t bend the hip beyond 90 degrees','Avoid sitting on low seats or the floor for the first 6 weeks'],
+      hi:['Pair cross na karein','Hip ko 90 degree se zyada na moden','Pehle 6 hafte low seats ya floor pe baithne se bachein']},
+    nutrition:{en:'Protein-rich food supports healing. Include calcium and Vitamin D for bone strength around the new implant.',
+      hi:'Protein-rich khaana healing mein madad karta hai. New implant ke aas-paas bone strength ke liye calcium aur Vitamin D lein.'},
+    medication:{en:'Take blood-thinning medicine exactly as prescribed to prevent clots \u2014 this is very important after hip surgery. Do not stop early.',
+      hi:'Clot rokne ke liye blood-thinning dawai bilkul prescribe ke mutabik lein \u2014 hip surgery ke baad ye bahut zaroori hai. Jaldi band na karein.'},
+    physio:{en:'Follow your hip precautions strictly for the first 6 weeks while physiotherapy helps you regain strength and a safe walking pattern.',
+      hi:'Pehle 6 hafte hip precautions ka sakhti se palan karein, jab tak physiotherapy se strength aur safe walking pattern wapas na aa jaaye.'},
+    redFlags:{en:['Sudden severe hip pain with inability to walk (possible dislocation)','Wound redness or discharge','Fever','Calf swelling'],
+      hi:['Achanak tez hip dard jisse chal na paayein (dislocation ho sakta hai)','Wound mein laalpan ya discharge','Bukhaar','Pindli mein sujan']},
+    quote:{en:'\u201cPatience with the process brings freedom in your steps.\u201d', hi:'\u201c\u092a\u094d\u0930\u094b\u0938\u0947\u0938 \u092e\u0947\u0902 \u0927\u0940\u0930\u091c \u0939\u0940 \u0906\u092a\u0915\u0947 \u0915\u0926\u092e\u094b\u0902 \u0915\u094b \u0906\u091c\u093c\u093e\u0926 \u0915\u0930\u0947\u0917\u093e\u0964\u201d'} },
 
-  { id:'acl', name:'ACL Tear / Reconstruction', keywords:['acl','anterior cruciate','acl tear','acl injury','acl reconstruction'],
-    whatIsIt:'The ACL is a key ligament that stabilises the knee, commonly injured during sports involving sudden twisting, pivoting, or landing awkwardly.',
-    causes:'Sports injuries (football, basketball, running with sudden direction change), road traffic accidents, or falls.',
-    treatment:'Depends on activity level and instability \u2014 options include physiotherapy alone, or ACL reconstruction surgery using a graft, followed by structured rehab.',
-    recovery:'Return to daily activities by 6\u201312 weeks; return to sport typically takes 6\u20139 months with a structured rehabilitation program.',
-    homeCare:['Follow your rehab program strictly','Do quadriceps and hamstring strengthening exercises','Do balance training as taught','Avoid pivoting sports until cleared by your surgeon'],
-    redFlags:['Repeated giving-way of the knee','Knee locking and unable to straighten','New or increasing swelling'] },
+  { id:'acl', keywords:['acl','anterior cruciate','acl tear','acl injury','acl reconstruction'],
+    name:{en:'ACL Tear / Reconstruction', hi:'ACL \u091f\u093f\u092f\u0930 / \u0930\u093f\u0915\u0902\u0938\u094d\u091f\u094d\u0930\u0915\u094d\u0936\u0928'},
+    whatIsIt:{en:'The ACL is a key ligament that stabilises the knee, commonly injured during sports involving sudden twisting, pivoting, or landing awkwardly.',
+      hi:'ACL ek zaroori ligament hai jo ghutne ko stable rakhta hai, aksar sports mein sudden twisting, pivoting ya galat landing se injure hota hai.'},
+    dos:{en:['Follow your rehab program strictly, step by step','Do quadriceps and hamstring strengthening exercises','Do balance training as taught','Use a knee brace if advised'],
+      hi:['Rehab program ko step-by-step sakhti se follow karein','Quadriceps aur hamstring strengthening exercises karein','Sikhaya gaya balance training karein','Agar bola gaya ho to knee brace use karein']},
+    donts:{en:['Don\u2019t return to pivoting sports until your surgeon clears you','Don\u2019t skip rehab milestones to rush back','Avoid twisting movements on a loaded knee'],
+      hi:['Jab tak surgeon clear na kare, pivoting sports mein wapas na jaayein','Jaldi wapas jaane ke liye rehab milestones skip na karein','Loaded ghutne pe twisting movements se bachein']},
+    nutrition:{en:'Protein-rich food supports muscle rebuilding during rehab. Stay hydrated, especially around physiotherapy sessions.',
+      hi:'Rehab ke dauraan muscle rebuilding ke liye protein-rich khaana lein. Khaaskar physiotherapy sessions ke aas-paas paani achhi tarah peete rahein.'},
+    medication:{en:'Take pain relief as prescribed around physiotherapy sessions if needed to allow full participation in exercises.',
+      hi:'Agar zaroorat ho to physiotherapy sessions ke aas-paas prescribe ki hui pain relief lein taaki exercises poori tarah kar sakein.'},
+    physio:{en:'A structured, staged rehab program (strength \u2192 balance \u2192 sport-specific drills) over several months is essential for a safe return to sport.',
+      hi:'Kai mahino tak ek structured, staged rehab program (strength \u2192 balance \u2192 sport-specific drills) safe return to sport ke liye zaroori hai.'},
+    redFlags:{en:['Repeated giving-way of the knee','Knee locking and unable to straighten','New or increasing swelling'],
+      hi:['Ghutna baar-baar giv-way hona (dagmagana)','Ghutna lock ho jaana aur seedha na ho paana','Nayi ya badhti hui sujan']},
+    quote:{en:'\u201cStrength doesn\u2019t come from what you can do, but from overcoming what you thought you couldn\u2019t.\u201d', hi:'\u201c\u091c\u094b \u0938\u094b\u091a\u0924\u0947 \u0925\u0947 \u0928\u0939\u0940\u0902 \u0915\u0930 \u092a\u093e\u0913\u0917\u0947, \u0909\u0938\u0947 \u0915\u0930 \u0926\u093f\u0916\u093e\u0928\u093e \u0939\u0940 \u0938\u091a\u094d\u091a\u0940 \u0924\u093e\u0915\u0924 \u0939\u0948\u0964\u201d'} },
 
-  { id:'meniscus', name:'Meniscus Tear', keywords:['meniscus','meniscal tear','torn cartilage knee'],
-    whatIsIt:'The meniscus is a cushion of cartilage in the knee that can tear from twisting injuries or wear-and-tear with age.',
-    causes:'Sports injuries with twisting, squatting with a loaded knee, or age-related degeneration.',
-    treatment:'Many tears heal or settle with physiotherapy and activity modification. Some tears (especially locking the knee) may need keyhole (arthroscopic) surgery.',
-    recovery:'Conservative recovery takes 4\u20136 weeks. After arthroscopic surgery, most people return to normal activity in 4\u20138 weeks depending on the repair done.',
-    homeCare:['Avoid deep squatting and twisting movements','Ice and elevate the knee for swelling','Do quadriceps strengthening exercises'],
-    redFlags:['Knee suddenly locks and cannot be straightened'] },
+  { id:'meniscus', keywords:['meniscus','meniscal tear','torn cartilage knee'],
+    name:{en:'Meniscus Tear', hi:'\u092e\u0947\u0928\u093f\u0938\u094d\u0915\u0938 \u091f\u093f\u092f\u0930'},
+    whatIsIt:{en:'The meniscus is a cushion of cartilage in the knee that can tear from twisting injuries or wear-and-tear with age.',
+      hi:'Meniscus ghutne mein cartilage ka ek cushion hai jo twisting injury se ya umar ke saath ghis kar tear ho sakta hai.'},
+    dos:{en:['Do quadriceps strengthening exercises','Ice and elevate the knee for swelling','Use a knee support if advised'],
+      hi:['Quadriceps strengthening exercises karein','Sujan ke liye ghutne ko ice aur elevate karein','Agar bola gaya ho to knee support use karein']},
+    donts:{en:['Avoid deep squatting and twisting movements','Don\u2019t force through pain to keep playing sport'],
+      hi:['Deep squatting aur twisting movements se bachein','Dard ke bawajood zabardasti khel jaari na rakhein']},
+    nutrition:{en:'Anti-inflammatory foods (fruits, vegetables, nuts) may help settle swelling alongside treatment.',
+      hi:'Anti-inflammatory khaane (fruits, vegetables, nuts) treatment ke saath sujan kam karne mein madadgar ho sakte hain.'},
+    medication:{en:'Take pain/anti-inflammatory medicines only as prescribed and for the advised duration.',
+      hi:'Pain/anti-inflammatory dawaiyan sirf prescribe ke mutabik aur bataye gaye samay tak lein.'},
+    physio:{en:'Quadriceps strengthening is the key to recovering knee stability, whether or not surgery is done.',
+      hi:'Surgery ho ya na ho, quadriceps strengthening hi ghutne ki stability wapas laane ki key hai.'},
+    redFlags:{en:['Knee suddenly locks and cannot be straightened'],
+      hi:['Ghutna achanak lock ho jaaye aur seedha na ho paaye']},
+    quote:{en:'\u201cSmall consistent efforts heal what a single big push cannot.\u201d', hi:'\u201c\u091b\u094b\u091f\u0947-\u091b\u094b\u091f\u0947 \u0932\u0917\u093e\u0924\u093e\u0930 \u092a\u094d\u0930\u092f\u093e\u0938 \u0935\u094b \u0920\u0940\u0915 \u0915\u0930\u0924\u0947 \u0939\u0948\u0902 \u091c\u094b \u090f\u0915 \u092c\u0921\u093c\u093e \u0927\u0915\u094d\u0915\u093e \u0928\u0939\u0940\u0902 \u0915\u0930 \u092a\u093e\u0924\u093e\u0964\u201d'} },
 
-  { id:'rotator_cuff', name:'Rotator Cuff Tear', keywords:['rotator cuff','cuff tear','shoulder tear'],
-    whatIsIt:'The rotator cuff is a group of muscles/tendons that move and stabilise the shoulder. A tear causes pain and weakness, especially lifting the arm.',
-    causes:'Age-related wear and tear, repetitive overhead activity, or a fall/injury.',
-    treatment:'Physiotherapy and pain management for partial tears; arthroscopic repair surgery for larger or symptomatic tears.',
-    recovery:'Conservative treatment: 6\u201312 weeks. After surgery: shoulder is protected in a sling for several weeks, with gradual physiotherapy over 4\u20136 months.',
-    homeCare:['Avoid heavy lifting and overhead activity until advised','Do pendulum and gentle range-of-motion exercises as taught'],
-    redFlags:['Sudden inability to lift the arm at all after an injury'] },
+  { id:'rotator_cuff', keywords:['rotator cuff','cuff tear','shoulder tear'],
+    name:{en:'Rotator Cuff Tear', hi:'\u0930\u094b\u091f\u0947\u091f\u0930 \u0915\u092b \u091f\u093f\u092f\u0930'},
+    whatIsIt:{en:'The rotator cuff is a group of muscles/tendons that move and stabilise the shoulder. A tear causes pain and weakness, especially lifting the arm.',
+      hi:'Rotator cuff muscles/tendons ka ek group hai jo shoulder ko move aur stable karta hai. Tear hone se dard aur kamzori hoti hai, khaaskar haath uthaane mein.'},
+    dos:{en:['Do pendulum and gentle range-of-motion exercises as taught','Wear your sling if advised','Progress exercises gradually as guided'],
+      hi:['Sikhaye gaye pendulum aur gentle range-of-motion exercises karein','Agar bola gaya ho to sling pehnein','Guide kiye anusaar dheere-dheere exercises badhayein']},
+    donts:{en:['Avoid heavy lifting and overhead activity until advised','Don\u2019t push through sharp pain during exercises'],
+      hi:['Jab tak bola na jaaye, heavy lifting aur overhead activity se bachein','Exercises ke dauraan tez dard ke bawajood zabardasti na karein']},
+    nutrition:{en:'Protein-rich food supports tendon and muscle healing, especially after surgical repair.',
+      hi:'Protein-rich khaana tendon aur muscle healing mein madad karta hai, khaaskar surgical repair ke baad.'},
+    medication:{en:'Take pain relief as prescribed to allow comfortable participation in physiotherapy exercises.',
+      hi:'Physiotherapy exercises aaraam se karne ke liye prescribe ki hui pain relief lein.'},
+    physio:{en:'Gradual, guided physiotherapy over several months restores strength \u2014 rushing this can risk re-injury.',
+      hi:'Kai mahino tak dheere-dheere, guided physiotherapy strength wapas laati hai \u2014 jaldi karne se dobara chot lag sakti hai.'},
+    redFlags:{en:['Sudden inability to lift the arm at all after an injury'],
+      hi:['Chot ke baad achanak haath bilkul bhi na utha paana']},
+    quote:{en:'\u201cThe shoulder that heals slowly today carries you far tomorrow.\u201d', hi:'\u201c\u091c\u094b \u0915\u0902\u0927\u093e \u0906\u091c \u0927\u0940\u0930\u0947-\u0927\u0940\u0930\u0947 \u0920\u0940\u0915 \u0939\u094b\u0924\u093e \u0939\u0948, \u0935\u0939\u0940 \u0915\u0932 \u0906\u092a\u0915\u094b \u0926\u0942\u0930 \u0924\u0915 \u0932\u0947 \u091c\u093e\u0924\u093e \u0939\u0948\u0964\u201d'} },
 
-  { id:'shoulder_dislocation', name:'Shoulder Dislocation', keywords:['shoulder dislocation','dislocated shoulder'],
-    whatIsIt:'The ball of the shoulder joint has slipped out of its socket, usually after a fall or sports injury.',
-    causes:'Falls onto an outstretched arm, direct blow to the shoulder, or forceful twisting during sports.',
-    treatment:'The shoulder is put back in place (reduction), followed by a sling for support and physiotherapy. Recurrent dislocations may need surgery.',
-    recovery:'Sling for 2\u20133 weeks, followed by gradual strengthening exercises over 6\u201312 weeks.',
-    homeCare:['Wear the sling as advised','Avoid raising the arm sideways or behind your back until cleared','Start gentle exercises only as instructed'],
-    redFlags:['Numbness or tingling in the arm or hand','Repeated dislocations with minor movements'] },
+  { id:'shoulder_dislocation', keywords:['shoulder dislocation','dislocated shoulder'],
+    name:{en:'Shoulder Dislocation', hi:'\u0936\u094b\u0932\u094d\u0921\u0930 \u0921\u093f\u0938\u094d\u0932\u094b\u0915\u0947\u0936\u0928'},
+    whatIsIt:{en:'The ball of the shoulder joint has slipped out of its socket, usually after a fall or sports injury.',
+      hi:'Shoulder joint ki ball apne socket se bahar nikal gayi hai, aksar girne ya sports injury ke baad.'},
+    dos:{en:['Wear the sling exactly as advised','Start gentle exercises only as instructed','Support the arm when moving around'],
+      hi:['Advise ke mutabik hi sling pehnein','Sirf instruct kiye gaye gentle exercises shuru karein','Ghumte waqt haath ko support karein']},
+    donts:{en:['Don\u2019t raise the arm sideways or behind your back until cleared','Avoid contact sports until your surgeon allows'],
+      hi:['Jab tak clear na ho, haath ko side ya peeche na uthayein','Jab tak surgeon allow na kare, contact sports se bachein']},
+    nutrition:{en:'A balanced diet with adequate protein supports healing of the shoulder capsule and muscles.',
+      hi:'Balanced diet jisme adequate protein ho, shoulder capsule aur muscles ki healing mein madad karta hai.'},
+    medication:{en:'Take pain relief as prescribed, especially in the first 1\u20132 weeks.',
+      hi:'Khaaskar pehle 1\u20132 hafte mein prescribe ki hui pain relief lein.'},
+    physio:{en:'Gradual strengthening exercises, started only once advised, help prevent repeat dislocations.',
+      hi:'Sirf jab bola jaaye tab shuru ki gayi gradual strengthening exercises dobara dislocation rokne mein madad karti hain.'},
+    redFlags:{en:['Numbness or tingling in the arm or hand','Repeated dislocations with minor movements'],
+      hi:['Haath ya baazu mein sunnapan ya jhunjhunahat','Chhote movements se bhi baar-baar dislocation hona']},
+    quote:{en:'\u201cStability returns to those who respect the healing timeline.\u201d', hi:'\u201c\u091c\u094b \u0939\u0940\u0932\u093f\u0902\u0917 \u0915\u0947 \u0938\u092e\u092f \u0915\u093e \u0938\u092e\u094d\u092e\u093e\u0928 \u0915\u0930\u0924\u0947 \u0939\u0948\u0902, \u0938\u094d\u0925\u093f\u0930\u0924\u093e \u0909\u0928\u094d\u0939\u0940\u0902 \u0915\u0947 \u092a\u093e\u0938 \u0932\u094c\u091f\u0924\u0940 \u0939\u0948\u0964\u201d'} },
 
-  { id:'ankle_sprain', name:'Ankle Sprain', keywords:['ankle sprain','twisted ankle','sprained ankle'],
-    whatIsIt:'Stretching or tearing of the ligaments around the ankle, usually from rolling or twisting the foot.',
-    causes:'Sports, uneven walking surfaces, or missteps.',
-    treatment:'RICE protocol (Rest, Ice, Compression, Elevation), pain relief, and gradual return to activity with an ankle support/brace.',
-    recovery:'Mild sprains: 1\u20132 weeks. Moderate to severe sprains: 4\u20136 weeks with balance/strengthening exercises.',
-    homeCare:['Ice for 15\u201320 minutes every few hours for the first 48 hours','Use a compression bandage','Elevate the foot when resting','Avoid weight-bearing if very painful'],
-    redFlags:['Unable to bear any weight at all','Severe swelling or visible deformity'] },
+  { id:'ankle_sprain', keywords:['ankle sprain','twisted ankle','sprained ankle'],
+    name:{en:'Ankle Sprain', hi:'\u090f\u0902\u0915\u0932 \u0938\u094d\u092a\u094d\u0930\u0947\u0928 (\u092e\u094b\u091a)'},
+    whatIsIt:{en:'Stretching or tearing of the ligaments around the ankle, usually from rolling or twisting the foot.',
+      hi:'Pair mudne ya twist hone se ankle ke aas-paas ke ligaments stretch ya tear ho jaate hain.'},
+    dos:{en:['Follow RICE: Rest, Ice, Compression, Elevation','Use a compression bandage','Elevate the foot when resting','Wear an ankle support/brace during activity'],
+      hi:['RICE follow karein: Rest, Ice, Compression, Elevation','Compression bandage use karein','Aaraam karte waqt pair ko elevate karein','Activity ke dauraan ankle support/brace pehnein']},
+    donts:{en:['Avoid weight-bearing if very painful','Don\u2019t return to sport before your doctor clears you'],
+      hi:['Agar bahut dard ho to weight-bearing se bachein','Doctor clear kiye bina sport mein wapas na jaayein']},
+    nutrition:{en:'Good hydration and a balanced diet support normal ligament healing \u2014 no special restrictions usually needed.',
+      hi:'Achhi hydration aur balanced diet normal ligament healing mein madad karti hai \u2014 aam taur pe koi special restriction nahi chahiye.'},
+    medication:{en:'Take pain relief as prescribed for the first few days if needed.',
+      hi:'Zaroorat ho to pehle kuch dino ke liye prescribe ki hui pain relief lein.'},
+    physio:{en:'Balance and strengthening exercises once acute pain settles help prevent repeat sprains.',
+      hi:'Acute dard kam hone ke baad balance aur strengthening exercises dobara sprain hone se bachati hain.'},
+    redFlags:{en:['Unable to bear any weight at all','Severe swelling or visible deformity'],
+      hi:['Bilkul bhi weight na daal paana','Bahut zyada sujan ya dikhne wali deformity']},
+    quote:{en:'\u201cEven a small sprain teaches the body to move wiser next time.\u201d', hi:'\u201c\u091b\u094b\u091f\u0940 \u0938\u0940 \u092e\u094b\u091a \u092d\u0940 \u0936\u0930\u0940\u0930 \u0915\u094b \u0905\u0917\u0932\u0940 \u092c\u093e\u0930 \u0938\u092e\u091d\u0926\u093e\u0930\u0940 \u0938\u0947 \u091a\u0932\u0928\u093e \u0938\u093f\u0916\u093e\u0924\u0940 \u0939\u0948\u0964\u201d'} },
 
-  { id:'fracture_cast', name:'Fracture \u2014 General Cast Care', keywords:['fracture','cast care','plaster care','pop cast'],
-    whatIsIt:'A broken bone that has been immobilised in a cast/splint to allow it to heal in the correct position.',
-    causes:'Falls, accidents, or sports injuries.',
-    treatment:'Immobilisation in a cast or splint for several weeks, with periodic X-rays to check healing.',
-    recovery:'Most fractures take 6\u20128 weeks to heal, though this varies by bone and age. Physiotherapy is often needed after the cast is removed to regain movement and strength.',
-    homeCare:['Keep the cast dry and clean','Keep the limb elevated to reduce swelling','Wiggle fingers/toes regularly','Never insert objects inside the cast to scratch'],
-    redFlags:['Fingers or toes turning blue or numb','Severe pain not relieved by medicine','Foul smell or discharge from the cast'] },
+  { id:'fracture_cast', keywords:['fracture','cast care','plaster care','pop cast'],
+    name:{en:'Fracture \u2014 General Cast Care', hi:'\u092b\u094d\u0930\u0948\u0915\u094d\u091a\u0930 \u2014 \u0915\u093e\u0938\u094d\u091f/\u092a\u094d\u0932\u093e\u0938\u094d\u091f\u0930 \u0915\u0940 \u0926\u0947\u0916\u092d\u093e\u0932'},
+    whatIsIt:{en:'A broken bone that has been immobilised in a cast/splint to allow it to heal in the correct position.',
+      hi:'Ek toota hua haddi hai jise sahi position mein heal karne ke liye cast/splint mein immobilise kiya gaya hai.'},
+    dos:{en:['Keep the injured limb elevated above heart level to reduce swelling, especially in the first 2\u20133 days','Keep the cast dry and clean','Wiggle fingers/toes regularly to keep blood flowing','Keep follow-up X-ray appointments'],
+      hi:['Sujan kam karne ke liye pehle 2\u20133 din injured limb ko dil (heart) se upar elevate karke rakhein','Cast ko saaf aur sookha rakhein','Blood flow banaye rakhne ke liye ungliyan/paer ki ungliyan regularly hilayein','Follow-up X-ray appointments miss na karein']},
+    donts:{en:['Never insert objects inside the cast to scratch','Don\u2019t get the cast wet','Don\u2019t bear weight on the limb until your doctor allows'],
+      hi:['Cast ke andar khujlaane ke liye kuch bhi na daalein','Cast ko geela na hone dein','Jab tak doctor allow na kare, limb pe weight na daalein']},
+    nutrition:{en:'Calcium and Vitamin D rich foods (milk, dairy, eggs, sunlight) support bone healing. Protein helps overall tissue repair.',
+      hi:'Calcium aur Vitamin D wale khaane (doodh, dairy, ande, dhoop) bone healing mein madad karte hain. Protein overall tissue repair mein madad karta hai.'},
+    medication:{en:'Take prescribed pain relief regularly for the first few days rather than waiting for severe pain. Take calcium/Vitamin D supplements if advised.',
+      hi:'Pehle kuch dino tak severe dard ka intezaar karne ke bajaye prescribe ki hui pain relief regularly lein. Agar bola gaya ho to calcium/Vitamin D supplements lein.'},
+    physio:{en:'Once the cast is removed, physiotherapy helps regain movement and strength that was lost during immobilisation.',
+      hi:'Cast hatne ke baad physiotherapy immobilisation ke dauraan khoyi hui movement aur strength wapas laane mein madad karti hai.'},
+    redFlags:{en:['Fingers or toes turning blue or numb','Severe pain not relieved by medicine','Foul smell or discharge from the cast'],
+      hi:['Ungliyan ya paer ki ungliyan neeli ya sunn ho jaayein','Dawai se bhi na kam hone wala tez dard','Cast se badboo ya discharge aana']},
+    quote:{en:'\u201cBones don\u2019t just heal, they grow back stronger at the point of the break.\u201d', hi:'\u201c\u0939\u0921\u094d\u0921\u093f\u092f\u093e\u0902 \u0938\u093f\u0930\u094d\u092b \u0920\u0940\u0915 \u0928\u0939\u0940\u0902 \u0939\u094b\u0924\u0940\u0902, \u091f\u0942\u091f\u0928\u0947 \u0915\u0940 \u091c\u0917\u0939 \u092a\u0930 \u0914\u0930 \u092e\u091c\u092c\u0942\u0924 \u092c\u0928\u0915\u0930 \u0935\u093e\u092a\u0938 \u0906\u0924\u0940 \u0939\u0948\u0902\u0964\u201d'} },
 
-  { id:'distal_radius', name:'Distal Radius (Wrist) Fracture', keywords:['distal radius','wrist fracture','colles fracture'],
-    whatIsIt:'A break in the forearm bone near the wrist, one of the most common fractures, often from a fall onto an outstretched hand.',
-    causes:'Falls, especially in osteoporotic (weak) bones in older adults, or high-impact injuries in younger people.',
-    treatment:'Depending on severity: cast immobilisation alone, or surgery with a plate/pins if the bone is displaced or unstable.',
-    recovery:'Cast treatment: 4\u20136 weeks. After surgery, gentle finger movement starts early, with wrist physiotherapy once healing allows.',
-    homeCare:['Keep fingers moving regularly to prevent stiffness','Keep the arm elevated','Keep the cast/wound dry'],
-    redFlags:['Numbness in the fingers','Severe swelling','Fingers turning pale or blue'] },
+  { id:'distal_radius', keywords:['distal radius','wrist fracture','colles fracture'],
+    name:{en:'Distal Radius (Wrist) Fracture', hi:'\u0915\u0932\u093e\u0908 (\u0915\u0932\u093e\u0908 \u0915\u0940 \u0939\u0921\u094d\u0921\u0940) \u0915\u093e \u092b\u094d\u0930\u0948\u0915\u094d\u091a\u0930'},
+    whatIsIt:{en:'A break in the forearm bone near the wrist, one of the most common fractures, often from a fall onto an outstretched hand.',
+      hi:'Kalai ke paas forearm ki haddi ka toot jaana, sabse common fractures mein se ek, aksar haath ke bal girne se hota hai.'},
+    dos:{en:['Keep the arm elevated to reduce swelling','Keep fingers moving regularly to prevent stiffness','Keep the cast/wound dry'],
+      hi:['Sujan kam karne ke liye haath ko elevate rakhein','Akadan rokne ke liye ungliyan regularly hilate rahein','Cast/wound ko sookha rakhein']},
+    donts:{en:['Don\u2019t lift heavy objects with the injured hand','Don\u2019t remove the cast/splint yourself'],
+      hi:['Injured haath se bhaari cheezein na uthayein','Cast/splint khud na hatayein']},
+    nutrition:{en:'Calcium and Vitamin D rich foods support bone healing, especially important for older adults with this fracture.',
+      hi:'Calcium aur Vitamin D wale khaane bone healing mein madad karte hain, khaaskar older adults ke liye jinhe ye fracture hua hai.'},
+    medication:{en:'Take pain relief as prescribed. If diagnosed with osteoporosis, discuss long-term bone-strengthening medicine with your doctor.',
+      hi:'Prescribe ki hui pain relief lein. Agar osteoporosis diagnose hua hai, to long-term bone-strengthening dawai ke baare mein doctor se baat karein.'},
+    physio:{en:'Finger and wrist physiotherapy once the cast is removed helps regain grip strength and movement.',
+      hi:'Cast hatne ke baad ungli aur kalai ki physiotherapy grip strength aur movement wapas laane mein madad karti hai.'},
+    redFlags:{en:['Numbness in the fingers','Severe swelling','Fingers turning pale or blue'],
+      hi:['Ungliyon mein sunnapan','Bahut zyada sujan','Ungliyon ka pila ya neela padna']},
+    quote:{en:'\u201cWhat feels fragile today will hold your world together again.\u201d', hi:'\u201c\u091c\u094b \u0906\u091c \u0928\u093e\u091c\u0941\u0915 \u0932\u0917\u0924\u093e \u0939\u0948, \u0935\u0939\u0940 \u0906\u092a\u0915\u0940 \u0926\u0941\u0928\u093f\u092f\u093e \u0915\u094b \u092b\u093f\u0930 \u0938\u0947 \u091c\u094b\u0921\u093c\u0947\u0917\u093e\u0964\u201d'} },
 
-  { id:'tennis_elbow', name:'Tennis Elbow (Lateral Epicondylitis)', keywords:['tennis elbow','lateral epicondylitis','elbow pain'],
-    whatIsIt:'Overuse injury of the tendons on the outer side of the elbow, causing pain with gripping or lifting.',
-    causes:'Repetitive gripping/wrist movements \u2014 racquet sports, manual work, computer use, or repetitive lifting.',
-    treatment:'Rest from aggravating activity, physiotherapy (eccentric strengthening exercises), a tennis-elbow brace, and pain relief. Injections are used in resistant cases.',
-    recovery:'Most cases improve over 6\u201312 weeks with activity modification and exercises; some take longer.',
-    homeCare:['Avoid heavy gripping and repetitive wrist movements','Use an elbow brace during aggravating activity','Do gentle stretching and strengthening exercises as taught'],
-    redFlags:['Pain not improving after several weeks of home care \u2014 book a follow-up'] },
+  { id:'tennis_elbow', keywords:['tennis elbow','lateral epicondylitis','elbow pain'],
+    name:{en:'Tennis Elbow (Lateral Epicondylitis)', hi:'\u091f\u0947\u0928\u093f\u0938 \u090f\u0932\u094d\u092c\u094b (Lateral Epicondylitis)'},
+    whatIsIt:{en:'Overuse injury of the tendons on the outer side of the elbow, causing pain with gripping or lifting.',
+      hi:'Elbow ke bahar wali taraf ke tendons ki overuse injury, jisse gripping ya lifting mein dard hota hai.'},
+    dos:{en:['Rest from the activity that aggravates it','Use an elbow brace during aggravating activity','Do gentle stretching and strengthening exercises as taught'],
+      hi:['Jis activity se dard badhta hai usse rest karein','Aggravating activity ke dauraan elbow brace use karein','Sikhaye gaye gentle stretching aur strengthening exercises karein']},
+    donts:{en:['Avoid heavy gripping and repetitive wrist movements','Don\u2019t ignore early symptoms hoping they\u2019ll pass on their own'],
+      hi:['Heavy gripping aur repetitive wrist movements se bachein','Shuruaati symptoms ko ignore na karein ye soch kar ki khud thik ho jayenge']},
+    nutrition:{en:'No special diet is needed \u2014 a generally balanced, anti-inflammatory diet (fruits, vegetables) may help.',
+      hi:'Koi special diet nahi chahiye \u2014 ek balanced, anti-inflammatory diet (fruits, vegetables) madadgar ho sakti hai.'},
+    medication:{en:'Take pain relief/anti-inflammatory medicine as prescribed. Injections are used only in resistant cases.',
+      hi:'Prescribe ki hui pain relief/anti-inflammatory dawai lein. Injections sirf resistant cases mein use hoti hain.'},
+    physio:{en:'Eccentric strengthening exercises (a specific type your physiotherapist will teach) are the most evidence-based treatment.',
+      hi:'Eccentric strengthening exercises (ek specific type jo physiotherapist sikhayenge) sabse evidence-based treatment hai.'},
+    redFlags:{en:['Pain not improving after several weeks of home care \u2014 book a follow-up'],
+      hi:['Kai hafte home care ke baad bhi dard na kam ho \u2014 follow-up book karein']},
+    quote:{en:'\u201cGentle, repeated effort rebuilds what overuse has worn down.\u201d', hi:'\u201c\u0927\u0940\u092e\u0940, \u092c\u093e\u0930-\u092c\u093e\u0930 \u0915\u0940 \u0917\u0908 \u0915\u094b\u0936\u093f\u0936 \u0909\u0938\u0947 \u0926\u094b\u092c\u093e\u0930\u093e \u092c\u0928\u093e\u0924\u0940 \u0939\u0948 \u091c\u094b \u091c\u094d\u092f\u093e\u0926\u093e \u0907\u0938\u094d\u0924\u0947\u092e\u093e\u0932 \u0938\u0947 \u0918\u093f\u0938 \u0917\u092f\u093e\u0964\u201d'} },
 
-  { id:'plantar_fasciitis', name:'Plantar Fasciitis', keywords:['plantar fasciitis','heel pain','foot pain morning'],
-    whatIsIt:'Inflammation of the thick tissue band on the sole of the foot, causing heel pain that is classically worst with the first steps in the morning.',
-    causes:'Prolonged standing, being overweight, tight calf muscles, or unsupportive footwear.',
-    treatment:'Calf and plantar fascia stretching exercises, supportive footwear/insoles, activity modification, and pain relief. Injections in resistant cases.',
-    recovery:'Most people improve over 6\u201312 weeks with consistent stretching and supportive footwear.',
-    homeCare:['Stretch your calf and the sole of your foot every morning before standing','Wear cushioned, supportive shoes','Avoid walking barefoot on hard floors','Apply ice after activity'],
-    redFlags:['Pain worsening despite home care','Numbness or tingling in the foot'] },
+  { id:'plantar_fasciitis', keywords:['plantar fasciitis','heel pain','foot pain morning'],
+    name:{en:'Plantar Fasciitis', hi:'\u092a\u094d\u0932\u093e\u0902\u091f\u0930 \u092b\u0948\u0938\u093f\u0906\u0907\u091f\u093f\u0938 (\u090f\u0921\u093c\u0940 \u0915\u093e \u0926\u0930\u094d\u0926)'},
+    whatIsIt:{en:'Inflammation of the thick tissue band on the sole of the foot, causing heel pain that is classically worst with the first steps in the morning.',
+      hi:'Pair ke tale ke moti tissue band mein sujan, jisse eddi mein dard hota hai jo subah ke pehle kadmon mein sabse zyada hota hai.'},
+    dos:{en:['Stretch your calf and the sole of your foot every morning before standing','Wear cushioned, supportive shoes','Apply ice after activity'],
+      hi:['Khada hone se pehle roz subah calf aur pair ke tale ko stretch karein','Cushioned, supportive joote pehnein','Activity ke baad ice lagayein']},
+    donts:{en:['Avoid walking barefoot on hard floors','Don\u2019t wear flat, unsupportive footwear for long periods'],
+      hi:['Sakht floor pe nange paer chalne se bachein','Lambe samay tak flat, unsupportive joote na pehnein']},
+    nutrition:{en:'Maintaining a healthy body weight reduces strain on the plantar fascia.',
+      hi:'Healthy body weight maintain karne se plantar fascia pe strain kam hota hai.'},
+    medication:{en:'Take pain relief/anti-inflammatory medicine as prescribed. Injections are considered in resistant cases.',
+      hi:'Prescribe ki hui pain relief/anti-inflammatory dawai lein. Resistant cases mein injections consider ki jaati hain.'},
+    physio:{en:'Consistent daily stretching of the calf and foot is the single most effective home treatment.',
+      hi:'Roz consistently calf aur pair ka stretching sabse effective home treatment hai.'},
+    redFlags:{en:['Pain worsening despite home care','Numbness or tingling in the foot'],
+      hi:['Home care ke bawajood dard badhna','Pair mein sunnapan ya jhunjhunahat']},
+    quote:{en:'\u201cEvery morning step is a chance to build a stronger foundation.\u201d', hi:'\u201c\u0938\u0941\u092c\u0939 \u0915\u093e \u0939\u0930 \u0915\u0926\u092e \u090f\u0915 \u092e\u091c\u092c\u0942\u0924 \u0928\u0940\u0902\u0935 \u092c\u0928\u093e\u0928\u0947 \u0915\u093e \u092e\u094c\u0915\u093e \u0939\u0948\u0964\u201d'} },
 
-  { id:'frozen_shoulder', name:'Frozen Shoulder (Adhesive Capsulitis)', keywords:['frozen shoulder','adhesive capsulitis','stiff shoulder'],
-    whatIsIt:'Gradual stiffening and thickening of the shoulder capsule, causing pain and progressive loss of movement, often without a clear injury.',
-    causes:'More common in diabetics, after prolonged shoulder immobility, or sometimes with no clear cause.',
-    treatment:'Physiotherapy and gentle stretching exercises, pain relief, and steroid injections in some cases. Rarely, a procedure to release the stiffness is needed if it doesn\u2019t improve.',
-    recovery:'This condition typically passes through stages (freezing, frozen, thawing) over 1\u20132 years, though treatment can speed up recovery of movement.',
-    homeCare:['Do your shoulder stretching exercises daily, even though it is uncomfortable','Apply heat before stretching','Consistency matters more than intensity'],
-    redFlags:['Sudden new weakness in the arm (not just stiffness)'] },
+  { id:'frozen_shoulder', keywords:['frozen shoulder','adhesive capsulitis','stiff shoulder'],
+    name:{en:'Frozen Shoulder (Adhesive Capsulitis)', hi:'\u092b\u094d\u0930\u094b\u091c\u0928 \u0936\u094b\u0932\u094d\u0921\u0930 (Adhesive Capsulitis)'},
+    whatIsIt:{en:'Gradual stiffening and thickening of the shoulder capsule, causing pain and progressive loss of movement, often without a clear injury.',
+      hi:'Shoulder capsule ka dheere-dheere akadna aur mota hona, jisse dard aur movement ka dheere-dheere kam hona hota hai, aksar bina kisi clear injury ke.'},
+    dos:{en:['Do your shoulder stretching exercises daily, even though it is uncomfortable','Apply heat before stretching','Keep a record of your movement progress'],
+      hi:['Roz shoulder stretching exercises karein, chahe thoda uncomfortable ho','Stretching se pehle garmahat (heat) dein','Apni movement progress ka record rakhein']},
+    donts:{en:['Don\u2019t stop moving the shoulder completely out of fear of pain','Don\u2019t expect overnight results \u2014 this takes consistent time'],
+      hi:['Dard ke dar se shoulder ko bilkul move karna band na karein','Raatorat result ki umeed na karein \u2014 isme consistent samay lagta hai']},
+    nutrition:{en:'This condition is more common in diabetics \u2014 keeping blood sugar well controlled may help recovery.',
+      hi:'Ye condition diabetics mein zyada common hai \u2014 blood sugar ko achhi tarah control mein rakhna recovery mein madad kar sakta hai.'},
+    medication:{en:'Take pain relief as prescribed. Steroid injections may be advised in some cases to speed up progress.',
+      hi:'Prescribe ki hui pain relief lein. Progress tez karne ke liye kuch cases mein steroid injections advise ki ja sakti hain.'},
+    physio:{en:'Consistency matters more than intensity \u2014 this condition typically improves over 1\u20132 years with regular stretching.',
+      hi:'Intensity se zyada consistency matter karti hai \u2014 ye condition regular stretching se 1\u20132 saal mein typically improve hoti hai.'},
+    redFlags:{en:['Sudden new weakness in the arm (not just stiffness)'],
+      hi:['Baazu mein achanak nayi kamzori (sirf akadan nahi)']},
+    quote:{en:'\u201cWhat feels frozen today will thaw with patient, steady effort.\u201d', hi:'\u201c\u091c\u094b \u0906\u091c \u091c\u092e\u093e \u0939\u0941\u0906 \u0932\u0917\u0924\u093e \u0939\u0948, \u0927\u0940\u0930\u091c \u0914\u0930 \u0932\u0917\u093e\u0924\u093e\u0930 \u0915\u094b\u0936\u093f\u0936 \u0938\u0947 \u092a\u093f\u0918\u0932\u0947\u0917\u093e\u0964\u201d'} },
 
-  { id:'lbp', name:'Low Back Pain (Mechanical)', keywords:['low back pain','lbp','backache','back pain'],
-    whatIsIt:'Pain arising from the muscles, joints, or discs of the lower back, usually related to posture, strain, or minor wear-and-tear \u2014 not from anything serious.',
-    causes:'Poor posture, heavy lifting, prolonged sitting, weak core muscles, or minor disc/joint strain.',
-    treatment:'Staying active (avoiding bed rest), core strengthening exercises, pain relief medicines if needed, and posture correction.',
-    recovery:'Most episodes improve significantly within 4\u20136 weeks with activity and exercise.',
-    homeCare:['Keep moving \u2014 avoid prolonged bed rest','Do core strengthening exercises as taught','Maintain good posture while sitting/lifting (bend knees, keep back straight)'],
-    redFlags:['Numbness in the groin or inner thighs','Loss of bladder or bowel control','New leg weakness \u2014 needs same-day evaluation'] },
+  { id:'lbp', keywords:['low back pain','lbp','backache','back pain'],
+    name:{en:'Low Back Pain (Mechanical)', hi:'\u0915\u092e\u0930 \u0926\u0930\u094d\u0926 (\u092e\u0947\u0915\u0947\u0928\u093f\u0915\u0932)'},
+    whatIsIt:{en:'Pain arising from the muscles, joints, or discs of the lower back, usually related to posture, strain, or minor wear-and-tear \u2014 not from anything serious.',
+      hi:'Kamar ke muscles, joints ya discs se aane wala dard, aksar posture, strain ya halke wear-and-tear se related \u2014 kisi serious cheez se nahi.'},
+    dos:{en:['Keep moving \u2014 avoid prolonged bed rest','Do core strengthening exercises as taught','Maintain good posture while sitting/lifting (bend knees, keep back straight)'],
+      hi:['Chalte-phirte rahein \u2014 lambe samay tak bed rest na karein','Sikhaye gaye core strengthening exercises karein','Baithte/uthate waqt achhi posture rakhein (ghutne mode, peeth seedhi rakhein)']},
+    donts:{en:['Avoid heavy lifting with a bent back','Don\u2019t sit for very long periods without breaks','Don\u2019t stay in bed rest for more than a day or two'],
+      hi:['Peeth jhukakar bhaari saaman na uthayein','Lambe samay tak bina break ke na baithein','Ek-do din se zyada bed rest na karein']},
+    nutrition:{en:'Maintaining a healthy weight reduces load on the lower back.',
+      hi:'Healthy weight maintain karne se kamar par load kam hota hai.'},
+    medication:{en:'Take pain relief/muscle relaxants as prescribed, only for the short term.',
+      hi:'Prescribe ki hui pain relief/muscle relaxants lein, sirf short term ke liye.'},
+    physio:{en:'Core and back strengthening exercises are the most effective long-term treatment for preventing recurrence.',
+      hi:'Core aur back strengthening exercises recurrence rokne ke liye sabse effective long-term treatment hai.'},
+    redFlags:{en:['Numbness in the groin or inner thighs','Loss of bladder or bowel control','New leg weakness \u2014 needs same-day evaluation'],
+      hi:['Groin ya jaangh ke andar sunnapan','Peshaab ya mal par control kho dena','Nayi pair ki kamzori \u2014 usi din evaluation zaroori hai']},
+    quote:{en:'\u201cA strong core carries you through every challenge ahead.\u201d', hi:'\u201c\u090f\u0915 \u092e\u091c\u092c\u0942\u0924 core \u0939\u0930 \u0906\u0928\u0947 \u0935\u093e\u0932\u0940 \u091a\u0941\u0928\u094c\u0924\u0940 \u092e\u0947\u0902 \u0906\u092a\u0915\u094b \u0938\u0902\u092d\u093e\u0932\u0924\u093e \u0939\u0948\u0964\u201d'} },
 
-  { id:'sciatica', name:'Sciatica / Disc Herniation', keywords:['sciatica','disc herniation','slip disc','pivd','disc prolapse'],
-    whatIsIt:'Pain that radiates from the lower back down the leg, usually due to a disc pressing on a nerve root.',
-    causes:'Disc bulging or herniation, often from lifting, twisting, or age-related disc wear.',
-    treatment:'Most cases improve with physiotherapy, activity modification, and pain relief medicines over several weeks. Injections or surgery are considered if there is no improvement or if there is significant weakness.',
-    recovery:'The majority of cases improve within 6\u201312 weeks without surgery.',
-    homeCare:['Avoid prolonged sitting and heavy lifting','Do the specific exercises advised by your physiotherapist','Use proper lifting technique (bend at knees, not back)'],
-    redFlags:['Numbness in the groin or inner thighs','Loss of bladder or bowel control','Progressive leg weakness \u2014 needs same-day evaluation'] },
+  { id:'sciatica', keywords:['sciatica','disc herniation','slip disc','pivd','disc prolapse'],
+    name:{en:'Sciatica / Disc Herniation', hi:'\u0938\u093e\u092f\u091f\u093f\u0915\u093e / \u0938\u094d\u0932\u093f\u092a \u0921\u093f\u0938\u094d\u0915 (PIVD)'},
+    whatIsIt:{en:'Pain that radiates from the lower back down the leg, usually due to a disc pressing on a nerve root.',
+      hi:'Kamar se pair tak jaane wala dard, aksar disc ke nerve root par dabaav dene se hota hai.'},
+    dos:{en:['Do the specific exercises advised by your physiotherapist','Use proper lifting technique (bend at knees, not back)','Keep gently active within comfort'],
+      hi:['Physiotherapist ke bataye gaye specific exercises karein','Sahi lifting technique use karein (ghutne mode, kamar nahi)','Comfort ke andar gently active rahein']},
+    donts:{en:['Avoid prolonged sitting','Avoid heavy lifting','Don\u2019t twist while lifting anything'],
+      hi:['Lambe samay tak baithne se bachein','Bhaari saaman uthane se bachein','Kuch bhi uthate waqt twist na karein']},
+    nutrition:{en:'A healthy weight and anti-inflammatory diet (fruits, vegetables, less processed food) may help settle symptoms.',
+      hi:'Healthy weight aur anti-inflammatory diet (fruits, vegetables, kam processed khaana) symptoms kam karne mein madad kar sakti hai.'},
+    medication:{en:'Take pain relief and nerve-pain medicine exactly as prescribed \u2014 these often need regular (not just as-needed) dosing.',
+      hi:'Pain relief aur nerve-pain dawai bilkul prescribe ke mutabik lein \u2014 inhe aksar regular (sirf zaroorat padne par nahi) lena padta hai.'},
+    physio:{en:'The majority of cases improve within 6\u201312 weeks with the right physiotherapy exercises \u2014 surgery is rarely needed.',
+      hi:'Sahi physiotherapy exercises se zyadatar cases 6\u201312 hafton mein improve ho jaate hain \u2014 surgery kabhi-kabhi hi zaroori hoti hai.'},
+    redFlags:{en:['Numbness in the groin or inner thighs','Loss of bladder or bowel control','Progressive leg weakness \u2014 needs same-day evaluation'],
+      hi:['Groin ya jaangh ke andar sunnapan','Peshaab ya mal par control kho dena','Badhti hui pair ki kamzori \u2014 usi din evaluation zaroori hai']},
+    quote:{en:'\u201cThe path down the leg today is the path back to freedom tomorrow.\u201d', hi:'\u201c\u0906\u091c \u091c\u094b \u0930\u093e\u0938\u094d\u0924\u093e \u092a\u0948\u0930 \u0924\u0915 \u091c\u093e\u0924\u093e \u0939\u0948, \u0935\u0939\u0940 \u0915\u0932 \u0906\u091c\u093c\u093e\u0926\u0940 \u0915\u0940 \u0924\u0930\u092b \u0932\u094c\u091f\u093e\u0924\u093e \u0939\u0948\u0964\u201d'} },
 
-  { id:'ra', name:'Rheumatoid Arthritis', keywords:['ra','rheumatoid arthritis','rheumatoid'],
-    whatIsIt:'An autoimmune condition where the body\u2019s immune system mistakenly attacks the joints, causing pain, swelling, and stiffness \u2014 usually in both hands/feet symmetrically.',
-    causes:'The exact cause is unknown, but it involves the immune system attacking joint tissue. It is not caused by anything you did.',
-    treatment:'Long-term medicines (DMARDs) to control the disease and prevent joint damage, along with pain relief and physiotherapy. Regular monitoring blood tests are needed for some medicines.',
-    recovery:'This is a lifelong condition, but with regular medicine and follow-up, most people achieve good disease control and near-normal function.',
-    homeCare:['Take your medicines regularly, even when feeling well','Keep joints moving with gentle exercise','Report any new symptoms to your doctor promptly'],
-    redFlags:['New neck pain with arm symptoms','Unexplained fever','A new red, hot joint'] },
+  { id:'ra', keywords:['ra','rheumatoid arthritis','rheumatoid'],
+    name:{en:'Rheumatoid Arthritis', hi:'\u0930\u0942\u092e\u0947\u091f\u0949\u0907\u0921 \u0917\u0920\u093f\u092f\u093e (RA)'},
+    whatIsIt:{en:'An autoimmune condition where the body\u2019s immune system mistakenly attacks the joints, causing pain, swelling, and stiffness \u2014 usually in both hands/feet symmetrically.',
+      hi:'Ek autoimmune condition jisme body ka immune system galti se joints par attack karta hai, jisse dard, sujan aur akadan hoti hai \u2014 aksar dono haath/pair mein symmetrically.'},
+    dos:{en:['Take your medicines regularly, even when feeling well','Keep joints moving with gentle exercise','Report any new symptoms to your doctor promptly','Keep up with your monitoring blood tests'],
+      hi:['Apni dawaiyan regularly lein, chahe aaram lag raha ho','Gentle exercise se joints ko movement mein rakhein','Koi bhi naya symptom ho to turant doctor ko batayein','Apne monitoring blood tests time pe karwate rahein']},
+    donts:{en:['Never stop your medicines suddenly without asking your doctor','Don\u2019t ignore a new hot, swollen joint'],
+      hi:['Doctor se puchhe bina achanak dawaiyan band na karein','Naye garam, sujan wale joint ko ignore na karein']},
+    nutrition:{en:'An anti-inflammatory diet rich in fruits, vegetables, and omega-3 (fish, walnuts) may help alongside medicines. Limit processed and fried food.',
+      hi:'Fruits, vegetables aur omega-3 (fish, akhrot) se bhari anti-inflammatory diet dawaiyon ke saath madad kar sakti hai. Processed aur fried khaana kam karein.'},
+    medication:{en:'Your DMARDs (disease-controlling medicines) must be taken regularly and long-term, even without symptoms \u2014 stopping can cause flares and joint damage.',
+      hi:'Aapki DMARDs (disease-controlling dawaiyan) regularly aur long-term leni hain, symptoms na hone par bhi \u2014 rokne se flare aur joint damage ho sakta hai.'},
+    physio:{en:'Gentle range-of-motion and strengthening exercises help maintain joint function and reduce stiffness.',
+      hi:'Gentle range-of-motion aur strengthening exercises joint function maintain karne aur akadan kam karne mein madad karti hain.'},
+    redFlags:{en:['New neck pain with arm symptoms','Unexplained fever','A new red, hot joint'],
+      hi:['Naya gardan ka dard baazu ke symptoms ke saath','Bina wajah bukhaar','Naya laal, garam joint']},
+    quote:{en:'\u201cManaging a chronic condition daily is its own quiet victory.\u201d', hi:'\u201c\u090f\u0915 \u091a\u0932 \u0930\u0939\u0940 \u092c\u0940\u092e\u093e\u0930\u0940 \u0915\u094b \u0930\u094b\u091c \u0938\u0902\u092d\u093e\u0932\u0928\u093e \u0916\u0941\u062f \u092e\u0947\u0902 \u090f\u0915 \u091c\u0940\u0924 \u0939\u0948\u0964\u201d'} },
 
-  { id:'ctev', name:'CTEV (Clubfoot)', keywords:['ctev','clubfoot','club foot'],
-    whatIsIt:'A condition present at birth where the baby\u2019s foot is turned inward and downward. It is very treatable, especially when started early.',
-    causes:'The exact cause is often unknown; it may run in families. It is not caused by anything the mother did during pregnancy.',
-    treatment:'The Ponseti method \u2014 weekly gentle casting to gradually correct the foot position, often followed by a small procedure (tenotomy) and then a foot abduction brace worn for years to prevent relapse.',
-    recovery:'Most feet are well-corrected within 6\u20138 weeks of casting. The brace phase (worn most of the day initially, then only at night/naps) continues until about 4\u20135 years of age and is essential to prevent the foot from turning back.',
-    homeCare:['Keep the cast dry and check toes for colour/warmth','Wear the brace exactly as prescribed \u2014 skipping it is the most common reason for relapse'],
-    redFlags:['Toes turning blue or cold under a cast','Foot appearing to turn back despite brace wear'] },
+  { id:'ctev', keywords:['ctev','clubfoot','club foot'],
+    name:{en:'CTEV (Clubfoot)', hi:'\u0938\u0940\u091f\u0940\u0908\u0935\u0940 (\u0915\u094d\u0932\u092c\u092b\u0941\u091f)'},
+    whatIsIt:{en:'A condition present at birth where the baby\u2019s foot is turned inward and downward. It is very treatable, especially when started early.',
+      hi:'Ek condition jo janam se hoti hai jisme bache ka pair andar aur neeche ki taraf muda hota hai. Ye bahut treatable hai, khaaskar jaldi shuru karne par.'},
+    dos:{en:['Wear the brace exactly as prescribed, including the hours advised','Keep the cast dry and check toes for colour/warmth','Attend every follow-up visit, even after the foot looks corrected'],
+      hi:['Brace bilkul prescribe kiye anusaar pehnayein, bataye gaye ghanto samet','Cast ko sookha rakhein aur ungliyon ka rang/garmahat check karein','Har follow-up visit attend karein, chahe pair thik lagne lage']},
+    donts:{en:['Don\u2019t skip or shorten brace-wearing time, even if the baby resists it','Don\u2019t stop follow-ups once the foot looks straight \u2014 relapse can happen silently'],
+      hi:['Brace pehnane ka samay skip ya kam na karein, chahe bacha resist kare','Pair seedha lagte hi follow-up band na karein \u2014 relapse chupke se ho sakta hai']},
+    nutrition:{en:'Normal age-appropriate nutrition for the baby is sufficient \u2014 no special diet is needed for this condition.',
+      hi:'Bache ke liye normal age-appropriate nutrition kaafi hai \u2014 is condition ke liye koi special diet nahi chahiye.'},
+    medication:{en:'Usually no long-term medicines are needed; simple pain relief may be advised only around the tenotomy procedure if done.',
+      hi:'Aam taur pe koi long-term dawai nahi chahiye; agar tenotomy procedure ho to uske aas-paas simple pain relief advise ki ja sakti hai.'},
+    physio:{en:'No separate physiotherapy is usually needed \u2014 consistent brace wear itself is the treatment that prevents relapse.',
+      hi:'Aam taur pe alag se physiotherapy nahi chahiye \u2014 consistent brace pehnana hi wo treatment hai jo relapse rokta hai.'},
+    redFlags:{en:['Toes turning blue or cold under a cast','Foot appearing to turn back despite brace wear'],
+      hi:['Cast ke andar ungliyon ka neela ya thanda padna','Brace pehnane ke bawajood pair ka wapas mudta dikhna']},
+    quote:{en:'\u201cEvery small step your child takes today is a step toward walking freely, hand in hand with your care.\u201d', hi:'\u201c\u0906\u091c\u093c \u0906\u092a\u0915\u0947 \u092c\u091a\u094d\u091a\u0947 \u0915\u093e \u090f\u0915 \u091b\u094b\u091f\u093e \u0915\u0926\u092e, \u0906\u092a\u0915\u0940 \u0926\u0947\u0916\u092d\u093e\u0932 \u0915\u0947 \u0938\u093e\u0925, \u0906\u091c\u093c\u093e\u0926\u0940 \u0938\u0947 \u091a\u0932\u0928\u0947 \u0915\u0940 \u0913\u0930 \u090f\u0915 \u0915\u0926\u092e \u0939\u0948\u0964\u201d'} },
 ];
 
 function searchEduLibrary(query) {
   const q = (query||'').trim().toLowerCase();
   if (!q) return [];
-  return EDU_LIBRARY.filter(e => e.name.toLowerCase().includes(q) || e.keywords.some(k => k.includes(q) || q.includes(k)));
+  return EDU_LIBRARY.filter(e => e.name.en.toLowerCase().includes(q) || e.name.hi.toLowerCase().includes(q) || e.keywords.some(k => k.includes(q) || q.includes(k)));
 }
 
 function renderEduResultsHtml(query) {
@@ -996,7 +1194,7 @@ function renderEduResultsHtml(query) {
   if (!results.length) return '';
   return '<div style="display:flex;flex-direction:column;gap:8px;">' + results.map(e =>
     '<button class="patient-card" data-action="view-edu" data-id="'+e.id+'" style="padding:12px 14px;">'
-    + '<span style="font-weight:700;font-size:13.5px;">'+esc(e.name)+'</span>'
+    + '<span style="font-weight:700;font-size:13.5px;">'+esc(e.name.en)+'</span>'
     + '<span style="color:#cbd5e1;">'+ic('chevron')+'</span>'
     + '</button>'
   ).join('') + '</div>';
@@ -1016,9 +1214,20 @@ function renderEduPrintView() {
   const { patient, edu } = PRINT_EDU;
   const profile = loadProfile();
 
-  const checklistHtml = (items, iconSvg) => '<ul class="edu-checklist">' + items.map(i =>
-    '<li><svg class="ic" viewBox="0 0 24 24" style="stroke-width:2.4;">'+iconSvg+'</svg><span>'+esc(i)+'</span></li>'
-  ).join('') + '</ul>';
+  const bilingualPara = (field) => (field && (field.en||field.hi))
+    ? '<div class="edu-section-body">'+esc(field.en||'')+'</div>'+(field.hi?'<div class="edu-section-body edu-hi">'+esc(field.hi)+'</div>':'')
+    : '';
+
+  const bilingualChecklist = (itemsEn, itemsHi, mark) => {
+    if (!itemsEn || !itemsEn.length) return '';
+    return '<ul class="edu-checklist">' + itemsEn.map((item, i) => {
+      const hi = itemsHi && itemsHi[i];
+      return '<li>'+mark+'<span>'+esc(item)+(hi?'<div class="edu-hi" style="font-size:12.5px;margin-top:2px;">'+esc(hi)+'</div>':'')+'</span></li>';
+    }).join('') + '</ul>';
+  };
+  const checkMark = '<svg class="ic" viewBox="0 0 24 24" style="stroke-width:2.6;color:var(--edu-gold);">'+ICONS.check+'</svg>';
+  const crossMark = '<span class="edu-cross">\u2715</span>';
+  const alertMark = '<svg class="ic" viewBox="0 0 24 24" style="stroke-width:2.4;color:var(--edu-red);">'+ICONS.alert+'</svg>';
 
   return '<div class="no-print row between px" style="padding:14px 16px;position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
     + '<button class="icon-btn" data-action="close-edu-print">'+ic('back')+'</button>'
@@ -1031,37 +1240,43 @@ function renderEduPrintView() {
     + '<div class="edu-header-band"><span>'+esc(profile.clinicName||'\u2014')+'</span><span>'+esc(profile.doctorName||'\u2014')+'</span></div>'
 
     + '<div class="edu-hero">'
-    + '<div class="edu-eyebrow">A guide for you and your family</div>'
-    + '<h1 class="edu-title">'+esc(edu.name)+'</h1>'
+    + '<div class="edu-eyebrow">A guide for you and your family \u00b7 \u0906\u092a\u0915\u0947 \u0914\u0930 \u0906\u092a\u0915\u0947 \u092a\u0930\u093f\u0935\u093e\u0930 \u0915\u0947 \u0932\u093f\u090f</div>'
+    + '<h1 class="edu-title">'+esc(edu.name.en)+'</h1>'
+    + '<div class="edu-hi" style="font-family:\'Fraunces\',serif;font-size:16px;margin:-6px 0 12px;">'+esc(edu.name.hi)+'</div>'
     + '<div class="edu-tier-legend">'
     + '<span><b style="background:var(--edu-teal);"></b>Understand it</span>'
     + '<span><b style="background:var(--edu-gold);"></b>What to do</span>'
     + '<span><b style="background:var(--edu-red);"></b>When to worry</span>'
     + '</div>'
-    + '<div class="edu-patient-line">Prepared for <b>'+esc(patient.name)+'</b> \u00b7 '+fmtDate(todayStr())+'</div>'
+    + '<div class="edu-patient-line">Prepared for <b>'+esc(patient.name)+'</b>'+(patient.patientCode?' ('+esc(patient.patientCode)+')':'')+' \u00b7 '+fmtDate(todayStr())+'</div>'
     + '</div>'
 
     + '<div class="edu-section info">'
-    + '<div class="edu-section-label">What is it, and why does it happen?</div>'
-    + '<div class="edu-section-body">'+esc(edu.whatIsIt)+'</div>'
-    + (edu.causes ? '<div class="edu-section-body">'+esc(edu.causes)+'</div>' : '')
+    + '<div class="edu-section-label">What is it? \u00b7 \u092f\u0939 \u0915\u094d\u092f\u093e \u0939\u0948?</div>'
+    + bilingualPara(edu.whatIsIt)
     + '</div>'
 
     + '<div class="edu-section action">'
-    + '<div class="edu-section-label">How we treat it, and what to expect</div>'
-    + '<div class="edu-section-body">'+esc(edu.treatment)+'</div>'
-    + (edu.recovery ? '<div class="edu-section-body">'+esc(edu.recovery)+'</div>' : '')
+    + '<div class="edu-section-label">Do\u2019s &amp; Don\u2019ts \u00b7 \u0915\u094d\u092f\u093e \u0915\u0930\u0947\u0902, \u0915\u094d\u092f\u093e \u0928 \u0915\u0930\u0947\u0902</div>'
+    + '<div class="edu-subhead">Do\u2019s</div>'
+    + bilingualChecklist(edu.dos.en, edu.dos.hi, checkMark)
+    + '<div class="edu-subhead">Don\u2019ts</div>'
+    + bilingualChecklist(edu.donts.en, edu.donts.hi, crossMark)
     + '</div>'
 
-    + (edu.homeCare && edu.homeCare.length ? '<div class="edu-section action">'
-      + '<div class="edu-section-label">Things you can do at home</div>'
-      + checklistHtml(edu.homeCare, ICONS.check)
+    + '<div class="edu-section action">'
+    + '<div class="edu-section-label">Care instructions \u00b7 \u0926\u0947\u0916\u092d\u093e\u0932 \u0915\u0947 \u0928\u093f\u0930\u094d\u0926\u0947\u0936</div>'
+    + '<div class="edu-subhead">Nutrition \u00b7 \u092a\u094b\u0937\u0923</div>' + bilingualPara(edu.nutrition)
+    + '<div class="edu-subhead">Medication \u00b7 \u0926\u0935\u093e\u0908</div>' + bilingualPara(edu.medication)
+    + '<div class="edu-subhead">Physiotherapy \u00b7 \u092b\u093f\u095b\u093f\u092f\u094b\u0925\u0947\u0930\u0947\u092a\u0940</div>' + bilingualPara(edu.physio)
+    + '</div>'
+
+    + (edu.redFlags && edu.redFlags.en && edu.redFlags.en.length ? '<div class="edu-section urgent">'
+      + '<div class="edu-section-label">When to get help right away \u00b7 \u0915\u092c \u0924\u0941\u0930\u0902\u0924 \u092e\u0926\u0926 \u0932\u0947\u0902</div>'
+      + bilingualChecklist(edu.redFlags.en, edu.redFlags.hi, alertMark)
       + '</div>' : '')
 
-    + (edu.redFlags && edu.redFlags.length ? '<div class="edu-section urgent">'
-      + '<div class="edu-section-label">When to get help right away</div>'
-      + checklistHtml(edu.redFlags, ICONS.alert)
-      + '</div>' : '')
+    + (edu.quote ? '<div class="edu-quote"><div class="edu-quote-en">'+esc(edu.quote.en)+'</div>'+(edu.quote.hi?'<div class="edu-quote-hi">'+esc(edu.quote.hi)+'</div>':'')+'</div>' : '')
 
     + '<div class="edu-footer"><span>'+esc(profile.doctorName||'')+(profile.qualifications?' \u2014 '+esc(profile.qualifications):'')+'</span>'+(profile.clinicPhone?'<span>'+esc(profile.clinicPhone)+'</span>':'')+'</div>'
     + '</div>';
@@ -1069,25 +1284,40 @@ function renderEduPrintView() {
 
 function eduWaMessage(patient, edu, profile) {
   let lines = [];
-  lines.push('*' + edu.name + '*');
+  lines.push('*' + edu.name.en + ' \u00b7 ' + edu.name.hi + '*');
   lines.push('(from ' + (profile.clinicName || profile.doctorName || 'your doctor') + ')');
   lines.push('');
-  lines.push('*What is it?*');
-  lines.push(edu.whatIsIt);
-  if (edu.causes) lines.push(edu.causes);
+  lines.push('*What is it? / \u092f\u0939 \u0915\u094d\u092f\u093e \u0939\u0948?*');
+  lines.push(edu.whatIsIt.en);
+  if (edu.whatIsIt.hi) lines.push(edu.whatIsIt.hi);
+
   lines.push('');
-  lines.push('*Treatment & what to expect*');
-  lines.push(edu.treatment);
-  if (edu.recovery) lines.push(edu.recovery);
-  if (edu.homeCare && edu.homeCare.length) {
+  lines.push('*Do\u2019s / \u0915\u094d\u092f\u093e \u0915\u0930\u0947\u0902*');
+  edu.dos.en.forEach((d,i) => { lines.push('\u2713 ' + d); if (edu.dos.hi && edu.dos.hi[i]) lines.push('   ' + edu.dos.hi[i]); });
+
+  lines.push('');
+  lines.push('*Don\u2019ts / \u0915\u094d\u092f\u093e \u0928 \u0915\u0930\u0947\u0902*');
+  edu.donts.en.forEach((d,i) => { lines.push('\u2715 ' + d); if (edu.donts.hi && edu.donts.hi[i]) lines.push('   ' + edu.donts.hi[i]); });
+
+  lines.push('');
+  lines.push('*Nutrition / \u092a\u094b\u0937\u0923*');
+  lines.push(edu.nutrition.en); if (edu.nutrition.hi) lines.push(edu.nutrition.hi);
+  lines.push('');
+  lines.push('*Medication / \u0926\u0935\u093e\u0908*');
+  lines.push(edu.medication.en); if (edu.medication.hi) lines.push(edu.medication.hi);
+  lines.push('');
+  lines.push('*Physiotherapy / \u092b\u093f\u095b\u093f\u092f\u094b\u0925\u0947\u0930\u0947\u092a\u0940*');
+  lines.push(edu.physio.en); if (edu.physio.hi) lines.push(edu.physio.hi);
+
+  if (edu.redFlags && edu.redFlags.en && edu.redFlags.en.length) {
     lines.push('');
-    lines.push('*Things you can do at home*');
-    edu.homeCare.forEach(i => lines.push('\u2713 ' + i));
+    lines.push('*\u26a0\ufe0f Get help right away if / \u0915\u092c \u0924\u0941\u0930\u0902\u0924 \u092e\u0926\u0926 \u0932\u0947\u0902:*');
+    edu.redFlags.en.forEach((f,i) => { lines.push('\u2022 ' + f); if (edu.redFlags.hi && edu.redFlags.hi[i]) lines.push('   ' + edu.redFlags.hi[i]); });
   }
-  if (edu.redFlags && edu.redFlags.length) {
+  if (edu.quote) {
     lines.push('');
-    lines.push('*\u26a0\ufe0f Get help right away if:*');
-    edu.redFlags.forEach(i => lines.push('\u2022 ' + i));
+    lines.push('_' + edu.quote.en + '_');
+    if (edu.quote.hi) lines.push('_' + edu.quote.hi + '_');
   }
   return lines.join('\n').trim();
 }
@@ -1247,6 +1477,13 @@ document.addEventListener('click', async (e) => {
   const action = el.dataset.action;
 
   if (action === 'go-add') { AP_PHOTOS = []; VIEW='add'; render(); return; }
+  if (action === 'assign-patient-code') {
+    const p = getPatient(SELECTED_ID);
+    p.patientCode = nextPatientCode();
+    await dbPutPatient(p); await refreshPatients();
+    render();
+    return;
+  }
   if (action === 'cancel-add') { AP_PHOTOS = []; VIEW='list'; render(); return; }
   if (action === 'open-patient') { SELECTED_ID = el.dataset.id; VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); await render(); return; }
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); return; }
