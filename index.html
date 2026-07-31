@@ -360,7 +360,7 @@ function nextPatientCode() {
 
 function newPatientShape() {
   return {
-    id: uid(), patientCode: nextPatientCode(), name:'', age:'', sex:'M', diagnosis:'',
+    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageUnit:'yrs', sex:'M', diagnosis:'',
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
@@ -369,6 +369,44 @@ function newPatientShape() {
     ctev: null, ra: null,
     createdAt: Date.now(),
   };
+}
+function formatAge(p) { if (!p.age && p.age !== 0) return '\u2014'; return p.age + ' ' + (p.ageUnit==='mo' ? 'mo' : 'yrs'); }
+
+/* Generic quick-fill text memory (Diagnosis, Procedure, Investigation names, etc.) */
+function loadTextLibrary(key) {
+  try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : []; } catch(e) { return []; }
+}
+function saveTextLibrary(key, lib) {
+  try { localStorage.setItem(key, JSON.stringify(lib)); } catch(e) {}
+}
+function recordTextUsed(key, value) {
+  if (!value || !value.trim()) return;
+  const v = value.trim();
+  const lib = loadTextLibrary(key);
+  const existing = lib.find(x => x.value.toLowerCase() === v.toLowerCase());
+  if (existing) { existing.useCount = (existing.useCount||1)+1; existing.lastUsed = Date.now(); }
+  else lib.push({ value: v, useCount:1, lastUsed: Date.now() });
+  saveTextLibrary(key, lib);
+}
+function topTextChips(key, n) {
+  return loadTextLibrary(key).sort((a,b)=>(b.useCount-a.useCount)||(b.lastUsed-a.lastUsed)).slice(0, n||6);
+}
+function renderQuickTextChips(key, targetId) {
+  const chips = topTextChips(key, 6);
+  if (!chips.length) return '';
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;">'
+    + chips.map(c => '<button type="button" class="chip" data-action="quick-fill-text" data-target="'+targetId+'" data-value="'+esc(c.value)+'">'+esc(c.value)+'</button>').join('')
+    + '</div>';
+}
+const DIAGNOSIS_LIB_KEY = 'surgical-case-log-diagnosis-lib-v1';
+const PROCEDURE_LIB_KEY = 'surgical-case-log-procedure-lib-v1';
+const INVESTIGATION_LIB_KEY = 'surgical-case-log-investigation-lib-v1';
+function ageFieldHtml(p) {
+  return '<div><label class="field-label">Age</label><div class="row gap2">'
+    + '<input class="input" type="number" data-field="age" value="'+esc(p.age)+'" style="flex:1;">'
+    + '<div class="seg" style="flex-shrink:0;width:auto;">'
+    + ['yrs','mo'].map(u=>'<button class="seg-btn" data-action="ov-set-ageunit" data-value="'+u+'" style="flex:none;padding:9px 10px;'+(p.ageUnit===u?'background:var(--accent);border-color:var(--accent);color:#fff;':'')+'">'+u+'</button>').join('')
+    + '</div></div></div>';
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
 
@@ -527,7 +565,7 @@ function rxWaMessage(patient, rx, profile) {
   lines.push('Dr. ' + (profile.doctorName || '') + (profile.qualifications ? ' (' + profile.qualifications + ')' : ''));
   if (profile.regNumber) lines.push('Reg: ' + profile.regNumber);
   lines.push('');
-  lines.push('Patient: ' + patient.name + ' (' + patient.age + '/' + patient.sex + ')');
+  lines.push('Patient: ' + patient.name + ' (' + formatAge(patient) + '/' + patient.sex + ')');
   lines.push('Date: ' + fmtDate(rx.date));
   lines.push('');
   lines.push('*Rx:*');
@@ -600,7 +638,7 @@ function renderListView() {
       cards += '<button class="case-card" data-action="open-patient" data-id="'+p.id+'">'
         + '<div style="min-width:0;flex:1;">'
         + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:15px;">'+esc(p.name)+'</span>'
-        + '<span class="mono" style="font-size:11px;color:#94a3b8;">'+esc(p.age)+'/'+esc(p.sex)+'</span></div>'
+        + '<span class="mono" style="font-size:11px;color:#94a3b8;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
         + '<div style="font-size:11px;color:#a5b4c7;margin-top:1px;" class="mono">'+esc(p.patientCode||'')+'</div>'
         + (p.caseType==='surgical'
             ? '<div style="font-size:12px;color:#64748b;margin-top:2px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
@@ -666,7 +704,7 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId) {
 
 let AP_TEMP = null;
 function initApTemp() {
-  AP_TEMP = { name:'', age:'', sex:'M', diagnosis:'', caseType:'surgical', condition:'', laterality:'bilateral',
+  AP_TEMP = { name:'', age:'', ageUnit:'yrs', sex:'M', diagnosis:'', caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'' };
 }
 function syncApTempFromDom() {
@@ -698,11 +736,13 @@ function renderAddView() {
 
     + '<div><label class="field-label">Patient name</label><input class="input" id="ap-name" placeholder="Patient name" value="'+esc(AP_TEMP.name)+'"></div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
-    + '<div><label class="field-label">Age</label><input class="input" type="number" id="ap-age" placeholder="Age" value="'+esc(AP_TEMP.age)+'"></div>'
+    + '<div><label class="field-label">Age</label><div class="row gap2"><input class="input" type="number" id="ap-age" placeholder="Age" value="'+esc(AP_TEMP.age)+'" style="flex:1;"><div class="seg" style="flex-shrink:0;width:auto;">'
+    + ['yrs','mo'].map(u=>'<button class="seg-btn" data-action="ap-set-ageunit" data-value="'+u+'" style="flex:none;padding:9px 10px;'+(AP_TEMP.ageUnit===u?'background:var(--accent);border-color:var(--accent);color:#fff;':'')+'">'+u+'</button>').join('')
+    + '</div></div></div>'
     + '<div><label class="field-label">Sex</label><div class="seg">'
     + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
     + '</div>'
-    + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label><textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea></div>'
+    + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea></div>'
     + '<div><label class="field-label">Special tracking (optional)</label><div class="seg">'
     + [['','None'],['ctev','CTEV'],['ra','RA']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.condition===v?' active':'')+'" data-action="ap-set-special" data-value="'+v+'">'+l+'</button>').join('')
     + '</div></div>'
@@ -713,7 +753,7 @@ function renderAddView() {
 
     + (isSurgical ? (
         '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
-        + '<div><label class="field-label">Procedure</label><input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'
+        + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'
         + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
         + '<div><label class="field-label">Side</label><select class="select" id="ap-side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(AP_TEMP.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
         + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
@@ -769,8 +809,8 @@ function renderOverviewTab(p) {
       + '<div><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
       + '</div>'
-      + '<div><label class="field-label">Age</label><input class="input" type="number" data-field="age" value="'+esc(p.age)+'"></div>'
-      + '</div>' : '<div class="card"><label class="field-label">Age</label><input class="input" type="number" data-field="age" value="'+esc(p.age)+'"></div>')
+      + ageFieldHtml(p)
+      + '</div>' : '<div class="card">'+ageFieldHtml(p)+'</div>')
     + '<div class="card"><label class="field-label">Clinical notes</label><textarea class="textarea" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
     + '</div>';
 }
@@ -849,7 +889,7 @@ async function renderInvestigationsTab(p) {
     addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inv">'+ic('plus')+' Add investigation</button>';
   } else {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-      + '<label class="field-label">Investigation name</label><input class="input" id="inv-label" placeholder="e.g. CBC, MRI knee, USG abdomen" style="margin-bottom:10px;">'
+      + '<label class="field-label">Investigation name</label>'+renderQuickTextChips(INVESTIGATION_LIB_KEY,'inv-label')+'<input class="input" id="inv-label" placeholder="e.g. CBC, MRI knee, USG abdomen" style="margin-bottom:10px;">'
       + '<label class="field-label">Date</label><input class="input" type="date" id="inv-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
       + '<label class="field-label">Photos / report images</label><div id="inv-thumbs">'+thumbGridHtml(INV_PHOTOS,'inv-remove-photo')+'</div>'
       + '<label class="field-label" style="margin-top:10px;">Notes</label><textarea class="textarea" id="inv-notes" rows="2" placeholder="Key findings, impression\u2026"></textarea>'
@@ -989,7 +1029,7 @@ function renderPrintView() {
     + '<div class="rx-clinic-addr">Reg. No: '+esc(profile.regNumber||'\u2014')+'</div></div>'
     + '</div>'
     + '<div class="rx-patient-row">'
-    + '<span><b>Patient:</b> '+esc(patient.name)+' &nbsp; ('+esc(patient.age)+' / '+esc(patient.sex)+')'+(patient.patientCode?' &nbsp; <span style="color:#94a3b8;">'+esc(patient.patientCode)+'</span>':'')+'</span>'
+    + '<span><b>Patient:</b> '+esc(patient.name)+' &nbsp; ('+formatAge(patient)+' / '+esc(patient.sex)+')'+(patient.patientCode?' &nbsp; <span style="color:#94a3b8;">'+esc(patient.patientCode)+'</span>':'')+'</span>'
     + '<span><b>Date:</b> '+fmtDate(rx.date)+'</span>'
     + '</div>'
     + (patient.diagnosis ? '<div class="rx-diagnosis">'+esc(patient.diagnosis)+'</div>' : '')
@@ -1859,6 +1899,20 @@ document.addEventListener('click', async (e) => {
   const action = el.dataset.action;
 
   if (action === 'go-add') { initApTemp(); AP_PHOTOS = []; VIEW='add'; render(); return; }
+  if (action === 'quick-fill-text') {
+    const target = document.getElementById(el.dataset.target);
+    if (target) target.value = el.dataset.value;
+    if (target && target.id === 'ap-diagnosis') AP_TEMP.diagnosis = el.dataset.value;
+    if (target && target.id === 'ap-procedure') AP_TEMP.procedure = el.dataset.value;
+    return;
+  }
+  if (action === 'ov-set-ageunit') {
+    const p = getPatient(SELECTED_ID);
+    p.ageUnit = el.dataset.value;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'assign-patient-code') {
     const p = getPatient(SELECTED_ID);
     p.patientCode = nextPatientCode();
@@ -1983,6 +2037,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; render(); return; }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
+  if (action === 'ap-set-ageunit') { syncApTempFromDom(); AP_TEMP.ageUnit = el.dataset.value; render(); return; }
   if (action === 'ap-set-laterality') { syncApTempFromDom(); AP_TEMP.laterality = el.dataset.value; render(); return; }
   if (action === 'ap-set-special') { syncApTempFromDom(); AP_TEMP.condition = el.dataset.value; render(); return; }
 
@@ -1998,6 +2053,7 @@ document.addEventListener('click', async (e) => {
     const p = newPatientShape();
     p.name = AP_TEMP.name.trim();
     p.age = AP_TEMP.age;
+    p.ageUnit = AP_TEMP.ageUnit;
     p.sex = AP_TEMP.sex;
     p.diagnosis = AP_TEMP.diagnosis;
     p.caseType = AP_TEMP.caseType;
@@ -2010,6 +2066,8 @@ document.addEventListener('click', async (e) => {
     p.whatsapp = AP_TEMP.whatsapp;
     p.notes = AP_TEMP.notes;
     p.preOpImageCount = AP_PHOTOS.length;
+    recordTextUsed(DIAGNOSIS_LIB_KEY, p.diagnosis);
+    if (p.caseType === 'surgical') recordTextUsed(PROCEDURE_LIB_KEY, p.procedure);
     if (p.condition === 'ctev') p.ctev = newCtevShape();
     if (p.condition === 'ra') p.ra = newRaShape();
     await dbPutPatient(p);
@@ -2057,6 +2115,7 @@ document.addEventListener('click', async (e) => {
     const date = document.getElementById('inv-date').value;
     const notes = document.getElementById('inv-notes').value;
     const inv = { id: uid(), label, date, notes, imageCount: INV_PHOTOS.length };
+    recordTextUsed(INVESTIGATION_LIB_KEY, label);
     p.investigations = p.investigations || [];
     p.investigations.push(inv);
     await dbPutPatient(p);
