@@ -740,7 +740,7 @@ function renderOverviewTab(p) {
     + (p.patientCode ? '<span class="badge badge-indigo mono" style="font-size:12px;">'+ic('clipboard')+esc(p.patientCode)+'</span>' : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>')
     + '<span class="badge badge-'+(isSurgical?'indigo':'slate')+'">'+(isSurgical?'Surgical':'OPD')+'</span>'
     + '</div>'
-    + (!isSurgical ? '<button class="btn btn-block" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical case</button>' : '')
+    + (!isSurgical ? '<button class="btn btn-block" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical case</button>' : '<button class="btn btn-block" data-action="convert-to-opd">'+ic('back')+' Convert back to OPD</button>')
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
     + (isSurgical ? '<div class="stat-card"><div class="stat-label">Pre-op photos</div><div class="stat-value mono">'+p.preOpImageCount+'</div></div>' : '<div class="stat-card"><div class="stat-label">Case type</div><div class="stat-value" style="font-size:14px;">OPD follow-up</div></div>')
     + '<div class="stat-card"><div class="stat-label">Follow-up visits</div><div class="stat-value mono">'+(p.followUps||[]).length+'</div></div>'
@@ -1864,6 +1864,13 @@ document.addEventListener('click', async (e) => {
   if (action === 'convert-to-surgical') {
     const p = getPatient(SELECTED_ID);
     p.caseType = 'surgical';
+    await dbPutPatient(p); await refreshPatients();
+    render();
+    return;
+  }
+  if (action === 'convert-to-opd') {
+    const p = getPatient(SELECTED_ID);
+    p.caseType = 'opd';
     await dbPutPatient(p); await refreshPatients();
     render();
     return;
