@@ -758,12 +758,7 @@ function renderOverviewTab(p) {
         : '<p style="font-size:11.5px;color:#94a3b8;">Number save karo message bhejne ke liye.</p>')
     + '</div>'
     + '<div class="card">'
-    + '<label class="field-label">Diagnosis (free text)</label><textarea class="textarea" rows="2" data-field="diagnosis" style="margin-bottom:10px;">'+esc(p.diagnosis)+'</textarea>'
-    + '<label class="field-label">Condition (Education'+(p.condition==='ctev'?' + CTEV tracking':'')+(p.condition==='ra'?' + RA tracking':'')+')</label>'
-    + '<select class="select" data-field="condition">'+conditionOptionsHtml(p.condition)+'</select>'
-    + (p.condition==='ctev' ? '<div style="margin-top:10px;"><label class="field-label">Laterality</label><select class="select" data-field="laterality">'
-        + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<option value="'+v+'"'+(p.laterality===v?' selected':'')+'>'+l+'</option>').join('')
-        + '</select></div>' : '')
+    + '<label class="field-label">Diagnosis (free text)</label><textarea class="textarea" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'
     + '</div>'
     + (isSurgical ? '<div class="card" style="display:flex;flex-direction:column;gap:10px;">'
       + '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
@@ -975,7 +970,7 @@ function renderPrintView() {
     + '</td></tr>'
   ).join('');
 
-  return '<div class="no-print row between px" style="padding:14px 16px;position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
+  return '<div class="no-print sticky-top row between px" style="padding:14px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
     + '<button class="icon-btn" data-action="close-print">'+ic('back')+'</button>'
     + '<div class="row gap2">'
     + (rxWaLink(patient, rx, profile) ? '<a href="'+esc(rxWaLink(patient, rx, profile))+'" target="_blank" rel="noopener" class="btn" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' WhatsApp</a>' : '')
@@ -1363,9 +1358,16 @@ function renderEducationTab(p) {
       + '</button>';
   }
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
+    + '<div class="card" style="margin-bottom:14px;">'
+    + '<label class="field-label">Condition'+(p.condition==='ctev'?' + CTEV tracking':'')+(p.condition==='ra'?' + RA tracking':'')+'</label>'
+    + '<select class="select" data-field="condition">'+conditionOptionsHtml(p.condition)+'</select>'
+    + (p.condition==='ctev' ? '<div style="margin-top:10px;"><label class="field-label">Laterality</label><select class="select" data-field="laterality">'
+        + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<option value="'+v+'"'+(p.laterality===v?' selected':'')+'>'+l+'</option>').join('')
+        + '</select></div>' : '')
+    + '</div>'
     + directHtml
     + '<div class="search-wrap">'+ic('search')+'<input class="search-input" id="edu-search-input" placeholder="Ya kisi aur condition ka keyword search karo (e.g. ACL, fracture)" value="'+esc(query)+'"></div>'
-    + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">'+(directMatch?'Overview tab mein condition dropdown se set hota hai. Yahan search se koi doosra bhi dikha sakte ho.':'Overview tab mein condition set karo, ya yahan keyword search karo.')+'</p>'
+    + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">Upar condition set karo, ya yahan keyword search karo.</p>'
     + '<div id="edu-results">'+renderEduResultsHtml(query)+'</div>'
     + '</div>';
 }
@@ -1390,7 +1392,7 @@ function renderEduPrintView() {
   const crossMark = '<span class="edu-cross">\u2715</span>';
   const alertMark = '<svg class="ic" viewBox="0 0 24 24" style="stroke-width:2.4;color:var(--edu-red);">'+ICONS.alert+'</svg>';
 
-  return '<div class="no-print row between px" style="padding:14px 16px;position:sticky;top:0;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
+  return '<div class="no-print sticky-top row between px" style="padding:14px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
     + '<button class="icon-btn" data-action="close-edu-print">'+ic('back')+'</button>'
     + '<div class="row gap2">'
     + (eduWaLink(patient, edu, profile) ? '<a href="'+esc(eduWaLink(patient, edu, profile))+'" target="_blank" rel="noopener" class="btn" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' WhatsApp</a>' : '')
