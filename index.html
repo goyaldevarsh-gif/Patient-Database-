@@ -2463,6 +2463,30 @@ async function importBackup(file) {
 
 /* ================= Events ================= */
 
+/* ================= Swipe-right to go back ================= */
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-settings','back-to-list','close-print','close-edu-print','close-edu-image-print','close-compare-picker','close-compare-view'];
+let SWIPE_START_X = null, SWIPE_START_Y = null, SWIPE_START_TAG = '';
+document.addEventListener('touchstart', (e) => {
+  if (e.touches.length !== 1) return;
+  SWIPE_START_X = e.touches[0].clientX;
+  SWIPE_START_Y = e.touches[0].clientY;
+  SWIPE_START_TAG = (e.target && e.target.tagName) || '';
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (SWIPE_START_X == null) return;
+  const dx = e.changedTouches[0].clientX - SWIPE_START_X;
+  const dy = e.changedTouches[0].clientY - SWIPE_START_Y;
+  const startTag = SWIPE_START_TAG;
+  SWIPE_START_X = null; SWIPE_START_Y = null; SWIPE_START_TAG = '';
+  if (['INPUT','TEXTAREA','SELECT'].includes(startTag)) return;
+  if (dx > 90 && Math.abs(dy) < 60) {
+    for (const action of SWIPE_BACK_ACTIONS) {
+      const btn = document.querySelector('[data-action="'+action+'"]');
+      if (btn) { btn.click(); break; }
+    }
+  }
+}, { passive: true });
+
 document.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
