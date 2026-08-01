@@ -106,6 +106,9 @@
   .thumb-remove { position:absolute; top:3px; right:3px; background:rgba(15,23,42,0.75); color:#fff; border:none; border-radius:999px; width:20px; height:20px; font-size:12px; line-height:1; }
   .thumb-label { position:absolute; bottom:0; left:0; right:0; background:rgba(15,23,42,0.65); color:#fff; font-size:9px; padding:2px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .add-photo-tile { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; aspect-ratio:1; border-radius:10px; border:2px dashed #c7d2fe; color:var(--accent-dark); font-size:10.5px; font-weight:700; background:#f5f6ff; }
+  .cam-fab { position:absolute; top:-9px; right:-9px; width:36px; height:36px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(67,56,202,0.4); border:2px solid #fff; z-index:2; }
+  .cam-fab .ic { width:16px; height:16px; }
+  [data-theme="dark"] .cam-fab { border-color:#0f172a; }
 
   .tabs { display:flex; overflow-x:auto; border-top:1px solid #f1f5f9; }
   .tab { flex-shrink:0; display:flex; align-items:center; gap:6px; padding:11px 13px; border-bottom:2px solid transparent; color:#94a3b8; font-weight:700; font-size:12px; background:none; border-left:none; border-right:none; border-top:none; }
@@ -535,6 +538,20 @@ function computeDashboardStats() {
 
   const dueToday = PATIENTS.filter(p => p.nextFollowUpDate === today);
   const overdue = PATIENTS.filter(p => isOverdue(p.nextFollowUpDate));
+  const raDueToday = PATIENTS.filter(p => p.condition === 'ra' && p.ra && p.ra.nextLabsDate === today);
+  const raOverdue = PATIENTS.filter(p => p.condition === 'ra' && p.ra && isOverdue(p.ra.nextLabsDate));
+  const dexaDueToday = PATIENTS.filter(p => p.condition === 'osteoporosis' && p.osteo && p.osteo.nextDexaDate === today);
+  const dexaOverdue = PATIENTS.filter(p => p.condition === 'osteoporosis' && p.osteo && isOverdue(p.osteo.nextDexaDate));
+
+  /* Everything that needs attention today or is already overdue, across follow-ups, RA labs, and DEXA scans */
+  const important = [
+    ...overdue.map(p => ({ patient:p, type:'Follow-up', label:'Follow-up overdue', isOverdue:true })),
+    ...raOverdue.map(p => ({ patient:p, type:'RA labs', label:'RA labs overdue', isOverdue:true })),
+    ...dexaOverdue.map(p => ({ patient:p, type:'DEXA scan', label:'DEXA scan overdue', isOverdue:true })),
+    ...dueToday.map(p => ({ patient:p, type:'Follow-up', label:'Follow-up due today', isOverdue:false })),
+    ...raDueToday.map(p => ({ patient:p, type:'RA labs', label:'RA labs due today', isOverdue:false })),
+    ...dexaDueToday.map(p => ({ patient:p, type:'DEXA scan', label:'DEXA scan due today', isOverdue:false })),
+  ];
   const surgeriesThisWeek = PATIENTS.filter(p => p.caseType==='surgical' && p.surgeryDate >= sevenDaysAgoStr && p.surgeryDate <= today).length;
   const activeCases = PATIENTS.filter(p => p.status === 'Active follow-up').length;
 
@@ -548,7 +565,44 @@ function computeDashboardStats() {
   const topConditions = Object.entries(condCounts).sort((a,b)=>b[1]-a[1]).slice(0,3)
     .map(([id,n]) => { const e = EDU_LIBRARY.find(x=>x.id===id); return [e?e.name.en:id, n]; });
 
-  return { dueToday, overdue, surgeriesThisWeek, activeCases, monthCount: monthPatients.length, topProcedures, topConditions };
+  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, monthCount: monthPatients.length, topProcedures, topConditions };
+}
+
+/* ---- Daily "important today" notifications ---- */
+const NOTIF_PREF_KEY = 'surgical-case-log-notif-enabled-v1';
+const NOTIF_LAST_SHOWN_KEY = 'surgical-case-log-notif-last-shown-v1';
+function isNotifEnabled() { try { return localStorage.getItem(NOTIF_PREF_KEY) === '1'; } catch(e) { return false; } }
+function notifCardHtml() {
+  const enabled = isNotifEnabled();
+  const supported = typeof Notification !== 'undefined';
+  return '<div class="card">'
+    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Daily reminders</label><span class="badge badge-'+(enabled?'emerald':'slate')+'">'+(enabled?'ON':'OFF')+'</span></div>'
+    + '<p style="font-size:12px;color:#94a3b8;margin:6px 0 10px;">Shows a notification when you open the app if anything needs attention today \u2014 follow-ups, RA labs, or DEXA scans, due or overdue. This can only fire while you have the app open; it cannot notify you if the app stays closed, since there is no server behind this app to trigger it.</p>'
+    + (!supported ? '<p style="font-size:12px;color:var(--red);">Notifications aren\u2019t supported in this browser.</p>'
+        : enabled ? '<button class="btn btn-sm" data-action="disable-notifs">Turn off</button>'
+        : '<button class="btn btn-primary btn-sm" data-action="enable-notifs">Turn on</button>')
+    + '</div>';
+}
+/* Shows at most one notification per calendar day, only once permission has been granted and the
+   toggle is on, summarising anything overdue or due today across follow-ups / RA labs / DEXA scans. */
+async function maybeNotifyToday() {
+  try {
+    if (!isNotifEnabled()) return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    const todayKey = todayStr();
+    let lastShown; try { lastShown = localStorage.getItem(NOTIF_LAST_SHOWN_KEY); } catch(e) {}
+    if (lastShown === todayKey) return;
+    const s = computeDashboardStats();
+    if (!s.important.length) return;
+    const overdueCount = s.important.filter(i => i.isOverdue).length;
+    const todayCount = s.important.length - overdueCount;
+    const parts = [];
+    if (overdueCount) parts.push(overdueCount + ' overdue');
+    if (todayCount) parts.push(todayCount + ' due today');
+    const body = parts.join(', ') + ' \u2014 follow-ups, RA labs or DEXA scans.';
+    try { new Notification('Bone Log Pro', { body, icon: 'icons/icon-192.png' }); } catch(e) {}
+    try { localStorage.setItem(NOTIF_LAST_SHOWN_KEY, todayKey); } catch(e) {}
+  } catch (e) {}
 }
 
 const BACKUP_REMINDER_KEY = 'surgical-case-log-last-backup-v1';
@@ -785,6 +839,7 @@ function renderSettingsView() {
     + '</div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
     + appLockCardHtml()
+    + notifCardHtml()
     + '<div class="card"><label class="field-label">Display</label><div class="row between"><span style="font-size:13px;font-weight:600;">Dark mode</span><div class="seg" style="width:auto;">'
     + [['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 14px;">'+l+'</button>').join('')
     + '</div></div></div>'
@@ -858,12 +913,12 @@ function rxWaMessage(patient, rx, profile) {
   let lines = [];
   lines.push('*Prescription \u2014 ' + (profile.clinicName || '') + '*');
   lines.push('Dr. ' + (profile.doctorName || '') + (profile.qualifications ? ' (' + profile.qualifications + ')' : ''));
-  if (profile.regNumber) lines.push('Reg: ' + profile.regNumber);
+  if (profile.regNumber) lines.push('Registration No: ' + profile.regNumber);
   lines.push('');
   lines.push('Patient: ' + patient.name + ' (' + formatAge(patient) + '/' + patient.sex + ')');
   lines.push('Date: ' + fmtDate(rx.date));
   lines.push('');
-  lines.push('*Rx:*');
+  lines.push('*Medicines:*');
   rx.medicines.forEach((m, i) => {
     let l = (i+1) + '. ' + m.name + (m.dose ? ' - ' + m.dose : '');
     lines.push(l);
@@ -905,24 +960,24 @@ function renderDashboardSection() {
   if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 14)) {
     html += '<div class="backup-banner">'
       + ic('download')
-      + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+(daysBack===null ? 'You haven\u2019t taken a backup yet.' : 'Last backup was '+daysBack+' days ago.')+' Back up now to keep your data safe.</span>'
+      + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+(daysBack===null ? 'No backup has been saved yet.' : 'Last backup was '+daysBack+' days ago \u2014 the automatic 3-day backup may not be working on this device.')+' Back up now to keep your data safe.</span>'
       + '<button class="btn btn-sm" data-action="export-backup">Export</button>'
       + '<button class="icon-btn" style="width:28px;height:28px;" data-action="dismiss-backup-banner">'+ic('x')+'</button>'
       + '</div>';
   }
 
   html += '<div class="row gap2" style="margin-bottom:12px;">'
-    + '<div class="dash-tile" style="'+(s.dueToday.length||s.overdue.length ? 'border-color:var(--red-border);background:var(--red-bg);' : 'border-color:var(--border);background:#fff;')+'"><div class="dv" style="color:'+((s.dueToday.length||s.overdue.length)?'var(--red)':'var(--ink)')+';">'+(s.dueToday.length+s.overdue.length)+'</div><div class="dl" style="color:'+((s.dueToday.length||s.overdue.length)?'var(--red)':'#94a3b8')+';">F/u due</div></div>'
-    + '<div class="dash-tile" style="border-color:var(--border);"><div class="dv">'+s.surgeriesThisWeek+'</div><div class="dl" style="color:#94a3b8;">Surgeries (7d)</div></div>'
+    + '<div class="dash-tile" style="'+(s.important.length ? 'border-color:var(--red-border);background:var(--red-bg);' : 'border-color:var(--border);background:#fff;')+'"><div class="dv" style="color:'+(s.important.length?'var(--red)':'var(--ink)')+';">'+s.important.length+'</div><div class="dl" style="color:'+(s.important.length?'var(--red)':'#94a3b8')+';">Important today</div></div>'
+    + '<div class="dash-tile" style="border-color:var(--border);"><div class="dv">'+s.surgeriesThisWeek+'</div><div class="dl" style="color:#94a3b8;">Surgeries (7 days)</div></div>'
     + '<div class="dash-tile" style="border-color:var(--border);"><div class="dv">'+s.activeCases+'</div><div class="dl" style="color:#94a3b8;">Active cases</div></div>'
     + '</div>';
 
-  if (s.dueToday.length || s.overdue.length) {
+  if (s.important.length) {
     html += '<div class="card" style="margin-bottom:12px;">'
-      + '<label class="field-label">Follow-up due \u2014 today or overdue</label>'
-      + [...s.overdue, ...s.dueToday].slice(0,6).map(p => '<div class="row between" data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;padding:6px 0;">'
-          + '<span style="font-size:13px;font-weight:600;">'+esc(p.name)+'</span>'
-          + '<span class="badge '+(isOverdue(p.nextFollowUpDate)?'badge-red':'badge-amber')+'" style="font-size:10px;">'+(isOverdue(p.nextFollowUpDate)?'Overdue':'Today')+'</span>'
+      + '<label class="field-label">Needs attention today \u2014 follow-ups, RA labs, DEXA scans</label>'
+      + s.important.slice(0,8).map(item => '<div class="row between" data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;padding:6px 0;">'
+          + '<span style="font-size:13px;font-weight:600;">'+esc(item.patient.name)+'<span style="font-weight:400;color:#94a3b8;"> \u00b7 '+esc(item.type)+'</span></span>'
+          + '<span class="badge '+(item.isOverdue?'badge-red':'badge-amber')+'" style="font-size:10px;">'+(item.isOverdue?'Overdue':'Today')+'</span>'
           + '</div>').join('')
       + '</div>';
   }
@@ -939,6 +994,50 @@ function renderDashboardSection() {
   return html;
 }
 
+/* Every searchable field on a case, labelled, so "search anything" can tell the user why a case matched */
+function searchFields(p) {
+  const fields = [
+    ['Patient ID', p.patientCode],
+    ['Name', p.name],
+    ['Diagnosis', p.diagnosis],
+    ['Procedure', p.procedure],
+    ['Condition', p.condition],
+    ['Surgery type', p.surgeryType],
+    ['Side', p.side],
+    ['Status', p.status],
+    ['Classification', p.classification],
+    ['Clinical notes', p.notes],
+    ['Tags', (p.tags||[]).join(', ')],
+    ['Co-morbidities', (p.comorbidities||[]).join(', ')],
+    ['WhatsApp number', p.whatsapp],
+  ];
+  (p.followUps||[]).forEach(f => {
+    fields.push(['Follow-up ('+(f.label||'')+')', f.notes]);
+    fields.push(['Follow-up ('+(f.label||'')+')', f.woundStatus]);
+    fields.push(['Follow-up ('+(f.label||'')+')', f.unionStatus]);
+  });
+  (p.investigations||[]).forEach(i => {
+    fields.push(['Investigation', i.label]);
+    fields.push(['Investigation', i.value]);
+    fields.push(['Investigation', i.notes]);
+  });
+  (p.prescriptions||[]).forEach(rx => {
+    (rx.medicines||[]).forEach(m => {
+      fields.push(['Prescription', m.name]);
+      fields.push(['Prescription', m.instructions]);
+    });
+  });
+  return fields.filter(([,v]) => v != null && String(v).trim() !== '');
+}
+/* Returns {matched, field} if the query hits any field on the case, else null */
+function matchCase(p, query) {
+  const q = query.toLowerCase();
+  for (const [label, value] of searchFields(p)) {
+    if (String(value).toLowerCase().includes(q)) return { field: label };
+  }
+  return null;
+}
+
 function renderListView() {
   const counts = { all: PATIENTS.length };
   SURGERY_TYPES.forEach(t => counts[t] = PATIENTS.filter(p => p.surgeryType === t).length);
@@ -949,8 +1048,9 @@ function renderListView() {
     if (FILTER_TYPE !== 'all' && p.surgeryType !== FILTER_TYPE) return false;
     if (TAG_FILTER && !(p.tags||[]).includes(TAG_FILTER)) return false;
     if (SEARCH) {
-      const q = SEARCH.toLowerCase();
-      if (!(p.name.toLowerCase().includes(q) || (p.diagnosis||'').toLowerCase().includes(q) || (p.procedure||'').toLowerCase().includes(q) || (p.patientCode||'').toLowerCase().includes(q))) return false;
+      const hit = matchCase(p, SEARCH);
+      if (!hit) return false;
+      p._searchMatchField = hit.field;
     }
     return true;
   }).sort((a,b) => {
@@ -996,10 +1096,11 @@ function renderListView() {
             ? '<div style="font-size:12px;color:#64748b;margin-top:2px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
             : '<div style="font-size:12px;color:#64748b;margin-top:2px;">OPD \u00b7 '+fmtDate(p.surgeryDate)+'</div>')
         + '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
+        + (SEARCH && p._searchMatchField && !['Name','Diagnosis'].includes(p._searchMatchField) ? '<div style="font-size:10.5px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(p._searchMatchField)+'</div>' : '')
         + (isOverdue(p.nextFollowUpDate) ? '<div class="overdue-note">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+'</div>' : '')
         + '<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
         + (p.caseType==='surgical' ? '<span class="badge badge-'+TYPE_BADGE[p.surgeryType]+'">'+p.surgeryType+'</span>' : '<span class="badge badge-slate">OPD</span>')
-        + (p.caseType==='surgical' ? '<span class="badge badge-slate">'+ic('camera')+p.preOpImageCount+' pre-op \u00b7 '+fuImgCount+' f/u</span>' : '<span class="badge badge-slate">'+ic('camera')+fuImgCount+' f/u</span>')
+        + (p.caseType==='surgical' ? '<span class="badge badge-slate">'+ic('camera')+p.preOpImageCount+' pre-op \u00b7 '+fuImgCount+' follow-up</span>' : '<span class="badge badge-slate">'+ic('camera')+fuImgCount+' follow-up</span>')
         + (p.tags||[]).map(t=>'<span class="badge badge-indigo" style="font-size:10px;">'+ic('tag')+esc(t)+'</span>').join('')
         + '</div></div>'
         + '<span style="color:#cbd5e1;margin-left:8px;">'+ic('chevron')+'</span>'
@@ -1019,16 +1120,16 @@ function renderListView() {
     + '<input type="file" accept=".zip,application/zip" id="import-file-input" style="display:none;">'
     + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:5px;padding:9px 12px;" data-action="go-add">'+ic('plus')+' Add</button>'
     + '</div></div>'
-    + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search name, diagnosis, procedure\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
+    + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
     + tagChips
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'+renderDashboardSection()
     + (PATIENTS.length ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10.5px;color:#94a3b8;">'
         + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
-        + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to f/u</span>'
+        + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to follow-up</span>'
         + '<span class="row gap1"><span class="status-dot" style="background:#16a34a;"></span> Complete</span>'
-        + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> F/u due</span>'
+        + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
         + '</div>' : '')
     + cards+'</div>'
     + '</div>';
@@ -1036,12 +1137,24 @@ function renderListView() {
 
 /* ================= Add photo thumb helpers (shared by add-patient & add-followup) ================= */
 
+/* Floating camera FAB: a one-tap shortcut that opens the device camera directly (skipping the
+   library/gallery chooser). Positioned in the corner of whichever photo section it sits inside.
+   inputAttrsHtml should carry the same data-* / id wiring as that section's regular "Add" tile,
+   so the existing change-event handler for that context picks it up automatically. */
+function cameraFabHtml(inputAttrsHtml, title) {
+  return '<label class="cam-fab" title="'+(title||'Quick camera capture')+'">'+ic('camera')
+    + '<input type="file" accept="image/*" capture="environment" '+inputAttrsHtml+' style="display:none;"></label>';
+}
+
 function thumbGridHtml(photos, removeAction) {
-  let html = '<div class="thumb-grid">';
+  let html = '<div style="position:relative;">';
+  html += '<div class="thumb-grid">';
   photos.forEach(ph => {
     html += '<div class="thumb-wrap"><img src="'+ph.previewUrl+'"><button class="thumb-remove" data-action="'+removeAction+'" data-tempid="'+ph.tempId+'">\u2715</button></div>';
   });
   html += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-photo-input="'+removeAction+'" style="display:none;"></label>';
+  html += '</div>';
+  html += cameraFabHtml('data-photo-input="'+removeAction+'"');
   html += '</div>';
   return html;
 }
@@ -1160,8 +1273,8 @@ function renderOverviewTab(p) {
         : '<p style="font-size:11.5px;color:#94a3b8;">Save a number to send messages.</p>')
     + (p.whatsapp ? '<div class="row gap2" style="margin-top:8px;">'
         + (followUpReminderLink(p)
-            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('calendar')+' F/u Reminder</a>'
-            : '<button class="btn btn-sm" style="flex:1;" disabled title="Set the next follow-up date first">'+ic('calendar')+' F/u Reminder</button>')
+            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
+            : '<button class="btn btn-sm" style="flex:1;" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
         + '<a href="'+esc(postOpCareLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('shield')+' Post-Op Care</a>'
         + '</div>' : '')
     + '</div>'
@@ -1170,7 +1283,7 @@ function renderOverviewTab(p) {
     + '</div>'
     + (isSurgical ? '<div class="card" style="display:flex;flex-direction:column;gap:10px;">'
       + '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
-      + '<div><label class="field-label">Procedure</label><input class="input" data-field="procedure" value="'+esc(p.procedure)+'"></div>'
+      + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
@@ -1253,6 +1366,7 @@ async function renderPreopTab(p) {
   });
   grid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple id="preop-add-input" style="display:none;"></label>';
   grid += '</div>';
+  const gridFab = cameraFabHtml('id="preop-add-input-cam"');
   const pw = p.preOpWound || { status:'', notes:'' };
   let woundGrid = '<div class="thumb-grid">';
   woundImages.forEach(im => {
@@ -1261,14 +1375,15 @@ async function renderPreopTab(p) {
   });
   woundGrid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple id="preop-wound-add-input" style="display:none;"></label>';
   woundGrid += '</div>';
+  const woundGridFab = cameraFabHtml('id="preop-wound-add-input-cam"');
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
     + (allImages.length >= 2 ? '<button class="btn btn-block" style="margin-bottom:14px;" data-action="open-compare-picker">'+ic('clock')+' Compare Before / After</button>' : '')
     + '<div class="card" style="margin-bottom:14px;'+(pw.status && !['N/A',''].includes(pw.status) && pw.status!=='Clean' ? 'border-color:var(--red-border);background:var(--red-bg);' : '')+'">'
     + '<label class="field-label">Wound status (if applicable \u2014 e.g. open fracture)</label>'
     + '<select class="select" data-field="preOpWoundStatus" style="margin-bottom:10px;">'+PREOP_WOUND_STATUS_OPTIONS.map(s=>'<option'+((pw.status||'N/A')===s?' selected':'')+'>'+s+'</option>').join('')+'</select>'
-    + '<label class="field-label">Wound photo</label>'+woundGrid
+    + '<label class="field-label">Wound photo</label><div style="position:relative;">'+woundGrid+woundGridFab+'</div>'
     + '</div>'
-    + (images.length ? grid : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No clinical images yet.</div>'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">'))
+    + (images.length ? '<div style="position:relative;">'+grid+gridFab+'</div>' : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No clinical images yet.</div>'+'<div style="position:relative;">'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">')+gridFab+'</div>')
     + '</div>';
 }
 
@@ -1287,7 +1402,7 @@ async function renderFollowupsTab(p) {
       + (p.surgeryType === 'Trauma' ? '<label class="field-label">Union status</label><select class="select" id="fu-unionstatus" style="margin-bottom:10px;">'+UNION_STATUS_OPTIONS.map(s=>'<option'+(s==='Not assessed'?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
       + '<label class="field-label">Wound / suture photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
       + '<label class="field-label" style="margin-top:10px;">Photos (general)</label><div id="fu-thumbs">'+thumbGridHtml(FU_PHOTOS,'fu-remove-photo')+'</div>'
-      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="ROM, complications\u2026"></textarea>'
+      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-fu">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-fu">Save visit</button></div>'
       + '</div>';
   }
@@ -1307,21 +1422,22 @@ async function renderFollowupsTab(p) {
       });
       grid += '<label class="add-photo-tile" data-fu-add="'+f.id+'">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-fu-input="'+f.id+'" style="display:none;"></label>';
       grid += '</div>';
+      grid = '<div style="position:relative;">'+grid+cameraFabHtml('data-fu-input="'+f.id+'"')+'</div>';
       let woundGrid = '';
       if (f.woundStatus && f.woundStatus !== 'N/A' || fuWoundImages.length) {
-        woundGrid = '<div style="margin-top:10px;"><div class="row gap2" style="margin-bottom:6px;"><span class="badge '+woundBadgeClass(f.woundStatus)+'">'+esc(f.woundStatus||'N/A')+'</span></div><div class="thumb-grid">';
+        woundGrid = '<div style="margin-top:10px;"><div class="row gap2" style="margin-bottom:6px;"><span class="badge '+woundBadgeClass(f.woundStatus)+'">'+esc(f.woundStatus||'N/A')+'</span></div><div style="position:relative;"><div class="thumb-grid">';
         fuWoundImages.forEach(im => {
           const url = trackUrl(URL.createObjectURL(im.blob));
           woundGrid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
         });
         woundGrid += '<label class="add-photo-tile" data-fu-wound-add="'+f.id+'">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-fu-wound-input="'+f.id+'" style="display:none;"></label>';
-        woundGrid += '</div></div>';
+        woundGrid += '</div>'+cameraFabHtml('data-fu-wound-input="'+f.id+'"')+'</div></div>';
       }
       body = grid + woundGrid + (f.notes ? '<p style="font-size:12.5px;color:#64748b;margin-top:8px;">'+esc(f.notes)+'</p>' : '');
     }
     list += '<div class="fu-card">'
       + '<div class="row between" style="cursor:pointer;" data-action="toggle-fu" data-id="'+f.id+'">'
-      + '<span style="font-weight:800;">'+esc(f.label)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(f.date)+(pod!=null?' \u00b7 POD '+pod:'')+'</span></span>'
+      + '<span style="font-weight:800;">'+esc(f.label)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(f.date)+(pod!=null?' \u00b7 Post-op Day '+pod:'')+'</span></span>'
       + '<div class="row gap2">'
       + (f.woundStatus && f.woundStatus !== 'N/A' ? '<span class="badge '+woundBadgeClass(f.woundStatus)+'" style="font-size:10px;">'+esc(f.woundStatus)+'</span>' : '')
       + (f.unionStatus && f.unionStatus !== 'Not assessed' ? '<span class="badge '+unionBadgeClass(f.unionStatus)+'" style="font-size:10px;">'+esc(f.unionStatus)+'</span>' : '')
@@ -1364,6 +1480,7 @@ async function renderInvestigationsTab(p) {
       });
       grid += '<label class="add-photo-tile" data-inv-add="'+inv.id+'">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-inv-input="'+inv.id+'" style="display:none;"></label>';
       grid += '</div>';
+      grid = '<div style="position:relative;">'+grid+cameraFabHtml('data-inv-input="'+inv.id+'"')+'</div>';
       body = grid + (inv.notes ? '<p style="font-size:12.5px;color:#64748b;margin-top:8px;">'+esc(inv.notes)+'</p>' : '');
     }
     list += '<div class="fu-card">'
@@ -2103,7 +2220,7 @@ function visibleTabs(p) {
   if (p.condition === 'osteoporosis') tabs.push({key:'osteo', label:'Bone Health', icon:'shield'});
   tabs.push({key:'followups', label:'Follow-ups', icon:'calendar'});
   tabs.push({key:'investigations', label:'Investigations', icon:'file'});
-  tabs.push({key:'prescriptions', label:'Rx', icon:'printer'});
+  tabs.push({key:'prescriptions', label:'Prescriptions', icon:'printer'});
   tabs.push({key:'education', label:'Education', icon:'book'});
   return tabs;
 }
@@ -2498,9 +2615,9 @@ function closeImageViewer() { const el = document.getElementById('img-viewer'); 
 
 /* ================= Export backup ================= */
 
-async function exportBackup() {
-  if (typeof JSZip === 'undefined') { toast('Backup tool failed to load \u2014 check your internet connection'); return; }
-  toast('Preparing backup\u2026');
+async function exportBackup(auto) {
+  if (typeof JSZip === 'undefined') { if (!auto) toast('Backup tool failed to load \u2014 check your internet connection'); return; }
+  if (!auto) toast('Preparing backup\u2026');
   try {
     const zip = new JSZip();
     const allPatients = await dbGetAllPatients();
@@ -2517,15 +2634,31 @@ async function exportBackup() {
     const blob = await zip.generateAsync({type:'blob'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'surgical-case-log-backup-'+todayStr()+'.zip';
+    a.href = url; a.download = 'bone-log-pro-backup-'+todayStr()+'.zip';
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
     try { localStorage.setItem(BACKUP_REMINDER_KEY, String(Date.now())); } catch(e) {}
     BACKUP_BANNER_DISMISSED = true;
-    toast('Backup downloaded');
+    toast(auto ? 'Automatic backup saved to your downloads' : 'Backup downloaded');
   } catch (err) {
-    toast('Backup failed: '+err.message);
+    if (!auto) toast('Backup failed: '+err.message);
   }
+}
+
+/* Smart automatic backup \u2014 runs once per app session. If it has been 3 or more days since the
+   last backup (or a backup has never been taken), a fresh zip is downloaded automatically, with no
+   button-press needed. This can only run while the app is open; it cannot back up on its own if the
+   app stays closed for days, since there is no server behind this app to trigger it. */
+async function maybeAutoBackup() {
+  const AUTO_BACKUP_INTERVAL_DAYS = 3;
+  try {
+    if (!PATIENTS.length) return;
+    const daysBack = daysSinceLastBackup();
+    if (daysBack === null || daysBack >= AUTO_BACKUP_INTERVAL_DAYS) {
+      await exportBackup(true);
+      await render();
+    }
+  } catch (e) {}
 }
 
 const IMPORT_IMG_REGEX = /^images\/([^/]+)\/(?:preop|followup_([^/]+)|investigation_([^/]+))\/([^/]+)\.jpg$/;
@@ -2595,6 +2728,11 @@ document.addEventListener('click', async (e) => {
     if (target) target.value = el.dataset.value;
     if (target && target.id === 'ap-diagnosis') AP_TEMP.diagnosis = el.dataset.value;
     if (target && target.id === 'ap-procedure') AP_TEMP.procedure = el.dataset.value;
+    if (target && target.id === 'ov-procedure') {
+      await patchField('procedure', el.dataset.value);
+      recordTextUsed(PROCEDURE_LIB_KEY, el.dataset.value);
+      await render();
+    }
     return;
   }
   if (action === 'assign-patient-code') {
@@ -2953,6 +3091,32 @@ document.addEventListener('click', async (e) => {
   if (action === 'export-backup') { await exportBackup(); return; }
   if (action === 'dismiss-backup-banner') { BACKUP_BANNER_DISMISSED = true; render(); return; }
   if (action === 'set-theme') { applyTheme(el.dataset.value); render(); return; }
+  if (action === 'enable-notifs') {
+    if (typeof Notification === 'undefined') { toast('Notifications aren\u2019t supported in this browser'); return; }
+    if (Notification.permission === 'granted') {
+      try { localStorage.setItem(NOTIF_PREF_KEY, '1'); } catch(e) {}
+      toast('Daily reminders turned on');
+      render();
+    } else if (Notification.permission === 'denied') {
+      toast('Notifications are blocked for this app in your browser settings');
+    } else {
+      const perm = await Notification.requestPermission();
+      if (perm === 'granted') {
+        try { localStorage.setItem(NOTIF_PREF_KEY, '1'); } catch(e) {}
+        toast('Daily reminders turned on');
+      } else {
+        toast('Permission not granted');
+      }
+      render();
+    }
+    return;
+  }
+  if (action === 'disable-notifs') {
+    try { localStorage.setItem(NOTIF_PREF_KEY, '0'); } catch(e) {}
+    toast('Daily reminders turned off');
+    render();
+    return;
+  }
 
   if (action === 'lock-digit') {
     if (APP_LOCKED) {
@@ -3239,10 +3403,12 @@ document.addEventListener('change', async (e) => {
   }
   if (t.dataset && t.dataset.field) {
     await patchField(t.dataset.field, t.value);
+    if (t.dataset.field === 'procedure') recordTextUsed(PROCEDURE_LIB_KEY, t.value);
+    if (t.dataset.field === 'diagnosis') recordTextUsed(DIAGNOSIS_LIB_KEY, t.value);
     if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality') { await render(); }
     return;
   }
-  if (t.id === 'preop-add-input') {
+  if (t.id === 'preop-add-input' || t.id === 'preop-add-input-cam') {
     const files = Array.from(t.files || []);
     if (!files.length) return;
     const p = getPatient(SELECTED_ID);
@@ -3256,7 +3422,7 @@ document.addEventListener('change', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (t.id === 'preop-wound-add-input') {
+  if (t.id === 'preop-wound-add-input' || t.id === 'preop-wound-add-input-cam') {
     const files = Array.from(t.files || []);
     if (!files.length) return;
     const p = getPatient(SELECTED_ID);
@@ -3454,6 +3620,8 @@ function appLockCardHtml() {
   }
   await refreshPatients();
   render();
+  maybeAutoBackup();
+  maybeNotifyToday();
 })();
 </script>
 </body>
