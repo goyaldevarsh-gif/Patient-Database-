@@ -215,6 +215,65 @@
     .edu-doc { max-width:none; }
     .edu-img-doc { max-width:none; }
   }
+
+  /* ---- Dark mode (print/education handouts deliberately excluded -- always light for printing/sharing) ---- */
+  [data-theme="dark"] {
+    --ink:#e2e8f0; --muted:#94a3b8; --border:#334155; --bg:#0f172a; --bg-soft:#1e293b;
+    --accent:#818cf8; --accent-dark:#a5b4fc;
+    --amber:#fbbf24; --amber-bg:#3f2d05; --amber-border:#78350f;
+    --orange:#fb923c; --orange-bg:#431407; --orange-border:#7c2d12;
+    --emerald:#34d399; --emerald-bg:#022c22; --emerald-border:#065f46;
+    --red:#f87171; --red-bg:#450a0a; --red-border:#7f1d1d;
+    --slate:#94a3b8; --slate-bg:#1e293b; --slate-border:#334155;
+  }
+  [data-theme="dark"] html, [data-theme="dark"] body { background:#0f172a; color:var(--ink); }
+  [data-theme="dark"] #app { background:#0f172a; }
+  [data-theme="dark"] .card, [data-theme="dark"] .case-card, [data-theme="dark"] .stat-card,
+  [data-theme="dark"] .fu-card, [data-theme="dark"] .patient-card, [data-theme="dark"] .dash-tile,
+  [data-theme="dark"] .btn, [data-theme="dark"] .chip, [data-theme="dark"] .seg-btn,
+  [data-theme="dark"] .scorer-btn, [data-theme="dark"] .mic-btn, [data-theme="dark"] .tag-chip,
+  [data-theme="dark"] .input, [data-theme="dark"] .textarea, [data-theme="dark"] .select {
+    background:#1e293b !important; color:var(--ink); border-color:var(--border);
+  }
+  [data-theme="dark"] .sticky-top, [data-theme="dark"] .bottom-bar { background:rgba(15,23,42,0.97) !important; backdrop-filter:blur(6px); border-color:var(--border); }
+  [data-theme="dark"] .seg-btn.active, [data-theme="dark"] .chip.active, [data-theme="dark"] .tab.active { background:var(--accent) !important; border-color:var(--accent) !important; color:#0f172a !important; }
+  [data-theme="dark"] .scorer-group { background:rgba(30,41,59,0.7); }
+  [data-theme="dark"] .help-box { background:#1e2452; border-color:#3730a3; color:#c7d2fe; }
+  [data-theme="dark"] .thumb-wrap { background:var(--bg-soft); }
+  [data-theme="dark"] .add-photo-tile { background:#1e2452; border-color:#3730a3; color:#a5b4fc; }
+  [data-theme="dark"] .empty-state { color:var(--muted); }
+  [data-theme="dark"] .backup-banner { background:#3f2d05; border-color:#78350f; }
+  [data-theme="dark"] .cspine-alert { background:#450a0a; border-color:#7f1d1d; }
+  [data-theme="dark"] .search-input, [data-theme="dark"] .search-wrap { background:#1e293b; color:var(--ink); }
+  [data-theme="dark"] .tab { color:var(--muted); }
+  [data-theme="dark"] .icon-btn { color:var(--muted); }
+
+  .lock-screen { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; background:#0f172a; color:#fff; }
+  .lock-icon { width:56px; height:56px; border-radius:50%; background:#1e293b; display:flex; align-items:center; justify-content:center; color:#818cf8; }
+  .lock-icon svg { width:26px; height:26px; }
+  .lock-dots { display:flex; gap:14px; margin-bottom:26px; }
+  .lock-dot { width:14px; height:14px; border-radius:50%; border:1.5px solid #475569; }
+  .lock-dot.filled { background:#818cf8; border-color:#818cf8; }
+  .lock-keypad { display:grid; grid-template-columns:repeat(3,64px); gap:14px; }
+  .lock-key { width:64px; height:64px; border-radius:50%; border:1px solid #334155; background:#1e293b; color:#fff; font-size:20px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .lock-key svg { width:20px; height:20px; }
+  @keyframes lock-shake { 0%,100%{transform:translateX(0);} 20%,60%{transform:translateX(-8px);} 40%,80%{transform:translateX(8px);} }
+  .pin-setup-dots { display:flex; gap:10px; justify-content:center; margin:10px 0; }
+  .pin-setup-dots .lock-dot { width:11px; height:11px; border-color:var(--border); }
+  .pin-setup-dots .lock-dot.filled { background:var(--accent); border-color:var(--accent); }
+  .pin-setup-keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:260px; margin:14px auto 0; }
+  .pin-setup-keypad .lock-key { width:100%; height:52px; border-radius:12px; background:var(--bg-soft); color:var(--ink); border-color:var(--border); }
+
+  .compare-pick-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .compare-pick-item { position:relative; border:2px solid var(--border); border-radius:12px; overflow:hidden; padding:0; background:none; aspect-ratio:1; }
+  .compare-pick-item.selected { border-color:var(--accent); }
+  .compare-pick-item img { width:100%; height:100%; object-fit:cover; display:block; }
+  .compare-pick-badge { position:absolute; top:6px; right:6px; background:var(--accent); color:#fff; font-size:10px; font-weight:800; padding:3px 8px; border-radius:999px; }
+  .compare-pick-label { position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.6); color:#fff; font-size:10px; padding:4px 6px; text-align:left; }
+  .compare-split { display:flex; flex-direction:column; min-height:calc(100vh - 60px); }
+  .compare-half { flex:1; position:relative; display:flex; align-items:center; justify-content:center; background:#000; overflow:hidden; }
+  .compare-half img { width:100%; height:100%; object-fit:contain; }
+  .compare-tag { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.65); color:#fff; font-size:11px; font-weight:800; letter-spacing:0.03em; padding:5px 10px; border-radius:999px; z-index:2; }
 </style>
 </head>
 <body>
@@ -346,6 +405,7 @@ const ICONS = {
   clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
   mic:'<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
   tag:'<path d="M20.59 13.41L13.41 20.59a2 2 0 0 1-2.82 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
 
@@ -403,7 +463,7 @@ function newPatientShape() {
     side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
     nextFollowUpDate:'',
     preOpImageCount:0, followUps:[], investigations:[], prescriptions:[],
-    ctev: null, ra: null,
+    ctev: null, ra: null, osteo: null,
     preOpWound: { status:'', notes:'' },
     tags: [],
     createdAt: Date.now(),
@@ -553,6 +613,26 @@ function newRaShape() {
   return { rf:'unknown', accp:'unknown', cspineFlag:false, cspineNotes:'',
     treatment:{ dmards:'', biologics:'', steroids:'', nsaids:'' }, visits:[], nextLabsDate:'' };
 }
+function newOsteoShape() {
+  return { riskFactors: { age65:false, postmenopausal:false, priorFracture:false, familyHistoryHipFracture:false, steroidUse:false, smoking:false, lowBMI:false, earlyMenopause:false },
+    dexaScans: [], treatment:{ calciumVitD:'', bisphosphonate:'', notes:'' }, nextDexaDate: '' };
+}
+const OSTEO_RISK_FACTORS = [
+  ['age65','Age > 65'], ['postmenopausal','Postmenopausal'], ['priorFracture','Prior fragility fracture'],
+  ['familyHistoryHipFracture','Family history (hip fracture)'], ['steroidUse','Steroid use'],
+  ['smoking','Smoking'], ['lowBMI','Low BMI'], ['earlyMenopause','Early menopause'],
+];
+function dexaCategory(tScore) {
+  if (tScore == null || isNaN(tScore)) return null;
+  if (tScore >= -1.0) return { label:'Normal', cls:'badge-emerald' };
+  if (tScore > -2.5) return { label:'Osteopenia', cls:'badge-amber' };
+  return { label:'Osteoporosis', cls:'badge-red' };
+}
+function worstDexaCategory(scan) {
+  const scores = [scan.tScoreSpine, scan.tScoreHip].filter(v => v!=null && v!=='' && !isNaN(v)).map(Number);
+  if (!scores.length) return null;
+  return dexaCategory(Math.min(...scores));
+}
 
 /* ---- CTEV: Pirani scoring ---- */
 const PIRANI_COMPONENTS = [
@@ -669,6 +749,10 @@ function renderSettingsView() {
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">Doctor / clinic profile</h2>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
+    + appLockCardHtml()
+    + '<div class="card"><label class="field-label">Display</label><div class="row between"><span style="font-size:13px;font-weight:600;">Dark mode</span><div class="seg" style="width:auto;">'
+    + [['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 14px;">'+l+'</button>').join('')
+    + '</div></div></div>'
     + '<p style="font-size:12px;color:#94a3b8;">Ye details prescription ke letterhead pe print hongi. Ek baar bhar do, kabhi bhi yahan se edit kar sakte ho.</p>'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="Dr. Devarsh Goyal"></div>'
     + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
@@ -943,7 +1027,7 @@ function renderAddView() {
     + '</div>'
     + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea></div>'
     + '<div><label class="field-label">Special tracking (optional)</label><div class="seg">'
-    + [['','None'],['ctev','CTEV'],['ra','RA']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.condition===v?' active':'')+'" data-action="ap-set-special" data-value="'+v+'">'+l+'</button>').join('')
+    + [['','None'],['ctev','CTEV'],['ra','RA'],['osteoporosis','Osteoporosis']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.condition===v?' active':'')+'" data-action="ap-set-special" data-value="'+v+'">'+l+'</button>').join('')
     + '</div></div>'
     + (AP_TEMP.condition==='ctev' ? '<div><label class="field-label">Laterality</label><div class="seg">'
         + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.laterality===v?' active':'')+'" data-action="ap-set-laterality" data-value="'+v+'">'+l+'</button>').join('')
@@ -1056,6 +1140,7 @@ async function renderPreopTab(p) {
   woundGrid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple id="preop-wound-add-input" style="display:none;"></label>';
   woundGrid += '</div>';
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
+    + (allImages.length >= 2 ? '<button class="btn btn-block" style="margin-bottom:14px;" data-action="open-compare-picker">'+ic('clock')+' Compare Before / After</button>' : '')
     + '<div class="card" style="margin-bottom:14px;'+(pw.status && !['N/A',''].includes(pw.status) && pw.status!=='Clean' ? 'border-color:var(--red-border);background:var(--red-bg);' : '')+'">'
     + '<label class="field-label">Wound status (agar applicable ho \u2014 e.g. open fracture)</label>'
     + '<select class="select" data-field="preOpWoundStatus" style="margin-bottom:10px;">'+PREOP_WOUND_STATUS_OPTIONS.map(s=>'<option'+((pw.status||'N/A')===s?' selected':'')+'>'+s+'</option>').join('')+'</select>'
@@ -1619,6 +1704,24 @@ const EDU_LIBRARY = [
     redFlags:{en:['Toes turning blue or cold under a cast','Foot appearing to turn back despite brace wear'],
       hi:['Cast ke andar ungliyon ka neela ya thanda padna','Brace pehnane ke bawajood pair ka wapas mudta dikhna']},
     quote:{en:'\u201cEvery small step your child takes today is a step toward walking freely, hand in hand with your care.\u201d', hi:'\u201c\u0906\u091c\u093c \u0906\u092a\u0915\u0947 \u092c\u091a\u094d\u091a\u0947 \u0915\u093e \u090f\u0915 \u091b\u094b\u091f\u093e \u0915\u0926\u092e, \u0906\u092a\u0915\u0940 \u0926\u0947\u0916\u092d\u093e\u0932 \u0915\u0947 \u0938\u093e\u0925, \u0906\u091c\u093c\u093e\u0926\u0940 \u0938\u0947 \u091a\u0932\u0928\u0947 \u0915\u0940 \u0913\u0930 \u090f\u0915 \u0915\u0926\u092e \u0939\u0948\u0964\u201d'} },
+
+  { id:'osteoporosis', keywords:['osteoporosis','bone density','low bone density','dexa'],
+    name:{en:'Osteoporosis', hi:'\u0913\u0938\u094d\u091f\u093f\u092f\u094b\u092a\u094b\u0930\u094b\u0938\u093f\u0938 (\u0939\u0921\u094d\u0921\u093f\u092f\u094b\u0902 \u0915\u093e \u0915\u092e\u091c\u094b\u0930 \u0939\u094b\u0928\u093e)'},
+    whatIsIt:{en:'Your bones have gradually become thinner and weaker than normal, making them more likely to fracture even from a minor fall or bump.',
+      hi:'Aapki haddiyan dheere-dheere normal se patli aur kamzor ho gayi hain, jisse halki si girne ya thes lagne se bhi fracture ka khatra badh jaata hai.'},
+    dos:{en:['Take your calcium and Vitamin D as advised, every day','Do regular weight-bearing exercise (walking) and balance exercises','Make your home fall-safe \u2014 good lighting, no loose rugs/wires','Get your DEXA scan repeated when your doctor advises'],
+      hi:['Roz calcium aur Vitamin D advise ke mutabik lein','Regular weight-bearing exercise (walking) aur balance exercises karein','Ghar ko fall-safe banayein \u2014 achhi lighting, loose rugs/wires na ho','Doctor ke advise ke mutabik DEXA scan dobara karwayein']},
+    donts:{en:['Don\u2019t skip your bone medicines even if you feel fine','Avoid smoking and heavy alcohol \u2014 both weaken bones further','Avoid high-risk activities that increase fall/fracture risk'],
+      hi:['Achha feel ho tab bhi bone ki dawai skip na karein','Smoking aur zyada alcohol se bachein \u2014 dono haddi ko aur kamzor karte hain','High-risk activities se bachein jisse girne/fracture ka khatra badhe']},
+    nutrition:{en:'Calcium-rich foods (milk, dairy, sesame/til, green leafy vegetables) and adequate protein support bone strength. Sunlight exposure (15\u201320 minutes) helps natural Vitamin D.',
+      hi:'Calcium-rich khaana (doodh, dairy, til, hari sabziyan) aur adequate protein bone strength ke liye zaroori hai. Dhoop (15\u201320 minute) se natural Vitamin D milta hai.'},
+    medication:{en:'Bone-strengthening medicines (like bisphosphonates) work best when taken exactly as instructed \u2014 some need to be taken on an empty stomach, sitting upright. Never stop or change the schedule without asking your doctor.',
+      hi:'Bone-strengthening dawaiyan (jaise bisphosphonates) tabhi sabse achhi kaam karti hain jab bataye tarike se li jaayein \u2014 kuch khaali pet, seedhe baithkar leni hoti hain. Doctor se puchhe bina schedule na badlein na band karein.'},
+    physio:{en:'Weight-bearing exercises (walking) and balance/strengthening exercises reduce both bone loss and fall risk \u2014 both matter equally in preventing fractures.',
+      hi:'Weight-bearing exercises (walking) aur balance/strengthening exercises \u2014 dono bone loss aur girne ka khatra kam karte hain, fracture rokne ke liye dono zaroori hain.'},
+    redFlags:{en:['New back pain, especially sudden onset (possible spine fracture)','Any fall followed by inability to bear weight','Height loss or increasing stoop noticed over time'],
+      hi:['Naya kamar dard, khaaskar achanak shuru hua (spine fracture ho sakta hai)','Girne ke baad weight na daal paana','Height kam hona ya jhukav badhna dheere-dheere']},
+    quote:{en:'\u201cStrong bones today are steady steps for all your tomorrows.\u201d', hi:'\u201c\u0906\u091c \u092e\u091c\u092c\u0942\u0924 \u0939\u0921\u094d\u0921\u093f\u092f\u093e\u0902, \u0906\u0928\u0947 \u0935\u093e\u0932\u0947 \u0939\u0930 \u0915\u0932 \u0915\u0947 \u0932\u093f\u090f \u092e\u091c\u092c\u0942\u0924 \u0915\u0926\u092e \u0939\u0948\u0902\u0964\u201d'} },
 ];
 
 function searchEduLibrary(query) {
@@ -1836,6 +1939,7 @@ async function renderTabBody(p) {
   if (TAB === 'ctev') { el.innerHTML = renderCtevTab(p); return; }
   if (TAB === 'timeline') { el.innerHTML = renderTimelineTab(p); return; }
   if (TAB === 'ra') { el.innerHTML = renderRaTab(p); return; }
+  if (TAB === 'osteo') { el.innerHTML = renderOsteoTab(p); return; }
   el.innerHTML = '<div class="px" style="padding-top:30px;text-align:center;color:#94a3b8;">Loading\u2026</div>';
   if (TAB === 'preop') el.innerHTML = await renderPreopTab(p);
   else if (TAB === 'followups') el.innerHTML = await renderFollowupsTab(p);
@@ -1872,6 +1976,7 @@ function visibleTabs(p) {
   tabs.push({key:'preop', label:'Imaging', icon:'camera'});
   if (p.condition === 'ctev') tabs.push({key:'ctev', label:'CTEV', icon:'foot'});
   if (p.condition === 'ra') tabs.push({key:'ra', label:'RA', icon:'pill'});
+  if (p.condition === 'osteoporosis') tabs.push({key:'osteo', label:'Bone Health', icon:'shield'});
   tabs.push({key:'followups', label:'Follow-ups', icon:'calendar'});
   tabs.push({key:'investigations', label:'Investigations', icon:'file'});
   tabs.push({key:'prescriptions', label:'Rx', icon:'printer'});
@@ -2089,6 +2194,118 @@ function renderRaTab(p) {
   return html;
 }
 
+
+let ADD_DEXA_OPEN = false;
+let COMPARE_SELECTED = [];
+let COMPARE_IMAGES_CACHE = [];
+
+function imageSourceLabel(im, patient) {
+  if (im.isWoundPhoto && !im.followUpId && !im.investigationId) return 'Pre-op wound';
+  if (im.investigationId) { const inv = (patient.investigations||[]).find(i=>i.id===im.investigationId); return inv ? inv.label : 'Investigation'; }
+  if (im.followUpId) {
+    const fu = (patient.followUps||[]).find(f=>f.id===im.followUpId);
+    const base = fu ? fu.label : 'Follow-up';
+    return base + (im.isWoundPhoto ? ' (wound)' : '');
+  }
+  return patient.caseType === 'surgical' ? 'Pre-op' : 'Clinical';
+}
+
+async function renderComparePickerView() {
+  const p = getPatient(SELECTED_ID);
+  const allImages = await dbGetImagesByPatient(p.id);
+  COMPARE_IMAGES_CACHE = allImages;
+  revokeActiveUrls();
+  const items = allImages.map(im => {
+    const url = trackUrl(URL.createObjectURL(im.blob));
+    const idx = COMPARE_SELECTED.indexOf(im.id);
+    return '<button type="button" class="compare-pick-item'+(idx>-1?' selected':'')+'" data-action="compare-select-image" data-id="'+im.id+'">'
+      + '<img src="'+url+'">'
+      + (idx>-1 ? '<span class="compare-pick-badge">'+(idx===0?'Before':'After')+'</span>' : '')
+      + '<span class="compare-pick-label">'+esc(imageSourceLabel(im, p))+' \u00b7 '+fmtDate(im.createdAt ? new Date(im.createdAt).toISOString().slice(0,10) : '')+'</span>'
+      + '</button>';
+  }).join('');
+  return '<div class="sticky-top px row gap3" style="padding:14px 16px;">'
+    + '<button class="icon-btn" data-action="close-compare-picker">'+ic('back')+'</button>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">Select 2 photos to compare</h2>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
+    + '<p style="font-size:12px;color:#94a3b8;margin-bottom:12px;">Pehle "Before" wali photo tap karo, fir "After" wali. ('+COMPARE_SELECTED.length+'/2 selected)</p>'
+    + '<div class="compare-pick-grid">'+items+'</div>'
+    + '</div>';
+}
+
+function renderCompareView() {
+  const p = getPatient(SELECTED_ID);
+  const imA = COMPARE_IMAGES_CACHE.find(im => im.id === COMPARE_SELECTED[0]);
+  const imB = COMPARE_IMAGES_CACHE.find(im => im.id === COMPARE_SELECTED[1]);
+  if (!imA || !imB) { VIEW = 'detail'; TAB = 'preop'; return renderDetailShell(p); }
+  const urlA = trackUrl(URL.createObjectURL(imA.blob));
+  const urlB = trackUrl(URL.createObjectURL(imB.blob));
+  return '<div class="sticky-top px row gap3" style="padding:14px 16px;">'
+    + '<button class="icon-btn" data-action="close-compare-view">'+ic('back')+'</button>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">Before / After</h2>'
+    + '</div>'
+    + '<div class="compare-split">'
+    + '<div class="compare-half"><div class="compare-tag">BEFORE \u00b7 '+esc(imageSourceLabel(imA,p))+'</div><img src="'+urlA+'" data-action="view-image" data-imgid="'+imA.id+'" data-url="'+esc(urlA)+'"></div>'
+    + '<div class="compare-half"><div class="compare-tag">AFTER \u00b7 '+esc(imageSourceLabel(imB,p))+'</div><img src="'+urlB+'" data-action="view-image" data-imgid="'+imB.id+'" data-url="'+esc(urlB)+'"></div>'
+    + '</div>'
+    + '<p style="text-align:center;font-size:11px;color:#94a3b8;padding:10px;">Zoom karne ke liye kisi bhi photo pe tap karo</p>';
+}
+
+let DEXA_TEMP = null;
+function initDexaTemp() { DEXA_TEMP = { date: todayStr(), tScoreSpine:'', tScoreHip:'', notes:'' }; }
+
+function renderOsteoTab(p) {
+  const o = p.osteo;
+  const riskCount = OSTEO_RISK_FACTORS.filter(([k]) => o.riskFactors[k]).length;
+  const overdueDexa = isOverdue(o.nextDexaDate);
+  let html = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
+
+  html += '<div class="card" style="margin-bottom:12px;">'
+    + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">Risk factors</label>'
+    + '<span class="badge '+(riskCount>=3?'badge-red':riskCount>=1?'badge-amber':'badge-slate')+'">'+riskCount+' present</span></div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+    + OSTEO_RISK_FACTORS.map(([k,label]) => '<button type="button" class="tag-chip'+(o.riskFactors[k]?' active':'')+'" data-action="osteo-toggle-risk" data-value="'+k+'">'+esc(label)+'</button>').join('')
+    + '</div></div>';
+
+  html += '<div class="card" style="margin-bottom:12px;'+(overdueDexa?'border-color:var(--red-border);background:var(--red-bg);':'')+'">'
+    + '<label class="field-label" style="'+(overdueDexa?'color:#7f1d1d;':'')+'">Next DEXA due'+(overdueDexa?' \u2014 OVERDUE':'')+'</label>'
+    + '<input class="input" type="date" data-osteo-field="nextDexaDate" value="'+esc(o.nextDexaDate)+'"></div>';
+
+  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Treatment</div>';
+  html += '<div class="card" style="margin-bottom:12px;display:flex;flex-direction:column;gap:8px;">'
+    + '<div><label class="field-label">Calcium / Vitamin D</label><textarea class="textarea" rows="2" data-osteo-field="treatment.calciumVitD">'+esc(o.treatment.calciumVitD)+'</textarea></div>'
+    + '<div><label class="field-label">Bisphosphonate / other bone medicine</label><textarea class="textarea" rows="2" data-osteo-field="treatment.bisphosphonate">'+esc(o.treatment.bisphosphonate)+'</textarea></div>'
+    + '<div><label class="field-label">Notes</label><textarea class="textarea" rows="2" data-osteo-field="treatment.notes">'+esc(o.treatment.notes)+'</textarea></div>'
+    + '</div>';
+
+  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">DEXA scans</div>';
+  if (!ADD_DEXA_OPEN) {
+    html += '<button class="btn btn-outline-dashed btn-block" data-action="osteo-open-add-dexa" style="margin-bottom:12px;">'+ic('plus')+' Add DEXA result</button>';
+  } else {
+    html += '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
+      + '<label class="field-label">Date</label><input class="input" type="date" id="dexa-date" value="'+esc(DEXA_TEMP.date)+'" style="margin-bottom:10px;">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">'
+      + '<div><label class="field-label">T-score (Spine)</label><input class="input" type="number" step="0.1" id="dexa-tScoreSpine" value="'+esc(DEXA_TEMP.tScoreSpine)+'"></div>'
+      + '<div><label class="field-label">T-score (Hip)</label><input class="input" type="number" step="0.1" id="dexa-tScoreHip" value="'+esc(DEXA_TEMP.tScoreHip)+'"></div>'
+      + '</div>'
+      + '<label class="field-label">Notes</label><textarea class="textarea" rows="2" id="dexa-notes">'+esc(DEXA_TEMP.notes)+'</textarea>'
+      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="osteo-cancel-add-dexa">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="osteo-submit-dexa">Save</button></div>'
+      + '</div>';
+  }
+  [...o.dexaScans].reverse().forEach(scan => {
+    const cat = worstDexaCategory(scan);
+    html += '<div class="fu-card"><div class="row between"><span style="font-weight:800;">'+fmtDate(scan.date)+'</span>'+confirmBtn('osteo-delete-dexa', scan.id)+'</div>'
+      + '<p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">Spine T-score '+(scan.tScoreSpine!==''&&scan.tScoreSpine!=null?scan.tScoreSpine:'\u2014')+' \u00b7 Hip T-score '+(scan.tScoreHip!==''&&scan.tScoreHip!=null?scan.tScoreHip:'\u2014')+'</p>'
+      + (cat ? '<span class="badge '+cat.cls+'" style="margin-top:6px;display:inline-block;">'+cat.label+'</span>' : '')
+      + (scan.notes ? '<p style="font-size:12px;color:#64748b;margin-top:6px;">'+esc(scan.notes)+'</p>' : '')
+      + '</div>';
+  });
+
+  html += '</div>';
+  return html;
+}
+
 function renderDetailShell(p) {
   const tabs = visibleTabs(p);
   if (!tabs.some(t => t.key === TAB)) TAB = 'overview';
@@ -2120,6 +2337,8 @@ async function render() {
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
   if (VIEW === 'edu-print') { app.innerHTML = renderEduPrintView(); return; }
   if (VIEW === 'edu-image-print') { app.innerHTML = renderEduImagePrintView(); return; }
+  if (VIEW === 'compare-picker') { app.innerHTML = await renderComparePickerView(); return; }
+  if (VIEW === 'compare-view') { app.innerHTML = renderCompareView(); return; }
   if (VIEW === 'detail') {
     const p = getPatient(SELECTED_ID);
     if (!p) { VIEW='list'; return render(); }
@@ -2346,6 +2565,51 @@ document.addEventListener('click', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
+  if (action === 'osteo-toggle-risk') {
+    const p = getPatient(SELECTED_ID);
+    const k = el.dataset.value;
+    p.osteo.riskFactors[k] = !p.osteo.riskFactors[k];
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'osteo-open-add-dexa') { initDexaTemp(); ADD_DEXA_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'osteo-cancel-add-dexa') { ADD_DEXA_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'osteo-submit-dexa') {
+    const p = getPatient(SELECTED_ID);
+    const date = document.getElementById('dexa-date').value;
+    const tScoreSpine = document.getElementById('dexa-tScoreSpine').value;
+    const tScoreHip = document.getElementById('dexa-tScoreHip').value;
+    const notes = document.getElementById('dexa-notes').value;
+    p.osteo.dexaScans.push({ id: uid(), date, tScoreSpine: tScoreSpine===''?null:Number(tScoreSpine), tScoreHip: tScoreHip===''?null:Number(tScoreHip), notes });
+    ADD_DEXA_OPEN = false;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'osteo-delete-dexa' && el.dataset.confirm) {
+    const p = getPatient(SELECTED_ID);
+    p.osteo.dexaScans = p.osteo.dexaScans.filter(s => s.id !== el.dataset.id);
+    ARMED_DELETE = null;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'open-compare-picker') { COMPARE_SELECTED = []; VIEW = 'compare-picker'; await render(); return; }
+  if (action === 'compare-select-image') {
+    const id = el.dataset.id;
+    const idx = COMPARE_SELECTED.indexOf(id);
+    if (idx > -1) { COMPARE_SELECTED.splice(idx, 1); }
+    else {
+      if (COMPARE_SELECTED.length >= 2) COMPARE_SELECTED.shift();
+      COMPARE_SELECTED.push(id);
+    }
+    if (COMPARE_SELECTED.length === 2) { VIEW = 'compare-view'; render(); return; }
+    await render();
+    return;
+  }
+  if (action === 'close-compare-picker') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'preop'; await render(); return; }
+  if (action === 'close-compare-view') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'preop'; await render(); return; }
   if (action === 'cancel-add') { AP_PHOTOS = []; VIEW='list'; render(); return; }
   if (action === 'open-patient') { SELECTED_ID = el.dataset.id; VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); return; }
@@ -2394,6 +2658,7 @@ document.addEventListener('click', async (e) => {
     if (p.caseType === 'surgical') recordTextUsed(PROCEDURE_LIB_KEY, p.procedure);
     if (p.condition === 'ctev') p.ctev = newCtevShape();
     if (p.condition === 'ra') p.ra = newRaShape();
+    if (p.condition === 'osteoporosis') p.osteo = newOsteoShape();
     await dbPutPatient(p);
     for (const ph of AP_PHOTOS) {
       await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now() });
@@ -2537,6 +2802,46 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'export-backup') { await exportBackup(); return; }
   if (action === 'dismiss-backup-banner') { BACKUP_BANNER_DISMISSED = true; render(); return; }
+  if (action === 'set-theme') { applyTheme(el.dataset.value); render(); return; }
+
+  if (action === 'lock-digit') {
+    if (APP_LOCKED) {
+      LOCK_PIN_INPUT += el.dataset.value;
+      LOCK_ERROR = false;
+      const appDiv = document.getElementById('app');
+      if (LOCK_PIN_INPUT.length === PIN_LENGTH) {
+        const ok = await verifyPin(LOCK_PIN_INPUT);
+        if (ok) {
+          APP_LOCKED = false; LOCK_PIN_INPUT = '';
+          await refreshPatients(); render();
+        } else {
+          LOCK_ERROR = true;
+          appDiv.innerHTML = renderLockScreen();
+          setTimeout(() => { LOCK_PIN_INPUT = ''; LOCK_ERROR = false; if (APP_LOCKED) document.getElementById('app').innerHTML = renderLockScreen(); }, 500);
+        }
+      } else {
+        appDiv.innerHTML = renderLockScreen();
+      }
+      return;
+    }
+    if (LOCK_SETUP_MODE) {
+      LOCK_PIN_INPUT += el.dataset.value;
+      if (LOCK_PIN_INPUT.length === PIN_LENGTH) await handlePinSetupComplete();
+      else render();
+      return;
+    }
+    return;
+  }
+  if (action === 'lock-backspace') {
+    LOCK_PIN_INPUT = LOCK_PIN_INPUT.slice(0, -1);
+    if (APP_LOCKED) document.getElementById('app').innerHTML = renderLockScreen();
+    else if (LOCK_SETUP_MODE) render();
+    return;
+  }
+  if (action === 'lock-start-enable') { LOCK_SETUP_MODE = 'set-new'; LOCK_PIN_INPUT = ''; render(); return; }
+  if (action === 'lock-start-change') { LOCK_SETUP_MODE = 'change-verify'; LOCK_PIN_INPUT = ''; render(); return; }
+  if (action === 'lock-start-disable') { LOCK_SETUP_MODE = 'disable-verify'; LOCK_PIN_INPUT = ''; render(); return; }
+  if (action === 'lock-setup-cancel') { LOCK_SETUP_MODE = null; LOCK_PIN_INPUT = ''; LOCK_SETUP_FIRST_PIN = ''; render(); return; }
   if (action === 'mic-toggle') {
     if (ACTIVE_RECOGNITION && ACTIVE_RECOGNITION.targetId === el.dataset.target) { stopMic(); return; }
     startMic(el.dataset.target, el);
@@ -2697,6 +3002,15 @@ document.addEventListener('change', async (e) => {
     if (t.dataset.raField === 'nextLabsDate') await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
+  if (t.dataset && t.dataset.osteoField) {
+    const p = getPatient(SELECTED_ID);
+    const parts = t.dataset.osteoField.split('.');
+    if (parts.length === 2) p.osteo[parts[0]][parts[1]] = t.value;
+    else p.osteo[parts[0]] = t.value;
+    await dbPutPatient(p); await refreshPatients();
+    if (t.dataset.osteoField === 'nextDexaDate') await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
 
   if (t.id === 'import-file-input') {
     const file = t.files && t.files[0];
@@ -2726,8 +3040,9 @@ document.addEventListener('change', async (e) => {
     p.condition = t.value;
     if (p.condition === 'ctev' && !p.ctev) p.ctev = newCtevShape();
     if (p.condition === 'ra' && !p.ra) p.ra = newRaShape();
+    if (p.condition === 'osteoporosis' && !p.osteo) p.osteo = newOsteoShape();
     await dbPutPatient(p); await refreshPatients();
-    if (TAB === 'ctev' || TAB === 'ra') TAB = 'overview';
+    if (TAB === 'ctev' || TAB === 'ra' || TAB === 'osteo') TAB = 'overview';
     await render();
     return;
   }
@@ -2835,9 +3150,117 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(()=>{}); });
 }
 
+/* ================= Theme (dark mode) ================= */
+const THEME_KEY = 'surgical-case-log-theme-v1';
+function loadTheme() { try { return localStorage.getItem(THEME_KEY) || 'light'; } catch(e) { return 'light'; } }
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+  try { localStorage.setItem(THEME_KEY, t); } catch(e) {}
+}
+
+/* ================= App Lock (local PIN) ================= */
+const APP_LOCK_HASH_KEY = 'surgical-case-log-lock-hash-v1';
+let APP_LOCKED = false;
+let LOCK_PIN_INPUT = '';
+let LOCK_ERROR = false;
+let LOCK_SETUP_MODE = null; // null | 'set-new' | 'confirm-new' | 'change-verify' | 'disable-verify'
+let LOCK_SETUP_FIRST_PIN = '';
+const PIN_LENGTH = 4;
+
+async function hashPin(pin) {
+  const enc = new TextEncoder().encode('bonelogpro-salt-' + pin);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function isLockEnabled() { try { return !!localStorage.getItem(APP_LOCK_HASH_KEY); } catch(e) { return false; } }
+async function verifyPin(pin) {
+  try {
+    const stored = localStorage.getItem(APP_LOCK_HASH_KEY);
+    if (!stored) return true;
+    return (await hashPin(pin)) === stored;
+  } catch(e) { return false; }
+}
+async function savePin(pin) { try { localStorage.setItem(APP_LOCK_HASH_KEY, await hashPin(pin)); } catch(e) {} }
+function clearPin() { try { localStorage.removeItem(APP_LOCK_HASH_KEY); } catch(e) {} }
+
+function renderLockScreen() {
+  const dots = Array.from({length:PIN_LENGTH}, (_,i) => '<span class="lock-dot'+(i<LOCK_PIN_INPUT.length?' filled':'')+'"></span>').join('');
+  return '<div class="lock-screen">'
+    + '<div class="lock-icon">'+ic('gear')+'</div>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:14px 0 4px;">Bone Log Pro locked hai</h2>'
+    + '<p style="font-size:12px;color:#94a3b8;margin:0 0 18px;">'+(LOCK_ERROR?'Galat PIN, dobara try karo.':'PIN daalo')+'</p>'
+    + '<div class="lock-dots" style="'+(LOCK_ERROR?'animation:lock-shake 0.4s;':'')+'">'+dots+'</div>'
+    + '<div class="lock-keypad">'
+    + [1,2,3,4,5,6,7,8,9].map(n=>'<button class="lock-key" data-action="lock-digit" data-value="'+n+'">'+n+'</button>').join('')
+    + '<span></span><button class="lock-key" data-action="lock-digit" data-value="0">0</button><button class="lock-key" data-action="lock-backspace">'+ic('back')+'</button>'
+    + '</div>'
+    + '</div>';
+}
+
+async function handlePinSetupComplete() {
+  if (LOCK_SETUP_MODE === 'set-new') {
+    LOCK_SETUP_FIRST_PIN = LOCK_PIN_INPUT;
+    LOCK_PIN_INPUT = '';
+    LOCK_SETUP_MODE = 'confirm-new';
+    render();
+  } else if (LOCK_SETUP_MODE === 'confirm-new') {
+    if (LOCK_PIN_INPUT === LOCK_SETUP_FIRST_PIN) {
+      await savePin(LOCK_PIN_INPUT);
+      LOCK_SETUP_MODE = null; LOCK_PIN_INPUT = ''; LOCK_SETUP_FIRST_PIN = '';
+      toast('App Lock ON ho gaya');
+      render();
+    } else {
+      toast('PIN match nahi hua, dobara try karo');
+      LOCK_PIN_INPUT = ''; LOCK_SETUP_FIRST_PIN = ''; LOCK_SETUP_MODE = 'set-new';
+      render();
+    }
+  } else if (LOCK_SETUP_MODE === 'change-verify') {
+    const ok = await verifyPin(LOCK_PIN_INPUT);
+    LOCK_PIN_INPUT = '';
+    if (ok) { LOCK_SETUP_MODE = 'set-new'; render(); }
+    else { toast('Galat PIN'); LOCK_SETUP_MODE = null; render(); }
+  } else if (LOCK_SETUP_MODE === 'disable-verify') {
+    const ok = await verifyPin(LOCK_PIN_INPUT);
+    LOCK_PIN_INPUT = '';
+    if (ok) { clearPin(); LOCK_SETUP_MODE = null; toast('App Lock OFF ho gaya'); render(); }
+    else { toast('Galat PIN'); LOCK_SETUP_MODE = null; render(); }
+  }
+}
+
+function appLockCardHtml() {
+  if (LOCK_SETUP_MODE) {
+    const dots = Array.from({length:PIN_LENGTH}, (_,i) => '<span class="lock-dot'+(i<LOCK_PIN_INPUT.length?' filled':'')+'"></span>').join('');
+    const labels = { 'set-new':'Naya 4-digit PIN daalo', 'confirm-new':'PIN dobara confirm karo', 'change-verify':'Pehle current PIN daalo', 'disable-verify':'Lock hatane ke liye current PIN daalo' };
+    return '<div class="card">'
+      + '<label class="field-label">App Lock</label>'
+      + '<p style="font-size:12px;color:#94a3b8;text-align:center;margin:6px 0;">'+labels[LOCK_SETUP_MODE]+'</p>'
+      + '<div class="pin-setup-dots">'+dots+'</div>'
+      + '<div class="pin-setup-keypad">'
+      + [1,2,3,4,5,6,7,8,9].map(n=>'<button type="button" class="lock-key" data-action="lock-digit" data-value="'+n+'">'+n+'</button>').join('')
+      + '<span></span><button type="button" class="lock-key" data-action="lock-digit" data-value="0">0</button><button type="button" class="lock-key" data-action="lock-backspace">'+ic('back')+'</button>'
+      + '</div>'
+      + '<button class="btn btn-sm btn-block" style="margin-top:10px;" data-action="lock-setup-cancel">Cancel</button>'
+      + '</div>';
+  }
+  const enabled = isLockEnabled();
+  return '<div class="card">'
+    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">App Lock</label><span class="badge badge-'+(enabled?'emerald':'slate')+'">'+(enabled?'ON':'OFF')+'</span></div>'
+    + '<p style="font-size:12px;color:#94a3b8;margin:6px 0 10px;">Har baar app khulte hi 4-digit PIN maangega, taaki data sirf aapke paas hi rahe.</p>'
+    + (enabled
+        ? '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="lock-start-change">Change PIN</button><button class="btn btn-sm" style="flex:1;" data-action="lock-start-disable">Disable</button></div>'
+        : '<button class="btn btn-primary btn-block" data-action="lock-start-enable">Enable App Lock</button>')
+    + '</div>';
+}
+
 /* ================= Init ================= */
 
 (async () => {
+  applyTheme(loadTheme());
+  if (isLockEnabled()) {
+    APP_LOCKED = true;
+    document.getElementById('app').innerHTML = renderLockScreen();
+    return;
+  }
   await refreshPatients();
   render();
 })();
