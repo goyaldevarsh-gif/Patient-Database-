@@ -445,6 +445,7 @@ const ICONS = {
   heart:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
   copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   edit:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/>',
+  folder:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
 
@@ -1414,8 +1415,9 @@ function confirmBtn(action, id) {
 
 async function renderPreopTab(p) {
   const allImages = await dbGetImagesByPatient(p.id);
-  const images = allImages.filter(im => !im.followUpId && !im.investigationId && !im.isWoundPhoto);
+  const images = allImages.filter(im => !im.followUpId && !im.investigationId && !im.isWoundPhoto && !im.isIntraOp);
   const woundImages = allImages.filter(im => !im.followUpId && !im.investigationId && im.isWoundPhoto);
+  const otImages = allImages.filter(im => !im.followUpId && !im.investigationId && im.isIntraOp);
   revokeActiveUrls();
   let grid = '<div class="thumb-grid">';
   images.forEach(im => {
@@ -1434,12 +1436,24 @@ async function renderPreopTab(p) {
   woundGrid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple id="preop-wound-add-input" style="display:none;"></label>';
   woundGrid += '</div>';
   const woundGridFab = cameraFabHtml('id="preop-wound-add-input-cam"');
+  let otGrid = '<div class="thumb-grid">';
+  otImages.forEach(im => {
+    const url = trackUrl(URL.createObjectURL(im.blob));
+    otGrid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
+  });
+  otGrid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple id="preop-ot-add-input" style="display:none;"></label>';
+  otGrid += '</div>';
+  const otGridFab = cameraFabHtml('id="preop-ot-add-input-cam"');
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
+    + (allImages.length ? '<button class="btn btn-block" style="margin-bottom:14px;" data-action="set-tab" data-value="photos">'+ic('folder')+' All Photos (organized)</button>' : '')
     + (allImages.length >= 2 ? '<button class="btn btn-block" style="margin-bottom:14px;" data-action="open-compare-picker">'+ic('clock')+' Compare Before / After</button>' : '')
     + '<div class="card" style="margin-bottom:14px;'+(pw.status && !['N/A',''].includes(pw.status) && pw.status!=='Clean' ? 'border-color:var(--red-border);background:var(--red-bg);' : '')+'">'
     + '<label class="field-label">Wound status (if applicable \u2014 e.g. open fracture)</label>'
     + '<select class="select" data-field="preOpWoundStatus" style="margin-bottom:10px;">'+PREOP_WOUND_STATUS_OPTIONS.map(s=>'<option'+((pw.status||'N/A')===s?' selected':'')+'>'+s+'</option>').join('')+'</select>'
     + '<label class="field-label">Wound photo</label><div style="position:relative;">'+woundGrid+woundGridFab+'</div>'
+    + '</div>'
+    + '<div class="card" style="margin-bottom:14px;">'
+    + '<label class="field-label">OT / Intra-op photos</label><div style="position:relative;">'+otGrid+otGridFab+'</div>'
     + '</div>'
     + (images.length ? '<div style="position:relative;">'+grid+gridFab+'</div>' : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No clinical images yet.</div>'+'<div style="position:relative;">'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">')+gridFab+'</div>')
     + '</div>';
@@ -2244,6 +2258,7 @@ async function renderTabBody(p) {
   else if (TAB === 'followups') el.innerHTML = await renderFollowupsTab(p);
   else if (TAB === 'investigations') el.innerHTML = await renderInvestigationsTab(p);
   else if (TAB === 'prescriptions') el.innerHTML = renderPrescriptionsTab(p);
+  else if (TAB === 'photos') el.innerHTML = await renderPhotoOrganiserTab(p);
 }
 
 function renderTimelineTab(p) {
@@ -2500,6 +2515,7 @@ let COMPARE_IMAGES_CACHE = [];
 
 function imageSourceLabel(im, patient) {
   if (im.isWoundPhoto && !im.followUpId && !im.investigationId) return 'Pre-op wound';
+  if (im.isIntraOp && !im.followUpId && !im.investigationId) return 'OT / Intra-op';
   if (im.investigationId) { const inv = (patient.investigations||[]).find(i=>i.id===im.investigationId); return inv ? inv.label : 'Investigation'; }
   if (im.followUpId) {
     const fu = (patient.followUps||[]).find(f=>f.id===im.followUpId);
@@ -2507,6 +2523,59 @@ function imageSourceLabel(im, patient) {
     return base + (im.isWoundPhoto ? ' (wound)' : '');
   }
   return patient.caseType === 'surgical' ? 'Pre-op' : 'Clinical';
+}
+
+/* Smart photo organiser \u2014 buckets every image into a folder automatically, using where it was
+   uploaded from (pre-op / OT / follow-up) and, for investigations, keyword-matching the
+   investigation's own label text (no manual tagging or image recognition needed). */
+function classifyInvestigationLabel(label) {
+  const l = (label||'').toLowerCase();
+  if (/\bmri\b/.test(l)) return 'MRI';
+  if (/\bct\b|ct scan|cect|ncct/.test(l)) return 'CT';
+  if (/x-?ray|\bxr\b|radiograph/.test(l)) return 'X-ray';
+  if (/usg|ultrasound|sonograph/.test(l)) return 'Ultrasound';
+  if (/dexa|bmd|bone density/.test(l)) return 'DEXA';
+  if (/blood|\bcbc\b|\besr\b|\bcrp\b|\brft\b|\blft\b|hba1c|vitamin d|\blab\b/.test(l)) return 'Labs';
+  return 'Other investigations';
+}
+
+const PHOTO_FOLDER_ORDER = ['Pre-op','OT / Intra-op','MRI','CT','X-ray','Ultrasound','DEXA','Labs','Other investigations','Follow-up'];
+
+async function computePhotoFolders(p) {
+  const allImages = await dbGetImagesByPatient(p.id);
+  const folders = {}; PHOTO_FOLDER_ORDER.forEach(k => folders[k] = []);
+  allImages.forEach(im => {
+    if (im.followUpId) { folders['Follow-up'].push(im); return; }
+    if (im.investigationId) {
+      const inv = (p.investigations||[]).find(i => i.id === im.investigationId);
+      folders[classifyInvestigationLabel(inv ? inv.label : '')].push(im);
+      return;
+    }
+    if (im.isIntraOp) { folders['OT / Intra-op'].push(im); return; }
+    folders['Pre-op'].push(im);
+  });
+  Object.keys(folders).forEach(k => folders[k].sort((a,b) => (a.createdAt||0) - (b.createdAt||0)));
+  return folders;
+}
+
+async function renderPhotoOrganiserTab(p) {
+  const folders = await computePhotoFolders(p);
+  revokeActiveUrls();
+  const nonEmpty = PHOTO_FOLDER_ORDER.filter(k => folders[k].length);
+  if (!nonEmpty.length) {
+    return '<div class="px" style="padding-top:30px;text-align:center;color:#94a3b8;font-size:12px;">No photos on this case yet.</div>';
+  }
+  let html = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
+  nonEmpty.forEach(key => {
+    const imgs = folders[key];
+    html += '<div style="margin-bottom:18px;">'
+      + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">'+ic('folder')+' '+esc(key)+'</label><span style="font-size:11px;color:#94a3b8;">'+imgs.length+' photo'+(imgs.length!==1?'s':'')+'</span></div>'
+      + '<div class="thumb-grid">'
+      + imgs.map(im => { const url = trackUrl(URL.createObjectURL(im.blob)); return '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>'; }).join('')
+      + '</div></div>';
+  });
+  html += '</div>';
+  return html;
 }
 
 async function renderComparePickerView() {
@@ -2607,7 +2676,8 @@ function renderOsteoTab(p) {
 
 function renderDetailShell(p) {
   const tabs = visibleTabs(p);
-  if (!tabs.some(t => t.key === TAB)) TAB = 'overview';
+  const QUICK_ACCESS_TABS = ['photos']; // reachable via a button, not shown in the tab bar itself
+  if (!tabs.some(t => t.key === TAB) && !QUICK_ACCESS_TABS.includes(TAB)) TAB = 'overview';
   let tabsHtml = tabs.map(t => '<button class="tab'+(TAB===t.key?' active':'')+'" data-action="set-tab" data-value="'+t.key+'">'+ic(t.icon)+t.label+'</button>').join('');
   let statusOptions = STATUS_OPTIONS.map(s => '<option'+(p.status===s?' selected':'')+'>'+s+'</option>').join('');
   return '<div style="padding-bottom:20px;">'
@@ -2970,7 +3040,7 @@ async function annotSave() {
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
   const p = getPatient(SELECTED_ID);
   if (!p || !blob) { toast('Could not save'); return; }
-  await dbAddImage({ id: uid(), patientId: p.id, followUpId: rec.followUpId||null, investigationId: rec.investigationId||null, isWoundPhoto: !!rec.isWoundPhoto, blob, createdAt: Date.now() });
+  await dbAddImage({ id: uid(), patientId: p.id, followUpId: rec.followUpId||null, investigationId: rec.investigationId||null, isWoundPhoto: !!rec.isWoundPhoto, isIntraOp: !!rec.isIntraOp, blob, createdAt: Date.now() });
   const allImages = await dbGetImagesByPatient(p.id);
   if (rec.followUpId) {
     const fu = (p.followUps||[]).find(f => f.id === rec.followUpId);
@@ -2978,8 +3048,8 @@ async function annotSave() {
   } else if (rec.investigationId) {
     const inv = (p.investigations||[]).find(i => i.id === rec.investigationId);
     if (inv) inv.imageCount = allImages.filter(i => i.investigationId === rec.investigationId).length;
-  } else if (!rec.isWoundPhoto) {
-    p.preOpImageCount = allImages.filter(i => !i.followUpId && !i.investigationId && !i.isWoundPhoto).length;
+  } else if (!rec.isWoundPhoto && !rec.isIntraOp) {
+    p.preOpImageCount = allImages.filter(i => !i.followUpId && !i.investigationId && !i.isWoundPhoto && !i.isIntraOp).length;
   }
   await dbPutPatient(p); await refreshPatients();
   closeAnnotator();
@@ -3003,6 +3073,7 @@ async function exportBackup(auto) {
       for (const im of images) {
         const folder = im.followUpId ? ('images/'+p.id+'/followup_'+im.followUpId)
           : im.investigationId ? ('images/'+p.id+'/investigation_'+im.investigationId)
+          : im.isIntraOp ? ('images/'+p.id+'/ot')
           : ('images/'+p.id+'/preop');
         zip.file(folder+'/'+im.id+'.jpg', im.blob);
       }
@@ -3910,7 +3981,7 @@ document.addEventListener('change', async (e) => {
       const blob = await resizeImageFile(file);
       await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob, createdAt: Date.now() });
     }
-    p.preOpImageCount = (await dbGetImagesByPatient(p.id)).filter(i=>!i.followUpId && !i.investigationId && !i.isWoundPhoto).length;
+    p.preOpImageCount = (await dbGetImagesByPatient(p.id)).filter(i=>!i.followUpId && !i.investigationId && !i.isWoundPhoto && !i.isIntraOp).length;
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
@@ -3923,6 +3994,18 @@ document.addEventListener('change', async (e) => {
     for (const file of files) {
       const blob = await resizeImageFile(file);
       await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, isWoundPhoto: true, blob, createdAt: Date.now() });
+    }
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (t.id === 'preop-ot-add-input' || t.id === 'preop-ot-add-input-cam') {
+    const files = Array.from(t.files || []);
+    if (!files.length) return;
+    const p = getPatient(SELECTED_ID);
+    toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+    for (const file of files) {
+      const blob = await resizeImageFile(file);
+      await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, isIntraOp: true, blob, createdAt: Date.now() });
     }
     await renderTabBody(getPatient(SELECTED_ID));
     return;
