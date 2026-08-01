@@ -196,6 +196,10 @@
   .edu-section.urgent .edu-checklist svg { color:var(--edu-red); }
   .edu-footer { margin:20px 22px 0; padding-top:12px; border-top:1px solid var(--edu-teal-border); font-size:10.5px; color:var(--edu-muted); display:flex; justify-content:space-between; }
 
+  .edu-img-doc { max-width:600px; margin:0 auto; }
+  .edu-img-strip { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#0f2a4a; color:#fff; font-size:12.5px; }
+  .edu-img-strip .mono { color:#93c5fd; }
+
   .edu-hi { color:var(--edu-muted); margin-top:2px; }
   .edu-subhead { font-weight:700; font-size:12px; color:var(--edu-gold); text-transform:uppercase; letter-spacing:0.04em; margin:14px 0 6px; }
   .edu-subhead:first-child { margin-top:0; }
@@ -209,6 +213,7 @@
     #app { max-width:none; }
     body { background:#fff; }
     .edu-doc { max-width:none; }
+    .edu-img-doc { max-width:none; }
   }
 </style>
 </head>
@@ -1283,6 +1288,13 @@ function renderPrintView() {
 
 /* ================= Patient Education library (bilingual: English + Hindi) ================= */
 
+/* Custom doctor-designed image templates. When a condition has one, the Education
+   flow shows this image (with a patient-info strip added on top) instead of the
+   built-in bilingual text version. */
+const EDU_IMAGE_TEMPLATES = {
+  fracture_cast: { file: 'templates/fracture_cast.jpg' },
+};
+
 const EDU_LIBRARY = [
   { id:'knee_oa', keywords:['knee oa','knee osteoarthritis','oa knee','degenerative knee'],
     name:{en:'Knee Osteoarthritis', hi:'\u0918\u0941\u091f\u0928\u0947 \u0915\u093e \u0913\u0938\u094d\u091f\u093f\u0913\u0906\u0930\u094d\u0925\u094d\u0930\u093e\u0907\u091f\u093f\u0938 (Knee OA)'},
@@ -1623,7 +1635,7 @@ function renderEduResultsHtml(query) {
   if (!results.length) return '';
   return '<div style="display:flex;flex-direction:column;gap:8px;">' + results.map(e =>
     '<button class="patient-card" data-action="view-edu" data-id="'+e.id+'" style="padding:12px 14px;">'
-    + '<span style="font-weight:700;font-size:13.5px;">'+esc(e.name.en)+'</span>'
+    + '<span style="font-weight:700;font-size:13.5px;">'+esc(e.name.en)+(EDU_IMAGE_TEMPLATES[e.id]?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Custom</span>':'')+'</span>'
     + '<span style="color:#cbd5e1;">'+ic('chevron')+'</span>'
     + '</button>'
   ).join('') + '</div>';
@@ -1635,7 +1647,7 @@ function renderEducationTab(p) {
   let directHtml = '';
   if (directMatch && EDU_SEARCH === null) {
     directHtml = '<button class="patient-card" data-action="view-edu" data-id="'+directMatch.id+'" style="padding:14px;margin-bottom:14px;border-color:var(--accent);background:#f5f6ff;">'
-      + '<span style="font-weight:800;font-size:14px;color:var(--accent-dark);">'+esc(directMatch.name.en)+' \u2014 patient ka set condition</span>'
+      + '<span style="font-weight:800;font-size:14px;color:var(--accent-dark);">'+esc(directMatch.name.en)+' \u2014 patient ka set condition'+(EDU_IMAGE_TEMPLATES[directMatch.id]?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Custom</span>':'')+'</span>'
       + '<span style="color:var(--accent);">'+ic('chevron')+'</span>'
       + '</button>';
   }
@@ -1652,6 +1664,50 @@ function renderEducationTab(p) {
     + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">Upar condition set karo, ya yahan keyword search karo.</p>'
     + '<div id="edu-results">'+renderEduResultsHtml(query)+'</div>'
     + '</div>';
+}
+
+function renderEduImagePrintView() {
+  if (!PRINT_EDU) { VIEW='list'; return renderListView(); }
+  const { patient, edu } = PRINT_EDU;
+  const tpl = EDU_IMAGE_TEMPLATES[edu.id];
+  if (!tpl) { VIEW = 'edu-print'; return renderEduPrintView(); }
+
+  return '<div class="no-print sticky-top row between px" style="padding:14px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
+    + '<button class="icon-btn" data-action="close-edu-image-print">'+ic('back')+'</button>'
+    + '<div class="row gap2">'
+    + '<button class="btn" style="background:#25D366;border-color:#25D366;color:#fff;" data-action="share-edu-image">'+ic('message')+' Share</button>'
+    + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
+    + '</div></div>'
+    + '<div class="edu-img-doc">'
+    + '<div class="edu-img-strip">'
+    + '<span><b>'+esc(patient.name)+'</b> \u00b7 '+formatAge(patient)+' / '+esc(patient.sex)+(patient.patientCode?' \u00b7 <span class="mono">'+esc(patient.patientCode)+'</span>':'')+'</span>'
+    + '<span>'+fmtDate(todayStr())+'</span>'
+    + '</div>'
+    + '<img src="'+tpl.file+'" style="width:100%;display:block;" alt="'+esc(edu.name.en)+'">'
+    + '</div>';
+}
+
+async function shareEduImage() {
+  if (!PRINT_EDU) return;
+  const { patient, edu } = PRINT_EDU;
+  const tpl = EDU_IMAGE_TEMPLATES[edu.id];
+  if (!tpl) return;
+  try {
+    const resp = await fetch(tpl.file);
+    const blob = await resp.blob();
+    const file = new File([blob], edu.id+'.jpg', { type: blob.type || 'image/jpeg' });
+    const shareText = patient.name + ' (' + formatAge(patient) + '/' + patient.sex + ') \u2014 ' + edu.name.en;
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text: shareText, title: edu.name.en });
+    } else if (navigator.share) {
+      await navigator.share({ text: shareText, title: edu.name.en });
+      toast('Is browser mein seedha image share nahi ho paayi \u2014 Print/PDF se save karke bhejo');
+    } else {
+      toast('Share yahan support nahi hai \u2014 Print/PDF button se image save karke WhatsApp se bhej do');
+    }
+  } catch (err) {
+    toast('Share nahi ho paya \u2014 Print/PDF button try karo');
+  }
 }
 
 function renderEduPrintView() {
@@ -2063,6 +2119,7 @@ async function render() {
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
   if (VIEW === 'edu-print') { app.innerHTML = renderEduPrintView(); return; }
+  if (VIEW === 'edu-image-print') { app.innerHTML = renderEduImagePrintView(); return; }
   if (VIEW === 'detail') {
     const p = getPatient(SELECTED_ID);
     if (!p) { VIEW='list'; return render(); }
@@ -2604,11 +2661,14 @@ document.addEventListener('click', async (e) => {
     const edu = EDU_LIBRARY.find(e => e.id === el.dataset.id);
     if (!edu) return;
     PRINT_EDU = { patient: p, edu };
+    if (EDU_IMAGE_TEMPLATES[edu.id]) { VIEW = 'edu-image-print'; render(); return; }
     VIEW = 'edu-print'; render();
     return;
   }
   if (action === 'close-edu-print') { PRINT_EDU = null; EDU_SEARCH = null; VIEW = 'detail'; TAB = 'education'; render(); return; }
+  if (action === 'close-edu-image-print') { PRINT_EDU = null; EDU_SEARCH = null; VIEW = 'detail'; TAB = 'education'; render(); return; }
   if (action === 'do-print') { window.print(); return; }
+  if (action === 'share-edu-image') { await shareEduImage(); return; }
 });
 
 async function render_only_current_view() {
