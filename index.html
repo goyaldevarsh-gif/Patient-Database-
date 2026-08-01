@@ -407,6 +407,7 @@ const ICONS = {
   mic:'<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
   tag:'<path d="M20.59 13.41L13.41 20.59a2 2 0 0 1-2.82 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
   shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+  heart:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
 
@@ -467,6 +468,7 @@ function newPatientShape() {
     ctev: null, ra: null, osteo: null,
     preOpWound: { status:'', notes:'' },
     tags: [],
+    comorbidities: [],
     createdAt: Date.now(),
   };
 }
@@ -571,6 +573,7 @@ function calcPOD(p, dateStr) {
 
 /* ---- Smart tags ---- */
 const PRESET_TAGS = ['Interesting', 'Teaching Slide', 'Complication', 'Exam Case', 'Revision'];
+const PRESET_COMORBIDITIES = ['Diabetes (DM)', 'Hypertension (BP)', 'Thyroid disorder', 'Smoking', 'Alcohol use', 'Obesity', 'Asthma / COPD', 'Cardiac disease (IHD)', 'CKD', 'On blood thinners'];
 
 /* ---- Voice-to-text (Web Speech API) ---- */
 let ACTIVE_RECOGNITION = null;
@@ -1144,6 +1147,7 @@ function renderOverviewTab(p) {
       + ageFieldHtml(p)
       + '</div>' : '<div class="card">'+ageFieldHtml(p)+'</div>')
     + '<div class="card"><div class="row between" style="margin-bottom:5px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div><textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
+    + comorbidityCardHtml(p)
     + tagsCardHtml(p)
     + '</div>';
 }
@@ -1159,6 +1163,20 @@ function tagsCardHtml(p) {
     + PRESET_TAGS.filter(t => !tags.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
     + '</div>'
     + '<div class="row gap2"><input class="input" id="custom-tag-input" placeholder="Custom tag likho\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-tag">Add</button></div>'
+    + '</div>';
+}
+
+function comorbidityCardHtml(p) {
+  const list = p.comorbidities || [];
+  return '<div class="card">'
+    + '<label class="field-label">'+ic('heart')+' Co-morbidities</label>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:'+(list.length?'10px':'0')+';">'
+    + list.map(t => '<span class="tag-chip active" style="background:var(--red);border-color:var(--red);">'+esc(t)+'<button type="button" class="tag-chip-x" data-action="remove-comorbidity" data-value="'+esc(t)+'" style="background:none;border:none;color:#fff;padding:0;cursor:pointer;">'+ic('x')+'</button></span>').join('')
+    + '</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
+    + PRESET_COMORBIDITIES.filter(t => !list.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-comorbidity" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
+    + '</div>'
+    + '<div class="row gap2"><input class="input" id="custom-comorbidity-input" placeholder="Aur koi co-morbidity likho\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-comorbidity">Add</button></div>'
     + '</div>';
 }
 
@@ -2942,6 +2960,32 @@ document.addEventListener('click', async (e) => {
     const p = getPatient(SELECTED_ID);
     p.tags = p.tags || [];
     if (!p.tags.includes(val)) p.tags.push(val);
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'add-comorbidity') {
+    const p = getPatient(SELECTED_ID);
+    p.comorbidities = p.comorbidities || [];
+    if (!p.comorbidities.includes(el.dataset.value)) p.comorbidities.push(el.dataset.value);
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'remove-comorbidity') {
+    const p = getPatient(SELECTED_ID);
+    p.comorbidities = (p.comorbidities || []).filter(t => t !== el.dataset.value);
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'add-custom-comorbidity') {
+    const input = document.getElementById('custom-comorbidity-input');
+    const val = input ? input.value.trim() : '';
+    if (!val) return;
+    const p = getPatient(SELECTED_ID);
+    p.comorbidities = p.comorbidities || [];
+    if (!p.comorbidities.includes(val)) p.comorbidities.push(val);
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
