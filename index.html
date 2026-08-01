@@ -69,6 +69,10 @@
 
   .search-wrap { position:relative; margin-bottom:8px; }
   .search-wrap svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:#94a3b8; }
+  .search-wrap .search-mic-btn { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:26px; height:26px; border-radius:50%; border:none; background:none; color:#94a3b8; display:flex; align-items:center; justify-content:center; }
+  .search-wrap .search-mic-btn svg { position:static; transform:none; width:15px; height:15px; }
+  .search-wrap .search-mic-btn.recording { color:#dc2626; }
+  .search-wrap.has-mic .search-input { padding-right:34px; }
   .search-input { width:100%; background:var(--bg-soft); border:1px solid var(--border); border-radius:10px; padding:9px 12px 9px 34px; }
 
   .chips { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; }
@@ -592,12 +596,17 @@ function micButtonHtml(targetId) {
   if (!SR) return '';
   return '<button type="button" class="mic-btn" data-action="mic-toggle" data-target="'+targetId+'" title="Speak to type">'+ic('mic')+'</button>';
 }
+function searchMicButtonHtml(targetId) {
+  const SR = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  if (!SR) return '';
+  return '<button type="button" class="search-mic-btn" data-action="mic-toggle" data-target="'+targetId+'" title="Speak to search">'+ic('mic')+'</button>';
+}
 function stopMic() {
   if (ACTIVE_RECOGNITION) {
     try { ACTIVE_RECOGNITION.recognition.onend = null; ACTIVE_RECOGNITION.recognition.stop(); } catch(e) {}
     ACTIVE_RECOGNITION = null;
   }
-  document.querySelectorAll('.mic-btn.recording').forEach(b=>b.classList.remove('recording'));
+  document.querySelectorAll('.mic-btn.recording, .search-mic-btn.recording').forEach(b=>b.classList.remove('recording'));
 }
 function startMic(targetId, btnEl) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -612,9 +621,21 @@ function startMic(targetId, btnEl) {
     const ta = document.getElementById(targetId);
     if (ta) { ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + transcript; ta.dispatchEvent(new Event('input',{bubbles:true})); }
   };
-  recognition.onerror = () => { stopMic(); };
+  recognition.onerror = (e) => {
+    stopMic();
+    const reasons = {
+      'not-allowed': 'Microphone access is blocked. Check your iPhone Settings \u2192 Safari \u2192 Microphone (or Settings \u2192 this app if opened from Home Screen), then try again.',
+      'service-not-allowed': 'Microphone access is blocked. Check your iPhone Settings \u2192 Safari \u2192 Microphone (or Settings \u2192 this app if opened from Home Screen), then try again.',
+      'no-speech': 'Didn\u2019t catch that \u2014 no speech detected. Try again.',
+      'audio-capture': 'No microphone found on this device.',
+      'network': 'Voice input needs an internet connection \u2014 check your network and try again.',
+      'aborted': null,
+    };
+    const msg = reasons.hasOwnProperty(e.error) ? reasons[e.error] : ('Voice input error: '+e.error);
+    if (msg) toast(msg);
+  };
   recognition.onend = () => { stopMic(); };
-  try { recognition.start(); } catch(e) { toast('Could not start voice input'); return; }
+  try { recognition.start(); } catch(e) { toast('Could not start voice input: '+(e.message||e)); return; }
   ACTIVE_RECOGNITION = { targetId, recognition };
   if (btnEl) btnEl.classList.add('recording');
 }
@@ -998,7 +1019,7 @@ function renderListView() {
     + '<input type="file" accept=".zip,application/zip" id="import-file-input" style="display:none;">'
     + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:5px;padding:9px 12px;" data-action="go-add">'+ic('plus')+' Add</button>'
     + '</div></div>'
-    + '<div class="search-wrap">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search name, diagnosis, procedure\u2026" value="'+esc(SEARCH)+'"></div>'
+    + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search name, diagnosis, procedure\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
     + tagChips
     + '</div>'
