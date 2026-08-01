@@ -469,6 +469,7 @@ function newPatientShape() {
     preOpWound: { status:'', notes:'' },
     tags: [],
     comorbidities: [],
+    classification: '',
     createdAt: Date.now(),
   };
 }
@@ -564,6 +565,15 @@ function woundBadgeClass(status) {
   if (status === 'Mild redness') return 'badge-amber';
   return 'badge-red';
 }
+const UNION_STATUS_OPTIONS = ['Not assessed', 'No union yet', 'Callus forming', 'Delayed union', 'United', 'Non-union'];
+function unionBadgeClass(status) {
+  if (!status || status === 'Not assessed') return 'badge-slate';
+  if (status === 'United') return 'badge-emerald';
+  if (['Callus forming'].includes(status)) return 'badge-amber';
+  if (['No union yet'].includes(status)) return 'badge-slate';
+  return 'badge-red'; // Delayed union, Non-union
+}
+const CLASSIFICATION_SYSTEMS = ['AO/OTA', 'Garden', 'Pauwels', 'Weber', 'Neer', 'Schatzker', 'Salter-Harris', 'Gustilo-Anderson', 'Lauge-Hansen', 'Sanders'];
 function calcPOD(p, dateStr) {
   if (p.caseType !== 'surgical' || !p.surgeryDate || !dateStr) return null;
   const d1 = new Date(p.surgeryDate), d2 = new Date(dateStr);
@@ -1148,6 +1158,8 @@ function renderOverviewTab(p) {
       + '</div>' : '<div class="card">'+ageFieldHtml(p)+'</div>')
     + '<div class="card"><div class="row between" style="margin-bottom:5px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div><textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
     + comorbidityCardHtml(p)
+    + (p.surgeryType === 'Trauma' ? classificationCardHtml(p) : '')
+    + (p.surgeryType === 'Trauma' ? unionProgressCardHtml(p) : '')
     + tagsCardHtml(p)
     + '</div>';
 }
@@ -1180,6 +1192,28 @@ function comorbidityCardHtml(p) {
     + '</div>';
 }
 
+function classificationCardHtml(p) {
+  return '<div class="card">'
+    + '<label class="field-label">'+ic('tag')+' Fracture Classification <span style="color:#94a3b8;font-weight:500;">(optional)</span></label>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
+    + CLASSIFICATION_SYSTEMS.map(s => '<button type="button" class="tag-chip" data-action="classification-insert-system" data-value="'+esc(s)+'">'+esc(s)+'</button>').join('')
+    + '</div>'
+    + '<input class="input" data-field="classification" placeholder="e.g. AO 31-A1, Garden III, Weber B" value="'+esc(p.classification||'')+'">'
+    + '</div>';
+}
+
+function unionProgressCardHtml(p) {
+  const tracked = [...(p.followUps||[])].filter(f => f.unionStatus && f.unionStatus !== 'Not assessed').sort((a,b) => new Date(a.date) - new Date(b.date));
+  if (!tracked.length) return '';
+  const latest = tracked[tracked.length-1];
+  return '<div class="card">'
+    + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">'+ic('clock')+' Union Progress</label>'
+    + '<span class="badge '+unionBadgeClass(latest.unionStatus)+'">Latest: '+esc(latest.unionStatus)+'</span></div>'
+    + '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">'
+    + tracked.map((f,i) => (i>0?'<span style="color:#cbd5e1;">\u2192</span>':'') + '<span class="badge '+unionBadgeClass(f.unionStatus)+'" style="font-size:10px;" title="'+esc(f.label)+'">'+esc(f.label)+': '+esc(f.unionStatus)+'</span>').join('')
+    + '</div></div>';
+}
+
 function confirmBtn(action, id) {
   const armed = ARMED_DELETE === action+':'+id;
   if (armed) return '<button class="btn btn-sm btn-danger-confirm" data-action="'+action+'" data-id="'+id+'" data-confirm="1">'+ic('check')+' Confirm</button>';
@@ -1209,7 +1243,7 @@ async function renderPreopTab(p) {
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
     + (allImages.length >= 2 ? '<button class="btn btn-block" style="margin-bottom:14px;" data-action="open-compare-picker">'+ic('clock')+' Compare Before / After</button>' : '')
     + '<div class="card" style="margin-bottom:14px;'+(pw.status && !['N/A',''].includes(pw.status) && pw.status!=='Clean' ? 'border-color:var(--red-border);background:var(--red-bg);' : '')+'">'
-    + '<label class="field-label">Wound status (agar applicable ho \u2014 e.g. open fracture)</label>'
+    + '<label class="field-label">Wound status (if applicable \u2014 e.g. open fracture)</label>'
     + '<select class="select" data-field="preOpWoundStatus" style="margin-bottom:10px;">'+PREOP_WOUND_STATUS_OPTIONS.map(s=>'<option'+((pw.status||'N/A')===s?' selected':'')+'>'+s+'</option>').join('')+'</select>'
     + '<label class="field-label">Wound photo</label>'+woundGrid
     + '</div>'
@@ -1228,7 +1262,8 @@ async function renderFollowupsTab(p) {
       + '<label class="field-label">Visit label</label><input class="input" id="fu-label" placeholder="e.g. 2 weeks / 6 weeks / 3 months" style="margin-bottom:10px;">'
       + '<label class="field-label">Visit date</label><input class="input" type="date" id="fu-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
       + (p.caseType==='surgical' && p.surgeryDate ? '<p style="font-size:11px;color:#94a3b8;margin:-6px 0 10px;">Post-op Day: <b class="mono" id="fu-pod-preview">'+(calcPOD(p, todayStr())??'\u2014')+'</b></p>' : '')
-      + '<label class="field-label">Wound / suture status (agar applicable ho)</label><select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'+WOUND_STATUS_OPTIONS.map(s=>'<option'+(s==='N/A'?' selected':'')+'>'+s+'</option>').join('')+'</select>'
+      + '<label class="field-label">Wound / suture status (if applicable)</label><select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'+WOUND_STATUS_OPTIONS.map(s=>'<option'+(s==='N/A'?' selected':'')+'>'+s+'</option>').join('')+'</select>'
+      + (p.surgeryType === 'Trauma' ? '<label class="field-label">Union status</label><select class="select" id="fu-unionstatus" style="margin-bottom:10px;">'+UNION_STATUS_OPTIONS.map(s=>'<option'+(s==='Not assessed'?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
       + '<label class="field-label">Wound / suture photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
       + '<label class="field-label" style="margin-top:10px;">Photos (general)</label><div id="fu-thumbs">'+thumbGridHtml(FU_PHOTOS,'fu-remove-photo')+'</div>'
       + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="ROM, complications\u2026"></textarea>'
@@ -1268,6 +1303,7 @@ async function renderFollowupsTab(p) {
       + '<span style="font-weight:800;">'+esc(f.label)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(f.date)+(pod!=null?' \u00b7 POD '+pod:'')+'</span></span>'
       + '<div class="row gap2">'
       + (f.woundStatus && f.woundStatus !== 'N/A' ? '<span class="badge '+woundBadgeClass(f.woundStatus)+'" style="font-size:10px;">'+esc(f.woundStatus)+'</span>' : '')
+      + (f.unionStatus && f.unionStatus !== 'Not assessed' ? '<span class="badge '+unionBadgeClass(f.unionStatus)+'" style="font-size:10px;">'+esc(f.unionStatus)+'</span>' : '')
       + '<span class="badge badge-slate">'+ic('camera')+(f.imageCount||0)+'</span>'
       + confirmBtn('delete-fu', f.id)
       + '</div></div>'
@@ -2769,7 +2805,9 @@ document.addEventListener('click', async (e) => {
     const notes = document.getElementById('fu-notes').value;
     const woundStatusEl = document.getElementById('fu-woundstatus');
     const woundStatus = woundStatusEl ? woundStatusEl.value : 'N/A';
-    const fu = { id: uid(), label, date, notes, woundStatus, imageCount: FU_PHOTOS.length + FU_WOUND_PHOTOS.length };
+    const unionStatusEl = document.getElementById('fu-unionstatus');
+    const unionStatus = unionStatusEl ? unionStatusEl.value : '';
+    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, imageCount: FU_PHOTOS.length + FU_WOUND_PHOTOS.length };
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
     await dbPutPatient(p);
@@ -2988,6 +3026,21 @@ document.addEventListener('click', async (e) => {
     if (!p.comorbidities.includes(val)) p.comorbidities.push(val);
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'classification-insert-system') {
+    const p = getPatient(SELECTED_ID);
+    const field = document.querySelector('[data-field="classification"]');
+    const sysName = el.dataset.value;
+    const current = (field ? field.value : (p.classification || '')).trim();
+    const next = current ? current + ' \u00b7 ' + sysName + ' ' : sysName + ' ';
+    p.classification = next;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    setTimeout(() => {
+      const f = document.querySelector('[data-field="classification"]');
+      if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+    }, 30);
     return;
   }
   if (action === 'trigger-import') { document.getElementById('import-file-input').click(); return; }
