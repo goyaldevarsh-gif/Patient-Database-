@@ -1,7 +1,7 @@
 {
-  "name": "Surgical Case Log",
-  "short_name": "Case Log",
-  "description": "Personal surgical case database \u2014 patient details, diagnosis, pre-op/post-op imaging, and follow-up notes.",
+  "name": "Bone Log Pro - OPD and Surgical Databook",
+  "short_name": "Bone Log Pro",
+  "description": "Personal ortho practice database \u2014 OPD and surgical cases, diagnosis, imaging, follow-ups, prescriptions, and patient education.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
