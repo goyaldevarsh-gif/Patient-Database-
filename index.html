@@ -54,7 +54,7 @@
   .px { padding-left:16px; padding-right:16px; }
   .row { display:flex; align-items:center; }
   .between { justify-content:space-between; }
-  .gap2 { gap:8px; } .gap3 { gap:12px; }
+  .gap1 { gap:4px; } .gap2 { gap:8px; } .gap3 { gap:12px; }
 
   .icon-btn { display:inline-flex; align-items:center; justify-content:center; padding:6px; border-radius:8px; border:none; background:transparent; color:var(--muted); }
   svg.ic { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; display:block; }
@@ -77,6 +77,7 @@
 
   .card { border:1px solid var(--border); border-radius:12px; background:#fff; padding:14px; }
   .case-card { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; border:1px solid var(--border); border-radius:12px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+  .status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .case-card:active { background:var(--bg-soft); }
 
   .badge { display:inline-flex; align-items:center; gap:5px; border-radius:999px; border:1px solid; padding:4px 9px; font-size:11px; font-weight:700; }
@@ -780,6 +781,17 @@ function toWaNumber(raw) {
   if (digits.length === 10) digits = '91' + digits; // assume India if no country code given
   return digits;
 }
+function caseStatusDot(p) {
+  if ((p.tags||[]).includes('Complication')) return { color:'#dc2626', label:'Complication' };
+  if (p.status === 'Lost to follow-up') return { color:'#1f2937', label:'Lost to follow-up' };
+  if (p.status === 'Completed') return { color:'#16a34a', label:'Follow-up complete' };
+  if (p.nextFollowUpDate) {
+    const today = todayStr();
+    if (p.nextFollowUpDate <= today) return { color:'#eab308', label:'Follow-up due' };
+  }
+  return null;
+}
+
 function waLink(patient) {
   const digits = toWaNumber(patient.whatsapp);
   if (!digits) return null;
@@ -938,9 +950,12 @@ function renderListView() {
     cards = '<div style="display:flex;flex-direction:column;gap:10px;">';
     filtered.forEach(p => {
       const fuImgCount = (p.followUps||[]).reduce((s,f) => s + (f.imageCount||0), 0);
+      const dot = caseStatusDot(p);
       cards += '<button class="case-card" data-action="open-patient" data-id="'+p.id+'">'
         + '<div style="min-width:0;flex:1;">'
-        + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:15px;">'+esc(p.name)+'</span>'
+        + '<div class="row gap2">'
+        + (dot ? '<span class="status-dot" style="background:'+dot.color+';" title="'+dot.label+'"></span>' : '')
+        + '<span class="display" style="font-weight:800;font-size:15px;">'+esc(p.name)+'</span>'
         + '<span class="mono" style="font-size:11px;color:#94a3b8;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
         + '<div style="font-size:11px;color:#a5b4c7;margin-top:1px;" class="mono">'+esc(p.patientCode||'')+'</div>'
         + (p.caseType==='surgical'
@@ -974,7 +989,14 @@ function renderListView() {
     + chips
     + tagChips
     + '</div>'
-    + '<div class="px" style="padding-top:12px;">'+renderDashboardSection()+cards+'</div>'
+    + '<div class="px" style="padding-top:12px;">'+renderDashboardSection()
+    + (PATIENTS.length ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10.5px;color:#94a3b8;">'
+        + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
+        + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to f/u</span>'
+        + '<span class="row gap1"><span class="status-dot" style="background:#16a34a;"></span> Complete</span>'
+        + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> F/u due</span>'
+        + '</div>' : '')
+    + cards+'</div>'
     + '</div>';
 }
 
