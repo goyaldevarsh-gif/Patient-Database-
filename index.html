@@ -282,6 +282,18 @@
   .compare-half { flex:1; position:relative; display:flex; align-items:center; justify-content:center; background:#000; overflow:hidden; }
   .compare-half img { width:100%; height:100%; object-fit:contain; }
   .compare-tag { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.65); color:#fff; font-size:11px; font-weight:800; letter-spacing:0.03em; padding:5px 10px; border-radius:999px; z-index:2; }
+
+  .annot-overlay { position:fixed; inset:0; background:#000; z-index:60; display:flex; flex-direction:column; }
+  .annot-topbar { display:flex; align-items:center; justify-content:space-between; padding:10px 14px; }
+  .annot-canvas-wrap { flex:1; display:flex; align-items:center; justify-content:center; overflow:hidden; padding:6px; min-height:0; }
+  #annot-canvas { max-width:100%; max-height:100%; background:#111; border-radius:6px; }
+  .annot-bottombar { padding:10px 14px 18px; background:rgba(15,23,42,0.92); }
+  .annot-tools { display:flex; gap:6px; }
+  .annot-tool-btn { flex:1; padding:9px 0; border-radius:8px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.06); color:#fff; font-size:12px; font-weight:700; }
+  .annot-tool-btn.active { background:var(--accent); border-color:var(--accent); }
+  .annot-colors { display:flex; gap:10px; justify-content:center; margin-top:8px; }
+  .annot-color-btn { width:28px; height:28px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); }
+  .annot-color-btn.active { border-color:#fff; box-shadow:0 0 0 2px var(--accent); }
 </style>
 </head>
 <body>
@@ -318,6 +330,7 @@ async function dbGetAllPatients() { const s = await storeOf('patients','readonly
 async function dbPutPatient(p) { const s = await storeOf('patients','readwrite'); return reqToPromise(s.put(p)); }
 async function dbDeletePatient(id) { const s = await storeOf('patients','readwrite'); return reqToPromise(s.delete(id)); }
 async function dbAddImage(rec) { const s = await storeOf('images','readwrite'); return reqToPromise(s.put(rec)); }
+async function dbGetImage(id) { const s = await storeOf('images','readonly'); return reqToPromise(s.get(id)); }
 async function dbGetImagesByPatient(patientId) {
   const s = await storeOf('images','readonly');
   const idx = s.index('patientId');
@@ -415,6 +428,8 @@ const ICONS = {
   tag:'<path d="M20.59 13.41L13.41 20.59a2 2 0 0 1-2.82 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
   shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
   heart:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
+  copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  edit:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
 
@@ -1177,6 +1192,7 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId) {
 /* ================= Add patient view ================= */
 
 let AP_TEMP = null;
+let AP_DUPLICATE_FROM = null;
 function initApTemp() {
   AP_TEMP = { name:'', age:'', ageMonths:'', sex:'M', diagnosis:'', caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'' };
@@ -1202,6 +1218,7 @@ function renderAddView() {
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">New case</h2>'
     + '</div>'
     + '<div class="px" style="padding-top:16px;display:flex;flex-direction:column;gap:16px;">'
+    + (AP_DUPLICATE_FROM ? '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;padding:10px 12px;"><span style="font-size:12px;color:var(--accent-dark);font-weight:600;">'+ic('tag')+' Duplicated from '+esc(AP_DUPLICATE_FROM)+' \u2014 everything else was copied, just check Name, Age and Side below.</span></div>' : '')
 
     + '<div><label class="field-label">Case type</label><div class="seg">'
     + '<button class="seg-btn'+(AP_TEMP.caseType==='opd'?' active':'')+'" data-action="ap-set-casetype" data-value="opd">OPD (non-surgical)</button>'
@@ -1257,6 +1274,7 @@ function renderOverviewTab(p) {
     + '<span class="badge badge-'+(isSurgical?'indigo':'slate')+'">'+(isSurgical?'Surgical':'OPD')+'</span>'
     + '</div>'
     + (!isSurgical ? '<button class="btn btn-block" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical case</button>' : '<button class="btn btn-block" data-action="convert-to-opd">'+ic('back')+' Convert back to OPD</button>')
+    + '<button class="btn btn-block" data-action="duplicate-case">'+ic('copy')+' Duplicate Case</button>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
     + '<div class="stat-card"><div class="stat-label">Clinical images</div><div class="stat-value mono">'+p.preOpImageCount+'</div></div>'
     + '<div class="stat-card"><div class="stat-label">Follow-up visits</div><div class="stat-value mono">'+(p.followUps||[]).length+'</div></div>'
@@ -2605,6 +2623,7 @@ function openImageViewer(url, imgId) {
   overlay.className = 'modal-overlay';
   overlay.id = 'img-viewer';
   overlay.innerHTML = '<div class="modal-bar">'
+    + '<button class="modal-btn" data-action="open-annotator" data-imgid="'+imgId+'" title="Mark up this image">'+ic('edit')+'</button>'
     + '<button class="modal-btn" data-action="viewer-delete" data-imgid="'+imgId+'">'+ic('trash')+'</button>'
     + '<button class="modal-btn" data-action="viewer-close">'+ic('x')+'</button>'
     + '</div>'
@@ -2612,6 +2631,180 @@ function openImageViewer(url, imgId) {
   document.body.appendChild(overlay);
 }
 function closeImageViewer() { const el = document.getElementById('img-viewer'); if (el) el.remove(); }
+
+/* ================= Image Annotation (mark up X-rays / clinical photos) ================= */
+let ANNOT = null;
+const ANNOT_COLORS = ['#ef4444','#facc15','#22d3ee','#22c55e','#ffffff'];
+
+function annotToolsHtml() {
+  const tools = [['pen','Pen'],['line','Line'],['circle','Circle'],['angle','Angle']];
+  return '<div class="annot-tools">'
+    + tools.map(([v,l]) => '<button class="annot-tool-btn'+(ANNOT.tool===v?' active':'')+'" data-action="annot-set-tool" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div>'
+    + '<div class="annot-colors">'
+    + ANNOT_COLORS.map(c => '<button class="annot-color-btn'+(ANNOT.color===c?' active':'')+'" data-action="annot-set-color" data-value="'+c+'" style="background:'+c+';"></button>').join('')
+    + '</div>';
+}
+
+async function openAnnotator(imgId) {
+  const rec = await dbGetImage(imgId);
+  if (!rec) { toast('Image not found'); return; }
+  const img = new Image();
+  const objUrl = trackUrl(URL.createObjectURL(rec.blob));
+  await new Promise(resolve => { img.onload = resolve; img.src = objUrl; });
+
+  const overlay = document.createElement('div');
+  overlay.className = 'annot-overlay';
+  overlay.id = 'annot-overlay';
+  overlay.innerHTML = '<div class="annot-topbar">'
+    + '<button class="modal-btn" data-action="annot-close" title="Cancel">'+ic('x')+'</button>'
+    + '<span style="color:#fff;font-size:12px;font-weight:600;">Mark up image</span>'
+    + '<button class="modal-btn" data-action="annot-undo" title="Undo">'+ic('back')+'</button>'
+    + '</div>'
+    + '<div class="annot-canvas-wrap"><canvas id="annot-canvas"></canvas></div>'
+    + '<div class="annot-bottombar">'
+    + annotToolsHtml()
+    + '<p id="annot-hint" style="font-size:10.5px;color:#94a3b8;text-align:center;margin:6px 0 0;">'+(ANNOT_HINTS.pen)+'</p>'
+    + '<div class="row gap2" style="margin-top:8px;">'
+    + '<button class="btn" style="flex:1;" data-action="annot-clear">Clear all</button>'
+    + '<button class="btn btn-primary" style="flex:2;" data-action="annot-save">'+ic('check')+' Save as new image</button>'
+    + '</div>'
+    + '</div>';
+  document.body.appendChild(overlay);
+
+  const canvas = document.getElementById('annot-canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  canvas.style.touchAction = 'none';
+  const ctx = canvas.getContext('2d');
+
+  ANNOT = { rec, img, canvas, ctx, tool:'pen', color: ANNOT_COLORS[0], strokes:[], drawing:false, cur:null, angleClicks:[] };
+  annotRedraw();
+  annotWireCanvasEvents();
+}
+
+const ANNOT_HINTS = {
+  pen: 'Freehand \u2014 drag to mark. This is a visual marker, not a calibrated measurement.',
+  line: 'Drag to draw a straight line \u2014 useful for a fracture line or implant alignment.',
+  circle: 'Drag to draw a circle around the area of interest.',
+  angle: 'Tap 3 points: one arm, the vertex, then the other arm. Shows an on-screen angle estimate \u2014 not a calibrated Cobb angle, since the photo isn\u2019t scale-corrected.',
+};
+
+function annotRedraw() {
+  const { ctx, canvas, img, strokes } = ANNOT;
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  strokes.forEach(s => annotDrawStroke(s));
+}
+
+function annotDrawStroke(s) {
+  const ctx = ANNOT.ctx;
+  ctx.save();
+  ctx.strokeStyle = s.color; ctx.fillStyle = s.color;
+  ctx.lineWidth = Math.max(2, ANNOT.canvas.width/220);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (s.type === 'pen') {
+    ctx.beginPath();
+    s.points.forEach((pt,i) => { if (i===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y); });
+    ctx.stroke();
+  } else if (s.type === 'line') {
+    ctx.beginPath(); ctx.moveTo(s.a.x,s.a.y); ctx.lineTo(s.b.x,s.b.y); ctx.stroke();
+  } else if (s.type === 'circle') {
+    const cx=(s.a.x+s.b.x)/2, cy=(s.a.y+s.b.y)/2, rx=Math.abs(s.b.x-s.a.x)/2, ry=Math.abs(s.b.y-s.a.y)/2;
+    ctx.beginPath(); ctx.ellipse(cx,cy,Math.max(rx,4),Math.max(ry,4),0,0,Math.PI*2); ctx.stroke();
+  } else if (s.type === 'angle') {
+    ctx.beginPath(); ctx.moveTo(s.vertex.x,s.vertex.y); ctx.lineTo(s.p1.x,s.p1.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(s.vertex.x,s.vertex.y); ctx.lineTo(s.p2.x,s.p2.y); ctx.stroke();
+    ctx.beginPath(); ctx.arc(s.vertex.x,s.vertex.y,Math.max(6,ANNOT.canvas.width/150),0,Math.PI*2); ctx.fill();
+    const fontSize = Math.max(16, Math.round(ANNOT.canvas.width/28));
+    ctx.font = 'bold '+fontSize+'px sans-serif';
+    const label = s.angle.toFixed(1)+'\u00b0 (est.)';
+    ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillText(label, s.vertex.x+12, s.vertex.y-10);
+    ctx.fillStyle = s.color; ctx.fillText(label, s.vertex.x+10, s.vertex.y-12);
+  }
+  ctx.restore();
+}
+
+function annotCanvasPoint(e) {
+  const canvas = ANNOT.canvas;
+  const rect = canvas.getBoundingClientRect();
+  return { x: (e.clientX - rect.left) * (canvas.width/rect.width), y: (e.clientY - rect.top) * (canvas.height/rect.height) };
+}
+
+function annotComputeAngle(p1, vertex, p2) {
+  const a1 = Math.atan2(p1.y - vertex.y, p1.x - vertex.x);
+  const a2 = Math.atan2(p2.y - vertex.y, p2.x - vertex.x);
+  let diff = Math.abs(a1 - a2) * 180 / Math.PI;
+  if (diff > 180) diff = 360 - diff;
+  return diff;
+}
+
+function annotWireCanvasEvents() {
+  const canvas = ANNOT.canvas;
+  canvas.onpointerdown = (e) => {
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
+    const pt = annotCanvasPoint(e);
+    if (ANNOT.tool === 'pen') { ANNOT.drawing = true; ANNOT.cur = { type:'pen', color:ANNOT.color, points:[pt] }; }
+    else if (ANNOT.tool === 'line' || ANNOT.tool === 'circle') { ANNOT.drawing = true; ANNOT.cur = { type:ANNOT.tool, color:ANNOT.color, a:pt, b:pt }; }
+    else if (ANNOT.tool === 'angle') {
+      ANNOT.angleClicks.push(pt);
+      if (ANNOT.angleClicks.length === 3) {
+        const [p1, vertex, p2] = ANNOT.angleClicks;
+        const angle = annotComputeAngle(p1, vertex, p2);
+        ANNOT.strokes.push({ type:'angle', color:ANNOT.color, p1, vertex, p2, angle });
+        ANNOT.angleClicks = [];
+        annotRedraw();
+      } else {
+        toast(ANNOT.angleClicks.length === 1 ? 'Now tap the vertex (angle point)' : 'Now tap the other arm');
+      }
+    }
+  };
+  canvas.onpointermove = (e) => {
+    if (!ANNOT.drawing || !ANNOT.cur) return;
+    e.preventDefault();
+    const pt = annotCanvasPoint(e);
+    if (ANNOT.cur.type === 'pen') ANNOT.cur.points.push(pt); else ANNOT.cur.b = pt;
+    annotRedraw();
+    annotDrawStroke(ANNOT.cur);
+  };
+  const finish = () => {
+    if (!ANNOT.drawing || !ANNOT.cur) return;
+    ANNOT.drawing = false;
+    ANNOT.strokes.push(ANNOT.cur);
+    ANNOT.cur = null;
+    annotRedraw();
+  };
+  canvas.onpointerup = finish;
+  canvas.onpointerleave = finish;
+  canvas.onpointercancel = finish;
+}
+
+function closeAnnotator() { const el = document.getElementById('annot-overlay'); if (el) el.remove(); ANNOT = null; }
+
+async function annotSave() {
+  const { rec, canvas } = ANNOT;
+  toast('Saving marked-up image\u2026');
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+  const p = getPatient(SELECTED_ID);
+  if (!p || !blob) { toast('Could not save'); return; }
+  await dbAddImage({ id: uid(), patientId: p.id, followUpId: rec.followUpId||null, investigationId: rec.investigationId||null, isWoundPhoto: !!rec.isWoundPhoto, blob, createdAt: Date.now() });
+  const allImages = await dbGetImagesByPatient(p.id);
+  if (rec.followUpId) {
+    const fu = (p.followUps||[]).find(f => f.id === rec.followUpId);
+    if (fu) fu.imageCount = allImages.filter(i => i.followUpId === rec.followUpId).length;
+  } else if (rec.investigationId) {
+    const inv = (p.investigations||[]).find(i => i.id === rec.investigationId);
+    if (inv) inv.imageCount = allImages.filter(i => i.investigationId === rec.investigationId).length;
+  } else if (!rec.isWoundPhoto) {
+    p.preOpImageCount = allImages.filter(i => !i.followUpId && !i.investigationId && !i.isWoundPhoto).length;
+  }
+  await dbPutPatient(p); await refreshPatients();
+  closeAnnotator();
+  closeImageViewer();
+  await renderTabBody(getPatient(SELECTED_ID));
+  toast('Marked-up image saved alongside the original');
+}
 
 /* ================= Export backup ================= */
 
@@ -2722,7 +2915,7 @@ document.addEventListener('click', async (e) => {
   if (!el) return;
   const action = el.dataset.action;
 
-  if (action === 'go-add') { initApTemp(); AP_PHOTOS = []; VIEW='add'; render(); return; }
+  if (action === 'go-add') { initApTemp(); AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
   if (action === 'quick-fill-text') {
     const target = document.getElementById(el.dataset.target);
     if (target) target.value = el.dataset.value;
@@ -2896,7 +3089,7 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'close-compare-picker') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'preop'; await render(); return; }
   if (action === 'close-compare-view') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'preop'; await render(); return; }
-  if (action === 'cancel-add') { AP_PHOTOS = []; VIEW='list'; render(); return; }
+  if (action === 'cancel-add') { AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='list'; render(); return; }
   if (action === 'open-patient') { SELECTED_ID = el.dataset.id; VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); return; }
   if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
@@ -2951,7 +3144,32 @@ document.addEventListener('click', async (e) => {
     }
     await refreshPatients();
     AP_PHOTOS = [];
+    AP_DUPLICATE_FROM = null;
     VIEW = 'list'; render();
+    return;
+  }
+
+  if (action === 'duplicate-case') {
+    const src = getPatient(SELECTED_ID);
+    if (!src) return;
+    initApTemp();
+    AP_TEMP.age = src.age;
+    AP_TEMP.ageMonths = src.ageMonths;
+    AP_TEMP.sex = src.sex;
+    AP_TEMP.diagnosis = src.diagnosis;
+    AP_TEMP.caseType = src.caseType;
+    AP_TEMP.condition = src.condition;
+    AP_TEMP.laterality = src.laterality;
+    AP_TEMP.surgeryType = src.surgeryType;
+    AP_TEMP.procedure = src.procedure;
+    AP_TEMP.side = src.side;
+    AP_TEMP.surgeryDate = todayStr();
+    AP_PHOTOS = [];
+    AP_DUPLICATE_FROM = src.name;
+    VIEW = 'add';
+    await render();
+    const nameEl = document.getElementById('ap-name');
+    if (nameEl) { nameEl.focus(); nameEl.select(); }
     return;
   }
 
@@ -3064,6 +3282,26 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'view-image') { openImageViewer(el.dataset.url, el.dataset.imgid); return; }
   if (action === 'viewer-close') { closeImageViewer(); return; }
+  if (action === 'open-annotator') { await openAnnotator(el.dataset.imgid); return; }
+  if (action === 'annot-set-tool') {
+    ANNOT.tool = el.dataset.value;
+    ANNOT.angleClicks = [];
+    document.querySelectorAll('.annot-tool-btn').forEach(b=>b.classList.remove('active'));
+    el.classList.add('active');
+    const hintEl = document.getElementById('annot-hint');
+    if (hintEl) hintEl.textContent = ANNOT_HINTS[ANNOT.tool] || '';
+    return;
+  }
+  if (action === 'annot-set-color') {
+    ANNOT.color = el.dataset.value;
+    document.querySelectorAll('.annot-color-btn').forEach(b=>b.classList.remove('active'));
+    el.classList.add('active');
+    return;
+  }
+  if (action === 'annot-undo') { ANNOT.strokes.pop(); annotRedraw(); return; }
+  if (action === 'annot-clear') { ANNOT.strokes = []; ANNOT.angleClicks = []; annotRedraw(); return; }
+  if (action === 'annot-close') { closeAnnotator(); return; }
+  if (action === 'annot-save') { await annotSave(); return; }
   if (action === 'viewer-delete') {
     const imgId = el.dataset.imgid;
     const p = getPatient(SELECTED_ID);
