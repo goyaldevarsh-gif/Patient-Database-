@@ -357,10 +357,15 @@ function nextPatientCode() {
   try { localStorage.setItem(PATIENT_COUNTER_KEY, String(n)); } catch (e) {}
   return 'PT' + String(n).padStart(4, '0');
 }
+function peekNextPatientCode() {
+  let n = 1;
+  try { n = parseInt(localStorage.getItem(PATIENT_COUNTER_KEY) || '0', 10) + 1; } catch (e) {}
+  return 'PT' + String(n).padStart(4, '0');
+}
 
 function newPatientShape() {
   return {
-    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageUnit:'yrs', sex:'M', diagnosis:'',
+    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', sex:'M', diagnosis:'',
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
@@ -370,7 +375,17 @@ function newPatientShape() {
     createdAt: Date.now(),
   };
 }
-function formatAge(p) { if (!p.age && p.age !== 0) return '\u2014'; return p.age + ' ' + (p.ageUnit==='mo' ? 'mo' : 'yrs'); }
+function formatAge(p) {
+  const y = (p.age !== '' && p.age != null) ? parseInt(p.age) : null;
+  const m = (p.ageMonths !== '' && p.ageMonths != null) ? parseInt(p.ageMonths) : null;
+  const hasY = y != null && !isNaN(y) && y > 0;
+  const hasM = m != null && !isNaN(m) && m > 0;
+  if (hasY && hasM) return y + 'y ' + m + 'mo';
+  if (hasY) return y + ' yrs';
+  if (hasM) return m + ' mo';
+  if (y === 0 || m === 0) return '0 yrs';
+  return '\u2014';
+}
 
 /* Generic quick-fill text memory (Diagnosis, Procedure, Investigation names, etc.) */
 function loadTextLibrary(key) {
@@ -403,10 +418,9 @@ const PROCEDURE_LIB_KEY = 'surgical-case-log-procedure-lib-v1';
 const INVESTIGATION_LIB_KEY = 'surgical-case-log-investigation-lib-v1';
 function ageFieldHtml(p) {
   return '<div><label class="field-label">Age</label><div class="row gap2">'
-    + '<input class="input" type="number" data-field="age" value="'+esc(p.age)+'" style="flex:1;">'
-    + '<div class="seg" style="flex-shrink:0;width:auto;">'
-    + ['yrs','mo'].map(u=>'<button class="seg-btn" data-action="ov-set-ageunit" data-value="'+u+'" style="flex:none;padding:9px 10px;'+(p.ageUnit===u?'background:var(--accent);border-color:var(--accent);color:#fff;':'')+'">'+u+'</button>').join('')
-    + '</div></div></div>';
+    + '<input class="input" type="number" min="0" placeholder="Years" data-field="age" value="'+esc(p.age)+'" style="flex:1;">'
+    + '<input class="input" type="number" min="0" max="11" placeholder="Months" data-field="ageMonths" value="'+esc(p.ageMonths)+'" style="flex:1;">'
+    + '</div></div>';
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
 
@@ -541,6 +555,15 @@ function renderSettingsView() {
     + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
     + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="Full address">'+esc(pr.clinicAddress)+'</textarea></div>'
     + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder="+91 ..."></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:4px;">'
+    + '<div class="card" style="border-color:var(--amber-border);background:var(--amber-bg);">'
+    + '<label class="field-label" style="color:#7c4a03;">Patient ID counter</label>'
+    + '<p style="font-size:12px;color:#7c4a03;margin:2px 0 10px;">Agla naya patient ID hoga: <b class="mono">'+peekNextPatientCode()+'</b>. Agar abhi test/fake data daal rahe ho, to real patients shuru karne se pehle ise reset kar do (test patients delete karne ke baad).</p>'
+    + (ARMED_DELETE === 'reset-patient-counter:x'
+        ? '<button class="btn btn-sm btn-danger-confirm" data-action="reset-patient-counter" data-confirm="1">'+ic('check')+' Haan, reset karo</button>'
+        : '<button class="btn btn-sm" data-action="arm-delete" data-arm="reset-patient-counter:x">Reset Patient ID counter</button>')
+    + '</div>'
     + '</div>'
     + '<div class="bottom-bar"><button class="btn btn-primary btn-block" data-action="save-settings">Save profile</button></div>'
     + '</div>';
@@ -704,11 +727,11 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId) {
 
 let AP_TEMP = null;
 function initApTemp() {
-  AP_TEMP = { name:'', age:'', ageUnit:'yrs', sex:'M', diagnosis:'', caseType:'surgical', condition:'', laterality:'bilateral',
+  AP_TEMP = { name:'', age:'', ageMonths:'', sex:'M', diagnosis:'', caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'' };
 }
 function syncApTempFromDom() {
-  ['name','age','diagnosis','procedure','whatsapp','notes'].forEach(f => { const el = document.getElementById('ap-'+f); if (el) AP_TEMP[f] = el.value; });
+  ['name','age','ageMonths','diagnosis','procedure','whatsapp','notes'].forEach(f => { const el = document.getElementById('ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
   const sideEl = document.getElementById('ap-side'); if (sideEl) AP_TEMP.side = sideEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
@@ -735,10 +758,9 @@ function renderAddView() {
     + '</div></div>'
 
     + '<div><label class="field-label">Patient name</label><input class="input" id="ap-name" placeholder="Patient name" value="'+esc(AP_TEMP.name)+'"></div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
-    + '<div><label class="field-label">Age</label><div class="row gap2"><input class="input" type="number" id="ap-age" placeholder="Age" value="'+esc(AP_TEMP.age)+'" style="flex:1;"><div class="seg" style="flex-shrink:0;width:auto;">'
-    + ['yrs','mo'].map(u=>'<button class="seg-btn" data-action="ap-set-ageunit" data-value="'+u+'" style="flex:none;padding:9px 10px;'+(AP_TEMP.ageUnit===u?'background:var(--accent);border-color:var(--accent);color:#fff;':'')+'">'+u+'</button>').join('')
-    + '</div></div></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">'
+    + '<div><label class="field-label">Years</label><input class="input" type="number" min="0" id="ap-age" placeholder="Yrs" value="'+esc(AP_TEMP.age)+'"></div>'
+    + '<div><label class="field-label">Months</label><input class="input" type="number" min="0" max="11" id="ap-ageMonths" placeholder="Mo" value="'+esc(AP_TEMP.ageMonths)+'"></div>'
     + '<div><label class="field-label">Sex</label><div class="seg">'
     + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
     + '</div>'
@@ -1906,13 +1928,6 @@ document.addEventListener('click', async (e) => {
     if (target && target.id === 'ap-procedure') AP_TEMP.procedure = el.dataset.value;
     return;
   }
-  if (action === 'ov-set-ageunit') {
-    const p = getPatient(SELECTED_ID);
-    p.ageUnit = el.dataset.value;
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
   if (action === 'assign-patient-code') {
     const p = getPatient(SELECTED_ID);
     p.patientCode = nextPatientCode();
@@ -2037,7 +2052,6 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; render(); return; }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
-  if (action === 'ap-set-ageunit') { syncApTempFromDom(); AP_TEMP.ageUnit = el.dataset.value; render(); return; }
   if (action === 'ap-set-laterality') { syncApTempFromDom(); AP_TEMP.laterality = el.dataset.value; render(); return; }
   if (action === 'ap-set-special') { syncApTempFromDom(); AP_TEMP.condition = el.dataset.value; render(); return; }
 
@@ -2053,7 +2067,7 @@ document.addEventListener('click', async (e) => {
     const p = newPatientShape();
     p.name = AP_TEMP.name.trim();
     p.age = AP_TEMP.age;
-    p.ageUnit = AP_TEMP.ageUnit;
+    p.ageMonths = AP_TEMP.ageMonths;
     p.sex = AP_TEMP.sex;
     p.diagnosis = AP_TEMP.diagnosis;
     p.caseType = AP_TEMP.caseType;
@@ -2211,6 +2225,12 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); return; }
   if (action === 'close-settings') { VIEW = 'list'; render(); return; }
+  if (action === 'reset-patient-counter' && el.dataset.confirm) {
+    try { localStorage.setItem(PATIENT_COUNTER_KEY, '0'); } catch (e) {}
+    ARMED_DELETE = null;
+    render();
+    return;
+  }
   if (action === 'save-settings') {
     const profile = {
       doctorName: document.getElementById('pr-doctorName').value,
