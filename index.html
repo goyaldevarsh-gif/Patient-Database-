@@ -1095,6 +1095,7 @@ function matchCase(p, query) {
 function renderListView() {
   const counts = { all: PATIENTS.length };
   SURGERY_TYPES.forEach(t => counts[t] = PATIENTS.filter(p => p.surgeryType === t).length);
+  const ownerProfile = loadProfile();
 
   const allTags = [...new Set(PATIENTS.flatMap(p => p.tags || []))].sort();
 
@@ -1166,7 +1167,7 @@ function renderListView() {
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding-top:16px;padding-bottom:10px;">'
     + '<div class="row between" style="margin-bottom:10px;">'
-    + '<div><h1 style="font-size:18px;font-weight:800;margin:0;">Bone Log Pro</h1><p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">OPD &amp; Surgical Databook \u00b7 '+PATIENTS.length+' case'+(PATIENTS.length!==1?'s':'')+' on record</p></div>'
+    + '<div><h1 style="font-size:18px;font-weight:800;margin:0;">Bone Log Pro</h1><p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">'+(ownerProfile.doctorName?esc(ownerProfile.doctorName)+' \u00b7 ':'')+PATIENTS.length+' case'+(PATIENTS.length!==1?'s':'')+' on record</p></div>'
     + '<div class="row gap2">'
     + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
     + '<button class="icon-btn" data-action="open-settings" title="Doctor / clinic profile">'+ic('gear')+'</button>'
@@ -1187,6 +1188,7 @@ function renderListView() {
         + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
         + '</div>' : '')
     + cards+'</div>'
+    + (ownerProfile.doctorName ? '<p style="text-align:center;font-size:10.5px;color:#cbd5e1;margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' '+esc(ownerProfile.doctorName)+' \u2014 personal clinical tool, not for redistribution</p>' : '')
     + '</div>';
 }
 
@@ -2087,13 +2089,18 @@ function renderEduImagePrintView() {
   const { patient, edu } = PRINT_EDU;
   const tpl = EDU_IMAGE_TEMPLATES[edu.id];
   if (!tpl) { VIEW = 'edu-print'; return renderEduPrintView(); }
+  const profile = loadProfile();
+  const waNumber = toWaNumber(patient.whatsapp);
+  const chatLink = waNumber ? ('https://wa.me/' + waNumber + '?text=' + encodeURIComponent('Sending you the ' + edu.name.en + ' guide now \u2014 see the image below.')) : null;
 
   return '<div class="no-print sticky-top row between px" style="padding:14px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
     + '<button class="icon-btn" data-action="close-edu-image-print">'+ic('back')+'</button>'
     + '<div class="row gap2">'
-    + '<button class="btn" style="background:#25D366;border-color:#25D366;color:#fff;" data-action="share-edu-image">'+ic('message')+' Share</button>'
+    + (chatLink ? '<a href="'+esc(chatLink)+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;" title="Opens the chat \u2014 image not attached automatically, WhatsApp doesn\u2019t allow that via a link">'+ic('message')+' Open Chat</a>' : '')
+    + '<button class="btn" style="background:#25D366;border-color:#25D366;color:#fff;" data-action="share-edu-image">'+ic('message')+' Share Image</button>'
     + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
     + '</div></div>'
+    + (waNumber ? '<p class="no-print px" style="font-size:11px;color:#94a3b8;margin:8px 0 0;">Tip: tap <b>Open Chat</b> to jump straight to '+esc(patient.name)+'\u2019s WhatsApp, then <b>Share Image</b> and pick that same chat to attach it \u2014 WhatsApp\u2019s own links can\u2019t attach images automatically.</p>' : '')
     + '<div class="edu-img-doc">'
     + '<div class="edu-img-strip">'
     + '<span><b>'+esc(patient.name)+'</b> \u00b7 '+formatAge(patient)+' / '+esc(patient.sex)+(patient.patientCode?' \u00b7 <span class="mono">'+esc(patient.patientCode)+'</span>':'')+'</span>'
@@ -2112,7 +2119,7 @@ async function shareEduImage() {
     const resp = await fetch(tpl.dataUri);
     const blob = await resp.blob();
     const file = new File([blob], edu.id+'.jpg', { type: blob.type || 'image/jpeg' });
-    const shareText = patient.name + ' (' + formatAge(patient) + '/' + patient.sex + ') \u2014 ' + edu.name.en;
+    const shareText = 'For ' + patient.name + (patient.whatsapp ? ' (' + patient.whatsapp + ')' : '') + ' \u2014 ' + edu.name.en;
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({ files: [file], text: shareText, title: edu.name.en });
     } else if (navigator.share) {
@@ -4118,10 +4125,12 @@ function clearPin() { try { localStorage.removeItem(APP_LOCK_HASH_KEY); } catch(
 
 function renderLockScreen() {
   const dots = Array.from({length:PIN_LENGTH}, (_,i) => '<span class="lock-dot'+(i<LOCK_PIN_INPUT.length?' filled':'')+'"></span>').join('');
+  const ownerProfile = loadProfile();
   return '<div class="lock-screen">'
     + '<div class="lock-icon">'+ic('gear')+'</div>'
     + '<h2 style="font-size:16px;font-weight:800;margin:14px 0 4px;">Bone Log Pro is locked</h2>'
-    + '<p style="font-size:12px;color:#94a3b8;margin:0 0 18px;">'+(LOCK_ERROR?'Wrong PIN, try again.':'Enter PIN')+'</p>'
+    + '<p style="font-size:12px;color:#94a3b8;margin:0 0 4px;">'+(LOCK_ERROR?'Wrong PIN, try again.':'Enter PIN')+'</p>'
+    + (ownerProfile.doctorName ? '<p style="font-size:10.5px;color:#cbd5e1;margin:0 0 14px;">Personal clinical tool of '+esc(ownerProfile.doctorName)+'</p>' : '<div style="margin-bottom:18px;"></div>')
     + '<div class="lock-dots" style="'+(LOCK_ERROR?'animation:lock-shake 0.4s;':'')+'">'+dots+'</div>'
     + '<div class="lock-keypad">'
     + [1,2,3,4,5,6,7,8,9].map(n=>'<button class="lock-key" data-action="lock-digit" data-value="'+n+'">'+n+'</button>').join('')
