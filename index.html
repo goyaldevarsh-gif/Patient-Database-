@@ -113,6 +113,13 @@
   .backup-banner { display:flex; align-items:center; gap:10px; border-radius:12px; padding:10px 12px; background:var(--amber-bg); border:1px solid var(--amber-border); margin-bottom:12px; }
   .insight-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:12.5px; border-bottom:1px solid var(--border); }
   .insight-row:last-child { border-bottom:none; }
+  .mic-btn { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; border:1px solid var(--border); background:#fff; color:var(--muted); flex-shrink:0; }
+  .mic-btn.recording { background:var(--red); border-color:var(--red); color:#fff; animation: mic-pulse 1.1s infinite; }
+  @keyframes mic-pulse { 0%{box-shadow:0 0 0 0 rgba(185,28,28,0.4);} 70%{box-shadow:0 0 0 8px rgba(185,28,28,0);} 100%{box-shadow:0 0 0 0 rgba(185,28,28,0);} }
+  .textarea-with-mic { position:relative; }
+  .tag-chip { display:inline-flex; align-items:center; gap:4px; border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--muted); padding:5px 10px; font-size:11.5px; font-weight:600; }
+  .tag-chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .tag-chip-x { display:inline-flex; }
   .stat-label { font-size:11px; font-weight:700; text-transform:uppercase; color:#94a3b8; }
   .stat-value { font-size:16px; font-weight:800; margin-top:4px; }
 
@@ -332,6 +339,8 @@ const ICONS = {
   pill:'<path d="M10.5 20.5L3.5 13.5a5 5 0 0 1 7-7l7 7a5 5 0 0 1-7 7z"/><line x1="8.5" y1="8.5" x2="15.5" y2="15.5"/>',
   printer:'<polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
   clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  mic:'<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+  tag:'<path d="M20.59 13.41L13.41 20.59a2 2 0 0 1-2.82 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
 
@@ -342,6 +351,7 @@ let VIEW = 'list';
 let SELECTED_ID = null;
 let SEARCH = '';
 let FILTER_TYPE = 'all';
+let TAG_FILTER = '';
 let TAB = 'overview';
 let ARMED_DELETE = null;
 let ADD_FOLLOWUP_OPEN = false;
@@ -390,6 +400,7 @@ function newPatientShape() {
     preOpImageCount:0, followUps:[], investigations:[], prescriptions:[],
     ctev: null, ra: null,
     preOpWound: { status:'', notes:'' },
+    tags: [],
     createdAt: Date.now(),
   };
 }
@@ -490,6 +501,43 @@ function calcPOD(p, dateStr) {
   const d1 = new Date(p.surgeryDate), d2 = new Date(dateStr);
   if (isNaN(d1) || isNaN(d2)) return null;
   return Math.round((d2 - d1) / 86400000);
+}
+
+/* ---- Smart tags ---- */
+const PRESET_TAGS = ['Interesting', 'Teaching Slide', 'Complication', 'Exam Case', 'Revision'];
+
+/* ---- Voice-to-text (Web Speech API) ---- */
+let ACTIVE_RECOGNITION = null;
+function micButtonHtml(targetId) {
+  const SR = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  if (!SR) return '';
+  return '<button type="button" class="mic-btn" data-action="mic-toggle" data-target="'+targetId+'" title="Bol kar likho">'+ic('mic')+'</button>';
+}
+function stopMic() {
+  if (ACTIVE_RECOGNITION) {
+    try { ACTIVE_RECOGNITION.recognition.onend = null; ACTIVE_RECOGNITION.recognition.stop(); } catch(e) {}
+    ACTIVE_RECOGNITION = null;
+  }
+  document.querySelectorAll('.mic-btn.recording').forEach(b=>b.classList.remove('recording'));
+}
+function startMic(targetId, btnEl) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('Voice input is browser mein support nahi hai'); return; }
+  if (ACTIVE_RECOGNITION) { stopMic(); return; }
+  const recognition = new SR();
+  recognition.lang = 'en-IN';
+  recognition.interimResults = false;
+  recognition.continuous = false;
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    const ta = document.getElementById(targetId);
+    if (ta) { ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + transcript; ta.dispatchEvent(new Event('input',{bubbles:true})); }
+  };
+  recognition.onerror = () => { stopMic(); };
+  recognition.onend = () => { stopMic(); };
+  try { recognition.start(); } catch(e) { toast('Voice input start nahi ho paya'); return; }
+  ACTIVE_RECOGNITION = { targetId, recognition };
+  if (btnEl) btnEl.classList.add('recording');
 }
 
 function newCtevShape() {
@@ -739,8 +787,11 @@ function renderListView() {
   const counts = { all: PATIENTS.length };
   SURGERY_TYPES.forEach(t => counts[t] = PATIENTS.filter(p => p.surgeryType === t).length);
 
+  const allTags = [...new Set(PATIENTS.flatMap(p => p.tags || []))].sort();
+
   const filtered = PATIENTS.filter(p => {
     if (FILTER_TYPE !== 'all' && p.surgeryType !== FILTER_TYPE) return false;
+    if (TAG_FILTER && !(p.tags||[]).includes(TAG_FILTER)) return false;
     if (SEARCH) {
       const q = SEARCH.toLowerCase();
       if (!(p.name.toLowerCase().includes(q) || (p.diagnosis||'').toLowerCase().includes(q) || (p.procedure||'').toLowerCase().includes(q) || (p.patientCode||'').toLowerCase().includes(q))) return false;
@@ -757,6 +808,14 @@ function renderListView() {
     chips += '<button class="chip'+(FILTER_TYPE===t?' active':'')+'" data-action="set-filter" data-value="'+t+'">'+(t==='all'?'All':t)+' ('+counts[t]+')</button>';
   });
   chips += '</div>';
+
+  let tagChips = '';
+  if (allTags.length) {
+    tagChips = '<div class="chips" style="margin-top:6px;">'
+      + '<button class="chip'+(!TAG_FILTER?' active':'')+'" data-action="set-tag-filter" data-value="">'+ic('tag')+'All tags</button>'
+      + allTags.map(t => '<button class="chip'+(TAG_FILTER===t?' active':'')+'" data-action="set-tag-filter" data-value="'+esc(t)+'">'+esc(t)+' ('+PATIENTS.filter(p=>(p.tags||[]).includes(t)).length+')</button>').join('')
+      + '</div>';
+  }
 
   let cards = '';
   if (!filtered.length) {
@@ -782,6 +841,7 @@ function renderListView() {
         + '<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
         + (p.caseType==='surgical' ? '<span class="badge badge-'+TYPE_BADGE[p.surgeryType]+'">'+p.surgeryType+'</span>' : '<span class="badge badge-slate">OPD</span>')
         + (p.caseType==='surgical' ? '<span class="badge badge-slate">'+ic('camera')+p.preOpImageCount+' pre-op \u00b7 '+fuImgCount+' f/u</span>' : '<span class="badge badge-slate">'+ic('camera')+fuImgCount+' f/u</span>')
+        + (p.tags||[]).map(t=>'<span class="badge badge-indigo" style="font-size:10px;">'+ic('tag')+esc(t)+'</span>').join('')
         + '</div></div>'
         + '<span style="color:#cbd5e1;margin-left:8px;">'+ic('chevron')+'</span>'
         + '</button>';
@@ -802,6 +862,7 @@ function renderListView() {
     + '</div></div>'
     + '<div class="search-wrap">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search name, diagnosis, procedure\u2026" value="'+esc(SEARCH)+'"></div>'
     + chips
+    + tagChips
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'+renderDashboardSection()+cards+'</div>'
     + '</div>';
@@ -897,7 +958,7 @@ function renderAddView() {
 
     + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number ya +country code ke saath" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
     + '<div><label class="field-label">Clinical images (X-ray/CT/MRI, agar ho)</label><div id="ap-thumbs">'+thumbGridHtml(AP_PHOTOS,'ap-remove-photo')+'</div></div>'
-    + '<div><label class="field-label">Notes</label><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
+    + '<div><div class="row between" style="margin-bottom:5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
     + '<button class="btn" style="flex:1;" data-action="cancel-add">Cancel</button>'
@@ -944,7 +1005,22 @@ function renderOverviewTab(p) {
       + '</div>'
       + ageFieldHtml(p)
       + '</div>' : '<div class="card">'+ageFieldHtml(p)+'</div>')
-    + '<div class="card"><label class="field-label">Clinical notes</label><textarea class="textarea" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
+    + '<div class="card"><div class="row between" style="margin-bottom:5px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div><textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
+    + tagsCardHtml(p)
+    + '</div>';
+}
+
+function tagsCardHtml(p) {
+  const tags = p.tags || [];
+  return '<div class="card">'
+    + '<label class="field-label">'+ic('tag')+' Tags</label>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:'+(tags.length?'10px':'0')+';">'
+    + tags.map(t => '<span class="tag-chip active">'+esc(t)+'<button type="button" class="tag-chip-x" data-action="remove-tag" data-value="'+esc(t)+'" style="background:none;border:none;color:#fff;padding:0;cursor:pointer;">'+ic('x')+'</button></span>').join('')
+    + '</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
+    + PRESET_TAGS.filter(t => !tags.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
+    + '</div>'
+    + '<div class="row gap2"><input class="input" id="custom-tag-input" placeholder="Custom tag likho\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-tag">Add</button></div>'
     + '</div>';
 }
 
@@ -998,7 +1074,7 @@ async function renderFollowupsTab(p) {
       + '<label class="field-label">Wound / suture status (agar applicable ho)</label><select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'+WOUND_STATUS_OPTIONS.map(s=>'<option'+(s==='N/A'?' selected':'')+'>'+s+'</option>').join('')+'</select>'
       + '<label class="field-label">Wound / suture photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
       + '<label class="field-label" style="margin-top:10px;">Photos (general)</label><div id="fu-thumbs">'+thumbGridHtml(FU_PHOTOS,'fu-remove-photo')+'</div>'
-      + '<label class="field-label" style="margin-top:10px;">Notes</label><textarea class="textarea" id="fu-notes" rows="2" placeholder="ROM, complications\u2026"></textarea>'
+      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="ROM, complications\u2026"></textarea>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-fu">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-fu">Save visit</button></div>'
       + '</div>';
   }
@@ -1056,7 +1132,7 @@ async function renderInvestigationsTab(p) {
       + '<label class="field-label">Investigation name</label>'+renderQuickTextChips(INVESTIGATION_LIB_KEY,'inv-label')+'<input class="input" id="inv-label" placeholder="e.g. CBC, MRI knee, USG abdomen" style="margin-bottom:10px;">'
       + '<label class="field-label">Date</label><input class="input" type="date" id="inv-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
       + '<label class="field-label">Photos / report images</label><div id="inv-thumbs">'+thumbGridHtml(INV_PHOTOS,'inv-remove-photo')+'</div>'
-      + '<label class="field-label" style="margin-top:10px;">Notes</label><textarea class="textarea" id="inv-notes" rows="2" placeholder="Key findings, impression\u2026"></textarea>'
+      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('inv-notes')+'</div><textarea class="textarea" id="inv-notes" rows="2" placeholder="Key findings, impression\u2026"></textarea>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-inv">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-inv">Save investigation</button></div>'
       + '</div>';
   }
@@ -2217,6 +2293,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'open-patient') { SELECTED_ID = el.dataset.id; VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); return; }
   if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
+  if (action === 'set-tag-filter') { TAG_FILTER = el.dataset.value; render(); return; }
   if (action === 'tl-jump') {
     TAB = el.dataset.value; ADD_FOLLOWUP_OPEN = false;
     const p = getPatient(SELECTED_ID);
@@ -2403,6 +2480,37 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'export-backup') { await exportBackup(); return; }
   if (action === 'dismiss-backup-banner') { BACKUP_BANNER_DISMISSED = true; render(); return; }
+  if (action === 'mic-toggle') {
+    if (ACTIVE_RECOGNITION && ACTIVE_RECOGNITION.targetId === el.dataset.target) { stopMic(); return; }
+    startMic(el.dataset.target, el);
+    return;
+  }
+  if (action === 'add-tag') {
+    const p = getPatient(SELECTED_ID);
+    p.tags = p.tags || [];
+    if (!p.tags.includes(el.dataset.value)) p.tags.push(el.dataset.value);
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'remove-tag') {
+    const p = getPatient(SELECTED_ID);
+    p.tags = (p.tags || []).filter(t => t !== el.dataset.value);
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'add-custom-tag') {
+    const input = document.getElementById('custom-tag-input');
+    const val = input ? input.value.trim() : '';
+    if (!val) return;
+    const p = getPatient(SELECTED_ID);
+    p.tags = p.tags || [];
+    if (!p.tags.includes(val)) p.tags.push(val);
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'trigger-import') { document.getElementById('import-file-input').click(); return; }
 
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); return; }
