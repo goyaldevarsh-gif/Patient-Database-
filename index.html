@@ -294,6 +294,21 @@
   .annot-colors { display:flex; gap:10px; justify-content:center; margin-top:8px; }
   .annot-color-btn { width:28px; height:28px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); }
   .annot-color-btn.active { border-color:#fff; box-shadow:0 0 0 2px var(--accent); }
+
+  .cal-dow-row { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10px; font-weight:700; color:#94a3b8; margin-bottom:4px; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cal-cell { aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; border-radius:8px; border:1px solid transparent; background:none; }
+  .cal-daynum { font-size:12px; font-weight:600; }
+  .cal-today .cal-daynum { color:var(--accent); font-weight:800; }
+  .cal-selected { border-color:var(--accent); background:rgba(67,56,202,0.06); }
+  .cal-dots { display:flex; align-items:center; gap:3px; height:12px; }
+  .cal-dot { display:inline-flex; align-items:center; justify-content:center; min-width:14px; height:14px; padding:0 3px; border-radius:999px; font-size:8.5px; font-weight:800; background:var(--accent); color:#fff; }
+  .cal-dot-overdue { background:var(--red); }
+  .cal-dot-rem { min-width:6px; width:6px; height:6px; padding:0; background:var(--amber); }
+  .reminder-check { width:22px; height:22px; border-radius:50%; border:2px solid var(--border); background:#fff; flex:none; display:flex; align-items:center; justify-content:center; color:#fff; margin-top:1px; }
+  .reminder-check .ic { width:13px; height:13px; }
+  .reminder-check.done { background:var(--emerald); border-color:var(--emerald); }
+  [data-theme="dark"] .reminder-check { background:#1e293b; }
 </style>
 </head>
 <body>
@@ -454,6 +469,29 @@ let EDU_SEARCH = null; // null = use patient's diagnosis as default query
 let PRINT_EDU = null; // {patient, edu} when viewing education content in print mode
 let SETTINGS_OPEN = false;
 let ACTIVE_URLS = [];
+
+/* ---- Calendar & Reminders ---- */
+const REMINDERS_KEY = 'surgical-case-log-reminders-v1';
+let REMINDERS = [];
+let CAL_YEAR = new Date().getFullYear();
+let CAL_MONTH = new Date().getMonth(); // 0-indexed
+let CAL_SELECTED_DATE = todayStr();
+let CAL_SUBVIEW = 'calendar'; // 'calendar' | 'reminders'
+let REMINDER_FORM_OPEN = false;
+let REMINDER_FORM_PATIENT_ID = null; // set when adding a reminder from a patient's page
+let REMINDER_FORM_CATEGORY = 'General';
+let REMINDER_FORM_DATE = '';
+const REMINDER_CATEGORIES = ['Clinic', 'OT', 'General'];
+
+function loadReminders() {
+  try { const raw = localStorage.getItem(REMINDERS_KEY); REMINDERS = raw ? JSON.parse(raw) : []; } catch(e) { REMINDERS = []; }
+}
+function saveReminders() {
+  try { localStorage.setItem(REMINDERS_KEY, JSON.stringify(REMINDERS)); } catch(e) {}
+}
+function newReminder(overrides) {
+  return Object.assign({ id: uid(), text:'', category:'General', patientId:null, dueDate:'', done:false, createdAt: Date.now() }, overrides||{});
+}
 
 function revokeActiveUrls() { ACTIVE_URLS.forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); ACTIVE_URLS = []; }
 function trackUrl(u) { ACTIVE_URLS.push(u); return u; }
@@ -1129,6 +1167,7 @@ function renderListView() {
     + '<div class="row between" style="margin-bottom:10px;">'
     + '<div><h1 style="font-size:18px;font-weight:800;margin:0;">Bone Log Pro</h1><p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">OPD &amp; Surgical Databook \u00b7 '+PATIENTS.length+' case'+(PATIENTS.length!==1?'s':'')+' on record</p></div>'
     + '<div class="row gap2">'
+    + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
     + '<button class="icon-btn" data-action="open-settings" title="Doctor / clinic profile">'+ic('gear')+'</button>'
     + '<button class="icon-btn" data-action="trigger-import" title="Import backup">'+ic('upload')+'</button>'
     + '<button class="icon-btn" data-action="export-backup" title="Export backup">'+ic('download')+'</button>'
@@ -1313,6 +1352,7 @@ function renderOverviewTab(p) {
     + (p.surgeryType === 'Trauma' ? classificationCardHtml(p) : '')
     + (p.surgeryType === 'Trauma' ? unionProgressCardHtml(p) : '')
     + tagsCardHtml(p)
+    + reminderMiniCardHtml(p)
     + '</div>';
 }
 
@@ -2586,6 +2626,147 @@ function renderDetailShell(p) {
     + '</div>';
 }
 
+/* ================= Calendar & Reminders view ================= */
+
+function computeCalendarDots(year, month) {
+  const map = {};
+  const monthPrefix = year+'-'+String(month+1).padStart(2,'0');
+  PATIENTS.forEach(p => {
+    if (p.nextFollowUpDate && p.nextFollowUpDate.startsWith(monthPrefix)) {
+      map[p.nextFollowUpDate] = map[p.nextFollowUpDate] || { fu:0, rem:0 };
+      map[p.nextFollowUpDate].fu++;
+    }
+  });
+  REMINDERS.forEach(r => {
+    if (!r.done && r.dueDate && r.dueDate.startsWith(monthPrefix)) {
+      map[r.dueDate] = map[r.dueDate] || { fu:0, rem:0 };
+      map[r.dueDate].rem++;
+    }
+  });
+  return map;
+}
+
+function renderCalendarGrid() {
+  const year = CAL_YEAR, month = CAL_MONTH;
+  const first = new Date(year, month, 1);
+  const startDow = first.getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const dots = computeCalendarDots(year, month);
+  const monthLabel = first.toLocaleDateString('en-IN', { month:'long', year:'numeric' });
+  const today = todayStr();
+  const weekCount = PATIENTS.filter(p => p.nextFollowUpDate && p.nextFollowUpDate >= today && p.nextFollowUpDate <= (function(){ const d=new Date(); d.setDate(d.getDate()+6); return d.toISOString().slice(0,10); })()).length;
+
+  let cells = '<div class="cal-dow-row">'+['S','M','T','W','T','F','S'].map(d=>'<span>'+d+'</span>').join('')+'</div><div class="cal-grid">';
+  for (let i=0;i<startDow;i++) cells += '<div></div>';
+  for (let d=1; d<=daysInMonth; d++) {
+    const dateStr = year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const info = dots[dateStr];
+    const isToday = dateStr === today;
+    const isSelected = dateStr === CAL_SELECTED_DATE;
+    const isOverdueDay = dateStr < today && info && info.fu;
+    cells += '<button class="cal-cell'+(isToday?' cal-today':'')+(isSelected?' cal-selected':'')+'" data-action="cal-select-day" data-value="'+dateStr+'">'
+      + '<span class="cal-daynum">'+d+'</span>'
+      + '<span class="cal-dots">'
+      + (info && info.fu ? '<span class="cal-dot cal-dot-fu'+(isOverdueDay?' cal-dot-overdue':'')+'">'+info.fu+'</span>' : '')
+      + (info && info.rem ? '<span class="cal-dot cal-dot-rem"></span>' : '')
+      + '</span>'
+      + '</button>';
+  }
+  cells += '</div>';
+
+  return '<div class="card" style="margin-bottom:12px;">'
+    + '<div class="row between" style="margin-bottom:2px;">'
+    + '<button class="icon-btn" data-action="cal-prev-month">'+ic('back')+'</button>'
+    + '<div style="text-align:center;"><span style="font-weight:800;font-size:14px;">'+monthLabel+'</span></div>'
+    + '<button class="icon-btn" data-action="cal-next-month" style="transform:rotate(180deg);">'+ic('back')+'</button>'
+    + '</div>'
+    + '<div class="row between" style="margin:2px 0 8px;"><button class="btn btn-sm" data-action="cal-today">Today</button><span style="font-size:11px;color:#94a3b8;">'+weekCount+' follow-up'+(weekCount!==1?'s':'')+' in next 7 days</span></div>'
+    + cells
+    + '<div class="row gap3" style="margin-top:10px;font-size:10.5px;color:#94a3b8;"><span class="row gap1"><span class="cal-dot cal-dot-fu" style="position:static;">#</span> Follow-ups</span><span class="row gap1"><span class="cal-dot cal-dot-rem" style="position:static;"></span> Reminder due</span></div>'
+    + '</div>';
+}
+
+function renderCalendarDayDetail() {
+  const dateStr = CAL_SELECTED_DATE;
+  const fus = PATIENTS.filter(p => p.nextFollowUpDate === dateStr);
+  const rems = REMINDERS.filter(r => r.dueDate === dateStr && !r.done);
+  const label = fmtDate(dateStr) + (dateStr === todayStr() ? ' \u00b7 Today' : '');
+  return '<div class="card" style="margin-bottom:12px;">'
+    + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">'+esc(label)+'</label>'
+    + '<button class="btn btn-sm" data-action="reminder-add-for-date" data-value="'+dateStr+'">'+ic('plus')+' Reminder</button></div>'
+    + (!fus.length && !rems.length ? '<p style="font-size:12px;color:#94a3b8;padding:4px 0;">Nothing due this day.</p>' : '')
+    + fus.map(p => '<div class="row between" data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;padding:7px 0;border-top:1px solid var(--border);"><span style="font-size:13px;font-weight:600;">'+esc(p.name)+'</span><span class="badge '+(isOverdue(p.nextFollowUpDate)?'badge-red':'badge-indigo')+'" style="font-size:10px;">Follow-up</span></div>').join('')
+    + rems.map(r => reminderRowHtml(r)).join('')
+    + '</div>';
+}
+
+function reminderRowHtml(r) {
+  const patient = r.patientId ? getPatient(r.patientId) : null;
+  return '<div class="row between" style="padding:8px 0;border-top:1px solid var(--border);">'
+    + '<div class="row gap2" style="align-items:flex-start;flex:1;min-width:0;">'
+    + '<button class="reminder-check'+(r.done?' done':'')+'" data-action="reminder-toggle" data-id="'+r.id+'">'+(r.done?ic('check'):'')+'</button>'
+    + '<div style="min-width:0;">'
+    + '<div style="font-size:13px;font-weight:600;'+(r.done?'text-decoration:line-through;color:#94a3b8;':'')+'">'+esc(r.text)+'</div>'
+    + '<div style="font-size:10.5px;color:#94a3b8;margin-top:2px;">'+esc(patient?'Patient':r.category)+(patient?' \u00b7 '+esc(patient.name):'')+(r.dueDate?' \u00b7 '+fmtDate(r.dueDate):'')+'</div>'
+    + '</div></div>'
+    + confirmBtn('delete-reminder', r.id)
+    + '</div>';
+}
+
+function renderRemindersList() {
+  const open = REMINDERS.filter(r => !r.done).sort((a,b) => {
+    if (!a.dueDate && !b.dueDate) return b.createdAt - a.createdAt;
+    if (!a.dueDate) return 1;
+    if (!b.dueDate) return -1;
+    return a.dueDate.localeCompare(b.dueDate);
+  });
+  const done = REMINDERS.filter(r => r.done).sort((a,b) => b.createdAt - a.createdAt);
+  return '<div class="card" style="margin-bottom:12px;">'
+    + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">Open ('+open.length+')</label>'
+    + '<button class="btn btn-sm btn-primary" data-action="reminder-add-general">'+ic('plus')+' Add reminder</button></div>'
+    + (open.length ? open.map(r=>reminderRowHtml(r)).join('') : '<p style="font-size:12px;color:#94a3b8;">Nothing pending.</p>')
+    + '</div>'
+    + (done.length ? '<div class="card"><label class="field-label">Completed</label>'+done.slice(0,20).map(r=>reminderRowHtml(r)).join('')+'</div>' : '');
+}
+
+function renderReminderForm() {
+  const patient = REMINDER_FORM_PATIENT_ID ? getPatient(REMINDER_FORM_PATIENT_ID) : null;
+  return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
+    + '<label class="field-label">New reminder'+(patient?' for '+esc(patient.name):'')+'</label>'
+    + '<textarea class="textarea" id="rem-text" rows="2" placeholder="e.g. Order implant set for Tuesday\u2019s OT list"></textarea>'
+    + (!patient ? '<label class="field-label" style="margin-top:8px;">Category</label><div class="seg">'+REMINDER_CATEGORIES.map(c=>'<button class="seg-btn'+(REMINDER_FORM_CATEGORY===c?' active':'')+'" data-action="reminder-set-category" data-value="'+c+'">'+c+'</button>').join('')+'</div>' : '')
+    + '<label class="field-label" style="margin-top:8px;">Due date (optional)</label><input class="input" type="date" id="rem-date" value="'+esc(REMINDER_FORM_DATE)+'">'
+    + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="reminder-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="reminder-save">Save reminder</button></div>'
+    + '</div>';
+}
+
+function reminderMiniCardHtml(p) {
+  const items = REMINDERS.filter(r => r.patientId === p.id && !r.done);
+  return '<div class="card">'
+    + '<div class="row between" style="margin-bottom:'+(items.length?'8px':'0')+';"><label class="field-label" style="margin-bottom:0;">'+ic('calendar')+' Reminders</label>'
+    + '<button class="btn btn-sm" data-action="reminder-add-patient">'+ic('plus')+' Add</button></div>'
+    + items.map(r=>reminderRowHtml(r)).join('')
+    + (REMINDER_FORM_OPEN && REMINDER_FORM_PATIENT_ID === p.id ? renderReminderForm() : '')
+    + '</div>';
+}
+
+function renderCalendarView() {
+  const openCount = REMINDERS.filter(r=>!r.done).length;
+  return '<div style="padding-bottom:90px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3" style="margin-bottom:10px;"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Calendar &amp; Reminders</h2></div>'
+    + '<div class="seg">'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar</button>'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='reminders'?' active':'')+'" data-action="cal-set-subview" data-value="reminders">Reminders'+(openCount?' ('+openCount+')':'')+'</button>'
+    + '</div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:12px;">'
+    + (REMINDER_FORM_OPEN && !REMINDER_FORM_PATIENT_ID ? renderReminderForm() : '')
+    + (CAL_SUBVIEW==='calendar' ? (renderCalendarGrid() + renderCalendarDayDetail()) : renderRemindersList())
+    + '</div>'
+    + '</div>';
+}
+
 /* ================= Root render ================= */
 
 async function render() {
@@ -2598,6 +2779,7 @@ async function render() {
   if (VIEW === 'edu-image-print') { app.innerHTML = renderEduImagePrintView(); return; }
   if (VIEW === 'compare-picker') { app.innerHTML = await renderComparePickerView(); return; }
   if (VIEW === 'compare-view') { app.innerHTML = renderCompareView(); return; }
+  if (VIEW === 'calendar') { app.innerHTML = renderCalendarView(); return; }
   if (VIEW === 'detail') {
     const p = getPatient(SELECTED_ID);
     if (!p) { VIEW='list'; return render(); }
@@ -2815,6 +2997,7 @@ async function exportBackup(auto) {
     const zip = new JSZip();
     const allPatients = await dbGetAllPatients();
     zip.file('cases.json', JSON.stringify(allPatients, null, 2));
+    zip.file('reminders.json', JSON.stringify(REMINDERS, null, 2));
     for (const p of allPatients) {
       const images = await dbGetImagesByPatient(p.id);
       for (const im of images) {
@@ -2867,6 +3050,20 @@ async function importBackup(file) {
     const patients = JSON.parse(casesJson);
     for (const p of patients) { await dbPutPatient(p); }
 
+    const remindersEntry = zip.file('reminders.json');
+    let remCount = 0;
+    if (remindersEntry) {
+      try {
+        const importedReminders = JSON.parse(await remindersEntry.async('string'));
+        importedReminders.forEach(r => {
+          const idx = REMINDERS.findIndex(x => x.id === r.id);
+          if (idx >= 0) REMINDERS[idx] = r; else REMINDERS.push(r);
+        });
+        saveReminders();
+        remCount = importedReminders.length;
+      } catch(e) {}
+    }
+
     const imagePaths = Object.keys(zip.files).filter(path => IMPORT_IMG_REGEX.test(path) && !zip.files[path].dir);
     let imgCount = 0;
     for (const path of imagePaths) {
@@ -2878,7 +3075,7 @@ async function importBackup(file) {
     }
     await refreshPatients();
     render();
-    toast('Restored '+patients.length+' case(s), '+imgCount+' photo(s)');
+    toast('Restored '+patients.length+' case(s), '+imgCount+' photo(s)'+(remCount?', '+remCount+' reminder(s)':''));
   } catch (err) {
     toast('Import failed: '+err.message);
   }
@@ -2887,7 +3084,7 @@ async function importBackup(file) {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-settings','back-to-list','close-print','close-edu-print','close-edu-image-print','close-compare-picker','close-compare-view'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-settings','back-to-list','close-print','close-edu-print','close-edu-image-print','close-compare-picker','close-compare-view','close-calendar'];
 let SWIPE_START_X = null, SWIPE_START_Y = null, SWIPE_START_TAG = '';
 document.addEventListener('touchstart', (e) => {
   if (e.touches.length !== 1) return;
@@ -3470,6 +3667,64 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); return; }
   if (action === 'close-settings') { VIEW = 'list'; render(); return; }
+
+  if (action === 'open-calendar') {
+    const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
+    CAL_SUBVIEW = 'calendar'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    VIEW = 'calendar'; render(); return;
+  }
+  if (action === 'close-calendar') { REMINDER_FORM_OPEN = false; VIEW = 'list'; render(); return; }
+  if (action === 'cal-set-subview') { CAL_SUBVIEW = el.dataset.value; REMINDER_FORM_OPEN = false; render(); return; }
+  if (action === 'cal-prev-month') { CAL_MONTH--; if (CAL_MONTH<0) { CAL_MONTH=11; CAL_YEAR--; } render(); return; }
+  if (action === 'cal-next-month') { CAL_MONTH++; if (CAL_MONTH>11) { CAL_MONTH=0; CAL_YEAR++; } render(); return; }
+  if (action === 'cal-today') { const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t; render(); return; }
+  if (action === 'cal-select-day') { CAL_SELECTED_DATE = el.dataset.value; render(); return; }
+
+  if (action === 'reminder-add-for-date') {
+    REMINDER_FORM_OPEN = true; REMINDER_FORM_PATIENT_ID = null; REMINDER_FORM_CATEGORY = 'General'; REMINDER_FORM_DATE = el.dataset.value;
+    render(); return;
+  }
+  if (action === 'reminder-add-general') {
+    REMINDER_FORM_OPEN = true; REMINDER_FORM_PATIENT_ID = null; REMINDER_FORM_CATEGORY = 'General'; REMINDER_FORM_DATE = '';
+    render(); return;
+  }
+  if (action === 'reminder-add-patient') {
+    REMINDER_FORM_OPEN = true; REMINDER_FORM_PATIENT_ID = SELECTED_ID; REMINDER_FORM_CATEGORY = 'General'; REMINDER_FORM_DATE = '';
+    await render_only_current_view(); return;
+  }
+  if (action === 'reminder-set-category') { REMINDER_FORM_CATEGORY = el.dataset.value; await render_only_current_view(); return; }
+  if (action === 'reminder-cancel') {
+    REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    await render_only_current_view(); return;
+  }
+  if (action === 'reminder-save') {
+    const textEl = document.getElementById('rem-text');
+    const dateEl = document.getElementById('rem-date');
+    const text = textEl ? textEl.value.trim() : '';
+    if (!text) { toast('Write something to remember first'); return; }
+    REMINDERS.push(newReminder({
+      text,
+      category: REMINDER_FORM_PATIENT_ID ? 'Patient' : REMINDER_FORM_CATEGORY,
+      patientId: REMINDER_FORM_PATIENT_ID,
+      dueDate: dateEl ? dateEl.value : '',
+    }));
+    saveReminders();
+    REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    await render_only_current_view();
+    toast('Reminder saved');
+    return;
+  }
+  if (action === 'reminder-toggle') {
+    const r = REMINDERS.find(x => x.id === el.dataset.id);
+    if (r) { r.done = !r.done; saveReminders(); }
+    await render_only_current_view(); return;
+  }
+  if (action === 'delete-reminder' && el.dataset.confirm) {
+    REMINDERS = REMINDERS.filter(r => r.id !== el.dataset.id);
+    saveReminders();
+    ARMED_DELETE = null;
+    await render_only_current_view(); return;
+  }
   if (action === 'reset-patient-counter' && el.dataset.confirm) {
     try { localStorage.setItem(PATIENT_COUNTER_KEY, '0'); } catch (e) {}
     ARMED_DELETE = null;
@@ -3857,6 +4112,7 @@ function appLockCardHtml() {
     return;
   }
   await refreshPatients();
+  loadReminders();
   render();
   maybeAutoBackup();
   maybeNotifyToday();
