@@ -580,7 +580,7 @@ let ACTIVE_RECOGNITION = null;
 function micButtonHtml(targetId) {
   const SR = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);
   if (!SR) return '';
-  return '<button type="button" class="mic-btn" data-action="mic-toggle" data-target="'+targetId+'" title="Bol kar likho">'+ic('mic')+'</button>';
+  return '<button type="button" class="mic-btn" data-action="mic-toggle" data-target="'+targetId+'" title="Speak to type">'+ic('mic')+'</button>';
 }
 function stopMic() {
   if (ACTIVE_RECOGNITION) {
@@ -591,7 +591,7 @@ function stopMic() {
 }
 function startMic(targetId, btnEl) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { toast('Voice input is browser mein support nahi hai'); return; }
+  if (!SR) { toast('Voice input is not supported in this browser'); return; }
   if (ACTIVE_RECOGNITION) { stopMic(); return; }
   const recognition = new SR();
   recognition.lang = 'en-IN';
@@ -604,7 +604,7 @@ function startMic(targetId, btnEl) {
   };
   recognition.onerror = () => { stopMic(); };
   recognition.onend = () => { stopMic(); };
-  try { recognition.start(); } catch(e) { toast('Voice input start nahi ho paya'); return; }
+  try { recognition.start(); } catch(e) { toast('Could not start voice input'); return; }
   ACTIVE_RECOGNITION = { targetId, recognition };
   if (btnEl) btnEl.classList.add('recording');
 }
@@ -757,7 +757,7 @@ function renderSettingsView() {
     + '<div class="card"><label class="field-label">Display</label><div class="row between"><span style="font-size:13px;font-weight:600;">Dark mode</span><div class="seg" style="width:auto;">'
     + [['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 14px;">'+l+'</button>').join('')
     + '</div></div></div>'
-    + '<p style="font-size:12px;color:#94a3b8;">Ye details prescription ke letterhead pe print hongi. Ek baar bhar do, kabhi bhi yahan se edit kar sakte ho.</p>'
+    + '<p style="font-size:12px;color:#94a3b8;">These details print on the prescription letterhead. Fill them in once, edit anytime from here.</p>'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="Dr. Devarsh Goyal"></div>'
     + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
     + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder="e.g. RMC-12345"></div>'
@@ -768,9 +768,9 @@ function renderSettingsView() {
     + '<div class="px" style="padding-top:4px;">'
     + '<div class="card" style="border-color:var(--amber-border);background:var(--amber-bg);">'
     + '<label class="field-label" style="color:#7c4a03;">Patient ID counter</label>'
-    + '<p style="font-size:12px;color:#7c4a03;margin:2px 0 10px;">Agla naya patient ID hoga: <b class="mono">'+peekNextPatientCode()+'</b>. Agar abhi test/fake data daal rahe ho, to real patients shuru karne se pehle ise reset kar do (test patients delete karne ke baad).</p>'
+    + '<p style="font-size:12px;color:#7c4a03;margin:2px 0 10px;">Next new patient ID will be: <b class="mono">'+peekNextPatientCode()+'</b>. If you\u2019ve been entering test/fake data, reset this before starting real patients (after deleting the test patients).</p>'
     + (ARMED_DELETE === 'reset-patient-counter:x'
-        ? '<button class="btn btn-sm btn-danger-confirm" data-action="reset-patient-counter" data-confirm="1">'+ic('check')+' Haan, reset karo</button>'
+        ? '<button class="btn btn-sm btn-danger-confirm" data-action="reset-patient-counter" data-confirm="1">'+ic('check')+' Yes, reset it</button>'
         : '<button class="btn btn-sm" data-action="arm-delete" data-arm="reset-patient-counter:x">Reset Patient ID counter</button>')
     + '</div>'
     + '</div>'
@@ -874,7 +874,7 @@ function renderDashboardSection() {
   if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 14)) {
     html += '<div class="backup-banner">'
       + ic('download')
-      + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+(daysBack===null ? 'Aapne abhi tak koi backup nahi liya.' : daysBack+' din pehle aakhri backup liya tha.')+' Data safe rakhne ke liye abhi le lo.</span>'
+      + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+(daysBack===null ? 'You haven\u2019t taken a backup yet.' : 'Last backup was '+daysBack+' days ago.')+' Back up now to keep your data safe.</span>'
       + '<button class="btn btn-sm" data-action="export-backup">Export</button>'
       + '<button class="icon-btn" style="width:28px;height:28px;" data-action="dismiss-backup-banner">'+ic('x')+'</button>'
       + '</div>';
@@ -888,7 +888,7 @@ function renderDashboardSection() {
 
   if (s.dueToday.length || s.overdue.length) {
     html += '<div class="card" style="margin-bottom:12px;">'
-      + '<label class="field-label">Follow-up due \u2014 aaj ya overdue</label>'
+      + '<label class="field-label">Follow-up due \u2014 today or overdue</label>'
       + [...s.overdue, ...s.dueToday].slice(0,6).map(p => '<div class="row between" data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;padding:6px 0;">'
           + '<span style="font-size:13px;font-weight:600;">'+esc(p.name)+'</span>'
           + '<span class="badge '+(isOverdue(p.nextFollowUpDate)?'badge-red':'badge-amber')+'" style="font-size:10px;">'+(isOverdue(p.nextFollowUpDate)?'Overdue':'Today')+'</span>'
@@ -898,7 +898,7 @@ function renderDashboardSection() {
 
   if (s.topProcedures.length || s.topConditions.length) {
     html += '<div class="card" style="margin-bottom:14px;">'
-      + '<label class="field-label">Is mahine ke insights ('+s.monthCount+' cases add hue)</label>'
+      + '<label class="field-label">This month\u2019s insights ('+s.monthCount+' cases added)</label>'
       + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Top procedures</span>'
           + s.topProcedures.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
       + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Top conditions</span>'
@@ -946,7 +946,7 @@ function renderListView() {
   if (!filtered.length) {
     cards = '<div class="empty-state">'
       + '<div class="empty-icon-wrap">'+ic('clipboard')+'</div>'
-      + '<p style="font-weight:500;">'+(PATIENTS.length===0 ? 'Koi case abhi tak add nahi hua. Pehla case add karo.' : 'Is search/filter se koi case nahi mila.')+'</p>'
+      + '<p style="font-weight:500;">'+(PATIENTS.length===0 ? 'No cases added yet. Add your first case.' : 'No cases match this search/filter.')+'</p>'
       + (PATIENTS.length===0 ? '<button class="btn btn-primary" style="width:auto;padding:9px 18px;" data-action="go-add">'+ic('plus')+' Add case</button>' : '')
       + '</div>';
   } else {
@@ -1078,7 +1078,7 @@ function renderAddView() {
     + (AP_TEMP.condition==='ctev' ? '<div><label class="field-label">Laterality</label><div class="seg">'
         + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.laterality===v?' active':'')+'" data-action="ap-set-laterality" data-value="'+v+'">'+l+'</button>').join('')
         + '</div></div>' : '')
-    + '<p style="font-size:11px;color:#94a3b8;margin:-8px 0 0;">Baaki general conditions (Knee OA, ACL, etc.) ke liye Education tab se select karo case save hone ke baad.</p>'
+    + '<p style="font-size:11px;color:#94a3b8;margin:-8px 0 0;">For other general conditions (Knee OA, ACL, etc.), select from the Education tab after saving the case.</p>'
 
     + (isSurgical ? (
         '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
@@ -1091,7 +1091,7 @@ function renderAddView() {
         '<div><label class="field-label">Visit date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
       ))
 
-    + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number ya +country code ke saath" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
+    + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
     + '<div><label class="field-label">Clinical images (X-ray/CT/MRI, agar ho)</label><div id="ap-thumbs">'+thumbGridHtml(AP_PHOTOS,'ap-remove-photo')+'</div></div>'
     + '<div><div class="row between" style="margin-bottom:5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
     + '</div>'
@@ -1123,14 +1123,14 @@ function renderOverviewTab(p) {
     + '</div>'
     + '<div class="card">'
     + '<label class="field-label">WhatsApp number</label>'
-    + '<input class="input" type="tel" data-field="whatsapp" placeholder="10-digit number (India) ya +country code ke saath" value="'+esc(p.whatsapp)+'" style="margin-bottom:10px;">'
+    + '<input class="input" type="tel" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'" style="margin-bottom:10px;">'
     + (waLink(p)
         ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Message on WhatsApp</a>'
-        : '<p style="font-size:11.5px;color:#94a3b8;">Number save karo message bhejne ke liye.</p>')
+        : '<p style="font-size:11.5px;color:#94a3b8;">Save a number to send messages.</p>')
     + (p.whatsapp ? '<div class="row gap2" style="margin-top:8px;">'
         + (followUpReminderLink(p)
             ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('calendar')+' F/u Reminder</a>'
-            : '<button class="btn btn-sm" style="flex:1;" disabled title="Pehle next follow-up date set karo">'+ic('calendar')+' F/u Reminder</button>')
+            : '<button class="btn btn-sm" style="flex:1;" disabled title="Set the next follow-up date first">'+ic('calendar')+' F/u Reminder</button>')
         + '<a href="'+esc(postOpCareLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('shield')+' Post-Op Care</a>'
         + '</div>' : '')
     + '</div>'
@@ -1162,7 +1162,7 @@ function tagsCardHtml(p) {
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     + PRESET_TAGS.filter(t => !tags.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
     + '</div>'
-    + '<div class="row gap2"><input class="input" id="custom-tag-input" placeholder="Custom tag likho\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-tag">Add</button></div>'
+    + '<div class="row gap2"><input class="input" id="custom-tag-input" placeholder="Type a custom tag\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-tag">Add</button></div>'
     + '</div>';
 }
 
@@ -1176,7 +1176,7 @@ function comorbidityCardHtml(p) {
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     + PRESET_COMORBIDITIES.filter(t => !list.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-comorbidity" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
     + '</div>'
-    + '<div class="row gap2"><input class="input" id="custom-comorbidity-input" placeholder="Aur koi co-morbidity likho\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-comorbidity">Add</button></div>'
+    + '<div class="row gap2"><input class="input" id="custom-comorbidity-input" placeholder="Type another co-morbidity\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-comorbidity">Add</button></div>'
     + '</div>';
 }
 
@@ -1213,7 +1213,7 @@ async function renderPreopTab(p) {
     + '<select class="select" data-field="preOpWoundStatus" style="margin-bottom:10px;">'+PREOP_WOUND_STATUS_OPTIONS.map(s=>'<option'+((pw.status||'N/A')===s?' selected':'')+'>'+s+'</option>').join('')+'</select>'
     + '<label class="field-label">Wound photo</label>'+woundGrid
     + '</div>'
-    + (images.length ? grid : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">Koi clinical image nahi hai abhi.</div>'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">'))
+    + (images.length ? grid : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No clinical images yet.</div>'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">'))
     + '</div>';
 }
 
@@ -1357,7 +1357,7 @@ function renderQuickAddChips() {
   const presets = topMedPresets(8);
   if (!presets.length) return '';
   return '<div style="margin-bottom:10px;">'
-    + '<label class="field-label">Quick add (pehle use ki hui)</label>'
+    + '<label class="field-label">Quick add (previously used)</label>'
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
     + presets.map(pr => '<button class="chip" data-action="rx-quick-add" data-id="'+pr.id+'" style="text-align:left;">'+esc(pr.name)+(pr.dose?' '+esc(pr.dose):'')+'</button>').join('')
     + '</div></div>';
@@ -1370,7 +1370,7 @@ function renderPrescriptionsTab(p) {
   } else {
     const profile = loadProfile();
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-      + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">pehle complete karo</button>, warna letterhead adhoora rahega.</div>' : '')
+      + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
       + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
       + renderQuickAddChips()
       + '<div id="rx-med-rows">'+renderRxMedRows()+'</div>'
@@ -1800,7 +1800,7 @@ function searchEduLibrary(query) {
 function renderEduResultsHtml(query) {
   const results = searchEduLibrary(query);
   if (query.trim() && !results.length) {
-    return '<p style="font-size:12px;color:#94a3b8;text-align:center;padding:16px 0;">Is keyword se koi match nahi mila. Alag keyword try karo (e.g. \u201cknee OA\u201d, \u201cACL\u201d, \u201cfracture\u201d).</p>';
+    return '<p style="font-size:12px;color:#94a3b8;text-align:center;padding:16px 0;">No match for this keyword. Try a different one (e.g. \u201cknee OA\u201d, \u201cACL\u201d, \u201cfracture\u201d).</p>';
   }
   if (!results.length) return '';
   return '<div style="display:flex;flex-direction:column;gap:8px;">' + results.map(e =>
@@ -1817,7 +1817,7 @@ function renderEducationTab(p) {
   let directHtml = '';
   if (directMatch && EDU_SEARCH === null) {
     directHtml = '<button class="patient-card" data-action="view-edu" data-id="'+directMatch.id+'" style="padding:14px;margin-bottom:14px;border-color:var(--accent);background:#f5f6ff;">'
-      + '<span style="font-weight:800;font-size:14px;color:var(--accent-dark);">'+esc(directMatch.name.en)+' \u2014 patient ka set condition'+(EDU_IMAGE_TEMPLATES[directMatch.id]?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Custom</span>':'')+'</span>'
+      + '<span style="font-weight:800;font-size:14px;color:var(--accent-dark);">'+esc(directMatch.name.en)+' \u2014 patient\u2019s set condition'+(EDU_IMAGE_TEMPLATES[directMatch.id]?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Custom</span>':'')+'</span>'
       + '<span style="color:var(--accent);">'+ic('chevron')+'</span>'
       + '</button>';
   }
@@ -1830,8 +1830,8 @@ function renderEducationTab(p) {
         + '</select></div>' : '')
     + '</div>'
     + directHtml
-    + '<div class="search-wrap">'+ic('search')+'<input class="search-input" id="edu-search-input" placeholder="Ya kisi aur condition ka keyword search karo (e.g. ACL, fracture)" value="'+esc(query)+'"></div>'
-    + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">Upar condition set karo, ya yahan keyword search karo.</p>'
+    + '<div class="search-wrap">'+ic('search')+'<input class="search-input" id="edu-search-input" placeholder="Or search a keyword for another condition (e.g. ACL, fracture)" value="'+esc(query)+'"></div>'
+    + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">Set the condition above, or search a keyword here.</p>'
     + '<div id="edu-results">'+renderEduResultsHtml(query)+'</div>'
     + '</div>';
 }
@@ -1871,12 +1871,12 @@ async function shareEduImage() {
       await navigator.share({ files: [file], text: shareText, title: edu.name.en });
     } else if (navigator.share) {
       await navigator.share({ text: shareText, title: edu.name.en });
-      toast('Is browser mein seedha image share nahi ho paayi \u2014 Print/PDF se save karke bhejo');
+      toast('Couldn\u2019t share the image directly in this browser \u2014 save it via Print/PDF and send it that way');
     } else {
-      toast('Share yahan support nahi hai \u2014 Print/PDF button se image save karke WhatsApp se bhej do');
+      toast('Sharing isn\u2019t supported here \u2014 use the Print/PDF button to save the image and send it via WhatsApp');
     }
   } catch (err) {
-    toast('Share nahi ho paya \u2014 Print/PDF button try karo');
+    toast('Couldn\u2019t share \u2014 try the Print/PDF button');
   }
 }
 
@@ -2025,7 +2025,7 @@ function renderTimelineTab(p) {
   events = events.filter(e => e.date).sort((a,b) => new Date(a.date) - new Date(b.date));
 
   if (!events.length) {
-    return '<div class="px" style="padding-top:14px;padding-bottom:20px;"><div style="text-align:center;color:#94a3b8;font-size:12px;padding:30px 0;">Abhi koi timeline events nahi hain \u2014 follow-ups, investigations ya Rx add karte hi yahan dikhengi.</div></div>';
+    return '<div class="px" style="padding-top:14px;padding-bottom:20px;"><div style="text-align:center;color:#94a3b8;font-size:12px;padding:30px 0;">No timeline events yet \u2014 they\u2019ll show up here as soon as you add follow-ups, investigations, or a prescription.</div></div>';
   }
   const rows = events.map(e => '<div class="tl-row">'
     + '<div class="tl-dot" style="background:'+e.bg+';color:'+e.color+';"><svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:'+e.color+';">'+ICONS[e.icon]+'</svg></div>'
@@ -2086,10 +2086,10 @@ function renderPiraniScorerHtml(scopeId, foot, components) {
   return html;
 }
 
-const PIRANI_HELP_HTML = '<div class="help-box"><b>Kaise score karein:</b> Har component ko <b>0</b> (normal), <b>0.5</b> (moderate abnormality), ya <b>1</b> (severe abnormality) do.<br><br>'
+const PIRANI_HELP_HTML = '<div class="help-box"><b>How to score:</b> Score each component <b>0</b> (normal), <b>0.5</b> (moderate abnormality), or <b>1</b> (severe abnormality).<br><br>'
   + '<b>Midfoot:</b> medial crease, curved lateral border, lateral talar head coverage.<br>'
   + '<b>Hindfoot:</b> posterior crease, empty heel, rigid equinus.<br><br>'
-  + 'Total 0\u20136 \u2014 jitna zyada, utna severe. Har weekly casting visit pe score karke trend dekho.</div>';
+  + 'Total 0\u20136 \u2014 higher means more severe. Score at every weekly casting visit to track the trend.</div>';
 
 function renderCtevTab(p) {
   const feet = feetForLaterality(p.laterality);
@@ -2190,11 +2190,11 @@ function raLiveScoresHtml() {
     + raScoreBadgeHtml('SDAI', sc.sdai, bandSDAI(sc.sdai)) + '</div>';
 }
 
-const RA_HELP_HTML = '<div class="help-box"><b>TJC/SJC:</b> 28 joints mein se kitne tender/swollen hain, ginti karo.<br>'
-  + '<b>Patient Global:</b> patient khud apni disease activity 0\u2013100 VAS pe rate kare.<br>'
-  + '<b>Physician Global:</b> aapka assessment 0\u201310 pe.<br><br>'
-  + '<b>DAS28</b> ko ESR ya CRP chahiye. <b>CDAI</b> ko labs ki zaroorat nahi (jab labs available na ho tab useful). <b>SDAI</b> = CDAI + CRP.<br><br>'
-  + 'Sabme: Remission (green) &lt; Low &lt; Moderate &lt; High (red) activity.</div>';
+const RA_HELP_HTML = '<div class="help-box"><b>TJC/SJC:</b> count how many of the 28 joints are tender/swollen.<br>'
+  + '<b>Patient Global:</b> the patient rates their own disease activity on a 0\u2013100 VAS.<br>'
+  + '<b>Physician Global:</b> your assessment on a 0\u201310 scale.<br><br>'
+  + '<b>DAS28</b> needs ESR or CRP. <b>CDAI</b> doesn\u2019t need labs (useful when labs aren\u2019t available). <b>SDAI</b> = CDAI + CRP.<br><br>'
+  + 'For all three: Remission (green) &lt; Low &lt; Moderate &lt; High (red) activity.</div>';
 
 function renderRaTab(p) {
   const ra = p.ra;
@@ -2296,7 +2296,7 @@ async function renderComparePickerView() {
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">Select 2 photos to compare</h2>'
     + '</div>'
     + '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
-    + '<p style="font-size:12px;color:#94a3b8;margin-bottom:12px;">Pehle "Before" wali photo tap karo, fir "After" wali. ('+COMPARE_SELECTED.length+'/2 selected)</p>'
+    + '<p style="font-size:12px;color:#94a3b8;margin-bottom:12px;">Tap the "Before" photo first, then the "After" one. ('+COMPARE_SELECTED.length+'/2 selected)</p>'
     + '<div class="compare-pick-grid">'+items+'</div>'
     + '</div>';
 }
@@ -2316,7 +2316,7 @@ function renderCompareView() {
     + '<div class="compare-half"><div class="compare-tag">BEFORE \u00b7 '+esc(imageSourceLabel(imA,p))+'</div><img src="'+urlA+'" data-action="view-image" data-imgid="'+imA.id+'" data-url="'+esc(urlA)+'"></div>'
     + '<div class="compare-half"><div class="compare-tag">AFTER \u00b7 '+esc(imageSourceLabel(imB,p))+'</div><img src="'+urlB+'" data-action="view-image" data-imgid="'+imB.id+'" data-url="'+esc(urlB)+'"></div>'
     + '</div>'
-    + '<p style="text-align:center;font-size:11px;color:#94a3b8;padding:10px;">Zoom karne ke liye kisi bhi photo pe tap karo</p>';
+    + '<p style="text-align:center;font-size:11px;color:#94a3b8;padding:10px;">Tap either photo to zoom</p>';
 }
 
 let DEXA_TEMP = null;
@@ -2442,7 +2442,7 @@ function closeImageViewer() { const el = document.getElementById('img-viewer'); 
 /* ================= Export backup ================= */
 
 async function exportBackup() {
-  if (typeof JSZip === 'undefined') { toast('Backup tool load nahi hua \u2014 internet check karo'); return; }
+  if (typeof JSZip === 'undefined') { toast('Backup tool failed to load \u2014 check your internet connection'); return; }
   toast('Preparing backup\u2026');
   try {
     const zip = new JSZip();
@@ -2474,12 +2474,12 @@ async function exportBackup() {
 const IMPORT_IMG_REGEX = /^images\/([^/]+)\/(?:preop|followup_([^/]+)|investigation_([^/]+))\/([^/]+)\.jpg$/;
 
 async function importBackup(file) {
-  if (typeof JSZip === 'undefined') { toast('Import tool load nahi hua \u2014 internet check karo'); return; }
+  if (typeof JSZip === 'undefined') { toast('Import tool failed to load \u2014 check your internet connection'); return; }
   toast('Restoring backup\u2026');
   try {
     const zip = await JSZip.loadAsync(file);
     const casesEntry = zip.file('cases.json');
-    if (!casesEntry) { toast('Invalid backup file \u2014 cases.json nahi mila'); return; }
+    if (!casesEntry) { toast('Invalid backup file \u2014 cases.json not found'); return; }
     const casesJson = await casesEntry.async('string');
     const patients = JSON.parse(casesJson);
     for (const p of patients) { await dbPutPatient(p); }
@@ -2728,7 +2728,7 @@ document.addEventListener('click', async (e) => {
     syncApTempFromDom();
     const conditionEl = document.getElementById('ap-condition');
     if (conditionEl) AP_TEMP.condition = conditionEl.value;
-    if (!AP_TEMP.name.trim()) { toast('Naam zaroori hai'); return; }
+    if (!AP_TEMP.name.trim()) { toast('Name is required'); return; }
     const p = newPatientShape();
     p.name = AP_TEMP.name.trim();
     p.age = AP_TEMP.age;
@@ -3048,7 +3048,7 @@ document.addEventListener('click', async (e) => {
     const advice = document.getElementById('rx-advice').value;
     const followUpDate = document.getElementById('rx-followUpDate').value;
     const medicines = RX_TEMP.medicines.filter(m => m.name.trim());
-    if (!medicines.length) { toast('Kam se kam ek medicine ka naam daalo'); return; }
+    if (!medicines.length) { toast('Add at least one medicine name'); return; }
     recordMedicinesUsed(medicines);
     const p = getPatient(SELECTED_ID);
     const rx = { id: uid(), date, medicines, advice, followUpDate, createdAt: Date.now() };
@@ -3304,8 +3304,8 @@ function renderLockScreen() {
   const dots = Array.from({length:PIN_LENGTH}, (_,i) => '<span class="lock-dot'+(i<LOCK_PIN_INPUT.length?' filled':'')+'"></span>').join('');
   return '<div class="lock-screen">'
     + '<div class="lock-icon">'+ic('gear')+'</div>'
-    + '<h2 style="font-size:16px;font-weight:800;margin:14px 0 4px;">Bone Log Pro locked hai</h2>'
-    + '<p style="font-size:12px;color:#94a3b8;margin:0 0 18px;">'+(LOCK_ERROR?'Galat PIN, dobara try karo.':'PIN daalo')+'</p>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:14px 0 4px;">Bone Log Pro is locked</h2>'
+    + '<p style="font-size:12px;color:#94a3b8;margin:0 0 18px;">'+(LOCK_ERROR?'Wrong PIN, try again.':'Enter PIN')+'</p>'
     + '<div class="lock-dots" style="'+(LOCK_ERROR?'animation:lock-shake 0.4s;':'')+'">'+dots+'</div>'
     + '<div class="lock-keypad">'
     + [1,2,3,4,5,6,7,8,9].map(n=>'<button class="lock-key" data-action="lock-digit" data-value="'+n+'">'+n+'</button>').join('')
@@ -3324,10 +3324,10 @@ async function handlePinSetupComplete() {
     if (LOCK_PIN_INPUT === LOCK_SETUP_FIRST_PIN) {
       await savePin(LOCK_PIN_INPUT);
       LOCK_SETUP_MODE = null; LOCK_PIN_INPUT = ''; LOCK_SETUP_FIRST_PIN = '';
-      toast('App Lock ON ho gaya');
+      toast('App Lock is now ON');
       render();
     } else {
-      toast('PIN match nahi hua, dobara try karo');
+      toast('PINs didn\u2019t match, try again');
       LOCK_PIN_INPUT = ''; LOCK_SETUP_FIRST_PIN = ''; LOCK_SETUP_MODE = 'set-new';
       render();
     }
@@ -3335,19 +3335,19 @@ async function handlePinSetupComplete() {
     const ok = await verifyPin(LOCK_PIN_INPUT);
     LOCK_PIN_INPUT = '';
     if (ok) { LOCK_SETUP_MODE = 'set-new'; render(); }
-    else { toast('Galat PIN'); LOCK_SETUP_MODE = null; render(); }
+    else { toast('Wrong PIN'); LOCK_SETUP_MODE = null; render(); }
   } else if (LOCK_SETUP_MODE === 'disable-verify') {
     const ok = await verifyPin(LOCK_PIN_INPUT);
     LOCK_PIN_INPUT = '';
-    if (ok) { clearPin(); LOCK_SETUP_MODE = null; toast('App Lock OFF ho gaya'); render(); }
-    else { toast('Galat PIN'); LOCK_SETUP_MODE = null; render(); }
+    if (ok) { clearPin(); LOCK_SETUP_MODE = null; toast('App Lock is now OFF'); render(); }
+    else { toast('Wrong PIN'); LOCK_SETUP_MODE = null; render(); }
   }
 }
 
 function appLockCardHtml() {
   if (LOCK_SETUP_MODE) {
     const dots = Array.from({length:PIN_LENGTH}, (_,i) => '<span class="lock-dot'+(i<LOCK_PIN_INPUT.length?' filled':'')+'"></span>').join('');
-    const labels = { 'set-new':'Naya 4-digit PIN daalo', 'confirm-new':'PIN dobara confirm karo', 'change-verify':'Pehle current PIN daalo', 'disable-verify':'Lock hatane ke liye current PIN daalo' };
+    const labels = { 'set-new':'Enter a new 4-digit PIN', 'confirm-new':'Confirm the PIN again', 'change-verify':'Enter your current PIN first', 'disable-verify':'Enter your current PIN to turn off the lock' };
     return '<div class="card">'
       + '<label class="field-label">App Lock</label>'
       + '<p style="font-size:12px;color:#94a3b8;text-align:center;margin:6px 0;">'+labels[LOCK_SETUP_MODE]+'</p>'
@@ -3362,7 +3362,7 @@ function appLockCardHtml() {
   const enabled = isLockEnabled();
   return '<div class="card">'
     + '<div class="row between"><label class="field-label" style="margin-bottom:0;">App Lock</label><span class="badge badge-'+(enabled?'emerald':'slate')+'">'+(enabled?'ON':'OFF')+'</span></div>'
-    + '<p style="font-size:12px;color:#94a3b8;margin:6px 0 10px;">Har baar app khulte hi 4-digit PIN maangega, taaki data sirf aapke paas hi rahe.</p>'
+    + '<p style="font-size:12px;color:#94a3b8;margin:6px 0 10px;">Asks for a 4-digit PIN every time you open the app, so only you can see the data.</p>'
     + (enabled
         ? '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="lock-start-change">Change PIN</button><button class="btn btn-sm" style="flex:1;" data-action="lock-start-disable">Disable</button></div>'
         : '<button class="btn btn-primary btn-block" data-action="lock-start-enable">Enable App Lock</button>')
