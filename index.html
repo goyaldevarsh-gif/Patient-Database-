@@ -787,6 +787,27 @@ function waLink(patient) {
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
 }
 
+function followUpReminderMessage(patient) {
+  return 'Namaste ' + patient.name + ', Dr. Devarsh Goyal ki taraf se aapka follow-up checkup '
+    + fmtDate(patient.nextFollowUpDate) + ' ko scheduled hai. Kripya apna purana X-ray aur files saath layein.';
+}
+function followUpReminderLink(patient) {
+  const digits = toWaNumber(patient.whatsapp);
+  if (!digits || !patient.nextFollowUpDate) return null;
+  return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(followUpReminderMessage(patient));
+}
+function postOpCareMessage(patient) {
+  let msg = 'Namaste ' + patient.name + ', Dr. Goyal ki taraf se aapki surgery/checkup ke baad ki zaroori baatein: '
+    + '1. Limb elevate rakhein, 2. Ice packs din mein 3 baar lagayein, 3. Wound geela na hone dein.';
+  if (patient.nextFollowUpDate) msg += ' Next visit: ' + fmtDate(patient.nextFollowUpDate) + '.';
+  return msg;
+}
+function postOpCareLink(patient) {
+  const digits = toWaNumber(patient.whatsapp);
+  if (!digits) return null;
+  return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(postOpCareMessage(patient));
+}
+
 function rxWaMessage(patient, rx, profile) {
   let lines = [];
   lines.push('*Prescription \u2014 ' + (profile.clinicName || '') + '*');
@@ -1081,6 +1102,12 @@ function renderOverviewTab(p) {
     + (waLink(p)
         ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Message on WhatsApp</a>'
         : '<p style="font-size:11.5px;color:#94a3b8;">Number save karo message bhejne ke liye.</p>')
+    + (p.whatsapp ? '<div class="row gap2" style="margin-top:8px;">'
+        + (followUpReminderLink(p)
+            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('calendar')+' F/u Reminder</a>'
+            : '<button class="btn btn-sm" style="flex:1;" disabled title="Pehle next follow-up date set karo">'+ic('calendar')+' F/u Reminder</button>')
+        + '<a href="'+esc(postOpCareLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('shield')+' Post-Op Care</a>'
+        + '</div>' : '')
     + '</div>'
     + '<div class="card">'
     + '<label class="field-label">Diagnosis (free text)</label><textarea class="textarea" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'
