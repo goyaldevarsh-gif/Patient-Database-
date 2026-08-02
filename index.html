@@ -31,10 +31,10 @@
   .score-badge .sl { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; opacity:0.85; }
   .score-badge .sv { font-family:'JetBrains Mono',monospace; font-weight:800; font-size:14px; line-height:1.1; }
   .scorer-group { border:1px solid var(--border); border-radius:12px; background:rgba(248,250,252,0.7); padding:10px 12px; margin-bottom:8px; }
-  .scorer-group-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:#94a3b8; }
+  .scorer-group-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); }
   .scorer-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 0; }
   .scorer-btns { display:flex; gap:4px; flex-shrink:0; }
-  .scorer-btn { width:34px; height:26px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#64748b; font-weight:700; font-size:11px; font-family:'JetBrains Mono',monospace; }
+  .scorer-btn { width:38px; height:32px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#64748b; font-weight:700; font-size:11px; font-family:'JetBrains Mono',monospace; }
   .scorer-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
   .scorer-total { display:flex; align-items:center; justify-content:space-between; border-radius:10px; padding:9px 14px; background:#0f172a; color:#fff; font-weight:800; margin-top:2px; font-size:13px; }
   .info-help-btn { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:var(--slate-bg); color:var(--slate); border:none; font-size:11px; font-weight:800; font-family:'Fraunces',serif; font-style:italic; margin-left:5px; vertical-align:middle; }
@@ -56,11 +56,11 @@
   .between { justify-content:space-between; }
   .gap1 { gap:4px; } .gap2 { gap:8px; } .gap3 { gap:12px; }
 
-  .icon-btn { display:inline-flex; align-items:center; justify-content:center; padding:6px; border-radius:8px; border:none; background:transparent; color:var(--muted); }
+  .icon-btn { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; flex:none; border-radius:10px; border:none; background:transparent; color:var(--muted); }
   svg.ic { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; display:block; }
 
   .btn { border-radius:11px; font-weight:700; padding:10px 14px; border:1px solid var(--border); background:#fff; color:var(--ink); font-size:13px; }
-  .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(67,56,202,0.25); }
   .btn-primary:disabled { opacity:0.4; }
   .btn-block { width:100%; display:flex; align-items:center; justify-content:center; gap:6px; }
   .btn-sm { padding:6px 10px; font-size:11px; border-radius:8px; }
@@ -68,8 +68,8 @@
   .btn-outline-dashed { border:2px dashed #c7d2fe; color:var(--accent-dark); background:transparent; }
 
   .search-wrap { position:relative; margin-bottom:8px; }
-  .search-wrap svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:#94a3b8; }
-  .search-wrap .search-mic-btn { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:26px; height:26px; border-radius:50%; border:none; background:none; color:#94a3b8; display:flex; align-items:center; justify-content:center; }
+  .search-wrap svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted); }
+  .search-wrap .search-mic-btn { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:26px; height:26px; border-radius:50%; border:none; background:none; color:var(--muted); display:flex; align-items:center; justify-content:center; }
   .search-wrap .search-mic-btn svg { position:static; transform:none; width:15px; height:15px; }
   .search-wrap .search-mic-btn.recording { color:#dc2626; }
   .search-wrap.has-mic .search-input { padding-right:34px; }
@@ -79,10 +79,21 @@
   .chip { flex-shrink:0; border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--muted); padding:6px 10px; font-size:12px; font-weight:600; white-space:nowrap; }
   .chip.active { background:var(--ink); border-color:var(--ink); color:#fff; }
 
-  .card { border:1px solid var(--border); border-radius:14px; background:#fff; padding:16px; }
+  .card { border:1px solid var(--border); border-radius:14px; background:#fff; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+  .skeleton-line, .skeleton-block { background:linear-gradient(90deg, #eef0f3 25%, #f6f7f9 37%, #eef0f3 63%); background-size:400% 100%; animation:skeleton-shimmer 1.4s ease infinite; border-radius:8px; }
+  .skeleton-line { height:14px; }
+  .skeleton-block { height:80px; border-radius:14px; }
+  @keyframes skeleton-shimmer { 0% { background-position:100% 50%; } 100% { background-position:0 50%; } }
+  [data-theme="dark"] .skeleton-line, [data-theme="dark"] .skeleton-block { background:linear-gradient(90deg, #1e293b 25%, #263449 37%, #1e293b 63%); background-size:400% 100%; }
+  .spinner { display:inline-block; width:13px; height:13px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spinner-spin 0.6s linear infinite; vertical-align:-2px; opacity:0.7; }
+  @keyframes spinner-spin { to { transform:rotate(360deg); } }
+  .view-transition { animation:view-fade-in 180ms ease; }
+  @keyframes view-fade-in { from { opacity:0.4; } to { opacity:1; } }
   .case-card { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; border:1px solid var(--border); border-radius:14px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
   .status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .case-card:active { background:var(--bg-soft); }
+  .btn, .icon-btn, .seg-btn, .chip, .tag-chip, .case-card, .modal-btn, button.badge { transition:transform 150ms ease, opacity 150ms ease, background 150ms ease; }
+  .btn:active, .icon-btn:active, .seg-btn:active, .chip:active, .tag-chip:active, .case-card:active, .modal-btn:active, button.badge:active { transform:scale(0.97); opacity:0.85; }
 
   .badge { display:inline-flex; align-items:center; gap:4px; border-radius:999px; border:1px solid; padding:4px 9px; font-size:11px; font-weight:700; }
   button.badge { border-style:dashed; cursor:pointer; }
@@ -93,7 +104,8 @@
   .badge-red { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
   .badge-slate { color:var(--slate); background:var(--slate-bg); border-color:var(--slate-border); }
 
-  label.field-label { display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:#94a3b8; margin-bottom:6px; }
+  label.field-label { display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); margin-bottom:6px; }
+  .section-title { font-size:11px; font-weight:800; text-transform:uppercase; color:var(--muted); margin:16px 0 8px; }
   .input, .textarea, .select { width:100%; border:1px solid var(--border); border-radius:10px; padding:9px 11px; background:#fff; color:var(--ink); }
   .input:focus, .textarea:focus, .select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(67,56,202,0.15); }
   .textarea { resize:vertical; }
@@ -113,7 +125,7 @@
   [data-theme="dark"] .cam-fab { border-color:#0f172a; }
 
   .tabs { display:flex; overflow-x:auto; border-top:1px solid #f1f5f9; }
-  .tab { flex-shrink:0; display:flex; align-items:center; gap:6px; padding:11px 13px; border-bottom:2px solid transparent; color:#94a3b8; font-weight:700; font-size:12px; background:none; border-left:none; border-right:none; border-top:none; }
+  .tab { flex-shrink:0; display:flex; align-items:center; gap:6px; padding:11px 13px; border-bottom:2px solid transparent; color:var(--muted); font-weight:700; font-size:12px; background:none; border-left:none; border-right:none; border-top:none; }
   .tab.active { border-bottom-color:var(--accent); color:var(--accent-dark); }
 
   .stat-card { border:1px solid var(--border); border-radius:14px; padding:12px; background:#fff; }
@@ -130,7 +142,7 @@
   .tag-chip { display:inline-flex; align-items:center; gap:4px; border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--muted); padding:5px 10px; font-size:11px; font-weight:600; }
   .tag-chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
   .tag-chip-x { display:inline-flex; }
-  .stat-label { font-size:11px; font-weight:700; text-transform:uppercase; color:#94a3b8; }
+  .stat-label { font-size:11px; font-weight:700; text-transform:uppercase; color:var(--muted); }
   .stat-value { font-size:16px; font-weight:800; margin-top:4px; }
 
   .empty-state { display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; margin-top:56px; padding:0 24px; color:#64748b; }
@@ -143,7 +155,7 @@
   .tl-row:last-child::before { display:none; }
   .tl-dot { flex-shrink:0; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; z-index:1; }
   .tl-content { flex:1; padding-top:4px; cursor:pointer; }
-  .tl-date { font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; }
+  .tl-date { font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.02em; }
   .tl-title { font-size:13px; font-weight:700; color:var(--ink); margin-top:2px; }
   .tl-sub { font-size:12px; color:#64748b; margin-top:2px; }
   .overdue-note { font-size:11px; font-weight:700; color:var(--red); margin-top:3px; display:flex; align-items:center; gap:4px; }
@@ -151,11 +163,15 @@
 
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
   .modal-overlay img { max-width:100%; max-height:78vh; border-radius:8px; }
-  .modal-bar { position:absolute; top:16px; right:16px; display:flex; gap:8px; }
+  .modal-bar { position:absolute; top:16px; left:16px; right:16px; display:flex; align-items:center; justify-content:space-between; gap:8px; z-index:2; }
   .modal-btn { background:rgba(255,255,255,0.12); color:#fff; border:none; border-radius:999px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; }
+  .modal-nav { position:absolute; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.12); color:#fff; border:none; border-radius:999px; width:40px; height:40px; display:flex; align-items:center; justify-content:center; z-index:2; }
+  .modal-nav-prev { left:12px; }
+  .modal-nav-next { right:12px; }
   .modal-label { color:#fff; font-size:12px; margin-top:10px; opacity:0.8; }
 
-  .toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%); z-index:40; background:rgba(15,23,42,0.94); color:#fff; font-size:12px; font-weight:600; padding:8px 16px; border-radius:999px; }
+  .toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%) translateY(0); z-index:40; background:rgba(15,23,42,0.94); color:#fff; font-size:12px; font-weight:600; padding:8px 16px; border-radius:999px; opacity:1; transition:opacity 200ms ease, transform 200ms ease; }
+  .toast.toast-hidden { opacity:0; transform:translateX(-50%) translateY(6px); pointer-events:none; }
 
   .rx-sheet { max-width:520px; margin:0 auto; padding:22px 18px 40px; font-family:'Inter',sans-serif; color:#111827; }
   .rx-letterhead { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #1e293b; padding-bottom:12px; margin-bottom:14px; }
@@ -285,7 +301,7 @@
   .compare-half img { width:100%; height:100%; object-fit:contain; }
   .compare-tag { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.65); color:#fff; font-size:11px; font-weight:800; letter-spacing:0.03em; padding:5px 10px; border-radius:999px; z-index:2; }
 
-  .cal-dow-row { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10px; font-weight:700; color:#94a3b8; margin-bottom:4px; }
+  .cal-dow-row { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10px; font-weight:700; color:var(--muted); margin-bottom:4px; }
   .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
   .cal-cell { aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; border-radius:8px; border:1px solid transparent; background:none; }
   .cal-daynum { font-size:12px; font-weight:600; }
@@ -295,7 +311,7 @@
   .cal-dot { display:inline-flex; align-items:center; justify-content:center; min-width:14px; height:14px; padding:0 3px; border-radius:999px; font-size:9px; font-weight:800; background:var(--accent); color:#fff; }
   .cal-dot-overdue { background:var(--red); }
   .cal-dot-rem { min-width:6px; width:6px; height:6px; padding:0; background:var(--amber); }
-  .reminder-check { width:22px; height:22px; border-radius:50%; border:2px solid var(--border); background:#fff; flex:none; display:flex; align-items:center; justify-content:center; color:#fff; margin-top:1px; }
+  .reminder-check { width:26px; height:26px; border-radius:50%; border:2px solid var(--border); background:#fff; flex:none; display:flex; align-items:center; justify-content:center; color:#fff; margin-top:1px; }
   .reminder-check .ic { width:13px; height:13px; }
   .reminder-check.done { background:var(--emerald); border-color:var(--emerald); }
 
@@ -482,6 +498,21 @@ let ACTIVE_URLS = [];
 /* ---- Calendar & Reminders ---- */
 /* ---- Continue Last Patient ---- */
 const LAST_PATIENT_KEY = 'surgical-case-log-last-patient-v1';
+const RECENT_SEARCH_KEY = 'surgical-case-log-recent-search-v1';
+function recordRecentSearchPatient(id) {
+  try {
+    let list = JSON.parse(localStorage.getItem(RECENT_SEARCH_KEY) || '[]');
+    list = list.filter(x => x !== id);
+    list.unshift(id);
+    localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(list.slice(0, 5)));
+  } catch(e) {}
+}
+function getRecentSearchPatients() {
+  try {
+    const list = JSON.parse(localStorage.getItem(RECENT_SEARCH_KEY) || '[]');
+    return list.map(id => getPatient(id)).filter(Boolean);
+  } catch(e) { return []; }
+}
 function recordLastPatient(id) {
   try { localStorage.setItem(LAST_PATIENT_KEY, JSON.stringify({ id, at: Date.now() })); } catch(e) {}
 }
@@ -686,7 +717,7 @@ function notifCardHtml() {
   const supported = typeof Notification !== 'undefined';
   return '<div class="card">'
     + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Daily reminders</label><span class="badge badge-'+(enabled?'emerald':'slate')+'">'+(enabled?'ON':'OFF')+'</span></div>'
-    + '<p style="font-size:12px;color:#94a3b8;margin:6px 0 10px;">Shows a notification when you open the app if anything needs attention today \u2014 follow-ups, RA labs, or DEXA scans, due or overdue. This can only fire while you have the app open; it cannot notify you if the app stays closed, since there is no server behind this app to trigger it.</p>'
+    + '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Shows a notification when you open the app if anything needs attention today \u2014 follow-ups, RA labs, or DEXA scans, due or overdue. This can only fire while you have the app open; it cannot notify you if the app stays closed, since there is no server behind this app to trigger it.</p>'
     + (!supported ? '<p style="font-size:12px;color:var(--red);">Notifications aren\u2019t supported in this browser.</p>'
         : enabled ? '<button class="btn btn-sm" data-action="disable-notifs">Turn off</button>'
         : '<button class="btn btn-primary btn-sm" data-action="enable-notifs">Turn on</button>')
@@ -960,7 +991,7 @@ function renderMoreView() {
 function moreRowHtml(icon, title, sub, action) {
   return '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;" data-action="'+action+'">'
     + '<span style="flex:none;color:var(--accent);">'+ic(icon)+'</span>'
-    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:700;">'+title+'</span><span style="display:block;font-size:11px;color:#94a3b8;margin-top:2px;">'+sub+'</span></span>'
+    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:700;">'+title+'</span><span style="display:block;font-size:11px;color:var(--muted);margin-top:2px;">'+sub+'</span></span>'
     + '<span style="flex:none;color:#cbd5e1;">'+ic('chevron')+'</span>'
     + '</button>';
 }
@@ -978,7 +1009,7 @@ function renderSettingsView() {
     + '<div class="card"><label class="field-label">Display</label><div class="row between"><span style="font-size:13px;font-weight:600;">Dark mode</span><div class="seg" style="width:auto;">'
     + [['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 14px;">'+l+'</button>').join('')
     + '</div></div></div>'
-    + '<p style="font-size:12px;color:#94a3b8;">These details print on the prescription letterhead. Fill them in once, edit anytime from here.</p>'
+    + '<p style="font-size:12px;color:var(--muted);">These details print on the prescription letterhead. Fill them in once, edit anytime from here.</p>'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="Dr. Devarsh Goyal"></div>'
     + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
     + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder="e.g. RMC-12345"></div>'
@@ -1076,12 +1107,21 @@ async function savePatient(p) { await dbPutPatient(p); await refreshPatients(); 
 
 /* ================= Toast ================= */
 
+function compactEmptyState(icon, text) {
+  return '<div style="text-align:center;padding:24px 12px;color:var(--muted);">'
+    + '<div style="color:#cbd5e1;margin-bottom:6px;"><svg class="ic" viewBox="0 0 24 24" style="width:28px;height:28px;margin:0 auto;">'+ICONS[icon]+'</svg></div>'
+    + '<p style="font-size:12px;margin:0;">'+text+'</p>'
+    + '</div>';
+}
+
 function toast(msg) {
   let el = document.getElementById('toast');
-  if (!el) { el = document.createElement('div'); el.id='toast'; el.className='toast'; document.getElementById('app').appendChild(el); }
-  el.textContent = msg; el.style.display = 'block';
+  if (!el) { el = document.createElement('div'); el.id='toast'; el.className='toast toast-hidden'; document.getElementById('app').appendChild(el); }
+  el.textContent = msg;
+  el.classList.remove('toast-hidden');
+  void el.offsetWidth;
   clearTimeout(window.__toastTimer);
-  window.__toastTimer = setTimeout(() => { el.style.display = 'none'; }, 1800);
+  window.__toastTimer = setTimeout(() => { el.classList.add('toast-hidden'); }, 1800);
 }
 
 /* ================= List view ================= */
@@ -1102,16 +1142,16 @@ function renderDashboardSection() {
   }
 
   html += '<div class="row gap2" style="margin-bottom:12px;">'
-    + '<div class="dash-tile" style="'+(s.important.length ? 'border-color:var(--red-border);background:var(--red-bg);' : 'border-color:var(--border);background:#fff;')+'"><div class="dv" style="color:'+(s.important.length?'var(--red)':'var(--ink)')+';">'+s.important.length+'</div><div class="dl" style="color:'+(s.important.length?'var(--red)':'#94a3b8')+';">Important today</div></div>'
-    + '<div class="dash-tile" style="border-color:var(--border);"><div class="dv">'+s.surgeriesThisWeek+'</div><div class="dl" style="color:#94a3b8;">Surgeries (7 days)</div></div>'
-    + '<div class="dash-tile" style="border-color:var(--border);"><div class="dv">'+s.activeCases+'</div><div class="dl" style="color:#94a3b8;">Active cases</div></div>'
+    + '<div class="dash-tile" style="'+(s.important.length ? 'border-color:var(--red-border);background:var(--red-bg);' : 'border-color:var(--border);background:#fff;')+'"><div class="dv" style="color:'+(s.important.length?'var(--red)':'var(--ink)')+';">'+s.important.length+'</div><div class="dl" style="color:'+(s.important.length?'var(--red)':'var(--muted)')+';">Important today</div></div>'
+    + '<div class="dash-tile" style="border-color:var(--border);"><div class="dv">'+s.surgeriesThisWeek+'</div><div class="dl" style="color:var(--muted);">Surgeries (7 days)</div></div>'
+    + '<div class="dash-tile" style="border-color:var(--border);"><div class="dv">'+s.activeCases+'</div><div class="dl" style="color:var(--muted);">Active cases</div></div>'
     + '</div>';
 
   if (s.important.length) {
     html += '<div class="card" style="margin-bottom:12px;">'
       + '<label class="field-label">Needs attention today \u2014 follow-ups, RA labs, DEXA scans</label>'
       + s.important.slice(0,8).map(item => '<div class="row between" data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;padding:6px 0;">'
-          + '<span style="font-size:13px;font-weight:600;">'+esc(item.patient.name)+'<span style="font-weight:400;color:#94a3b8;"> \u00b7 '+esc(item.type)+'</span></span>'
+          + '<span style="font-size:13px;font-weight:600;">'+esc(item.patient.name)+'<span style="font-weight:400;color:var(--muted);"> \u00b7 '+esc(item.type)+'</span></span>'
           + '<span class="badge '+(item.isOverdue?'badge-red':'badge-amber')+'" style="font-size:10px;">'+(item.isOverdue?'Overdue':'Today')+'</span>'
           + '</div>').join('')
       + '</div>';
@@ -1120,9 +1160,9 @@ function renderDashboardSection() {
   if (s.topProcedures.length || s.topConditions.length) {
     html += '<div class="card" style="margin-bottom:14px;">'
       + '<label class="field-label">This month\u2019s insights ('+s.monthCount+' cases added)</label>'
-      + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Top procedures</span>'
+      + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top procedures</span>'
           + s.topProcedures.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
-      + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Top conditions</span>'
+      + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top conditions</span>'
           + s.topConditions.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
       + '</div>';
   }
@@ -1199,19 +1239,26 @@ function usearchOverlayHtml() {
 }
 function usearchResultsHtml() {
   const q = USEARCH_QUERY.trim();
-  if (!q) return '<p style="text-align:center;color:#94a3b8;font-size:12px;padding:36px 20px;">Start typing to search across every case \u2014 name, ID, diagnosis, procedure, notes, tags, investigations, prescriptions.</p>';
+  if (!q) {
+    const recent = getRecentSearchPatients();
+    if (!recent.length) return '<p style="text-align:center;color:var(--muted);font-size:12px;padding:36px 20px;">Start typing to search across every case \u2014 name, ID, diagnosis, procedure, notes, tags, investigations, prescriptions.</p>';
+    return '<div class="section-title" style="margin-top:0;">Recent</div>'
+      + '<div style="display:flex;flex-direction:column;gap:8px;">'
+      + recent.map(p => usearchResultRowHtml(p, '')).join('')
+      + '</div>';
+  }
   const results = PATIENTS.filter(p => matchCase(p, q)).slice(0, 40);
-  if (!results.length) return '<p style="text-align:center;color:#94a3b8;font-size:12px;padding:36px 20px;">No matches for \u201c'+esc(q)+'\u201d.</p>';
+  if (!results.length) return '<p style="text-align:center;color:var(--muted);font-size:12px;padding:36px 20px;">No matches for \u201c'+esc(q)+'\u201d.</p>';
   return '<div style="display:flex;flex-direction:column;gap:8px;">'
     + results.map(p => usearchResultRowHtml(p, q)).join('')
     + '</div>';
 }
 function usearchResultRowHtml(p, q) {
-  const hit = matchCase(p, q);
+  const hit = q ? matchCase(p, q) : null;
   return '<button class="case-card" style="width:100%;" data-action="usearch-open-patient" data-id="'+p.id+'">'
     + '<div style="min-width:0;flex:1;">'
-    + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+esc(p.name)+'</span><span class="mono" style="font-size:11px;color:#94a3b8;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
-    + '<div style="font-size:11px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
+    + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+esc(p.name)+'</span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
     + (hit && !['Name','Diagnosis'].includes(hit.field) ? '<div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(hit.field)+'</div>' : '')
     + '</div></button>';
 }
@@ -1282,14 +1329,15 @@ function renderListView() {
         + (dot ? '<span class="status-dot" style="background:'+dot.color+';" title="'+dot.label+'"></span>' : '')
         + (p.pinned ? '<span style="color:var(--accent);flex:none;">'+ic('pin')+'</span>' : '')
         + '<span class="display" style="font-weight:800;font-size:15px;">'+esc(p.name)+'</span>'
-        + '<span class="mono" style="font-size:11px;color:#94a3b8;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
-        + '<div style="font-size:11px;color:#94a3b8;margin-top:1px;" class="mono">'+esc(p.patientCode||'')+'</div>'
+        + '</div>'
+        + (p.diagnosis ? '<div style="font-size:13px;font-weight:600;color:#334155;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis)+'</div>' : '')
+        + '<div style="font-size:11px;color:var(--muted);margin-top:6px;" class="mono">'+formatAge(p)+' \u00b7 '+esc(p.sex)+(p.patientCode?' \u00b7 '+esc(p.patientCode):'')+'</div>'
         + (p.caseType==='surgical'
-            ? '<div style="font-size:12px;color:#64748b;margin-top:2px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
-            : '<div style="font-size:12px;color:#64748b;margin-top:2px;">OPD \u00b7 '+fmtDate(p.surgeryDate)+'</div>')
-        + '<div style="font-size:11px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
-        + (SEARCH && p._searchMatchField && !['Name','Diagnosis'].includes(p._searchMatchField) ? '<div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(p._searchMatchField)+'</div>' : '')
-        + (isOverdue(p.nextFollowUpDate) ? '<div class="overdue-note">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+'</div>' : '')
+            ? '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
+            : '<div style="font-size:11px;color:var(--muted);margin-top:1px;">OPD \u00b7 '+fmtDate(p.surgeryDate)+'</div>')
+        + (SEARCH && p._searchMatchField && !['Name','Diagnosis'].includes(p._searchMatchField) ? '<div style="font-size:10px;color:var(--accent);margin-top:4px;font-weight:600;">'+ic('search')+' Matched in: '+esc(p._searchMatchField)+'</div>' : '')
+        + (isOverdue(p.nextFollowUpDate) ? '<div class="overdue-note">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+'</div>'
+            : (p.nextFollowUpDate ? '<div style="font-size:11px;color:var(--muted);margin-top:4px;">'+ic('calendar')+' Next follow-up '+fmtDate(p.nextFollowUpDate)+'</div>' : ''))
         + '<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
         + (p.caseType==='surgical' ? '<span class="badge badge-'+TYPE_BADGE[p.surgeryType]+'">'+p.surgeryType+'</span>' : '<span class="badge badge-slate">OPD</span>')
         + (p.caseType==='surgical' ? '<span class="badge badge-slate">'+ic('camera')+p.preOpImageCount+' pre-op \u00b7 '+fuImgCount+' follow-up</span>' : '<span class="badge badge-slate">'+ic('camera')+fuImgCount+' follow-up</span>')
@@ -1304,7 +1352,7 @@ function renderListView() {
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding-top:16px;padding-bottom:10px;">'
     + '<div class="row between" style="margin-bottom:10px;">'
-    + '<div><h1 style="font-size:18px;font-weight:800;margin:0;">Bone Log Pro</h1><p style="font-size:11px;color:#94a3b8;margin:2px 0 0;">'+(ownerProfile.doctorName?esc(ownerProfile.doctorName)+' \u00b7 ':'')+PATIENTS.length+' case'+(PATIENTS.length!==1?'s':'')+' on record</p></div>'
+    + '<div><h1 style="font-size:18px;font-weight:800;margin:0;">Bone Log Pro</h1><p style="font-size:11px;color:var(--muted);margin:2px 0 0;">'+(ownerProfile.doctorName?esc(ownerProfile.doctorName)+' \u00b7 ':'')+PATIENTS.length+' case'+(PATIENTS.length!==1?'s':'')+' on record</p></div>'
     + '<div class="row gap2">'
     + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
     + '<button class="icon-btn" data-action="open-more" title="More">'+ic('menu')+'</button>'
@@ -1315,14 +1363,14 @@ function renderListView() {
     + tagChips
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'+continueLastPatientHtml()+renderDashboardSection()
-    + (PATIENTS.length ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:#94a3b8;">'
+    + (PATIENTS.length ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:var(--muted);">'
         + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
         + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to follow-up</span>'
         + '<span class="row gap1"><span class="status-dot" style="background:#16a34a;"></span> Complete</span>'
         + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
         + '</div>' : '')
     + cards+'</div>'
-    + (ownerProfile.doctorName ? '<p style="text-align:center;font-size:10px;color:#cbd5e1;margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' '+esc(ownerProfile.doctorName)+' \u2014 personal clinical tool, not for redistribution</p>' : '')
+    + (ownerProfile.doctorName ? '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' '+esc(ownerProfile.doctorName)+' \u2014 personal clinical tool, not for redistribution</p>' : '')
     + '</div>';
 }
 
@@ -1408,7 +1456,7 @@ function renderAddView() {
     + '<div><label class="field-label">Sex</label><div class="seg">'
     + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
     + '</div>'
-    + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea></div>'
+    + '<div style="margin-top:8px;"><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea></div>'
     + '<div><label class="field-label">Side</label><div class="seg">'
     + ['Left','Right','Bilateral'].map(s=>'<button class="seg-btn'+(AP_TEMP.side===s?' active':'')+'" data-action="ap-set-side" data-value="'+s+'">'+s+'</button>').join('')
     + '</div></div>'
@@ -1419,18 +1467,18 @@ function renderAddView() {
         + (AP_TEMP.condition==='ctev' ? '<div><label class="field-label">Laterality</label><div class="seg">'
             + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.laterality===v?' active':'')+'" data-action="ap-set-laterality" data-value="'+v+'">'+l+'</button>').join('')
             + '</div></div>' : '')
-        + '<p style="font-size:11px;color:#94a3b8;margin:-8px 0 0;">For other general conditions (Knee OA, ACL, etc.), select from the Education tab after saving the case.</p>'
+        + '<p style="font-size:11px;color:var(--muted);margin:-8px 0 0;">For other general conditions (Knee OA, ACL, etc.), select from the Education tab after saving the case.</p>'
       ) : '')
 
     + (isSurgical ? (
-        '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
+        '<div style="margin-top:8px;"><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
         + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'
         + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
       ) : (
-        '<div><label class="field-label">Visit date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
+        '<div style="margin-top:8px;"><label class="field-label">Visit date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
       ))
 
-    + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
+    + '<div style="margin-top:8px;"><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
     + '<div><label class="field-label">Clinical images (X-ray/CT/MRI, agar ho)</label><div id="ap-thumbs">'+thumbGridHtml(AP_PHOTOS,'ap-remove-photo')+'</div></div>'
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
     + '</div>'
@@ -1467,7 +1515,7 @@ function renderOverviewTab(p) {
     + '<input class="input" type="tel" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'" style="margin-bottom:10px;">'
     + (waLink(p)
         ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Message on WhatsApp</a>'
-        : '<p style="font-size:11px;color:#94a3b8;">Save a number to send messages.</p>')
+        : '<p style="font-size:11px;color:var(--muted);">Save a number to send messages.</p>')
     + (p.whatsapp ? '<div class="row gap2" style="margin-top:8px;">'
         + (followUpReminderLink(p)
             ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
@@ -1534,7 +1582,7 @@ function comorbidityCardHtml(p) {
 
 function classificationCardHtml(p) {
   return '<div class="card">'
-    + '<label class="field-label">'+ic('tag')+' Fracture Classification <span style="color:#94a3b8;font-weight:500;">(optional)</span></label>'
+    + '<label class="field-label">'+ic('tag')+' Fracture Classification <span style="color:var(--muted);font-weight:500;">(optional)</span></label>'
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     + CLASSIFICATION_SYSTEMS.map(s => '<button type="button" class="tag-chip" data-action="classification-insert-system" data-value="'+esc(s)+'">'+esc(s)+'</button>').join('')
     + '</div>'
@@ -1557,7 +1605,7 @@ function gustiloSectionHtml(p) {
     + '</div></div>';
   return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
     + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Gustilo-Anderson Assistant</label><button class="icon-btn" data-action="close-gustilo">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">Based on the standard Gustilo-Anderson criteria. Often finalised intra-operatively after debridement \u2014 treat this as a working estimate from ER/clinical findings.</p>'
+    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">Based on the standard Gustilo-Anderson criteria. Often finalised intra-operatively after debridement \u2014 treat this as a working estimate from ER/clinical findings.</p>'
     + q('woundSize', 'Wound size', [['<1','< 1 cm'],['1-10','1\u201310 cm'],['>10','> 10 cm']])
     + q('mechanism', 'Mechanism / energy', [['low','Low energy'],['high','High energy (crush, farm, GSW, segmental)']])
     + q('softTissue', 'Soft tissue damage', [['minimal','Minimal'],['moderate','Moderate'],['extensive','Extensive / loss']])
@@ -1566,7 +1614,7 @@ function gustiloSectionHtml(p) {
     + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Gustilo '+result.type+'</span></div>'
         + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
         + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="gustilo-insert" data-value="Gustilo-Anderson Type '+result.type+'">Insert into Classification</button>'
-      : '<p style="font-size:11px;color:#94a3b8;margin-top:10px;">Answer all questions to see the suggested type.</p>')
+      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer all questions to see the suggested type.</p>')
     + '</div>';
 }
 
@@ -1620,13 +1668,13 @@ function rustTrendCardHtml(p) {
     const xFor = i => padL + (n===1?plotW/2:(i/(n-1))*plotW);
     const yFor = score => padT + (1 - (score-4)/12) * plotH;
     let grid = '';
-    [4,8,12,16].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="#94a3b8" text-anchor="end">'+v+'</text>'; });
+    [4,8,12,16].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+v+'</text>'; });
     const pts = tracked.map((f,i) => xFor(i)+','+yFor(rustTotal(f.rust)));
     let lines = '<polyline points="'+pts.join(' ')+'" fill="none" stroke="#4338ca" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
     tracked.forEach((f,i) => { lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(rustTotal(f.rust))+'" r="3" fill="#4338ca"/>'; });
     html += '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:140px;">'+grid+lines+'</svg>';
   } else {
-    html += '<p style="font-size:11px;color:#94a3b8;">Log RUST at another visit to see the trend.</p>';
+    html += '<p style="font-size:11px;color:var(--muted);">Log RUST at another visit to see the trend.</p>';
   }
   html += '</div>';
   return html;
@@ -1651,7 +1699,7 @@ const RICKETS_HELP_HTML = '<div class="help-box">'
   + '\u2022 Elemental calcium supplementation alongside Vitamin D.<br>'
   + '\u2022 Sunlight exposure and dietary counselling.<br><br>'
   + '<b>Follow-up:</b> Repeat X-ray and biochemistry (Calcium, Phosphate, ALP) at ~4\u20136 weeks and again at 3 months \u2014 falling ALP and radiographic healing (re-mineralisation, reduced fraying/cupping) confirm response.<br><br>'
-  + '<p style="font-size:10px;color:#94a3b8;margin:0;">General reference \u2014 confirm the exact Vitamin D dose/regimen against current national guidelines and individualise for the patient\u2019s age and severity.</p>'
+  + '<p style="font-size:10px;color:var(--muted);margin:0;">General reference \u2014 confirm the exact Vitamin D dose/regimen against current national guidelines and individualise for the patient\u2019s age and severity.</p>'
   + '</div>';
 function ricketsCardHtml(p) {
   return '<div class="card"><label class="field-label">'+ic('clock')+' Rickets \u2014 management reference</label>'+RICKETS_HELP_HTML+'</div>';
@@ -1664,7 +1712,7 @@ function shouldShowPedsDose(p) {
 function pedsDoseCardHtml(p) {
   const w = Number(p.weightKg);
   let html = '<div class="card"><label class="field-label">'+ic('clock')+' Pediatric dose calculator</label>'
-    + '<div style="margin-bottom:10px;"><label style="font-size:10px;color:#94a3b8;display:block;margin-bottom:4px;">Weight (kg)</label><input class="input" type="number" min="0" step="0.1" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>';
+    + '<div style="margin-bottom:10px;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Weight (kg)</label><input class="input" type="number" min="0" step="0.1" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>';
   if (w) {
     const rows = [
       ['Paracetamol', (w*10).toFixed(0)+'\u2013'+(w*15).toFixed(0)+' mg/dose', 'PO, q4\u20136h, max 4 doses/day'],
@@ -1673,11 +1721,11 @@ function pedsDoseCardHtml(p) {
       ['Calcium (elemental)', (w*30).toFixed(0)+'\u2013'+(w*75).toFixed(0)+' mg/day', 'divided doses \u2014 wider range, dose depends on severity/indication'],
     ];
     html += '<div style="display:flex;flex-direction:column;gap:8px;">' + rows.map(([name,dose,note]) =>
-      '<div style="border-top:1px solid var(--border);padding-top:8px;"><div class="row between"><span style="font-weight:700;font-size:13px;">'+name+'</span><span class="mono" style="font-size:13px;">'+dose+'</span></div><div style="font-size:11px;color:#94a3b8;margin-top:2px;">'+note+'</div></div>'
+      '<div style="border-top:1px solid var(--border);padding-top:8px;"><div class="row between"><span style="font-weight:700;font-size:13px;">'+name+'</span><span class="mono" style="font-size:13px;">'+dose+'</span></div><div style="font-size:11px;color:var(--muted);margin-top:2px;">'+note+'</div></div>'
     ).join('') + '</div>'
-    + '<p style="font-size:10px;color:#94a3b8;margin-top:10px;">Standard reference dosing (syrup or tablet form, whichever applies) \u2014 verify against current formulary/BNF-C and individualise for the patient.</p>';
+    + '<p style="font-size:10px;color:var(--muted);margin-top:10px;">Standard reference dosing (syrup or tablet form, whichever applies) \u2014 verify against current formulary/BNF-C and individualise for the patient.</p>';
   } else {
-    html += '<p style="font-size:11px;color:#94a3b8;">Enter weight to calculate doses.</p>';
+    html += '<p style="font-size:11px;color:var(--muted);">Enter weight to calculate doses.</p>';
   }
   html += '</div>';
   return html;
@@ -1700,7 +1748,7 @@ function kocherCardHtml(p) {
   let html = '<div class="card"><label class="field-label">'+ic('tag')+' Kocher\u2019s criteria (septic arthritis vs transient synovitis \u2014 hip)</label>'
     + KOCHER_CRITERIA.map(([key,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12px;"><input type="checkbox" data-kocher-key="'+key+'"'+(k[key]?' checked':'')+'> '+label+'</label>').join('')
     + '<div class="scorer-total" style="margin-top:10px;"><span>'+count+' of 4 predictors</span><span class="badge '+(count>=3?'badge-red':count>=2?'badge-amber':'badge-emerald')+'">Probability '+KOCHER_PROBABILITY[count]+'</span></div>'
-    + '<p style="font-size:10px;color:#94a3b8;margin-top:8px;">Kocher et al. clinical prediction rule \u2014 an aid alongside clinical judgement, not a substitute for it.</p>'
+    + '<p style="font-size:10px;color:var(--muted);margin-top:8px;">Kocher et al. clinical prediction rule \u2014 an aid alongside clinical judgement, not a substitute for it.</p>'
     + '</div>';
   return html;
 }
@@ -1728,16 +1776,16 @@ function pjiResult(pji) {
   return { label: 'PJI unlikely ('+minorCount+'/6 minor criteria)', badge: 'badge-emerald' };
 }
 function pjiCardHtml(p) {
-  let html = '<div class="card">'
-    + '<div class="row between"><span style="font-size:12px;font-weight:700;">PJI suspected?</span><div class="seg" style="width:auto;">'
+  let html = '<div class="card"><label class="field-label">'+ic('tag')+' PJI (periprosthetic joint infection)</label>'
+    + '<div class="row between"><span style="font-size:12px;color:var(--muted);">Suspected?</span><div class="seg" style="width:auto;">'
     + [['no','No'],['yes','Yes']].map(([v,l])=>'<button class="seg-btn'+(((p.pjiSuspected?'yes':'no')===v)?' active':'')+'" data-action="set-pji-suspected" data-value="'+v+'" style="padding:6px 14px;">'+l+'</button>').join('')
     + '</div></div>';
   if (p.pjiSuspected) {
     const pji = p.pji || {};
     const result = pjiResult(pji);
-    html += '<p style="font-size:11px;color:#94a3b8;margin:10px 0 6px;font-weight:700;text-transform:uppercase;">Major criteria (either one confirms PJI)</p>'
+    html += '<p style="font-size:11px;color:var(--muted);margin:10px 0 6px;font-weight:700;text-transform:uppercase;">Major criteria (either one confirms PJI)</p>'
       + MSIS_MAJOR.map(([k,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12px;"><input type="checkbox" data-pji-key="'+k+'"'+(pji[k]?' checked':'')+'> '+label+'</label>').join('')
-      + '<p style="font-size:11px;color:#94a3b8;margin:10px 0 6px;font-weight:700;text-transform:uppercase;">Minor criteria (\u22654 of 6, if no major met)</p>'
+      + '<p style="font-size:11px;color:var(--muted);margin:10px 0 6px;font-weight:700;text-transform:uppercase;">Minor criteria (\u22654 of 6, if no major met)</p>'
       + MSIS_MINOR.map(([k,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12px;"><input type="checkbox" data-pji-key="'+k+'"'+(pji[k]?' checked':'')+'> '+label+'</label>').join('')
       + (result ? '<div class="scorer-total" style="margin-top:10px;"><span>Result</span><span class="badge '+result.badge+'">'+result.label+'</span></div>' : '');
   }
@@ -1764,19 +1812,19 @@ function bmiCardHtml(p) {
   return '<div class="card">'
     + '<label class="field-label">'+ic('clock')+' BMI</label>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">'
-    + '<div><label style="font-size:10px;color:#94a3b8;display:block;margin-bottom:4px;">Height (cm)</label><input class="input" type="number" min="0" data-field="heightCm" value="'+esc(p.heightCm)+'"></div>'
-    + '<div><label style="font-size:10px;color:#94a3b8;display:block;margin-bottom:4px;">Weight (kg)</label><input class="input" type="number" min="0" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>'
+    + '<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Height (cm)</label><input class="input" type="number" min="0" data-field="heightCm" value="'+esc(p.heightCm)+'"></div>'
+    + '<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Weight (kg)</label><input class="input" type="number" min="0" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>'
     + '</div>'
     + (bmi ? ('<div class="scorer-total"><span>BMI</span><span class="mono">'+bmi.toFixed(1)+' \u00b7 <span class="badge '+cat.badge+'" style="font-size:10px;">'+cat.label+'</span></span></div>'
-        + (cat.label==='Overweight' || cat.label==='Obese I' || cat.label==='Obese II' ? '<p style="font-size:11px;color:#94a3b8;margin-top:8px;">Higher BMI is a well-documented risk factor for wound complications, infection, and prosthesis loosening after arthroplasty. Pre-operative optimisation (weight, glycaemic control, nutrition) is commonly advised \u2014 individualise based on the full clinical picture.</p>' : ''))
-      : '<p style="font-size:11px;color:#94a3b8;">Enter height and weight to calculate BMI (Asian-Pacific classification).</p>')
+        + (cat.label==='Overweight' || cat.label==='Obese I' || cat.label==='Obese II' ? '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Higher BMI is a well-documented risk factor for wound complications, infection, and prosthesis loosening after arthroplasty. Pre-operative optimisation (weight, glycaemic control, nutrition) is commonly advised \u2014 individualise based on the full clinical picture.</p>' : ''))
+      : '<p style="font-size:11px;color:var(--muted);">Enter height and weight to calculate BMI (Asian-Pacific classification).</p>')
     + '</div>';
 }
 
 function romTrendCardHtml(p) {
   if (!p.romTracking) {
     return '<div class="card"><label class="field-label">'+ic('clock')+' ROM tracking</label>'
-      + '<p style="font-size:11px;color:#94a3b8;margin:2px 0 10px;">Track range of motion over follow-ups \u2014 useful for TKR, frozen shoulder, elbow stiffness, or any joint where progress needs watching.</p>'
+      + '<p style="font-size:11px;color:var(--muted);margin:2px 0 10px;">Track range of motion over follow-ups \u2014 useful for TKR, frozen shoulder, elbow stiffness, or any joint where progress needs watching.</p>'
       + '<div class="row gap2">'
       + Object.keys(ROM_JOINT_FIELDS).map(j => '<button class="btn" style="flex:1;" data-action="enable-rom" data-value="'+j+'">'+ROM_JOINT_LABELS[j]+'</button>').join('')
       + '</div></div>';
@@ -1792,7 +1840,7 @@ function romTrendCardHtml(p) {
     const xFor = i => padL + (n===1?plotW/2:(i/(n-1))*plotW);
     const yFor = deg => padT + (1 - Math.max(0,Math.min(150,deg))/150) * plotH;
     let grid = '';
-    [0,50,100,150].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="#94a3b8" text-anchor="end">'+v+'</text>'; });
+    [0,50,100,150].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+v+'</text>'; });
     let lines = '';
     fields.forEach(([key,,color]) => {
       const pts = []; tracked.forEach((f,i) => { const v = f.rom && f.rom[key]; if (v!=null && v!=='') pts.push(xFor(i)+','+yFor(Number(v))); });
@@ -1804,7 +1852,7 @@ function romTrendCardHtml(p) {
       + fields.map(([,label,color]) => '<span style="font-size:10px;color:#64748b;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+color+';margin-right:3px;"></span>'+label+'</span>').join('')
       + '</div>';
   } else {
-    html += '<p style="font-size:11px;color:#94a3b8;">Log ROM at another visit to see the trend.</p>';
+    html += '<p style="font-size:11px;color:var(--muted);">Log ROM at another visit to see the trend.</p>';
   }
   html += '</div>';
   return html;
@@ -1858,7 +1906,7 @@ async function renderPreopTab(p) {
     + (p.caseType === 'surgical' ? '<div class="card" style="margin-bottom:14px;">'
     + '<label class="field-label">OT / Intra-op photos</label><div style="position:relative;">'+otGrid+otGridFab+'</div>'
     + '</div>' : '')
-    + (images.length ? '<div style="position:relative;">'+grid+gridFab+'</div>' : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No clinical images yet.</div>'+'<div style="position:relative;">'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">')+gridFab+'</div>')
+    + (images.length ? '<div style="position:relative;">'+grid+gridFab+'</div>' : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px 0;">No clinical images yet.</div>'+'<div style="position:relative;">'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">')+gridFab+'</div>')
     + '</div>';
 }
 
@@ -1872,20 +1920,20 @@ async function renderFollowupsTab(p) {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + '<label class="field-label">Visit label</label><input class="input" id="fu-label" placeholder="e.g. 2 weeks / 6 weeks / 3 months" style="margin-bottom:10px;">'
       + '<label class="field-label">Visit date</label><input class="input" type="date" id="fu-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
-      + (p.caseType==='surgical' && p.surgeryDate ? '<p style="font-size:11px;color:#94a3b8;margin:-6px 0 10px;">Post-op Day: <b class="mono" id="fu-pod-preview">'+(calcPOD(p, todayStr())??'\u2014')+'</b></p>' : '')
+      + (p.caseType==='surgical' && p.surgeryDate ? '<p style="font-size:11px;color:var(--muted);margin:-6px 0 10px;">Post-op Day: <b class="mono" id="fu-pod-preview">'+(calcPOD(p, todayStr())??'\u2014')+'</b></p>' : '')
       + '<label class="field-label">Wound / suture status (if applicable)</label><select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'+WOUND_STATUS_OPTIONS.map(s=>'<option'+(s==='N/A'?' selected':'')+'>'+s+'</option>').join('')+'</select>'
       + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? '<label class="field-label">Union status</label><select class="select" id="fu-unionstatus" style="margin-bottom:10px;">'+UNION_STATUS_OPTIONS.map(s=>'<option'+(s==='Not assessed'?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
       + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? (
           '<div class="row" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">RUST score (optional)</label><button type="button" class="info-help-btn" style="margin-left:6px;" data-action="toggle-rust-help">i</button></div>'
           + '<div id="rust-help-box">'+(SHOW_RUST_HELP ? RUST_HELP_HTML : '')+'</div>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-          + [['anterior','Anterior'],['posterior','Posterior'],['medial','Medial'],['lateral','Lateral']].map(([k,l])=>'<div><label style="font-size:10px;color:#94a3b8;display:block;margin-bottom:4px;">'+l+'</label><select class="select" id="fu-rust-'+k+'"><option value="">\u2014</option>'+[1,2,3,4].map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'</select></div>').join('')
+          + [['anterior','Anterior'],['posterior','Posterior'],['medial','Medial'],['lateral','Lateral']].map(([k,l])=>'<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">'+l+'</label><select class="select" id="fu-rust-'+k+'"><option value="">\u2014</option>'+[1,2,3,4].map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'</select></div>').join('')
           + '</div>'
         ) : '')
       + (p.romTracking ? (
           '<label class="field-label">'+ROM_JOINT_LABELS[p.romTracking.jointType]+' ROM (degrees, optional)</label>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-          + (ROM_JOINT_FIELDS[p.romTracking.jointType]||[]).map(([k,l])=>'<div><label style="font-size:10px;color:#94a3b8;display:block;margin-bottom:4px;">'+l+'</label><input class="input" type="number" min="0" max="150" id="fu-rom-'+k+'" placeholder="\u00b0"></div>').join('')
+          + (ROM_JOINT_FIELDS[p.romTracking.jointType]||[]).map(([k,l])=>'<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">'+l+'</label><input class="input" type="number" min="0" max="150" id="fu-rom-'+k+'" placeholder="\u00b0"></div>').join('')
           + '</div>'
         ) : '')
       + '<label class="field-label">Wound / suture photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
@@ -1925,7 +1973,7 @@ async function renderFollowupsTab(p) {
     }
     list += '<div class="fu-card">'
       + '<div class="row between" style="cursor:pointer;" data-action="toggle-fu" data-id="'+f.id+'">'
-      + '<span style="font-weight:800;">'+esc(f.label)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(f.date)+(pod!=null?' \u00b7 Post-op Day '+pod:'')+'</span></span>'
+      + '<span style="font-weight:800;">'+esc(f.label)+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+fmtDate(f.date)+(pod!=null?' \u00b7 Post-op Day '+pod:'')+'</span></span>'
       + '<div class="row gap2">'
       + (f.woundStatus && f.woundStatus !== 'N/A' ? '<span class="badge '+woundBadgeClass(f.woundStatus)+'" style="font-size:10px;">'+esc(f.woundStatus)+'</span>' : '')
       + (f.unionStatus && f.unionStatus !== 'Not assessed' ? '<span class="badge '+unionBadgeClass(f.unionStatus)+'" style="font-size:10px;">'+esc(f.unionStatus)+'</span>' : '')
@@ -1956,13 +2004,13 @@ function renderInjectionsTab(p) {
   [...(p.injections||[])].reverse().forEach(inj => {
     list += '<div class="fu-card">'
       + '<div class="row between">'
-      + '<span style="font-weight:800;">'+esc(inj.label)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(inj.date)+'</span></span>'
+      + '<span style="font-weight:800;">'+esc(inj.label)+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+fmtDate(inj.date)+'</span></span>'
       + confirmBtn('delete-inj', inj.id)
       + '</div>'
       + (inj.notes ? '<p style="font-size:12px;color:#64748b;margin-top:6px;">'+esc(inj.notes)+'</p>' : '')
       + '</div>';
   });
-  if (!list && !ADD_INJECTION_OPEN) list = '<p style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No injections logged yet.</p>';
+  if (!list && !ADD_INJECTION_OPEN) list = compactEmptyState('pill', 'No injections logged yet.');
 
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
 }
@@ -2001,7 +2049,7 @@ async function renderInvestigationsTab(p) {
     }
     list += '<div class="fu-card">'
       + '<div class="row between" style="cursor:pointer;" data-action="toggle-inv" data-id="'+inv.id+'">'
-      + '<span style="font-weight:800;">'+esc(inv.label)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(inv.date)+'</span></span>'
+      + '<span style="font-weight:800;">'+esc(inv.label)+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+fmtDate(inv.date)+'</span></span>'
       + '<div class="row gap2">'
       + '<span class="badge badge-slate">'+ic('camera')+(inv.imageCount||0)+'</span>'
       + confirmBtn('delete-inv', inv.id)
@@ -2027,7 +2075,7 @@ function syncRxMedsFromDom() {
 function renderRxMedRows() {
   return RX_TEMP.medicines.map((m, idx) =>
     '<div class="card" style="margin-bottom:8px;">'
-    + '<div class="row between" style="margin-bottom:8px;"><span style="font-weight:800;font-size:11px;color:#94a3b8;text-transform:uppercase;">Medicine '+(idx+1)+'</span>'
+    + '<div class="row between" style="margin-bottom:8px;"><span style="font-weight:800;font-size:11px;color:var(--muted);text-transform:uppercase;">Medicine '+(idx+1)+'</span>'
     + (RX_TEMP.medicines.length>1 ? '<button class="icon-btn" data-action="rx-remove-med" data-id="'+m.id+'">'+ic('trash')+'</button>' : '')
     + '</div>'
     + '<input class="input" id="rxm-'+m.id+'-name" list="rx-med-names" placeholder="Medicine name" value="'+esc(m.name)+'" style="margin-bottom:8px;">'
@@ -2076,7 +2124,7 @@ function renderPrescriptionsTab(p) {
     const medNames = rx.medicines.map(m=>m.name).filter(Boolean).join(', ');
     list += '<div class="fu-card">'
       + '<div class="row between">'
-      + '<span style="font-weight:800;">'+fmtDate(rx.date)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+rx.medicines.length+' medicine'+(rx.medicines.length!==1?'s':'')+'</span></span>'
+      + '<span style="font-weight:800;">'+fmtDate(rx.date)+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+rx.medicines.length+' medicine'+(rx.medicines.length!==1?'s':'')+'</span></span>'
       + '<div class="row gap2">'
       + '<button class="icon-btn" data-action="view-rx" data-id="'+rx.id+'" style="color:var(--accent);" title="View / Print">'+ic('printer')+'</button>'
       + confirmBtn('delete-rx', rx.id)
@@ -2116,7 +2164,7 @@ function renderPrintView() {
     + '<div class="rx-clinic-addr">Reg. No: '+esc(profile.regNumber||'\u2014')+'</div></div>'
     + '</div>'
     + '<div class="rx-patient-row">'
-    + '<span><b>Patient:</b> '+esc(patient.name)+' &nbsp; ('+formatAge(patient)+' / '+esc(patient.sex)+')'+(patient.patientCode?' &nbsp; <span style="color:#94a3b8;">'+esc(patient.patientCode)+'</span>':'')+'</span>'
+    + '<span><b>Patient:</b> '+esc(patient.name)+' &nbsp; ('+formatAge(patient)+' / '+esc(patient.sex)+')'+(patient.patientCode?' &nbsp; <span style="color:var(--muted);">'+esc(patient.patientCode)+'</span>':'')+'</span>'
     + '<span><b>Date:</b> '+fmtDate(rx.date)+'</span>'
     + '</div>'
     + (patient.diagnosis ? '<div class="rx-diagnosis">'+esc(patient.diagnosis)+'</div>' : '')
@@ -2490,7 +2538,7 @@ function searchEduLibrary(query) {
 function renderEduResultsHtml(query) {
   const results = searchEduLibrary(query);
   if (query.trim() && !results.length) {
-    return '<p style="font-size:12px;color:#94a3b8;text-align:center;padding:16px 0;">No match for this keyword. Try a different one (e.g. \u201cknee OA\u201d, \u201cACL\u201d, \u201cfracture\u201d).</p>';
+    return '<p style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;">No match for this keyword. Try a different one (e.g. \u201cknee OA\u201d, \u201cACL\u201d, \u201cfracture\u201d).</p>';
   }
   if (!results.length) return '';
   return '<div style="display:flex;flex-direction:column;gap:8px;">' + results.map(e => {
@@ -2540,7 +2588,7 @@ function renderEducationTab(p) {
     + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="edu-search-input" placeholder="Or search a keyword for another condition (e.g. ACL, fracture)" value="'+esc(query)+'"></div>'
     + '<button class="btn btn-sm" style="margin-left:8px;" data-action="edu-toggle-multiselect">'+(EDU_MULTISELECT?'Cancel':'Select multiple')+'</button>'
     + '</div>'
-    + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">'+(EDU_MULTISELECT ? 'Tap to select guides to send together.' : 'Set the condition above, or search a keyword here.')+'</p>'
+    + '<p style="font-size:11px;color:var(--muted);margin:-4px 0 12px;">'+(EDU_MULTISELECT ? 'Tap to select guides to send together.' : 'Set the condition above, or search a keyword here.')+'</p>'
     + '<div id="edu-results">'+renderEduResultsHtml(query)+'</div>'
     + (EDU_MULTISELECT && EDU_SELECTED_IDS.length ? '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;"><button class="btn btn-primary btn-block" data-action="open-edu-multi">'+ic('message')+' Share '+EDU_SELECTED_IDS.length+' selected</button></div>' : '')
     + '</div>';
@@ -2562,7 +2610,7 @@ function renderEduImagePrintView() {
     + '<button class="btn" style="background:#25D366;border-color:#25D366;color:#fff;" data-action="share-edu-image">'+ic('message')+' Share Image</button>'
     + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
     + '</div></div>'
-    + (waNumber ? '<p class="no-print px" style="font-size:11px;color:#94a3b8;margin:8px 0 0;">Tip: tap <b>Open Chat</b> to jump straight to '+esc(patient.name)+'\u2019s WhatsApp, then <b>Share Image</b> and pick that same chat to attach it \u2014 WhatsApp\u2019s own links can\u2019t attach images automatically.</p>' : '')
+    + (waNumber ? '<p class="no-print px" style="font-size:11px;color:var(--muted);margin:8px 0 0;">Tip: tap <b>Open Chat</b> to jump straight to '+esc(patient.name)+'\u2019s WhatsApp, then <b>Share Image</b> and pick that same chat to attach it \u2014 WhatsApp\u2019s own links can\u2019t attach images automatically.</p>' : '')
     + '<div class="edu-img-doc">'
     + '<div class="edu-img-strip">'
     + '<span><b>'+esc(patient.name)+'</b> \u00b7 '+formatAge(patient)+' / '+esc(patient.sex)+(patient.patientCode?' \u00b7 <span class="mono">'+esc(patient.patientCode)+'</span>':'')+'</span>'
@@ -2612,7 +2660,7 @@ function renderEduMultiPrintView() {
     + (imageEdus.length ? '<button class="btn" style="background:#25D366;border-color:#25D366;color:#fff;" data-action="share-edu-images">'+ic('message')+' Share Images ('+imageEdus.length+')</button>' : '')
     + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
     + '</div></div>'
-    + (waNumber ? '<p class="no-print px" style="font-size:11px;color:#94a3b8;margin:8px 0 0;">Tip: tap <b>Open Chat</b> to jump straight to '+esc(patient.name)+'\u2019s WhatsApp'+(imageEdus.length?', then <b>Share Images</b> and pick that same chat to attach them':'')+' \u2014 WhatsApp\u2019s own links can\u2019t attach images automatically.</p>' : '')
+    + (waNumber ? '<p class="no-print px" style="font-size:11px;color:var(--muted);margin:8px 0 0;">Tip: tap <b>Open Chat</b> to jump straight to '+esc(patient.name)+'\u2019s WhatsApp'+(imageEdus.length?', then <b>Share Images</b> and pick that same chat to attach them':'')+' \u2014 WhatsApp\u2019s own links can\u2019t attach images automatically.</p>' : '')
     + imageEdus.map(edu => {
         const tpl = EDU_IMAGE_TEMPLATES[edu.id];
         return '<div class="edu-img-doc" style="margin-bottom:16px;">'
@@ -2788,7 +2836,11 @@ async function renderTabBody(p) {
   if (TAB === 'timeline') { el.innerHTML = renderTimelineTab(p); return; }
   if (TAB === 'ra') { el.innerHTML = renderRaTab(p); return; }
   if (TAB === 'osteo') { el.innerHTML = renderOsteoTab(p); return; }
-  el.innerHTML = '<div class="px" style="padding-top:30px;text-align:center;color:#94a3b8;">Loading\u2026</div>';
+  el.innerHTML = '<div class="px" style="padding-top:14px;">'
+    + '<div class="skeleton-line" style="width:60%;height:14px;margin-bottom:14px;"></div>'
+    + '<div class="skeleton-block"></div>'
+    + '<div class="skeleton-block" style="margin-top:12px;"></div>'
+    + '</div>';
   if (TAB === 'preop') el.innerHTML = await renderPreopTab(p);
   else if (TAB === 'followups') el.innerHTML = await renderFollowupsTab(p);
   else if (TAB === 'records') el.innerHTML = await renderRecordsTab(p);
@@ -2816,7 +2868,7 @@ function renderTimelineTab(p) {
   events = events.filter(e => e.date).sort((a,b) => new Date(a.date) - new Date(b.date));
 
   if (!events.length) {
-    return '<div class="px" style="padding-top:14px;padding-bottom:20px;"><div style="text-align:center;color:#94a3b8;font-size:12px;padding:30px 0;">No timeline events yet \u2014 they\u2019ll show up here as soon as you add follow-ups, investigations, or a prescription.</div></div>';
+    return '<div class="px" style="padding-top:14px;padding-bottom:20px;"><div style="text-align:center;color:var(--muted);font-size:12px;padding:30px 0;">No timeline events yet \u2014 they\u2019ll show up here as soon as you add follow-ups, investigations, or a prescription.</div></div>';
   }
   const rows = events.map(e => '<div class="tl-row">'
     + '<div class="tl-dot" style="background:'+e.bg+';color:'+e.color+';"><svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:'+e.color+';">'+ICONS[e.icon]+'</svg></div>'
@@ -2920,17 +2972,17 @@ function renderCtevTab(p) {
     const firstDate = new Date(ctev.castingSessions[0].date);
     const weekFor = (dateStr) => Math.round((new Date(dateStr) - firstDate) / (7*24*60*60*1000));
     let grid = '';
-    [0,2,4,6].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="#94a3b8" text-anchor="end">'+v+'</text>'; });
-    ctev.castingSessions.forEach((s,i) => { grid += '<text x="'+xFor(i)+'" y="'+(h-8)+'" font-size="8" fill="#94a3b8" text-anchor="middle">Wk '+weekFor(s.date)+'</text>'; });
+    [0,2,4,6].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+v+'</text>'; });
+    ctev.castingSessions.forEach((s,i) => { grid += '<text x="'+xFor(i)+'" y="'+(h-8)+'" font-size="8" fill="var(--muted)" text-anchor="middle">Wk '+weekFor(s.date)+'</text>'; });
     let lines = '';
     feet.forEach(f => {
       const pts = []; ctev.castingSessions.forEach((s,i) => { if (s[f]) pts.push(xFor(i)+','+yFor(piraniTotal(s[f].components))); });
       if (pts.length) { lines += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+FOOT_COLOR[f]+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'; ctev.castingSessions.forEach((s,i)=>{ if(s[f]) lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(piraniTotal(s[f].components))+'" r="3" fill="'+FOOT_COLOR[f]+'"/>'; }); }
     });
-    html += '<div class="card" style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">Pirani trend</div><svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:150px;">'+grid+lines+'</svg></div>';
+    html += '<div class="card" style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Pirani trend</div><svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:150px;">'+grid+lines+'</svg></div>';
   }
 
-  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Casting sessions</div>';
+  html += '<div class="section-title" style="margin-top:0;">Casting sessions</div>';
   if (!ADD_CTEV_SESSION_OPEN) {
     html += '<button class="btn btn-outline-dashed btn-block" data-action="ctev-open-add-session" style="margin-bottom:12px;">'+ic('plus')+' Add casting session #'+(ctev.castingSessions.length+1)+'</button>';
   } else {
@@ -2945,13 +2997,13 @@ function renderCtevTab(p) {
       + '</div>';
   }
   [...ctev.castingSessions].reverse().forEach(s => {
-    html += '<div class="fu-card"><div class="row between" style="margin-bottom:6px;"><span style="font-weight:800;">Session '+s.sessionNo+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(s.date)+'</span></span>'+(s.sessionNo!==1?confirmBtn('ctev-delete-session', s.id):'')+'</div>';
+    html += '<div class="fu-card"><div class="row between" style="margin-bottom:6px;"><span style="font-weight:800;">Session '+s.sessionNo+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+fmtDate(s.date)+'</span></span>'+(s.sessionNo!==1?confirmBtn('ctev-delete-session', s.id):'')+'</div>';
     feet.forEach(f => { if (s[f]) { const t = piraniTotal(s[f].components); html += '<span style="font-size:12px;margin-right:10px;color:'+FOOT_COLOR[f]+';font-weight:700;">'+(f==='left'?'L':'R')+' '+t+'/6</span>'; } });
     if (s.notes) html += '<p style="font-size:12px;color:#64748b;margin-top:6px;">'+esc(s.notes)+'</p>';
     html += '</div>';
   });
 
-  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin:16px 0 8px;">Tenotomy</div>';
+  html += '<div class="section-title">Tenotomy</div>';
   feet.forEach(f => {
     const t = ctev.tenotomy[f];
     html += '<div class="card" style="margin-bottom:8px;">'
@@ -2964,7 +3016,7 @@ function renderCtevTab(p) {
     html += '</div>';
   });
 
-  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin:16px 0 8px;">Brace</div>';
+  html += '<div class="section-title">Brace</div>';
   html += '<div class="card" style="margin-bottom:10px;">'
     + '<label class="field-label">Regimen</label><textarea class="textarea" rows="2" data-ctev-field="brace.regimen">'+esc(ctev.brace.regimen)+'</textarea>'
     + '<label class="field-label" style="margin-top:8px;">Start date</label><input class="input" type="date" data-ctev-field="brace.startDate" value="'+esc(ctev.brace.startDate)+'">'
@@ -2981,7 +3033,7 @@ function renderCtevTab(p) {
       + '</div>';
   }
   [...ctev.brace.complianceLogs].reverse().forEach(l => {
-    html += '<div class="card" style="margin-bottom:8px;"><div class="row between"><span style="font-weight:700;">'+fmtDate(l.date)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+l.hoursPerDay+' hrs/day</span></span>'+confirmBtn('ctev-delete-brace-log', l.id)+'</div>'+(l.notes?'<p style="font-size:12px;color:#64748b;margin-top:4px;">'+esc(l.notes)+'</p>':'')+'</div>';
+    html += '<div class="card" style="margin-bottom:8px;"><div class="row between"><span style="font-weight:700;">'+fmtDate(l.date)+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+l.hoursPerDay+' hrs/day</span></span>'+confirmBtn('ctev-delete-brace-log', l.id)+'</div>'+(l.notes?'<p style="font-size:12px;color:#64748b;margin-top:4px;">'+esc(l.notes)+'</p>':'')+'</div>';
   });
 
   html += '</div>';
@@ -3019,11 +3071,11 @@ const RA_HELP_HTML = '<div class="help-box"><b>TJC/SJC:</b> count how many of th
   + '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">'
   + '<b>The 28 joints (bilateral \u2014 count both sides):</b>'
   + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;margin-top:8px;font-size:12px;">'
-  + '<span style="font-weight:700;color:#94a3b8;">Joint</span><span style="font-weight:700;color:#94a3b8;text-align:center;">Per side</span><span style="font-weight:700;color:#94a3b8;text-align:center;">Both sides</span>'
+  + '<span style="font-weight:700;color:var(--muted);">Joint</span><span style="font-weight:700;color:var(--muted);text-align:center;">Per side</span><span style="font-weight:700;color:var(--muted);text-align:center;">Both sides</span>'
   + RA_28_JOINTS.map(([name,n]) => '<span>'+name+'</span><span style="text-align:center;" class="mono">'+n+'</span><span style="text-align:center;" class="mono">'+(n*2)+'</span>').join('')
   + '<span style="font-weight:800;">Total</span><span></span><span style="text-align:center;font-weight:800;" class="mono">28</span>'
   + '</div>'
-  + '<p style="font-size:11px;color:#94a3b8;margin:8px 0 0;">Hips, ankles, feet, and DIP joints are <b>not</b> part of the 28-joint count \u2014 a common mix-up.</p>'
+  + '<p style="font-size:11px;color:var(--muted);margin:8px 0 0;">Hips, ankles, feet, and DIP joints are <b>not</b> part of the 28-joint count \u2014 a common mix-up.</p>'
   + '</div></div>';
 
 const RA_MGT_HELP_HTML = '<div class="help-box">'
@@ -3036,7 +3088,7 @@ const RA_MGT_HELP_HTML = '<div class="help-box">'
   + '<b>Other conventional DMARDs:</b> Sulfasalazine (start 500 mg/day, titrate to 1\u20131.5 g BD) \u2014 alternative/add-on, useful when MTX contraindicated (e.g. pregnancy planning, liver disease). Leflunomide \u2014 alternative to MTX, similar efficacy.<br><br>'
   + '<b>Steroids</b> \u2014 low-dose bridging (e.g. Prednisolone 5\u201310 mg/day, or an IM/intra-articular depot) while the DMARD takes effect; taper and stop as soon as feasible. Avoid long-term use where possible (bone, metabolic, infection risk).<br><br>'
   + '<b>Calcium / Vitamin D</b> \u2014 bone protection is relevant for most RA patients, more so if on steroids \u2014 supplement per standard osteoporosis-prevention dosing, and consider a baseline DEXA where indicated (see the Bone Health / DEXA tracking for a patient marked Osteoporosis).<br><br>'
-  + '<p style="font-size:10px;color:#94a3b8;margin:0;">General evidence-based reference for your own use \u2014 individualise for each patient (renal/hepatic function, comorbidities, pregnancy plans, current guideline updates).</p>'
+  + '<p style="font-size:10px;color:var(--muted);margin:0;">General evidence-based reference for your own use \u2014 individualise for each patient (renal/hepatic function, comorbidities, pregnancy plans, current guideline updates).</p>'
   + '</div>';
 
 function renderRaTab(p) {
@@ -3063,7 +3115,7 @@ function renderRaTab(p) {
     + '<label class="field-label" style="'+(overdueLabs?'color:#7f1d1d;':'')+'">Next monitoring labs due'+(overdueLabs?' \u2014 OVERDUE':'')+'</label>'
     + '<input class="input" type="date" data-ra-field="nextLabsDate" value="'+esc(ra.nextLabsDate)+'"></div>';
 
-  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Treatment</div>';
+  html += '<div class="section-title" style="margin-top:0;">Treatment</div>';
   html += '<div class="card" style="margin-bottom:12px;display:flex;flex-direction:column;gap:8px;">'
     + '<div><label class="field-label">csDMARDs</label><textarea class="textarea" rows="2" data-ra-field="treatment.dmards">'+esc(ra.treatment.dmards)+'</textarea></div>'
     + '<div><label class="field-label">Biologics</label><textarea class="textarea" rows="2" data-ra-field="treatment.biologics">'+esc(ra.treatment.biologics)+'</textarea></div>'
@@ -3071,7 +3123,7 @@ function renderRaTab(p) {
     + '<div><label class="field-label">NSAIDs</label><textarea class="textarea" rows="2" data-ra-field="treatment.nsaids">'+esc(ra.treatment.nsaids)+'</textarea></div>'
     + '</div>';
 
-  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Visits</div>';
+  html += '<div class="section-title" style="margin-top:0;">Visits</div>';
   if (!ADD_RA_VISIT_OPEN) {
     html += '<button class="btn btn-outline-dashed btn-block" data-action="ra-open-add-visit" style="margin-bottom:12px;">'+ic('plus')+' Add visit</button>';
   } else {
@@ -3094,7 +3146,7 @@ function renderRaTab(p) {
   [...ra.visits].reverse().forEach(v => {
     const sc = computeRaVisitScores(v);
     html += '<div class="fu-card"><div class="row between"><span style="font-weight:800;">'+fmtDate(v.date)+'</span>'+confirmBtn('ra-delete-visit', v.id)+'</div>'
-      + '<p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">TJC '+esc(v.tjc)+' \u00b7 SJC '+esc(v.sjc)+' \u00b7 ESR '+(v.esr??'\u2014')+' \u00b7 CRP '+(v.crp??'\u2014')+'</p>'
+      + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">TJC '+esc(v.tjc)+' \u00b7 SJC '+esc(v.sjc)+' \u00b7 ESR '+(v.esr??'\u2014')+' \u00b7 CRP '+(v.crp??'\u2014')+'</p>'
       + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">'
       + raScoreBadgeHtml('DAS28-ESR', sc.das28esr, bandDAS28(sc.das28esr)) + raScoreBadgeHtml('DAS28-CRP', sc.das28crp, bandDAS28(sc.das28crp))
       + raScoreBadgeHtml('CDAI', sc.cdai, bandCDAI(sc.cdai)) + raScoreBadgeHtml('SDAI', sc.sdai, bandSDAI(sc.sdai)) + '</div>'
@@ -3162,13 +3214,13 @@ async function renderPhotoOrganiserTab(p) {
   revokeActiveUrls();
   const nonEmpty = PHOTO_FOLDER_ORDER.filter(k => folders[k].length);
   if (!nonEmpty.length) {
-    return '<div class="px" style="padding-top:30px;text-align:center;color:#94a3b8;font-size:12px;">No photos on this case yet.</div>';
+    return '<div class="px" style="padding-top:30px;text-align:center;color:var(--muted);font-size:12px;">No photos on this case yet.</div>';
   }
   let html = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
   nonEmpty.forEach(key => {
     const imgs = folders[key];
     html += '<div style="margin-bottom:16px;">'
-      + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">'+ic('folder')+' '+esc(key)+'</label><span style="font-size:11px;color:#94a3b8;">'+imgs.length+' photo'+(imgs.length!==1?'s':'')+'</span></div>'
+      + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">'+ic('folder')+' '+esc(key)+'</label><span style="font-size:11px;color:var(--muted);">'+imgs.length+' photo'+(imgs.length!==1?'s':'')+'</span></div>'
       + '<div class="thumb-grid">'
       + imgs.map(im => { const url = trackUrl(URL.createObjectURL(im.blob)); return '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>'; }).join('')
       + '</div></div>';
@@ -3196,7 +3248,7 @@ async function renderComparePickerView() {
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">Select 2 photos to compare</h2>'
     + '</div>'
     + '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
-    + '<p style="font-size:12px;color:#94a3b8;margin-bottom:12px;">Tap the "Before" photo first, then the "After" one. ('+COMPARE_SELECTED.length+'/2 selected)</p>'
+    + '<p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Tap the "Before" photo first, then the "After" one. ('+COMPARE_SELECTED.length+'/2 selected)</p>'
     + '<div class="compare-pick-grid">'+items+'</div>'
     + '</div>';
 }
@@ -3216,7 +3268,7 @@ function renderCompareView() {
     + '<div class="compare-half"><div class="compare-tag">BEFORE \u00b7 '+esc(imageSourceLabel(imA,p))+'</div><img src="'+urlA+'" data-action="view-image" data-imgid="'+imA.id+'" data-url="'+esc(urlA)+'"></div>'
     + '<div class="compare-half"><div class="compare-tag">AFTER \u00b7 '+esc(imageSourceLabel(imB,p))+'</div><img src="'+urlB+'" data-action="view-image" data-imgid="'+imB.id+'" data-url="'+esc(urlB)+'"></div>'
     + '</div>'
-    + '<p style="text-align:center;font-size:11px;color:#94a3b8;padding:10px;">Tap either photo to zoom</p>';
+    + '<p style="text-align:center;font-size:11px;color:var(--muted);padding:10px;">Tap either photo to zoom</p>';
 }
 
 let DEXA_TEMP = null;
@@ -3234,7 +3286,7 @@ function renderOsteoTab(p) {
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
     + OSTEO_RISK_FACTORS.map(([k,label]) => '<button type="button" class="tag-chip'+(o.riskFactors[k]?' active':'')+'" data-action="osteo-toggle-risk" data-value="'+k+'">'+esc(label)+'</button>').join('')
     + '</div>'
-    + '<div class="row" style="margin-top:8px;"><button type="button" class="info-help-btn" data-action="toggle-osteo-help">i</button><span style="font-size:11px;color:#94a3b8;margin-left:6px;">What do these mean / how do I use them?</span></div>'
+    + '<div class="row" style="margin-top:8px;"><button type="button" class="info-help-btn" data-action="toggle-osteo-help">i</button><span style="font-size:11px;color:var(--muted);margin-left:6px;">What do these mean / how do I use them?</span></div>'
     + '<div id="osteo-help-box">'+(SHOW_OSTEO_HELP ? OSTEO_HELP_HTML : '')+'</div>'
     + '</div>';
 
@@ -3242,14 +3294,14 @@ function renderOsteoTab(p) {
     + '<label class="field-label" style="'+(overdueDexa?'color:#7f1d1d;':'')+'">Next DEXA due'+(overdueDexa?' \u2014 OVERDUE':'')+'</label>'
     + '<input class="input" type="date" data-osteo-field="nextDexaDate" value="'+esc(o.nextDexaDate)+'"></div>';
 
-  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Treatment</div>';
+  html += '<div class="section-title" style="margin-top:0;">Treatment</div>';
   html += '<div class="card" style="margin-bottom:12px;display:flex;flex-direction:column;gap:8px;">'
     + '<div><label class="field-label">Calcium / Vitamin D</label><textarea class="textarea" rows="2" data-osteo-field="treatment.calciumVitD">'+esc(o.treatment.calciumVitD)+'</textarea></div>'
     + '<div><label class="field-label">Bisphosphonate / other bone medicine</label><textarea class="textarea" rows="2" data-osteo-field="treatment.bisphosphonate">'+esc(o.treatment.bisphosphonate)+'</textarea></div>'
     + '<div><label class="field-label">Notes</label><textarea class="textarea" rows="2" data-osteo-field="treatment.notes">'+esc(o.treatment.notes)+'</textarea></div>'
     + '</div>';
 
-  html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">DEXA scans</div>';
+  html += '<div class="section-title" style="margin-top:0;">DEXA scans</div>';
   if (!ADD_DEXA_OPEN) {
     html += '<button class="btn btn-outline-dashed btn-block" data-action="osteo-open-add-dexa" style="margin-bottom:12px;">'+ic('plus')+' Add DEXA result</button>';
   } else {
@@ -3267,7 +3319,7 @@ function renderOsteoTab(p) {
   [...o.dexaScans].reverse().forEach(scan => {
     const cat = worstDexaCategory(scan);
     html += '<div class="fu-card"><div class="row between"><span style="font-weight:800;">'+fmtDate(scan.date)+'</span>'+confirmBtn('osteo-delete-dexa', scan.id)+'</div>'
-      + '<p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">Spine '+(scan.tScoreSpine!==''&&scan.tScoreSpine!=null?scan.tScoreSpine:'\u2014')+' \u00b7 Hip '+(scan.tScoreHip!==''&&scan.tScoreHip!=null?scan.tScoreHip:'\u2014')+' \u00b7 Wrist '+(scan.tScoreWrist!==''&&scan.tScoreWrist!=null?scan.tScoreWrist:'\u2014')+'</p>'
+      + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">Spine '+(scan.tScoreSpine!==''&&scan.tScoreSpine!=null?scan.tScoreSpine:'\u2014')+' \u00b7 Hip '+(scan.tScoreHip!==''&&scan.tScoreHip!=null?scan.tScoreHip:'\u2014')+' \u00b7 Wrist '+(scan.tScoreWrist!==''&&scan.tScoreWrist!=null?scan.tScoreWrist:'\u2014')+'</p>'
       + (cat ? '<span class="badge '+cat.cls+'" style="margin-top:6px;display:inline-block;">'+cat.label+'</span>' : '')
       + (scan.notes ? '<p style="font-size:12px;color:#64748b;margin-top:6px;">'+esc(scan.notes)+'</p>' : '')
       + '</div>';
@@ -3288,7 +3340,7 @@ function renderDetailShell(p) {
     + '<div class="row gap3 px" style="padding:14px 16px 10px;">'
     + '<button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button>'
     + '<div style="min-width:0;flex:1;"><h2 style="font-size:16px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</h2>'
-    + '<p style="font-size:11px;color:#94a3b8;margin:1px 0 0;">'+(p.caseType==='surgical'?p.surgeryType+' \u00b7 '+esc(p.procedure||''):'OPD case')+'</p></div>'
+    + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;">'+(p.caseType==='surgical'?p.surgeryType+' \u00b7 '+esc(p.procedure||''):'OPD case')+'</p></div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
     + confirmBtn('delete-patient', p.id)
     + '</div>'
@@ -3353,9 +3405,9 @@ function renderCalendarGrid() {
     + '<div style="text-align:center;"><span style="font-weight:800;font-size:14px;">'+monthLabel+'</span></div>'
     + '<button class="icon-btn" data-action="cal-next-month" style="transform:rotate(180deg);">'+ic('back')+'</button>'
     + '</div>'
-    + '<div class="row between" style="margin:2px 0 8px;"><button class="btn btn-sm" data-action="cal-today">Today</button><span style="font-size:11px;color:#94a3b8;">'+weekCount+' follow-up'+(weekCount!==1?'s':'')+' in next 7 days</span></div>'
+    + '<div class="row between" style="margin:2px 0 8px;"><button class="btn btn-sm" data-action="cal-today">Today</button><span style="font-size:11px;color:var(--muted);">'+weekCount+' follow-up'+(weekCount!==1?'s':'')+' in next 7 days</span></div>'
     + cells
-    + '<div class="row gap3" style="margin-top:10px;font-size:10px;color:#94a3b8;"><span class="row gap1"><span class="cal-dot cal-dot-fu" style="position:static;">#</span> Follow-ups</span><span class="row gap1"><span class="cal-dot cal-dot-rem" style="position:static;"></span> Reminder due</span></div>'
+    + '<div class="row gap3" style="margin-top:10px;font-size:10px;color:var(--muted);"><span class="row gap1"><span class="cal-dot cal-dot-fu" style="position:static;">#</span> Follow-ups</span><span class="row gap1"><span class="cal-dot cal-dot-rem" style="position:static;"></span> Reminder due</span></div>'
     + '</div>';
 }
 
@@ -3367,7 +3419,7 @@ function renderCalendarDayDetail() {
   return '<div class="card" style="margin-bottom:12px;">'
     + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">'+esc(label)+'</label>'
     + '<button class="btn btn-sm" data-action="reminder-add-for-date" data-value="'+dateStr+'">'+ic('plus')+' Reminder</button></div>'
-    + (!fus.length && !rems.length ? '<p style="font-size:12px;color:#94a3b8;padding:4px 0;">Nothing due this day.</p>' : '')
+    + (!fus.length && !rems.length ? '<p style="font-size:12px;color:var(--muted);padding:4px 0;">Nothing due this day.</p>' : '')
     + fus.map(p => '<div class="row between" data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;padding:7px 0;border-top:1px solid var(--border);"><span style="font-size:13px;font-weight:600;">'+esc(p.name)+'</span><span class="badge '+(isOverdue(p.nextFollowUpDate)?'badge-red':'badge-indigo')+'" style="font-size:10px;">Follow-up</span></div>').join('')
     + rems.map(r => reminderRowHtml(r)).join('')
     + '</div>';
@@ -3379,8 +3431,8 @@ function reminderRowHtml(r) {
     + '<div class="row gap2" style="align-items:flex-start;flex:1;min-width:0;">'
     + '<button class="reminder-check'+(r.done?' done':'')+'" data-action="reminder-toggle" data-id="'+r.id+'">'+(r.done?ic('check'):'')+'</button>'
     + '<div style="min-width:0;">'
-    + '<div style="font-size:13px;font-weight:600;'+(r.done?'text-decoration:line-through;color:#94a3b8;':'')+'">'+esc(r.text)+'</div>'
-    + '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">'+esc(patient?'Patient':r.category)+(patient?' \u00b7 '+esc(patient.name):'')+(r.dueDate?' \u00b7 '+fmtDate(r.dueDate):'')+'</div>'
+    + '<div style="font-size:13px;font-weight:600;'+(r.done?'text-decoration:line-through;color:var(--muted);':'')+'">'+esc(r.text)+'</div>'
+    + '<div style="font-size:10px;color:var(--muted);margin-top:2px;">'+esc(patient?'Patient':r.category)+(patient?' \u00b7 '+esc(patient.name):'')+(r.dueDate?' \u00b7 '+fmtDate(r.dueDate):'')+'</div>'
     + '</div></div>'
     + confirmBtn('delete-reminder', r.id)
     + '</div>';
@@ -3397,7 +3449,7 @@ function renderRemindersList() {
   return '<div class="card" style="margin-bottom:12px;">'
     + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">Open ('+open.length+')</label>'
     + '<button class="btn btn-sm btn-primary" data-action="reminder-add-general">'+ic('plus')+' Add reminder</button></div>'
-    + (open.length ? open.map(r=>reminderRowHtml(r)).join('') : '<p style="font-size:12px;color:#94a3b8;">Nothing pending.</p>')
+    + (open.length ? open.map(r=>reminderRowHtml(r)).join('') : compactEmptyState('check', 'Nothing pending. Nice.'))
     + '</div>'
     + (done.length ? '<div class="card"><label class="field-label">Completed</label>'+done.slice(0,20).map(r=>reminderRowHtml(r)).join('')+'</div>' : '');
 }
@@ -3444,6 +3496,7 @@ function renderCalendarView() {
 
 async function render() {
   const app = document.getElementById('app');
+  app.classList.remove('view-transition'); void app.offsetWidth; app.classList.add('view-transition');
   updateUsearchFabVisibility();
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
@@ -3476,18 +3529,58 @@ async function patchField(field, value) {
 
 /* ================= Image viewer modal ================= */
 
-function openImageViewer(url, imgId) {
-  const overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.id = 'img-viewer';
+let IMG_GALLERY = null;
+let IMG_GALLERY_IDX = 0;
+function openImageViewer(url, imgId, gallery, idx) {
+  IMG_GALLERY = (gallery && gallery.length > 1) ? gallery : null;
+  IMG_GALLERY_IDX = idx || 0;
+  let overlay = document.getElementById('img-viewer');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.id = 'img-viewer';
+    document.body.appendChild(overlay);
+    let touchStartX = null;
+    overlay.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive:true });
+    overlay.addEventListener('touchend', (e) => {
+      if (touchStartX == null) return;
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      touchStartX = null;
+      if (Math.abs(dx) < 50 || !IMG_GALLERY) return;
+      if (dx > 0 && IMG_GALLERY_IDX > 0) viewerNav(-1);
+      else if (dx < 0 && IMG_GALLERY_IDX < IMG_GALLERY.length-1) viewerNav(1);
+    }, { passive:true });
+  }
+  renderImageViewerFrame(url, imgId);
+}
+function renderImageViewerFrame(url, imgId) {
+  const overlay = document.getElementById('img-viewer');
+  if (!overlay) return;
+  const hasGallery = !!IMG_GALLERY;
   overlay.innerHTML = '<div class="modal-bar">'
+    + (hasGallery ? '<span style="color:#fff;font-size:12px;opacity:0.75;">'+(IMG_GALLERY_IDX+1)+' / '+IMG_GALLERY.length+'</span>' : '<span></span>')
+    + '<div class="row gap2">'
     + '<button class="modal-btn" data-action="viewer-delete" data-imgid="'+imgId+'">'+ic('trash')+'</button>'
     + '<button class="modal-btn" data-action="viewer-close">'+ic('x')+'</button>'
-    + '</div>'
+    + '</div></div>'
+    + (hasGallery && IMG_GALLERY_IDX > 0 ? '<button class="modal-nav modal-nav-prev" data-action="viewer-prev">'+ic('back')+'</button>' : '')
+    + (hasGallery && IMG_GALLERY_IDX < IMG_GALLERY.length-1 ? '<button class="modal-nav modal-nav-next" data-action="viewer-next" style="transform:translateY(-50%) rotate(180deg);">'+ic('back')+'</button>' : '')
     + '<img src="'+url+'">';
-  document.body.appendChild(overlay);
 }
-function closeImageViewer() { const el = document.getElementById('img-viewer'); if (el) el.remove(); }
+function viewerNav(dir) {
+  if (!IMG_GALLERY) return;
+  const newIdx = IMG_GALLERY_IDX + dir;
+  if (newIdx < 0 || newIdx >= IMG_GALLERY.length) return;
+  IMG_GALLERY_IDX = newIdx;
+  const g = IMG_GALLERY[IMG_GALLERY_IDX];
+  renderImageViewerFrame(g.url, g.imgid);
+}
+function closeImageViewer() { const el = document.getElementById('img-viewer'); if (el) el.remove(); IMG_GALLERY = null; }
+document.addEventListener('keydown', (e) => {
+  if (!document.getElementById('img-viewer') || !IMG_GALLERY) return;
+  if (e.key === 'ArrowLeft') viewerNav(-1);
+  else if (e.key === 'ArrowRight') viewerNav(1);
+});
 
 /* ================= Export backup ================= */
 
@@ -3831,7 +3924,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-usearch') { closeUniversalSearch(); return; }
   if (action === 'usearch-open-patient') {
     closeUniversalSearch();
-    SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
+    SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); recordRecentSearchPatient(el.dataset.id); VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
     await render();
     return;
   }
@@ -3865,6 +3958,9 @@ document.addEventListener('click', async (e) => {
     const conditionEl = document.getElementById('ap-condition');
     if (conditionEl) AP_TEMP.condition = conditionEl.value;
     if (!AP_TEMP.name.trim()) { toast('Name is required'); return; }
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Saving\u2026';
+    el.disabled = true;
     const p = newPatientShape();
     p.name = AP_TEMP.name.trim();
     p.age = AP_TEMP.age;
@@ -3886,14 +3982,19 @@ document.addEventListener('click', async (e) => {
     if (p.condition === 'ctev') p.ctev = newCtevShape();
     if (p.condition === 'ra') p.ra = newRaShape();
     if (p.condition === 'osteoporosis') p.osteo = newOsteoShape();
-    await dbPutPatient(p);
-    for (const ph of AP_PHOTOS) {
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now() });
+    try {
+      await dbPutPatient(p);
+      for (const ph of AP_PHOTOS) {
+        await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now() });
+      }
+      await refreshPatients();
+      AP_PHOTOS = [];
+      AP_DUPLICATE_FROM = null;
+      VIEW = 'list'; render();
+    } catch (err) {
+      el.innerHTML = originalHtml; el.disabled = false;
+      toast('Could not save \u2014 try again');
     }
-    await refreshPatients();
-    AP_PHOTOS = [];
-    AP_DUPLICATE_FROM = null;
-    VIEW = 'list'; render();
     return;
   }
 
@@ -3997,6 +4098,9 @@ document.addEventListener('click', async (e) => {
     const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rust, rom, imageCount: FU_PHOTOS.length + FU_WOUND_PHOTOS.length };
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Saving\u2026';
+    el.disabled = true;
     await dbPutPatient(p);
     for (const ph of FU_PHOTOS) {
       await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now() });
@@ -4054,6 +4158,9 @@ document.addEventListener('click', async (e) => {
     recordTextUsed(INVESTIGATION_LIB_KEY, label);
     p.investigations = p.investigations || [];
     p.investigations.push(inv);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Saving\u2026';
+    el.disabled = true;
     await dbPutPatient(p);
     for (const ph of INV_PHOTOS) {
       await dbAddImage({ id: uid(), patientId: p.id, investigationId: inv.id, blob: ph.blob, createdAt: Date.now() });
@@ -4116,7 +4223,19 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'view-image') { openImageViewer(el.dataset.url, el.dataset.imgid); return; }
+  if (action === 'view-image') {
+    const container = el.closest('.thumb-grid');
+    let gallery = null, startIdx = 0;
+    if (container) {
+      const items = Array.from(container.querySelectorAll('[data-action="view-image"]'));
+      gallery = items.map(it => ({ url: it.dataset.url, imgid: it.dataset.imgid }));
+      startIdx = items.indexOf(el);
+    }
+    openImageViewer(el.dataset.url, el.dataset.imgid, gallery, startIdx);
+    return;
+  }
+  if (action === 'viewer-prev') { viewerNav(-1); return; }
+  if (action === 'viewer-next') { viewerNav(1); return; }
   if (action === 'viewer-close') { closeImageViewer(); return; }
   if (action === 'viewer-delete') {
     const imgId = el.dataset.imgid;
@@ -4142,7 +4261,13 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'export-backup') { await exportBackup(); return; }
+  if (action === 'export-backup') {
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Exporting\u2026';
+    el.disabled = true;
+    try { await exportBackup(); } finally { el.innerHTML = originalHtml; el.disabled = false; }
+    return;
+  }
   if (action === 'dismiss-backup-banner') { BACKUP_BANNER_DISMISSED = true; render(); return; }
   if (action === 'set-theme') { applyTheme(el.dataset.value); render(); return; }
   if (action === 'enable-notifs') {
@@ -4717,8 +4842,8 @@ function renderLockScreen() {
   return '<div class="lock-screen">'
     + '<div class="lock-icon">'+ic('gear')+'</div>'
     + '<h2 style="font-size:16px;font-weight:800;margin:14px 0 4px;">Bone Log Pro is locked</h2>'
-    + '<p style="font-size:12px;color:#94a3b8;margin:0 0 4px;">'+(LOCK_ERROR?'Wrong PIN, try again.':'Enter PIN')+'</p>'
-    + (ownerProfile.doctorName ? '<p style="font-size:10px;color:#cbd5e1;margin:0 0 14px;">Personal clinical tool of '+esc(ownerProfile.doctorName)+'</p>' : '<div style="margin-bottom:16px;"></div>')
+    + '<p style="font-size:12px;color:var(--muted);margin:0 0 4px;">'+(LOCK_ERROR?'Wrong PIN, try again.':'Enter PIN')+'</p>'
+    + (ownerProfile.doctorName ? '<p style="font-size:10px;color:var(--muted);margin:0 0 14px;">Personal clinical tool of '+esc(ownerProfile.doctorName)+'</p>' : '<div style="margin-bottom:16px;"></div>')
     + '<div class="lock-dots" style="'+(LOCK_ERROR?'animation:lock-shake 0.4s;':'')+'">'+dots+'</div>'
     + '<div class="lock-keypad">'
     + [1,2,3,4,5,6,7,8,9].map(n=>'<button class="lock-key" data-action="lock-digit" data-value="'+n+'">'+n+'</button>').join('')
@@ -4763,7 +4888,7 @@ function appLockCardHtml() {
     const labels = { 'set-new':'Enter a new 4-digit PIN', 'confirm-new':'Confirm the PIN again', 'change-verify':'Enter your current PIN first', 'disable-verify':'Enter your current PIN to turn off the lock' };
     return '<div class="card">'
       + '<label class="field-label">App Lock</label>'
-      + '<p style="font-size:12px;color:#94a3b8;text-align:center;margin:6px 0;">'+labels[LOCK_SETUP_MODE]+'</p>'
+      + '<p style="font-size:12px;color:var(--muted);text-align:center;margin:6px 0;">'+labels[LOCK_SETUP_MODE]+'</p>'
       + '<div class="pin-setup-dots">'+dots+'</div>'
       + '<div class="pin-setup-keypad">'
       + [1,2,3,4,5,6,7,8,9].map(n=>'<button type="button" class="lock-key" data-action="lock-digit" data-value="'+n+'">'+n+'</button>').join('')
@@ -4775,7 +4900,7 @@ function appLockCardHtml() {
   const enabled = isLockEnabled();
   return '<div class="card">'
     + '<div class="row between"><label class="field-label" style="margin-bottom:0;">App Lock</label><span class="badge badge-'+(enabled?'emerald':'slate')+'">'+(enabled?'ON':'OFF')+'</span></div>'
-    + '<p style="font-size:12px;color:#94a3b8;margin:6px 0 10px;">Asks for a 4-digit PIN every time you open the app, so only you can see the data.</p>'
+    + '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Asks for a 4-digit PIN every time you open the app, so only you can see the data.</p>'
     + (enabled
         ? '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="lock-start-change">Change PIN</button><button class="btn btn-sm" style="flex:1;" data-action="lock-start-disable">Disable</button></div>'
         : '<button class="btn btn-primary btn-block" data-action="lock-start-enable">Enable App Lock</button>')
