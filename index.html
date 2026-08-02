@@ -23,7 +23,7 @@
     --red:#b91c1c; --red-bg:#fee2e2; --red-border:#fecaca;
     --slate:#475569; --slate-bg:#f1f5f9; --slate-border:#e2e8f0;
   }
-  .score-badge { display:inline-flex; flex-direction:column; align-items:flex-start; border-radius:9px; border:1px solid; padding:5px 9px; }
+  .score-badge { display:inline-flex; flex-direction:column; align-items:flex-start; border-radius:8px; border:1px solid; padding:5px 9px; }
   .score-remission { color:var(--emerald); background:var(--emerald-bg); border-color:var(--emerald-border); }
   .score-low { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
   .score-moderate { color:var(--orange); background:var(--orange-bg); border-color:var(--orange-border); }
@@ -34,7 +34,7 @@
   .scorer-group-title { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:#94a3b8; }
   .scorer-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:5px 0; }
   .scorer-btns { display:flex; gap:4px; flex-shrink:0; }
-  .scorer-btn { width:34px; height:26px; border-radius:6px; border:1px solid var(--border); background:#fff; color:#64748b; font-weight:700; font-size:11.5px; font-family:'JetBrains Mono',monospace; }
+  .scorer-btn { width:34px; height:26px; border-radius:8px; border:1px solid var(--border); background:#fff; color:#64748b; font-weight:700; font-size:11px; font-family:'JetBrains Mono',monospace; }
   .scorer-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
   .scorer-total { display:flex; align-items:center; justify-content:space-between; border-radius:10px; padding:9px 14px; background:#0f172a; color:#fff; font-weight:800; margin-top:2px; font-size:13px; }
   .info-help-btn { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:var(--slate-bg); color:var(--slate); border:none; font-size:11px; font-weight:800; font-family:'Fraunces',serif; font-style:italic; margin-left:5px; vertical-align:middle; }
@@ -63,7 +63,7 @@
   .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; }
   .btn-primary:disabled { opacity:0.4; }
   .btn-block { width:100%; display:flex; align-items:center; justify-content:center; gap:6px; }
-  .btn-sm { padding:6px 10px; font-size:11.5px; border-radius:8px; }
+  .btn-sm { padding:6px 10px; font-size:11px; border-radius:8px; }
   .btn-danger-confirm { background:#dc2626; color:#fff; border-color:#dc2626; }
   .btn-outline-dashed { border:2px dashed #c7d2fe; color:var(--accent-dark); background:transparent; }
 
@@ -80,11 +80,12 @@
   .chip.active { background:var(--ink); border-color:var(--ink); color:#fff; }
 
   .card { border:1px solid var(--border); border-radius:14px; background:#fff; padding:16px; }
-  .case-card { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; border:1px solid var(--border); border-radius:12px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+  .case-card { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; border:1px solid var(--border); border-radius:14px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
   .status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .case-card:active { background:var(--bg-soft); }
 
-  .badge { display:inline-flex; align-items:center; gap:5px; border-radius:999px; border:1px solid; padding:4px 9px; font-size:11px; font-weight:700; }
+  .badge { display:inline-flex; align-items:center; gap:4px; border-radius:999px; border:1px solid; padding:4px 9px; font-size:11px; font-weight:700; }
+  button.badge { border-style:dashed; cursor:pointer; }
   .badge-indigo { color:var(--accent); background:#eef2ff; border-color:#c7d2fe; }
   .badge-amber { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
   .badge-orange { color:var(--orange); background:var(--orange-bg); border-color:var(--orange-border); }
@@ -98,7 +99,7 @@
   .textarea { resize:vertical; }
 
   .seg { display:flex; gap:6px; }
-  .seg-btn { flex:1; border:1px solid var(--border); border-radius:9px; padding:9px; font-weight:700; font-size:12.5px; background:#fff; color:var(--muted); }
+  .seg-btn { flex:1; border:1px solid var(--border); border-radius:8px; padding:9px; font-weight:700; font-size:12px; background:#fff; color:var(--muted); }
   .seg-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
 
   .thumb-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px; }
@@ -106,7 +107,7 @@
   .thumb-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
   .thumb-remove { position:absolute; top:3px; right:3px; background:rgba(15,23,42,0.75); color:#fff; border:none; border-radius:999px; width:20px; height:20px; font-size:12px; line-height:1; }
   .thumb-label { position:absolute; bottom:0; left:0; right:0; background:rgba(15,23,42,0.65); color:#fff; font-size:9px; padding:2px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .add-photo-tile { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; aspect-ratio:1; border-radius:10px; border:2px dashed #c7d2fe; color:var(--accent-dark); font-size:10.5px; font-weight:700; background:#f5f6ff; }
+  .add-photo-tile { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; aspect-ratio:1; border-radius:10px; border:2px dashed #c7d2fe; color:var(--accent-dark); font-size:10px; font-weight:700; background:#f5f6ff; }
   .cam-fab { position:absolute; top:-9px; right:-9px; width:36px; height:36px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(67,56,202,0.4); border:2px solid #fff; z-index:2; }
   .cam-fab .ic { width:16px; height:16px; }
   [data-theme="dark"] .cam-fab { border-color:#0f172a; }
@@ -119,14 +120,14 @@
   .dash-tile { flex:1; border-radius:14px; padding:14px 12px; text-align:center; border:1px solid; }
   .dash-tile .dv { font-size:22px; font-weight:800; font-family:'JetBrains Mono',monospace; line-height:1.1; }
   .dash-tile .dl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; margin-top:3px; opacity:0.85; }
-  .backup-banner { display:flex; align-items:center; gap:10px; border-radius:12px; padding:10px 12px; background:var(--amber-bg); border:1px solid var(--amber-border); margin-bottom:12px; }
-  .insight-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:12.5px; border-bottom:1px solid var(--border); }
+  .backup-banner { display:flex; align-items:center; gap:10px; border-radius:14px; padding:10px 12px; background:var(--amber-bg); border:1px solid var(--amber-border); margin-bottom:12px; }
+  .insight-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:12px; border-bottom:1px solid var(--border); }
   .insight-row:last-child { border-bottom:none; }
   .mic-btn { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; border:1px solid var(--border); background:#fff; color:var(--muted); flex-shrink:0; }
   .mic-btn.recording { background:var(--red); border-color:var(--red); color:#fff; animation: mic-pulse 1.1s infinite; }
   @keyframes mic-pulse { 0%{box-shadow:0 0 0 0 rgba(185,28,28,0.4);} 70%{box-shadow:0 0 0 8px rgba(185,28,28,0);} 100%{box-shadow:0 0 0 0 rgba(185,28,28,0);} }
   .textarea-with-mic { position:relative; }
-  .tag-chip { display:inline-flex; align-items:center; gap:4px; border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--muted); padding:5px 10px; font-size:11.5px; font-weight:600; }
+  .tag-chip { display:inline-flex; align-items:center; gap:4px; border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--muted); padding:5px 10px; font-size:11px; font-weight:600; }
   .tag-chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
   .tag-chip-x { display:inline-flex; }
   .stat-label { font-size:11px; font-weight:700; text-transform:uppercase; color:#94a3b8; }
@@ -135,15 +136,15 @@
   .empty-state { display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; margin-top:56px; padding:0 24px; color:#64748b; }
   .empty-icon-wrap { background:#eef2ff; border-radius:999px; padding:18px; color:var(--accent); margin-bottom:4px; }
 
-  .fu-card { border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+  .fu-card { border:1px solid var(--border); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
   .tl-row { display:flex; gap:12px; position:relative; padding-bottom:20px; }
   .tl-row:last-child { padding-bottom:0; }
   .tl-row::before { content:''; position:absolute; left:15px; top:32px; bottom:0; width:2px; background:var(--border); }
   .tl-row:last-child::before { display:none; }
   .tl-dot { flex-shrink:0; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; z-index:1; }
   .tl-content { flex:1; padding-top:4px; cursor:pointer; }
-  .tl-date { font-size:10.5px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; }
-  .tl-title { font-size:13.5px; font-weight:700; color:var(--ink); margin-top:2px; }
+  .tl-date { font-size:10px; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; }
+  .tl-title { font-size:13px; font-weight:700; color:var(--ink); margin-top:2px; }
   .tl-sub { font-size:12px; color:#64748b; margin-top:2px; }
   .overdue-note { font-size:11px; font-weight:700; color:var(--red); margin-top:3px; display:flex; align-items:center; gap:4px; }
   .bottom-bar { position:sticky; bottom:0; border-top:1px solid var(--border); background:#fff; padding:10px 12px; padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)); display:flex; gap:8px; }
@@ -162,13 +163,13 @@
   .rx-clinic-addr { font-size:11px; color:#475569; line-height:1.5; }
   .rx-doc-name { font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:14px; }
   .rx-patient-row { display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; }
-  .rx-diagnosis { font-size:12.5px; color:#475569; font-style:italic; margin-bottom:14px; }
+  .rx-diagnosis { font-size:12px; color:#475569; font-style:italic; margin-bottom:14px; }
   .rx-symbol { font-family:'Plus Jakarta Sans',sans-serif; font-size:22px; font-weight:800; font-style:italic; margin:6px 0 8px; }
   .rx-table { width:100%; border-collapse:collapse; margin-bottom:16px; }
-  .rx-table td { padding:8px 4px; vertical-align:top; border-bottom:1px solid #f1f5f9; font-size:13.5px; }
+  .rx-table td { padding:8px 4px; vertical-align:top; border-bottom:1px solid #f1f5f9; font-size:13px; }
   .rx-num { width:22px; font-weight:700; color:#64748b; }
   .rx-sub { font-size:12px; color:#64748b; }
-  .rx-advice { font-size:12.5px; margin-bottom:8px; line-height:1.5; }
+  .rx-advice { font-size:12px; margin-bottom:8px; line-height:1.5; }
   .rx-sign { margin-top:50px; text-align:right; font-size:12px; color:#334155; }
 
   /* ---- Patient education handout: its own editorial identity ---- */
@@ -179,34 +180,34 @@
     --edu-red:#A8362E; --edu-red-light:#FCEEEC; --edu-red-border:#F0C4BE;
   }
   .edu-doc { max-width:520px; margin:0 auto; background:var(--edu-bg); font-family:'Inter',sans-serif; color:var(--edu-ink); padding-bottom:24px; }
-  .edu-header-band { background:var(--edu-teal); color:#fff; padding:9px 22px; display:flex; justify-content:space-between; align-items:center; font-size:10.5px; letter-spacing:0.02em; }
+  .edu-header-band { background:var(--edu-teal); color:#fff; padding:9px 22px; display:flex; justify-content:space-between; align-items:center; font-size:10px; letter-spacing:0.02em; }
   .edu-hero { padding:26px 22px 16px; }
-  .edu-eyebrow { font-size:11px; font-weight:700; letter-spacing:0.13em; text-transform:uppercase; color:var(--edu-gold); margin-bottom:9px; }
+  .edu-eyebrow { font-size:11px; font-weight:700; letter-spacing:0.13em; text-transform:uppercase; color:var(--edu-gold); margin-bottom:8px; }
   .edu-title { font-family:'Fraunces',serif; font-weight:600; font-size:29px; line-height:1.18; color:var(--edu-teal); margin:0 0 12px; }
-  .edu-tier-legend { display:flex; gap:16px; margin-bottom:14px; font-size:10.5px; color:var(--edu-muted); flex-wrap:wrap; }
+  .edu-tier-legend { display:flex; gap:16px; margin-bottom:14px; font-size:10px; color:var(--edu-muted); flex-wrap:wrap; }
   .edu-tier-legend b { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; }
-  .edu-patient-line { font-size:12.5px; color:var(--edu-muted); padding-top:12px; border-top:1px solid var(--edu-teal-border); }
+  .edu-patient-line { font-size:12px; color:var(--edu-muted); padding-top:12px; border-top:1px solid var(--edu-teal-border); }
 
   .edu-section { margin:0 22px 14px; padding:16px 18px; border-radius:14px; border-left:4px solid; }
   .edu-section.info { background:var(--edu-teal-light); border-color:var(--edu-teal); }
   .edu-section.action { background:var(--edu-gold-light); border-color:var(--edu-gold); }
   .edu-section.urgent { background:var(--edu-red-light); border-color:var(--edu-red); }
-  .edu-section-label { font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:16px; margin-bottom:9px; }
+  .edu-section-label { font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:16px; margin-bottom:8px; }
   .edu-section.info .edu-section-label { color:var(--edu-teal); }
   .edu-section.action .edu-section-label { color:var(--edu-gold); }
   .edu-section.urgent .edu-section-label { color:var(--edu-red); }
-  .edu-section-body { font-size:13.5px; line-height:1.6; }
+  .edu-section-body { font-size:13px; line-height:1.6; }
   .edu-section-body + .edu-section-body { margin-top:8px; }
   .edu-checklist { list-style:none; margin:0; padding:0; }
-  .edu-checklist li { display:flex; gap:8px; align-items:flex-start; margin-bottom:8px; font-size:13.5px; line-height:1.45; }
+  .edu-checklist li { display:flex; gap:8px; align-items:flex-start; margin-bottom:8px; font-size:13px; line-height:1.45; }
   .edu-checklist li:last-child { margin-bottom:0; }
   .edu-checklist li svg { flex-shrink:0; margin-top:2px; width:15px; height:15px; }
   .edu-section.action .edu-checklist svg { color:var(--edu-gold); }
   .edu-section.urgent .edu-checklist svg { color:var(--edu-red); }
-  .edu-footer { margin:20px 22px 0; padding-top:12px; border-top:1px solid var(--edu-teal-border); font-size:10.5px; color:var(--edu-muted); display:flex; justify-content:space-between; }
+  .edu-footer { margin:20px 22px 0; padding-top:12px; border-top:1px solid var(--edu-teal-border); font-size:10px; color:var(--edu-muted); display:flex; justify-content:space-between; }
 
   .edu-img-doc { max-width:600px; margin:0 auto; }
-  .edu-img-strip { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#0f2a4a; color:#fff; font-size:12.5px; }
+  .edu-img-strip { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#0f2a4a; color:#fff; font-size:12px; }
   .edu-img-strip .mono { color:#93c5fd; }
 
   .edu-hi { color:var(--edu-muted); margin-top:2px; }
@@ -215,7 +216,7 @@
   .edu-cross { flex-shrink:0; margin-top:1px; width:15px; height:15px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:var(--edu-red); }
   .edu-quote { margin:18px 22px; padding:18px 20px; background:#fff; border-radius:14px; border:1px solid var(--edu-teal-border); text-align:center; }
   .edu-quote-en { font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:16px; color:var(--edu-teal); line-height:1.4; }
-  .edu-quote-hi { font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:14.5px; color:var(--edu-muted); margin-top:8px; line-height:1.4; }
+  .edu-quote-hi { font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:14px; color:var(--edu-muted); margin-top:8px; line-height:1.4; }
 
   @media print {
     .no-print, .sticky-top, .toast { display:none !important; }
@@ -285,13 +286,13 @@
   .compare-tag { position:absolute; top:10px; left:10px; background:rgba(0,0,0,0.65); color:#fff; font-size:11px; font-weight:800; letter-spacing:0.03em; padding:5px 10px; border-radius:999px; z-index:2; }
 
   .cal-dow-row { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10px; font-weight:700; color:#94a3b8; margin-bottom:4px; }
-  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
   .cal-cell { aspect-ratio:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; border-radius:8px; border:1px solid transparent; background:none; }
   .cal-daynum { font-size:12px; font-weight:600; }
   .cal-today .cal-daynum { color:var(--accent); font-weight:800; }
   .cal-selected { border-color:var(--accent); background:rgba(67,56,202,0.06); }
-  .cal-dots { display:flex; align-items:center; gap:3px; height:12px; }
-  .cal-dot { display:inline-flex; align-items:center; justify-content:center; min-width:14px; height:14px; padding:0 3px; border-radius:999px; font-size:8.5px; font-weight:800; background:var(--accent); color:#fff; }
+  .cal-dots { display:flex; align-items:center; gap:4px; height:12px; }
+  .cal-dot { display:inline-flex; align-items:center; justify-content:center; min-width:14px; height:14px; padding:0 3px; border-radius:999px; font-size:9px; font-weight:800; background:var(--accent); color:#fff; }
   .cal-dot-overdue { background:var(--red); }
   .cal-dot-rem { min-width:6px; width:6px; height:6px; padding:0; background:var(--amber); }
   .reminder-check { width:22px; height:22px; border-radius:50%; border:2px solid var(--border); background:#fff; flex:none; display:flex; align-items:center; justify-content:center; color:#fff; margin-top:1px; }
@@ -510,7 +511,7 @@ function continueLastPatientHtml() {
   return '<button class="card" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin-bottom:12px;border-color:#c7d2fe;background:rgba(67,56,202,0.04);" data-action="open-patient" data-id="'+p.id+'">'
     + '<span style="flex:none;color:var(--accent);">'+ic('clock')+'</span>'
     + '<span style="flex:1;min-width:0;">'
-    + '<span style="display:block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--accent-dark);">Continue \u00b7 '+relativeTimeAgo(last.at)+'</span>'
+    + '<span style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--accent-dark);">Continue \u00b7 '+relativeTimeAgo(last.at)+'</span>'
     + '<span style="display:block;font-size:14px;font-weight:800;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</span>'
     + '<span style="display:block;font-size:12px;color:#64748b;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p.caseType==='surgical'?esc(p.procedure||p.surgeryType):esc(p.diagnosis||'OPD case'))+'</span>'
     + '</span>'
@@ -959,7 +960,7 @@ function renderMoreView() {
 function moreRowHtml(icon, title, sub, action) {
   return '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;" data-action="'+action+'">'
     + '<span style="flex:none;color:var(--accent);">'+ic(icon)+'</span>'
-    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:700;">'+title+'</span><span style="display:block;font-size:11.5px;color:#94a3b8;margin-top:2px;">'+sub+'</span></span>'
+    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:700;">'+title+'</span><span style="display:block;font-size:11px;color:#94a3b8;margin-top:2px;">'+sub+'</span></span>'
     + '<span style="flex:none;color:#cbd5e1;">'+ic('chevron')+'</span>'
     + '</button>';
 }
@@ -1119,9 +1120,9 @@ function renderDashboardSection() {
   if (s.topProcedures.length || s.topConditions.length) {
     html += '<div class="card" style="margin-bottom:14px;">'
       + '<label class="field-label">This month\u2019s insights ('+s.monthCount+' cases added)</label>'
-      + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Top procedures</span>'
+      + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Top procedures</span>'
           + s.topProcedures.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
-      + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10.5px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Top conditions</span>'
+      + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;">Top conditions</span>'
           + s.topConditions.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
       + '</div>';
   }
@@ -1198,9 +1199,9 @@ function usearchOverlayHtml() {
 }
 function usearchResultsHtml() {
   const q = USEARCH_QUERY.trim();
-  if (!q) return '<p style="text-align:center;color:#94a3b8;font-size:12.5px;padding:36px 20px;">Start typing to search across every case \u2014 name, ID, diagnosis, procedure, notes, tags, investigations, prescriptions.</p>';
+  if (!q) return '<p style="text-align:center;color:#94a3b8;font-size:12px;padding:36px 20px;">Start typing to search across every case \u2014 name, ID, diagnosis, procedure, notes, tags, investigations, prescriptions.</p>';
   const results = PATIENTS.filter(p => matchCase(p, q)).slice(0, 40);
-  if (!results.length) return '<p style="text-align:center;color:#94a3b8;font-size:12.5px;padding:36px 20px;">No matches for \u201c'+esc(q)+'\u201d.</p>';
+  if (!results.length) return '<p style="text-align:center;color:#94a3b8;font-size:12px;padding:36px 20px;">No matches for \u201c'+esc(q)+'\u201d.</p>';
   return '<div style="display:flex;flex-direction:column;gap:8px;">'
     + results.map(p => usearchResultRowHtml(p, q)).join('')
     + '</div>';
@@ -1210,8 +1211,8 @@ function usearchResultRowHtml(p, q) {
   return '<button class="case-card" style="width:100%;" data-action="usearch-open-patient" data-id="'+p.id+'">'
     + '<div style="min-width:0;flex:1;">'
     + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+esc(p.name)+'</span><span class="mono" style="font-size:11px;color:#94a3b8;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
-    + '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
-    + (hit && !['Name','Diagnosis'].includes(hit.field) ? '<div style="font-size:10.5px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(hit.field)+'</div>' : '')
+    + '<div style="font-size:11px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
+    + (hit && !['Name','Diagnosis'].includes(hit.field) ? '<div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(hit.field)+'</div>' : '')
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
@@ -1265,8 +1266,8 @@ function renderListView() {
     cards = '<div class="empty-state">'
       + '<div class="empty-icon-wrap">'+ic(noCasesAtAll ? 'clipboard' : 'search')+'</div>'
       + (noCasesAtAll
-          ? '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No cases yet</p><p style="font-size:12.5px;margin:2px 0 0;">Start your databook by adding your first patient.</p>'
-          : '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No matches</p><p style="font-size:12.5px;margin:2px 0 0;">Try a different search term or clear the filters.</p>')
+          ? '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No cases yet</p><p style="font-size:12px;margin:2px 0 0;">Start your databook by adding your first patient.</p>'
+          : '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No matches</p><p style="font-size:12px;margin:2px 0 0;">Try a different search term or clear the filters.</p>')
       + (noCasesAtAll ? '<button class="btn btn-primary" style="width:auto;padding:9px 18px;margin-top:4px;" data-action="go-add">'+ic('plus')+' Add your first case</button>'
           : '<button class="btn" style="width:auto;padding:9px 18px;margin-top:4px;" data-action="clear-list-filters">Clear search &amp; filters</button>')
       + '</div>';
@@ -1282,12 +1283,12 @@ function renderListView() {
         + (p.pinned ? '<span style="color:var(--accent);flex:none;">'+ic('pin')+'</span>' : '')
         + '<span class="display" style="font-weight:800;font-size:15px;">'+esc(p.name)+'</span>'
         + '<span class="mono" style="font-size:11px;color:#94a3b8;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
-        + '<div style="font-size:11px;color:#a5b4c7;margin-top:1px;" class="mono">'+esc(p.patientCode||'')+'</div>'
+        + '<div style="font-size:11px;color:#94a3b8;margin-top:1px;" class="mono">'+esc(p.patientCode||'')+'</div>'
         + (p.caseType==='surgical'
             ? '<div style="font-size:12px;color:#64748b;margin-top:2px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
             : '<div style="font-size:12px;color:#64748b;margin-top:2px;">OPD \u00b7 '+fmtDate(p.surgeryDate)+'</div>')
-        + '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
-        + (SEARCH && p._searchMatchField && !['Name','Diagnosis'].includes(p._searchMatchField) ? '<div style="font-size:10.5px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(p._searchMatchField)+'</div>' : '')
+        + '<div style="font-size:11px;color:#94a3b8;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
+        + (SEARCH && p._searchMatchField && !['Name','Diagnosis'].includes(p._searchMatchField) ? '<div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(p._searchMatchField)+'</div>' : '')
         + (isOverdue(p.nextFollowUpDate) ? '<div class="overdue-note">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+'</div>' : '')
         + '<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
         + (p.caseType==='surgical' ? '<span class="badge badge-'+TYPE_BADGE[p.surgeryType]+'">'+p.surgeryType+'</span>' : '<span class="badge badge-slate">OPD</span>')
@@ -1307,21 +1308,21 @@ function renderListView() {
     + '<div class="row gap2">'
     + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
     + '<button class="icon-btn" data-action="open-more" title="More">'+ic('menu')+'</button>'
-    + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:5px;padding:9px 12px;" data-action="go-add">'+ic('plus')+' Add</button>'
+    + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:4px;padding:9px 12px;" data-action="go-add">'+ic('plus')+' Add</button>'
     + '</div></div>'
     + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
     + tagChips
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'+continueLastPatientHtml()+renderDashboardSection()
-    + (PATIENTS.length ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10.5px;color:#94a3b8;">'
+    + (PATIENTS.length ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:#94a3b8;">'
         + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
         + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to follow-up</span>'
         + '<span class="row gap1"><span class="status-dot" style="background:#16a34a;"></span> Complete</span>'
         + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
         + '</div>' : '')
     + cards+'</div>'
-    + (ownerProfile.doctorName ? '<p style="text-align:center;font-size:10.5px;color:#cbd5e1;margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' '+esc(ownerProfile.doctorName)+' \u2014 personal clinical tool, not for redistribution</p>' : '')
+    + (ownerProfile.doctorName ? '<p style="text-align:center;font-size:10px;color:#cbd5e1;margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' '+esc(ownerProfile.doctorName)+' \u2014 personal clinical tool, not for redistribution</p>' : '')
     + '</div>';
 }
 
@@ -1431,7 +1432,7 @@ function renderAddView() {
 
     + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
     + '<div><label class="field-label">Clinical images (X-ray/CT/MRI, agar ho)</label><div id="ap-thumbs">'+thumbGridHtml(AP_PHOTOS,'ap-remove-photo')+'</div></div>'
-    + '<div><div class="row between" style="margin-bottom:5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
+    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
     + '<button class="btn" style="flex:1;" data-action="cancel-add">Cancel</button>'
@@ -1466,7 +1467,7 @@ function renderOverviewTab(p) {
     + '<input class="input" type="tel" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'" style="margin-bottom:10px;">'
     + (waLink(p)
         ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Message on WhatsApp</a>'
-        : '<p style="font-size:11.5px;color:#94a3b8;">Save a number to send messages.</p>')
+        : '<p style="font-size:11px;color:#94a3b8;">Save a number to send messages.</p>')
     + (p.whatsapp ? '<div class="row gap2" style="margin-top:8px;">'
         + (followUpReminderLink(p)
             ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
@@ -1487,7 +1488,7 @@ function renderOverviewTab(p) {
       + '</div>'
       + ageFieldHtml(p)
       + '</div>' : '<div class="card">'+ageFieldHtml(p)+'</div>')
-    + '<div class="card"><div class="row between" style="margin-bottom:5px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div><textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
+    + '<div class="card"><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div><textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
     + comorbidityCardHtml(p)
     + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
     + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '')
@@ -1538,7 +1539,7 @@ function classificationCardHtml(p) {
     + CLASSIFICATION_SYSTEMS.map(s => '<button type="button" class="tag-chip" data-action="classification-insert-system" data-value="'+esc(s)+'">'+esc(s)+'</button>').join('')
     + '</div>'
     + '<input class="input" data-field="classification" placeholder="e.g. AO 31-A1, Garden III, Weber B" value="'+esc(p.classification||'')+'">'
-    + '<div class="row between" style="margin-top:12px;"><span style="font-size:12.5px;font-weight:700;">Open fracture?</span><div class="seg" style="width:auto;">'
+    + '<div class="row between" style="margin-top:12px;"><span style="font-size:12px;font-weight:700;">Open fracture?</span><div class="seg" style="width:auto;">'
     + [['no','No'],['yes','Yes']].map(([v,l])=>'<button class="seg-btn'+(((p.isOpenFracture?'yes':'no')===v)?' active':'')+'" data-action="set-open-fracture" data-value="'+v+'" style="padding:6px 14px;">'+l+'</button>').join('')
     + '</div></div>'
     + (p.isOpenFracture ? gustiloSectionHtml(p) : '')
@@ -1551,7 +1552,7 @@ function gustiloSectionHtml(p) {
   }
   const a = GUSTILO_ANSWERS;
   const result = gustiloCompute(a);
-  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:5px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
+  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
     + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="gustilo-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
     + '</div></div>';
   return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
@@ -1563,9 +1564,9 @@ function gustiloSectionHtml(p) {
     + q('periosteal', 'Periosteal stripping / bone exposure', [['none','None'],['some','Some'],['extensive','Extensive, needs flap']])
     + q('vascular', 'Vascular injury needing repair', [['no','No'],['yes','Yes']])
     + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Gustilo '+result.type+'</span></div>'
-        + '<p style="font-size:11.5px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
+        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
         + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="gustilo-insert" data-value="Gustilo-Anderson Type '+result.type+'">Insert into Classification</button>'
-      : '<p style="font-size:11.5px;color:#94a3b8;margin-top:10px;">Answer all questions to see the suggested type.</p>')
+      : '<p style="font-size:11px;color:#94a3b8;margin-top:10px;">Answer all questions to see the suggested type.</p>')
     + '</div>';
 }
 
@@ -1625,7 +1626,7 @@ function rustTrendCardHtml(p) {
     tracked.forEach((f,i) => { lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(rustTotal(f.rust))+'" r="3" fill="#4338ca"/>'; });
     html += '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:140px;">'+grid+lines+'</svg>';
   } else {
-    html += '<p style="font-size:11.5px;color:#94a3b8;">Log RUST at another visit to see the trend.</p>';
+    html += '<p style="font-size:11px;color:#94a3b8;">Log RUST at another visit to see the trend.</p>';
   }
   html += '</div>';
   return html;
@@ -1650,7 +1651,7 @@ const RICKETS_HELP_HTML = '<div class="help-box">'
   + '\u2022 Elemental calcium supplementation alongside Vitamin D.<br>'
   + '\u2022 Sunlight exposure and dietary counselling.<br><br>'
   + '<b>Follow-up:</b> Repeat X-ray and biochemistry (Calcium, Phosphate, ALP) at ~4\u20136 weeks and again at 3 months \u2014 falling ALP and radiographic healing (re-mineralisation, reduced fraying/cupping) confirm response.<br><br>'
-  + '<p style="font-size:10.5px;color:#94a3b8;margin:0;">General reference \u2014 confirm the exact Vitamin D dose/regimen against current national guidelines and individualise for the patient\u2019s age and severity.</p>'
+  + '<p style="font-size:10px;color:#94a3b8;margin:0;">General reference \u2014 confirm the exact Vitamin D dose/regimen against current national guidelines and individualise for the patient\u2019s age and severity.</p>'
   + '</div>';
 function ricketsCardHtml(p) {
   return '<div class="card"><label class="field-label">'+ic('clock')+' Rickets \u2014 management reference</label>'+RICKETS_HELP_HTML+'</div>';
@@ -1663,7 +1664,7 @@ function shouldShowPedsDose(p) {
 function pedsDoseCardHtml(p) {
   const w = Number(p.weightKg);
   let html = '<div class="card"><label class="field-label">'+ic('clock')+' Pediatric dose calculator</label>'
-    + '<div style="margin-bottom:10px;"><label style="font-size:10.5px;color:#94a3b8;display:block;margin-bottom:3px;">Weight (kg)</label><input class="input" type="number" min="0" step="0.1" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>';
+    + '<div style="margin-bottom:10px;"><label style="font-size:10px;color:#94a3b8;display:block;margin-bottom:4px;">Weight (kg)</label><input class="input" type="number" min="0" step="0.1" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>';
   if (w) {
     const rows = [
       ['Paracetamol', (w*10).toFixed(0)+'\u2013'+(w*15).toFixed(0)+' mg/dose', 'PO, q4\u20136h, max 4 doses/day'],
@@ -1674,9 +1675,9 @@ function pedsDoseCardHtml(p) {
     html += '<div style="display:flex;flex-direction:column;gap:8px;">' + rows.map(([name,dose,note]) =>
       '<div style="border-top:1px solid var(--border);padding-top:8px;"><div class="row between"><span style="font-weight:700;font-size:13px;">'+name+'</span><span class="mono" style="font-size:13px;">'+dose+'</span></div><div style="font-size:11px;color:#94a3b8;margin-top:2px;">'+note+'</div></div>'
     ).join('') + '</div>'
-    + '<p style="font-size:10.5px;color:#94a3b8;margin-top:10px;">Standard reference dosing (syrup or tablet form, whichever applies) \u2014 verify against current formulary/BNF-C and individualise for the patient.</p>';
+    + '<p style="font-size:10px;color:#94a3b8;margin-top:10px;">Standard reference dosing (syrup or tablet form, whichever applies) \u2014 verify against current formulary/BNF-C and individualise for the patient.</p>';
   } else {
-    html += '<p style="font-size:11.5px;color:#94a3b8;">Enter weight to calculate doses.</p>';
+    html += '<p style="font-size:11px;color:#94a3b8;">Enter weight to calculate doses.</p>';
   }
   html += '</div>';
   return html;
@@ -1697,9 +1698,9 @@ function kocherCardHtml(p) {
   const k = p.kocher || {};
   const count = KOCHER_CRITERIA.filter(([key]) => k[key]).length;
   let html = '<div class="card"><label class="field-label">'+ic('tag')+' Kocher\u2019s criteria (septic arthritis vs transient synovitis \u2014 hip)</label>'
-    + KOCHER_CRITERIA.map(([key,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12.5px;"><input type="checkbox" data-kocher-key="'+key+'"'+(k[key]?' checked':'')+'> '+label+'</label>').join('')
+    + KOCHER_CRITERIA.map(([key,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12px;"><input type="checkbox" data-kocher-key="'+key+'"'+(k[key]?' checked':'')+'> '+label+'</label>').join('')
     + '<div class="scorer-total" style="margin-top:10px;"><span>'+count+' of 4 predictors</span><span class="badge '+(count>=3?'badge-red':count>=2?'badge-amber':'badge-emerald')+'">Probability '+KOCHER_PROBABILITY[count]+'</span></div>'
-    + '<p style="font-size:10.5px;color:#94a3b8;margin-top:8px;">Kocher et al. clinical prediction rule \u2014 an aid alongside clinical judgement, not a substitute for it.</p>'
+    + '<p style="font-size:10px;color:#94a3b8;margin-top:8px;">Kocher et al. clinical prediction rule \u2014 an aid alongside clinical judgement, not a substitute for it.</p>'
     + '</div>';
   return html;
 }
@@ -1728,16 +1729,16 @@ function pjiResult(pji) {
 }
 function pjiCardHtml(p) {
   let html = '<div class="card">'
-    + '<div class="row between"><span style="font-size:12.5px;font-weight:700;">PJI suspected?</span><div class="seg" style="width:auto;">'
+    + '<div class="row between"><span style="font-size:12px;font-weight:700;">PJI suspected?</span><div class="seg" style="width:auto;">'
     + [['no','No'],['yes','Yes']].map(([v,l])=>'<button class="seg-btn'+(((p.pjiSuspected?'yes':'no')===v)?' active':'')+'" data-action="set-pji-suspected" data-value="'+v+'" style="padding:6px 14px;">'+l+'</button>').join('')
     + '</div></div>';
   if (p.pjiSuspected) {
     const pji = p.pji || {};
     const result = pjiResult(pji);
     html += '<p style="font-size:11px;color:#94a3b8;margin:10px 0 6px;font-weight:700;text-transform:uppercase;">Major criteria (either one confirms PJI)</p>'
-      + MSIS_MAJOR.map(([k,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12.5px;"><input type="checkbox" data-pji-key="'+k+'"'+(pji[k]?' checked':'')+'> '+label+'</label>').join('')
+      + MSIS_MAJOR.map(([k,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12px;"><input type="checkbox" data-pji-key="'+k+'"'+(pji[k]?' checked':'')+'> '+label+'</label>').join('')
       + '<p style="font-size:11px;color:#94a3b8;margin:10px 0 6px;font-weight:700;text-transform:uppercase;">Minor criteria (\u22654 of 6, if no major met)</p>'
-      + MSIS_MINOR.map(([k,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12.5px;"><input type="checkbox" data-pji-key="'+k+'"'+(pji[k]?' checked':'')+'> '+label+'</label>').join('')
+      + MSIS_MINOR.map(([k,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12px;"><input type="checkbox" data-pji-key="'+k+'"'+(pji[k]?' checked':'')+'> '+label+'</label>').join('')
       + (result ? '<div class="scorer-total" style="margin-top:10px;"><span>Result</span><span class="badge '+result.badge+'">'+result.label+'</span></div>' : '');
   }
   html += '</div>';
@@ -1763,19 +1764,19 @@ function bmiCardHtml(p) {
   return '<div class="card">'
     + '<label class="field-label">'+ic('clock')+' BMI</label>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">'
-    + '<div><label style="font-size:10.5px;color:#94a3b8;display:block;margin-bottom:3px;">Height (cm)</label><input class="input" type="number" min="0" data-field="heightCm" value="'+esc(p.heightCm)+'"></div>'
-    + '<div><label style="font-size:10.5px;color:#94a3b8;display:block;margin-bottom:3px;">Weight (kg)</label><input class="input" type="number" min="0" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>'
+    + '<div><label style="font-size:10px;color:#94a3b8;display:block;margin-bottom:4px;">Height (cm)</label><input class="input" type="number" min="0" data-field="heightCm" value="'+esc(p.heightCm)+'"></div>'
+    + '<div><label style="font-size:10px;color:#94a3b8;display:block;margin-bottom:4px;">Weight (kg)</label><input class="input" type="number" min="0" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>'
     + '</div>'
     + (bmi ? ('<div class="scorer-total"><span>BMI</span><span class="mono">'+bmi.toFixed(1)+' \u00b7 <span class="badge '+cat.badge+'" style="font-size:10px;">'+cat.label+'</span></span></div>'
         + (cat.label==='Overweight' || cat.label==='Obese I' || cat.label==='Obese II' ? '<p style="font-size:11px;color:#94a3b8;margin-top:8px;">Higher BMI is a well-documented risk factor for wound complications, infection, and prosthesis loosening after arthroplasty. Pre-operative optimisation (weight, glycaemic control, nutrition) is commonly advised \u2014 individualise based on the full clinical picture.</p>' : ''))
-      : '<p style="font-size:11.5px;color:#94a3b8;">Enter height and weight to calculate BMI (Asian-Pacific classification).</p>')
+      : '<p style="font-size:11px;color:#94a3b8;">Enter height and weight to calculate BMI (Asian-Pacific classification).</p>')
     + '</div>';
 }
 
 function romTrendCardHtml(p) {
   if (!p.romTracking) {
     return '<div class="card"><label class="field-label">'+ic('clock')+' ROM tracking</label>'
-      + '<p style="font-size:11.5px;color:#94a3b8;margin:2px 0 10px;">Track range of motion over follow-ups \u2014 useful for TKR, frozen shoulder, elbow stiffness, or any joint where progress needs watching.</p>'
+      + '<p style="font-size:11px;color:#94a3b8;margin:2px 0 10px;">Track range of motion over follow-ups \u2014 useful for TKR, frozen shoulder, elbow stiffness, or any joint where progress needs watching.</p>'
       + '<div class="row gap2">'
       + Object.keys(ROM_JOINT_FIELDS).map(j => '<button class="btn" style="flex:1;" data-action="enable-rom" data-value="'+j+'">'+ROM_JOINT_LABELS[j]+'</button>').join('')
       + '</div></div>';
@@ -1803,7 +1804,7 @@ function romTrendCardHtml(p) {
       + fields.map(([,label,color]) => '<span style="font-size:10px;color:#64748b;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+color+';margin-right:3px;"></span>'+label+'</span>').join('')
       + '</div>';
   } else {
-    html += '<p style="font-size:11.5px;color:#94a3b8;">Log ROM at another visit to see the trend.</p>';
+    html += '<p style="font-size:11px;color:#94a3b8;">Log ROM at another visit to see the trend.</p>';
   }
   html += '</div>';
   return html;
@@ -1878,13 +1879,13 @@ async function renderFollowupsTab(p) {
           '<div class="row" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">RUST score (optional)</label><button type="button" class="info-help-btn" style="margin-left:6px;" data-action="toggle-rust-help">i</button></div>'
           + '<div id="rust-help-box">'+(SHOW_RUST_HELP ? RUST_HELP_HTML : '')+'</div>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-          + [['anterior','Anterior'],['posterior','Posterior'],['medial','Medial'],['lateral','Lateral']].map(([k,l])=>'<div><label style="font-size:10.5px;color:#94a3b8;display:block;margin-bottom:3px;">'+l+'</label><select class="select" id="fu-rust-'+k+'"><option value="">\u2014</option>'+[1,2,3,4].map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'</select></div>').join('')
+          + [['anterior','Anterior'],['posterior','Posterior'],['medial','Medial'],['lateral','Lateral']].map(([k,l])=>'<div><label style="font-size:10px;color:#94a3b8;display:block;margin-bottom:4px;">'+l+'</label><select class="select" id="fu-rust-'+k+'"><option value="">\u2014</option>'+[1,2,3,4].map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'</select></div>').join('')
           + '</div>'
         ) : '')
       + (p.romTracking ? (
           '<label class="field-label">'+ROM_JOINT_LABELS[p.romTracking.jointType]+' ROM (degrees, optional)</label>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-          + (ROM_JOINT_FIELDS[p.romTracking.jointType]||[]).map(([k,l])=>'<div><label style="font-size:10.5px;color:#94a3b8;display:block;margin-bottom:3px;">'+l+'</label><input class="input" type="number" min="0" max="150" id="fu-rom-'+k+'" placeholder="\u00b0"></div>').join('')
+          + (ROM_JOINT_FIELDS[p.romTracking.jointType]||[]).map(([k,l])=>'<div><label style="font-size:10px;color:#94a3b8;display:block;margin-bottom:4px;">'+l+'</label><input class="input" type="number" min="0" max="150" id="fu-rom-'+k+'" placeholder="\u00b0"></div>').join('')
           + '</div>'
         ) : '')
       + '<label class="field-label">Wound / suture photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
@@ -1920,7 +1921,7 @@ async function renderFollowupsTab(p) {
         woundGrid += '<label class="add-photo-tile" data-fu-wound-add="'+f.id+'">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-fu-wound-input="'+f.id+'" style="display:none;"></label>';
         woundGrid += '</div>'+cameraFabHtml('data-fu-wound-input="'+f.id+'"')+'</div></div>';
       }
-      body = grid + woundGrid + (f.notes ? '<p style="font-size:12.5px;color:#64748b;margin-top:8px;">'+esc(f.notes)+'</p>' : '');
+      body = grid + woundGrid + (f.notes ? '<p style="font-size:12px;color:#64748b;margin-top:8px;">'+esc(f.notes)+'</p>' : '');
     }
     list += '<div class="fu-card">'
       + '<div class="row between" style="cursor:pointer;" data-action="toggle-fu" data-id="'+f.id+'">'
@@ -1958,7 +1959,7 @@ function renderInjectionsTab(p) {
       + '<span style="font-weight:800;">'+esc(inj.label)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(inj.date)+'</span></span>'
       + confirmBtn('delete-inj', inj.id)
       + '</div>'
-      + (inj.notes ? '<p style="font-size:12.5px;color:#64748b;margin-top:6px;">'+esc(inj.notes)+'</p>' : '')
+      + (inj.notes ? '<p style="font-size:12px;color:#64748b;margin-top:6px;">'+esc(inj.notes)+'</p>' : '')
       + '</div>';
   });
   if (!list && !ADD_INJECTION_OPEN) list = '<p style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No injections logged yet.</p>';
@@ -1996,7 +1997,7 @@ async function renderInvestigationsTab(p) {
       grid += '<label class="add-photo-tile" data-inv-add="'+inv.id+'">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-inv-input="'+inv.id+'" style="display:none;"></label>';
       grid += '</div>';
       grid = '<div style="position:relative;">'+grid+cameraFabHtml('data-inv-input="'+inv.id+'"')+'</div>';
-      body = grid + (inv.notes ? '<p style="font-size:12.5px;color:#64748b;margin-top:8px;">'+esc(inv.notes)+'</p>' : '');
+      body = grid + (inv.notes ? '<p style="font-size:12px;color:#64748b;margin-top:8px;">'+esc(inv.notes)+'</p>' : '');
     }
     list += '<div class="fu-card">'
       + '<div class="row between" style="cursor:pointer;" data-action="toggle-inv" data-id="'+inv.id+'">'
@@ -2498,11 +2499,11 @@ function renderEduResultsHtml(query) {
       const checked = EDU_SELECTED_IDS.includes(e.id);
       return '<button class="case-card" data-action="edu-toggle-select" data-id="'+e.id+'" style="padding:12px 14px;'+(checked?'border-color:var(--accent);background:rgba(67,56,202,0.04);':'')+'">'
         + '<span class="reminder-check'+(checked?' done':'')+'" style="flex:none;">'+(checked?ic('check'):'')+'</span>'
-        + '<span style="font-weight:700;font-size:13.5px;flex:1;text-align:left;margin-left:8px;">'+esc(e.name.en)+(hasImage?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Image</span>':'')+'</span>'
+        + '<span style="font-weight:700;font-size:13px;flex:1;text-align:left;margin-left:8px;">'+esc(e.name.en)+(hasImage?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Image</span>':'')+'</span>'
         + '</button>';
     }
     return '<button class="case-card" data-action="view-edu" data-id="'+e.id+'" style="padding:12px 14px;">'
-    + '<span style="font-weight:700;font-size:13.5px;">'+esc(e.name.en)+(hasImage?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Custom</span>':'')+'</span>'
+    + '<span style="font-weight:700;font-size:13px;">'+esc(e.name.en)+(hasImage?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Custom</span>':'')+'</span>'
     + '<span style="color:#cbd5e1;">'+ic('chevron')+'</span>'
     + '</button>';
   }).join('') + '</div>';
@@ -2626,9 +2627,9 @@ function renderEduMultiPrintView() {
         '<div class="card" style="margin-bottom:14px;">'
         + '<h3 style="margin:0 0 4px;font-size:15px;">'+esc(edu.name.en)+'</h3>'
         + '<div style="font-family:\'Fraunces\',serif;font-size:13px;color:#64748b;margin-bottom:10px;">'+esc(edu.name.hi)+'</div>'
-        + '<p style="font-size:12.5px;margin:0 0 8px;"><b>What is it:</b> '+esc(edu.whatIsIt.en)+'</p>'
-        + '<p style="font-size:12.5px;margin:0 0 8px;"><b>Do\u2019s:</b> '+edu.dos.en.map(d=>esc(d)).join('; ')+'</p>'
-        + '<p style="font-size:12.5px;margin:0;"><b>Don\u2019ts:</b> '+edu.donts.en.map(d=>esc(d)).join('; ')+'</p>'
+        + '<p style="font-size:12px;margin:0 0 8px;"><b>What is it:</b> '+esc(edu.whatIsIt.en)+'</p>'
+        + '<p style="font-size:12px;margin:0 0 8px;"><b>Do\u2019s:</b> '+edu.dos.en.map(d=>esc(d)).join('; ')+'</p>'
+        + '<p style="font-size:12px;margin:0;"><b>Don\u2019ts:</b> '+edu.donts.en.map(d=>esc(d)).join('; ')+'</p>'
         + '</div>'
       ).join('') + '</div>' : '');
 }
@@ -2673,7 +2674,7 @@ function renderEduPrintView() {
     if (!itemsEn || !itemsEn.length) return '';
     return '<ul class="edu-checklist">' + itemsEn.map((item, i) => {
       const hi = itemsHi && itemsHi[i];
-      return '<li>'+mark+'<span>'+esc(item)+(hi?'<div class="edu-hi" style="font-size:12.5px;margin-top:2px;">'+esc(hi)+'</div>':'')+'</span></li>';
+      return '<li>'+mark+'<span>'+esc(item)+(hi?'<div class="edu-hi" style="font-size:12px;margin-top:2px;">'+esc(hi)+'</div>':'')+'</span></li>';
     }).join('') + '</ul>';
   };
   const checkMark = '<svg class="ic" viewBox="0 0 24 24" style="stroke-width:2.6;color:var(--edu-gold);">'+ICONS.check+'</svg>';
@@ -2905,7 +2906,7 @@ function renderCtevTab(p) {
   if (tenotomyFeet.length) {
     html += '<div class="card" style="margin-bottom:12px;border-color:var(--red-border);background:var(--red-bg);">'
       + '<div class="row gap2"><span style="color:var(--red);flex:none;">'+ic('alert')+'</span>'
-      + '<span style="font-size:12.5px;font-weight:700;color:var(--red);">Tenotomy criteria met \u2014 '+tenotomyFeet.map(f=>FOOT_LABEL[f]).join(' & ')+' (based on latest session: hindfoot &gt;0.5, midfoot &lt;1, talar head=0, abduction &gt;60\u00b0)</span></div>'
+      + '<span style="font-size:12px;font-weight:700;color:var(--red);">Tenotomy criteria met \u2014 '+tenotomyFeet.map(f=>FOOT_LABEL[f]).join(' & ')+' (based on latest session: hindfoot &gt;0.5, midfoot &lt;1, talar head=0, abduction &gt;60\u00b0)</span></div>'
       + '</div>';
   }
 
@@ -3017,7 +3018,7 @@ const RA_HELP_HTML = '<div class="help-box"><b>TJC/SJC:</b> count how many of th
   + 'For all three: Remission (green) &lt; Low &lt; Moderate &lt; High (red) activity.'
   + '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">'
   + '<b>The 28 joints (bilateral \u2014 count both sides):</b>'
-  + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:5px 10px;margin-top:8px;font-size:12px;">'
+  + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:4px 10px;margin-top:8px;font-size:12px;">'
   + '<span style="font-weight:700;color:#94a3b8;">Joint</span><span style="font-weight:700;color:#94a3b8;text-align:center;">Per side</span><span style="font-weight:700;color:#94a3b8;text-align:center;">Both sides</span>'
   + RA_28_JOINTS.map(([name,n]) => '<span>'+name+'</span><span style="text-align:center;" class="mono">'+n+'</span><span style="text-align:center;" class="mono">'+(n*2)+'</span>').join('')
   + '<span style="font-weight:800;">Total</span><span></span><span style="text-align:center;font-weight:800;" class="mono">28</span>'
@@ -3035,7 +3036,7 @@ const RA_MGT_HELP_HTML = '<div class="help-box">'
   + '<b>Other conventional DMARDs:</b> Sulfasalazine (start 500 mg/day, titrate to 1\u20131.5 g BD) \u2014 alternative/add-on, useful when MTX contraindicated (e.g. pregnancy planning, liver disease). Leflunomide \u2014 alternative to MTX, similar efficacy.<br><br>'
   + '<b>Steroids</b> \u2014 low-dose bridging (e.g. Prednisolone 5\u201310 mg/day, or an IM/intra-articular depot) while the DMARD takes effect; taper and stop as soon as feasible. Avoid long-term use where possible (bone, metabolic, infection risk).<br><br>'
   + '<b>Calcium / Vitamin D</b> \u2014 bone protection is relevant for most RA patients, more so if on steroids \u2014 supplement per standard osteoporosis-prevention dosing, and consider a baseline DEXA where indicated (see the Bone Health / DEXA tracking for a patient marked Osteoporosis).<br><br>'
-  + '<p style="font-size:10.5px;color:#94a3b8;margin:0;">General evidence-based reference for your own use \u2014 individualise for each patient (renal/hepatic function, comorbidities, pregnancy plans, current guideline updates).</p>'
+  + '<p style="font-size:10px;color:#94a3b8;margin:0;">General evidence-based reference for your own use \u2014 individualise for each patient (renal/hepatic function, comorbidities, pregnancy plans, current guideline updates).</p>'
   + '</div>';
 
 function renderRaTab(p) {
@@ -3166,7 +3167,7 @@ async function renderPhotoOrganiserTab(p) {
   let html = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
   nonEmpty.forEach(key => {
     const imgs = folders[key];
-    html += '<div style="margin-bottom:18px;">'
+    html += '<div style="margin-bottom:16px;">'
       + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">'+ic('folder')+' '+esc(key)+'</label><span style="font-size:11px;color:#94a3b8;">'+imgs.length+' photo'+(imgs.length!==1?'s':'')+'</span></div>'
       + '<div class="thumb-grid">'
       + imgs.map(im => { const url = trackUrl(URL.createObjectURL(im.blob)); return '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>'; }).join('')
@@ -3354,7 +3355,7 @@ function renderCalendarGrid() {
     + '</div>'
     + '<div class="row between" style="margin:2px 0 8px;"><button class="btn btn-sm" data-action="cal-today">Today</button><span style="font-size:11px;color:#94a3b8;">'+weekCount+' follow-up'+(weekCount!==1?'s':'')+' in next 7 days</span></div>'
     + cells
-    + '<div class="row gap3" style="margin-top:10px;font-size:10.5px;color:#94a3b8;"><span class="row gap1"><span class="cal-dot cal-dot-fu" style="position:static;">#</span> Follow-ups</span><span class="row gap1"><span class="cal-dot cal-dot-rem" style="position:static;"></span> Reminder due</span></div>'
+    + '<div class="row gap3" style="margin-top:10px;font-size:10px;color:#94a3b8;"><span class="row gap1"><span class="cal-dot cal-dot-fu" style="position:static;">#</span> Follow-ups</span><span class="row gap1"><span class="cal-dot cal-dot-rem" style="position:static;"></span> Reminder due</span></div>'
     + '</div>';
 }
 
@@ -3379,7 +3380,7 @@ function reminderRowHtml(r) {
     + '<button class="reminder-check'+(r.done?' done':'')+'" data-action="reminder-toggle" data-id="'+r.id+'">'+(r.done?ic('check'):'')+'</button>'
     + '<div style="min-width:0;">'
     + '<div style="font-size:13px;font-weight:600;'+(r.done?'text-decoration:line-through;color:#94a3b8;':'')+'">'+esc(r.text)+'</div>'
-    + '<div style="font-size:10.5px;color:#94a3b8;margin-top:2px;">'+esc(patient?'Patient':r.category)+(patient?' \u00b7 '+esc(patient.name):'')+(r.dueDate?' \u00b7 '+fmtDate(r.dueDate):'')+'</div>'
+    + '<div style="font-size:10px;color:#94a3b8;margin-top:2px;">'+esc(patient?'Patient':r.category)+(patient?' \u00b7 '+esc(patient.name):'')+(r.dueDate?' \u00b7 '+fmtDate(r.dueDate):'')+'</div>'
     + '</div></div>'
     + confirmBtn('delete-reminder', r.id)
     + '</div>';
@@ -4717,7 +4718,7 @@ function renderLockScreen() {
     + '<div class="lock-icon">'+ic('gear')+'</div>'
     + '<h2 style="font-size:16px;font-weight:800;margin:14px 0 4px;">Bone Log Pro is locked</h2>'
     + '<p style="font-size:12px;color:#94a3b8;margin:0 0 4px;">'+(LOCK_ERROR?'Wrong PIN, try again.':'Enter PIN')+'</p>'
-    + (ownerProfile.doctorName ? '<p style="font-size:10.5px;color:#cbd5e1;margin:0 0 14px;">Personal clinical tool of '+esc(ownerProfile.doctorName)+'</p>' : '<div style="margin-bottom:18px;"></div>')
+    + (ownerProfile.doctorName ? '<p style="font-size:10px;color:#cbd5e1;margin:0 0 14px;">Personal clinical tool of '+esc(ownerProfile.doctorName)+'</p>' : '<div style="margin-bottom:16px;"></div>')
     + '<div class="lock-dots" style="'+(LOCK_ERROR?'animation:lock-shake 0.4s;':'')+'">'+dots+'</div>'
     + '<div class="lock-keypad">'
     + [1,2,3,4,5,6,7,8,9].map(n=>'<button class="lock-key" data-action="lock-digit" data-value="'+n+'">'+n+'</button>').join('')
