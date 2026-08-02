@@ -2913,17 +2913,20 @@ function renderCtevTab(p) {
   if (SHOW_PIRANI_HELP) html += PIRANI_HELP_HTML;
 
   if (ctev.castingSessions.length > 1) {
-    const w=300,h=140,padL=26,padR=8,padT=10,padB=20, plotW=w-padL-padR, plotH=h-padT-padB, n=ctev.castingSessions.length;
+    const w=300,h=150,padL=26,padR=8,padT=10,padB=26, plotW=w-padL-padR, plotH=h-padT-padB, n=ctev.castingSessions.length;
     const xFor = i => padL + (n===1?plotW/2:(i/(n-1))*plotW);
     const yFor = score => padT + (1 - score/6) * plotH;
+    const firstDate = new Date(ctev.castingSessions[0].date);
+    const weekFor = (dateStr) => Math.round((new Date(dateStr) - firstDate) / (7*24*60*60*1000));
     let grid = '';
     [0,2,4,6].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="#94a3b8" text-anchor="end">'+v+'</text>'; });
+    ctev.castingSessions.forEach((s,i) => { grid += '<text x="'+xFor(i)+'" y="'+(h-8)+'" font-size="8" fill="#94a3b8" text-anchor="middle">Wk '+weekFor(s.date)+'</text>'; });
     let lines = '';
     feet.forEach(f => {
       const pts = []; ctev.castingSessions.forEach((s,i) => { if (s[f]) pts.push(xFor(i)+','+yFor(piraniTotal(s[f].components))); });
       if (pts.length) { lines += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+FOOT_COLOR[f]+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'; ctev.castingSessions.forEach((s,i)=>{ if(s[f]) lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(piraniTotal(s[f].components))+'" r="3" fill="'+FOOT_COLOR[f]+'"/>'; }); }
     });
-    html += '<div class="card" style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">Pirani trend</div><svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:140px;">'+grid+lines+'</svg></div>';
+    html += '<div class="card" style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin-bottom:4px;">Pirani trend</div><svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:150px;">'+grid+lines+'</svg></div>';
   }
 
   html += '<div class="section-title" style="font-size:11px;font-weight:800;text-transform:uppercase;color:#94a3b8;margin-bottom:8px;">Casting sessions</div>';
