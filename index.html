@@ -1352,12 +1352,12 @@ function initApTemp() {
 function syncApTempFromDom() {
   ['name','age','ageMonths','diagnosis','procedure','whatsapp','notes'].forEach(f => { const el = document.getElementById('ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
-  const sideEl = document.getElementById('ap-side'); if (sideEl) AP_TEMP.side = sideEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
 }
-function conditionOptionsHtml(selected) {
+function conditionOptionsHtml(selected, caseType) {
+  const excluded = caseType === 'surgical' ? ['ctev','ra','osteoporosis'] : [];
   let html = '<option value=""'+(!selected?' selected':'')+'>\u2014 Select condition \u2014</option>';
-  html += EDU_LIBRARY.map(e => '<option value="'+e.id+'"'+(selected===e.id?' selected':'')+'>'+esc(e.name.en)+'</option>').join('');
+  html += EDU_LIBRARY.filter(e => !excluded.includes(e.id)).map(e => '<option value="'+e.id+'"'+(selected===e.id?' selected':'')+'>'+esc(e.name.en)+'</option>').join('');
   html += '<option value="other"'+(selected==='other'?' selected':'')+'>Other / not listed</option>';
   return html;
 }
@@ -1373,7 +1373,7 @@ function renderAddView() {
     + (AP_DUPLICATE_FROM ? '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;padding:10px 12px;"><span style="font-size:12px;color:var(--accent-dark);font-weight:600;">'+ic('tag')+' Duplicated from '+esc(AP_DUPLICATE_FROM)+' \u2014 everything else was copied, just check Name, Age and Side below.</span></div>' : '')
 
     + '<div><label class="field-label">Case type</label><div class="seg">'
-    + '<button class="seg-btn'+(AP_TEMP.caseType==='opd'?' active':'')+'" data-action="ap-set-casetype" data-value="opd">OPD (non-surgical)</button>'
+    + '<button class="seg-btn'+(AP_TEMP.caseType==='opd'?' active':'')+'" data-action="ap-set-casetype" data-value="opd">OPD</button>'
     + '<button class="seg-btn'+(AP_TEMP.caseType==='surgical'?' active':'')+'" data-action="ap-set-casetype" data-value="surgical">Surgical</button>'
     + '</div></div>'
 
@@ -1385,21 +1385,23 @@ function renderAddView() {
     + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
     + '</div>'
     + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea></div>'
-    + '<div><label class="field-label">Special tracking (optional)</label><div class="seg">'
-    + [['','None'],['ctev','CTEV'],['ra','RA'],['osteoporosis','Osteoporosis']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.condition===v?' active':'')+'" data-action="ap-set-special" data-value="'+v+'">'+l+'</button>').join('')
+    + '<div><label class="field-label">Side</label><div class="seg">'
+    + ['Left','Right','Bilateral'].map(s=>'<button class="seg-btn'+(AP_TEMP.side===s?' active':'')+'" data-action="ap-set-side" data-value="'+s+'">'+s+'</button>').join('')
     + '</div></div>'
-    + (AP_TEMP.condition==='ctev' ? '<div><label class="field-label">Laterality</label><div class="seg">'
-        + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.laterality===v?' active':'')+'" data-action="ap-set-laterality" data-value="'+v+'">'+l+'</button>').join('')
-        + '</div></div>' : '')
-    + '<p style="font-size:11px;color:#94a3b8;margin:-8px 0 0;">For other general conditions (Knee OA, ACL, etc.), select from the Education tab after saving the case.</p>'
+    + (!isSurgical ? (
+        '<div><label class="field-label">Special tracking (optional)</label><div class="seg">'
+        + [['','None'],['ctev','CTEV'],['ra','RA'],['osteoporosis','Osteoporosis'],['trauma','Trauma']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.condition===v?' active':'')+'" data-action="ap-set-special" data-value="'+v+'">'+l+'</button>').join('')
+        + '</div></div>'
+        + (AP_TEMP.condition==='ctev' ? '<div><label class="field-label">Laterality</label><div class="seg">'
+            + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.laterality===v?' active':'')+'" data-action="ap-set-laterality" data-value="'+v+'">'+l+'</button>').join('')
+            + '</div></div>' : '')
+        + '<p style="font-size:11px;color:#94a3b8;margin:-8px 0 0;">For other general conditions (Knee OA, ACL, etc.), select from the Education tab after saving the case.</p>'
+      ) : '')
 
     + (isSurgical ? (
         '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
         + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">'
-        + '<div><label class="field-label">Side</label><select class="select" id="ap-side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(AP_TEMP.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
         + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
-        + '</div>'
       ) : (
         '<div><label class="field-label">Visit date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
       ))
@@ -1463,8 +1465,8 @@ function renderOverviewTab(p) {
       + '</div>' : '<div class="card">'+ageFieldHtml(p)+'</div>')
     + '<div class="card"><div class="row between" style="margin-bottom:5px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div><textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
     + comorbidityCardHtml(p)
-    + (p.surgeryType === 'Trauma' ? classificationCardHtml(p) : '')
-    + (p.surgeryType === 'Trauma' ? unionProgressCardHtml(p) : '')
+    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
+    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '')
     + tagsCardHtml(p)
     + reminderMiniCardHtml(p)
     + '</div>';
@@ -1565,9 +1567,9 @@ async function renderPreopTab(p) {
     + '<select class="select" data-field="preOpWoundStatus" style="margin-bottom:10px;">'+PREOP_WOUND_STATUS_OPTIONS.map(s=>'<option'+((pw.status||'N/A')===s?' selected':'')+'>'+s+'</option>').join('')+'</select>'
     + '<label class="field-label">Wound photo</label><div style="position:relative;">'+woundGrid+woundGridFab+'</div>'
     + '</div>'
-    + '<div class="card" style="margin-bottom:14px;">'
+    + (p.caseType === 'surgical' ? '<div class="card" style="margin-bottom:14px;">'
     + '<label class="field-label">OT / Intra-op photos</label><div style="position:relative;">'+otGrid+otGridFab+'</div>'
-    + '</div>'
+    + '</div>' : '')
     + (images.length ? '<div style="position:relative;">'+grid+gridFab+'</div>' : '<div style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No clinical images yet.</div>'+'<div style="position:relative;">'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">')+gridFab+'</div>')
     + '</div>';
 }
@@ -1584,7 +1586,7 @@ async function renderFollowupsTab(p) {
       + '<label class="field-label">Visit date</label><input class="input" type="date" id="fu-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
       + (p.caseType==='surgical' && p.surgeryDate ? '<p style="font-size:11px;color:#94a3b8;margin:-6px 0 10px;">Post-op Day: <b class="mono" id="fu-pod-preview">'+(calcPOD(p, todayStr())??'\u2014')+'</b></p>' : '')
       + '<label class="field-label">Wound / suture status (if applicable)</label><select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'+WOUND_STATUS_OPTIONS.map(s=>'<option'+(s==='N/A'?' selected':'')+'>'+s+'</option>').join('')+'</select>'
-      + (p.surgeryType === 'Trauma' ? '<label class="field-label">Union status</label><select class="select" id="fu-unionstatus" style="margin-bottom:10px;">'+UNION_STATUS_OPTIONS.map(s=>'<option'+(s==='Not assessed'?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
+      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? '<label class="field-label">Union status</label><select class="select" id="fu-unionstatus" style="margin-bottom:10px;">'+UNION_STATUS_OPTIONS.map(s=>'<option'+(s==='Not assessed'?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
       + '<label class="field-label">Wound / suture photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
       + '<label class="field-label" style="margin-top:10px;">Photos (general)</label><div id="fu-thumbs">'+thumbGridHtml(FU_PHOTOS,'fu-remove-photo')+'</div>'
       + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
@@ -2183,7 +2185,7 @@ function renderEducationTab(p) {
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
     + '<div class="card" style="margin-bottom:14px;">'
     + '<label class="field-label">Condition'+(p.condition==='ctev'?' + CTEV tracking':'')+(p.condition==='ra'?' + RA tracking':'')+'</label>'
-    + '<select class="select" data-field="condition">'+conditionOptionsHtml(p.condition)+'</select>'
+    + '<select class="select" data-field="condition">'+conditionOptionsHtml(p.condition, p.caseType)+'</select>'
     + (p.condition==='ctev' ? '<div style="margin-top:10px;"><label class="field-label">Laterality</label><select class="select" data-field="laterality">'
         + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<option value="'+v+'"'+(p.laterality===v?' selected':'')+'>'+l+'</option>').join('')
         + '</select></div>' : '')
@@ -3355,8 +3357,9 @@ document.addEventListener('click', async (e) => {
   if (action === 'set-tab') { TAB = el.dataset.value; ADD_FOLLOWUP_OPEN=false; const p = getPatient(SELECTED_ID); document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); await renderTabBody(p); return; }
   if (action === 'records-set-subview') { RECORDS_SUBVIEW = el.dataset.value; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
 
-  if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; render(); return; }
+  if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') AP_TEMP.condition = ''; render(); return; }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
+  if (action === 'ap-set-side') { syncApTempFromDom(); AP_TEMP.side = el.dataset.value; render(); return; }
   if (action === 'ap-set-laterality') { syncApTempFromDom(); AP_TEMP.laterality = el.dataset.value; render(); return; }
   if (action === 'ap-set-special') { syncApTempFromDom(); AP_TEMP.condition = el.dataset.value; render(); return; }
 
