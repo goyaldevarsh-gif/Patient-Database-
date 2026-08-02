@@ -87,6 +87,7 @@
   .badge { display:inline-flex; align-items:center; gap:5px; border-radius:999px; border:1px solid; padding:4px 9px; font-size:11px; font-weight:700; }
   .badge-indigo { color:var(--accent); background:#eef2ff; border-color:#c7d2fe; }
   .badge-amber { color:var(--amber); background:var(--amber-bg); border-color:var(--amber-border); }
+  .badge-orange { color:var(--orange); background:var(--orange-bg); border-color:var(--orange-border); }
   .badge-emerald { color:var(--emerald); background:var(--emerald-bg); border-color:var(--emerald-border); }
   .badge-red { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
   .badge-slate { color:var(--slate); background:var(--slate-bg); border-color:var(--slate-border); }
@@ -221,7 +222,7 @@
     #app { max-width:none; }
     body { background:#fff; }
     .edu-doc { max-width:none; }
-    .edu-img-doc { max-width:none; }
+    .edu-img-doc { max-width:none; page-break-after:always; }
   }
 
   /* ---- Dark mode (print/education handouts deliberately excluded -- always light for printing/sharing) ---- */
@@ -443,6 +444,7 @@ const ICONS = {
   heart:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
   copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   folder:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
+  pin:'<path d="M12 2a6 6 0 0 0-6 6c0 4.5 6 12 6 12s6-7.5 6-12a6 6 0 0 0-6-6z"/><circle cx="12" cy="8" r="2"/>',
   menu:'<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
@@ -461,11 +463,17 @@ let ARMED_DELETE = null;
 let ADD_FOLLOWUP_OPEN = false;
 let EXPANDED_FOLLOWUP = new Set();
 let ADD_INVESTIGATION_OPEN = false;
+let ADD_INJECTION_OPEN = false;
+let GUSTILO_OPEN = false;
+let GUSTILO_ANSWERS = { woundSize:'', mechanism:'', softTissue:'', periosteal:'', vascular:'' };
 let EXPANDED_INVESTIGATION = new Set();
 let ADD_PRESCRIPTION_OPEN = false;
 let RX_TEMP = null; // { date, medicines:[{id,name,dose,frequency,duration,instructions}], advice, followUpDate }
 let PRINT_RX = null; // {patient, prescription} when viewing a prescription in print mode
 let EDU_SEARCH = null; // null = use patient's diagnosis as default query
+let EDU_MULTISELECT = false;
+let EDU_SELECTED_IDS = [];
+let PRINT_EDU_MULTI = null; // {patient, edus:[...]} when viewing multiple selected infographics together
 let PRINT_EDU = null; // {patient, edu} when viewing education content in print mode
 let SETTINGS_OPEN = false;
 let ACTIVE_URLS = [];
@@ -569,6 +577,10 @@ function newPatientShape() {
     tags: [],
     comorbidities: [],
     classification: '',
+    isOpenFracture: false,
+    pinned: false,
+    romTracking: null,
+    heightCm: '', weightKg: '',
     createdAt: Date.now(),
   };
 }
@@ -613,6 +625,7 @@ function renderQuickTextChips(key, targetId) {
 const DIAGNOSIS_LIB_KEY = 'surgical-case-log-diagnosis-lib-v1';
 const PROCEDURE_LIB_KEY = 'surgical-case-log-procedure-lib-v1';
 const INVESTIGATION_LIB_KEY = 'surgical-case-log-investigation-lib-v1';
+const INJECTION_LIB_KEY = 'surgical-case-log-injection-lib-v1';
 function ageFieldHtml(p) {
   return '<div><label class="field-label">Age</label><div class="row gap2">'
     + '<input class="input" type="number" min="0" placeholder="Years" data-field="age" value="'+esc(p.age)+'" style="flex:1;">'
@@ -1218,6 +1231,7 @@ function renderListView() {
     }
     return true;
   }).sort((a,b) => {
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
     const aOver = isOverdue(a.nextFollowUpDate), bOver = isOverdue(b.nextFollowUpDate);
     if (aOver !== bOver) return aOver ? -1 : 1;
     return new Date(b.surgeryDate) - new Date(a.surgeryDate);
@@ -1257,6 +1271,7 @@ function renderListView() {
         + '<div style="min-width:0;flex:1;">'
         + '<div class="row gap2">'
         + (dot ? '<span class="status-dot" style="background:'+dot.color+';" title="'+dot.label+'"></span>' : '')
+        + (p.pinned ? '<span style="color:var(--accent);flex:none;">'+ic('pin')+'</span>' : '')
         + '<span class="display" style="font-weight:800;font-size:15px;">'+esc(p.name)+'</span>'
         + '<span class="mono" style="font-size:11px;color:#94a3b8;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
         + '<div style="font-size:11px;color:#a5b4c7;margin-top:1px;" class="mono">'+esc(p.patientCode||'')+'</div>'
@@ -1429,6 +1444,7 @@ function renderOverviewTab(p) {
     + '</div>'
     + (!isSurgical ? '<button class="btn btn-block" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical case</button>' : '<button class="btn btn-block" data-action="convert-to-opd">'+ic('back')+' Convert back to OPD</button>')
     + '<button class="btn btn-block" data-action="duplicate-case">'+ic('copy')+' Duplicate Case</button>'
+    + '<button class="btn btn-block'+(p.pinned?' btn-primary':'')+'" data-action="toggle-pin">'+ic('pin')+(p.pinned?' Unpin case':' Pin as important')+'</button>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
     + '<div class="stat-card"><div class="stat-label">Clinical images</div><div class="stat-value mono">'+p.preOpImageCount+'</div></div>'
     + '<div class="stat-card"><div class="stat-label">Follow-up visits</div><div class="stat-value mono">'+(p.followUps||[]).length+'</div></div>'
@@ -1467,6 +1483,9 @@ function renderOverviewTab(p) {
     + comorbidityCardHtml(p)
     + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
     + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '')
+    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? rustTrendCardHtml(p) : '')
+    + romTrendCardHtml(p)
+    + (shouldShowBmi(p) ? bmiCardHtml(p) : '')
     + tagsCardHtml(p)
     + reminderMiniCardHtml(p)
     + '</div>';
@@ -1507,7 +1526,47 @@ function classificationCardHtml(p) {
     + CLASSIFICATION_SYSTEMS.map(s => '<button type="button" class="tag-chip" data-action="classification-insert-system" data-value="'+esc(s)+'">'+esc(s)+'</button>').join('')
     + '</div>'
     + '<input class="input" data-field="classification" placeholder="e.g. AO 31-A1, Garden III, Weber B" value="'+esc(p.classification||'')+'">'
+    + '<div class="row between" style="margin-top:12px;"><span style="font-size:12.5px;font-weight:700;">Open fracture?</span><div class="seg" style="width:auto;">'
+    + [['no','No'],['yes','Yes']].map(([v,l])=>'<button class="seg-btn'+(((p.isOpenFracture?'yes':'no')===v)?' active':'')+'" data-action="set-open-fracture" data-value="'+v+'" style="padding:6px 14px;">'+l+'</button>').join('')
+    + '</div></div>'
+    + (p.isOpenFracture ? gustiloSectionHtml(p) : '')
     + '</div>';
+}
+
+function gustiloSectionHtml(p) {
+  if (!GUSTILO_OPEN) {
+    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-gustilo">'+ic('tag')+' Gustilo-Anderson Assistant</button>';
+  }
+  const a = GUSTILO_ANSWERS;
+  const result = gustiloCompute(a);
+  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:5px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
+    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="gustilo-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div></div>';
+  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
+    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Gustilo-Anderson Assistant</label><button class="icon-btn" data-action="close-gustilo">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11px;color:#94a3b8;margin:4px 0 0;">Based on the standard Gustilo-Anderson criteria. Often finalised intra-operatively after debridement \u2014 treat this as a working estimate from ER/clinical findings.</p>'
+    + q('woundSize', 'Wound size', [['<1','< 1 cm'],['1-10','1\u201310 cm'],['>10','> 10 cm']])
+    + q('mechanism', 'Mechanism / energy', [['low','Low energy'],['high','High energy (crush, farm, GSW, segmental)']])
+    + q('softTissue', 'Soft tissue damage', [['minimal','Minimal'],['moderate','Moderate'],['extensive','Extensive / loss']])
+    + q('periosteal', 'Periosteal stripping / bone exposure', [['none','None'],['some','Some'],['extensive','Extensive, needs flap']])
+    + q('vascular', 'Vascular injury needing repair', [['no','No'],['yes','Yes']])
+    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Gustilo '+result.type+'</span></div>'
+        + '<p style="font-size:11.5px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
+        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="gustilo-insert" data-value="Gustilo-Anderson Type '+result.type+'">Insert into Classification</button>'
+      : '<p style="font-size:11.5px;color:#94a3b8;margin-top:10px;">Answer all questions to see the suggested type.</p>')
+    + '</div>';
+}
+
+function gustiloCompute(a) {
+  if (!a.woundSize || !a.mechanism || !a.softTissue || !a.periosteal || !a.vascular) return null;
+  if (a.vascular === 'yes') return { type: 'IIIC', note: 'Open fracture with an arterial injury requiring repair \u2014 Type IIIC regardless of wound size or soft tissue damage.' };
+  const highEnergy = a.mechanism === 'high' || a.woundSize === '>10' || a.periosteal === 'extensive' || a.softTissue === 'extensive';
+  if (highEnergy) {
+    if (a.periosteal === 'extensive' || a.softTissue === 'extensive') return { type: 'IIIB', note: 'Extensive soft tissue loss with periosteal stripping / bone exposure \u2014 usually needs a soft tissue coverage procedure (flap).' };
+    return { type: 'IIIA', note: 'High-energy injury or extensive wound, but adequate soft tissue coverage of the fracture is still possible.' };
+  }
+  if (a.woundSize === '1-10' || a.softTissue === 'moderate') return { type: 'II', note: 'Wound 1\u201310 cm with moderate soft tissue damage and minimal periosteal stripping.' };
+  return { type: 'I', note: 'Wound < 1 cm, clean, minimal soft tissue damage, simple fracture pattern.' };
 }
 
 function unionProgressCardHtml(p) {
@@ -1520,6 +1579,117 @@ function unionProgressCardHtml(p) {
     + '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">'
     + tracked.map((f,i) => (i>0?'<span style="color:#cbd5e1;">\u2192</span>':'') + '<span class="badge '+unionBadgeClass(f.unionStatus)+'" style="font-size:10px;" title="'+esc(f.label)+'">'+esc(f.label)+': '+esc(f.unionStatus)+'</span>').join('')
     + '</div></div>';
+}
+
+function rustTotal(rust) {
+  if (!rust) return null;
+  const vals = [rust.anterior, rust.posterior, rust.medial, rust.lateral].map(Number);
+  if (vals.some(v => !v)) return null;
+  return vals.reduce((a,b) => a+b, 0);
+}
+
+const RUST_HELP_HTML = '<div class="help-box"><b>How to score:</b> On AP and lateral X-rays, score each of the 4 cortices (anterior, posterior, medial, lateral) from <b>1</b> to <b>4</b>:<br><br>'
+  + '<b>1</b> \u2014 No callus, fracture line visible<br>'
+  + '<b>2</b> \u2014 Callus present, fracture line still visible<br>'
+  + '<b>3</b> \u2014 Bridging callus, fracture line not visible<br>'
+  + '<b>4</b> \u2014 Remodelled, fully consolidated<br><br>'
+  + 'Total = sum of all 4 cortices (range 4\u201316). Published series commonly treat a score of \u2265 11 as suggestive of union \u2014 use it as a general reference point, not a fixed cutoff, and weigh the trend across serial films alongside clinical findings.</div>';
+
+function rustTrendCardHtml(p) {
+  const tracked = [...(p.followUps||[])].filter(f => rustTotal(f.rust) !== null).sort((a,b) => new Date(a.date) - new Date(b.date));
+  if (!tracked.length) return '';
+  const latestTotal = rustTotal(tracked[tracked.length-1].rust);
+  let html = '<div class="card">'
+    + '<div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">'+ic('clock')+' RUST trend</label>'
+    + '<span class="badge badge-indigo">Latest: '+latestTotal+'/16</span></div>';
+  if (tracked.length > 1) {
+    const w=300,h=140,padL=26,padR=8,padT=10,padB=20, plotW=w-padL-padR, plotH=h-padT-padB, n=tracked.length;
+    const xFor = i => padL + (n===1?plotW/2:(i/(n-1))*plotW);
+    const yFor = score => padT + (1 - (score-4)/12) * plotH;
+    let grid = '';
+    [4,8,12,16].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="#94a3b8" text-anchor="end">'+v+'</text>'; });
+    const pts = tracked.map((f,i) => xFor(i)+','+yFor(rustTotal(f.rust)));
+    let lines = '<polyline points="'+pts.join(' ')+'" fill="none" stroke="#4338ca" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+    tracked.forEach((f,i) => { lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(rustTotal(f.rust))+'" r="3" fill="#4338ca"/>'; });
+    html += '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:140px;">'+grid+lines+'</svg>';
+  } else {
+    html += '<p style="font-size:11.5px;color:#94a3b8;">Log RUST at another visit to see the trend.</p>';
+  }
+  html += '</div>';
+  return html;
+}
+
+/* ================= ROM tracking (Knee / Shoulder / Elbow, extensible) ================= */
+const ROM_JOINT_FIELDS = {
+  knee: [['flexion','Flexion','#4338ca'],['extension','Extension deficit','#dc2626']],
+  shoulder: [['forwardFlexion','Forward flexion','#4338ca'],['abduction','Abduction','#0891b2'],['externalRotation','External rotation','#16a34a'],['internalRotation','Internal rotation','#dc2626']],
+  elbow: [['flexion','Flexion','#4338ca'],['extension','Extension deficit','#dc2626']],
+};
+const ROM_JOINT_LABELS = { knee:'Knee', shoulder:'Shoulder', elbow:'Elbow' };
+
+/* ================= BMI calculator (Arthroplasty / Knee OA) ================= */
+function bmiClassify(bmi) {
+  if (bmi < 18.5) return { label: 'Underweight', badge: 'badge-slate' };
+  if (bmi < 23) return { label: 'Normal', badge: 'badge-emerald' };
+  if (bmi < 25) return { label: 'Overweight', badge: 'badge-amber' };
+  if (bmi < 30) return { label: 'Obese I', badge: 'badge-orange' };
+  return { label: 'Obese II', badge: 'badge-red' };
+}
+function shouldShowBmi(p) {
+  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
+  return p.surgeryType === 'Arthroplasty' || /\boa\b|osteoarthritis/.test(text);
+}
+function bmiCardHtml(p) {
+  const h = Number(p.heightCm), w = Number(p.weightKg);
+  const bmi = (h && w) ? (w / ((h/100)*(h/100))) : null;
+  const cat = bmi ? bmiClassify(bmi) : null;
+  return '<div class="card">'
+    + '<label class="field-label">'+ic('clock')+' BMI</label>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">'
+    + '<div><label style="font-size:10.5px;color:#94a3b8;display:block;margin-bottom:3px;">Height (cm)</label><input class="input" type="number" min="0" data-field="heightCm" value="'+esc(p.heightCm)+'"></div>'
+    + '<div><label style="font-size:10.5px;color:#94a3b8;display:block;margin-bottom:3px;">Weight (kg)</label><input class="input" type="number" min="0" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>'
+    + '</div>'
+    + (bmi ? ('<div class="scorer-total"><span>BMI</span><span class="mono">'+bmi.toFixed(1)+' \u00b7 <span class="badge '+cat.badge+'" style="font-size:10px;">'+cat.label+'</span></span></div>'
+        + (cat.label==='Overweight' || cat.label==='Obese I' || cat.label==='Obese II' ? '<p style="font-size:11px;color:#94a3b8;margin-top:8px;">Higher BMI is a well-documented risk factor for wound complications, infection, and prosthesis loosening after arthroplasty. Pre-operative optimisation (weight, glycaemic control, nutrition) is commonly advised \u2014 individualise based on the full clinical picture.</p>' : ''))
+      : '<p style="font-size:11.5px;color:#94a3b8;">Enter height and weight to calculate BMI (Asian-Pacific classification).</p>')
+    + '</div>';
+}
+
+function romTrendCardHtml(p) {
+  if (!p.romTracking) {
+    return '<div class="card"><label class="field-label">'+ic('clock')+' ROM tracking</label>'
+      + '<p style="font-size:11.5px;color:#94a3b8;margin:2px 0 10px;">Track range of motion over follow-ups \u2014 useful for TKR, frozen shoulder, elbow stiffness, or any joint where progress needs watching.</p>'
+      + '<div class="row gap2">'
+      + Object.keys(ROM_JOINT_FIELDS).map(j => '<button class="btn" style="flex:1;" data-action="enable-rom" data-value="'+j+'">'+ROM_JOINT_LABELS[j]+'</button>').join('')
+      + '</div></div>';
+  }
+  const joint = p.romTracking.jointType;
+  const fields = ROM_JOINT_FIELDS[joint] || ROM_JOINT_FIELDS.knee;
+  const tracked = [...(p.followUps||[])].filter(f => f.rom && fields.some(([k])=>f.rom[k]!=null && f.rom[k]!=='')).sort((a,b) => new Date(a.date) - new Date(b.date));
+  let html = '<div class="card">'
+    + '<div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">'+ic('clock')+' '+ROM_JOINT_LABELS[joint]+' ROM trend</label>'
+    + '<button class="icon-btn" style="width:26px;height:26px;" title="Stop ROM tracking" data-action="disable-rom">'+ic('x')+'</button></div>';
+  if (tracked.length > 1) {
+    const w=300,h=150,padL=26,padR=8,padT=10,padB=20, plotW=w-padL-padR, plotH=h-padT-padB, n=tracked.length;
+    const xFor = i => padL + (n===1?plotW/2:(i/(n-1))*plotW);
+    const yFor = deg => padT + (1 - Math.max(0,Math.min(150,deg))/150) * plotH;
+    let grid = '';
+    [0,50,100,150].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="#94a3b8" text-anchor="end">'+v+'</text>'; });
+    let lines = '';
+    fields.forEach(([key,,color]) => {
+      const pts = []; tracked.forEach((f,i) => { const v = f.rom && f.rom[key]; if (v!=null && v!=='') pts.push(xFor(i)+','+yFor(Number(v))); });
+      if (pts.length) { lines += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+color+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+        tracked.forEach((f,i) => { const v = f.rom && f.rom[key]; if (v!=null && v!=='') lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(Number(v))+'" r="3" fill="'+color+'"/>'; }); }
+    });
+    html += '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:150px;">'+grid+lines+'</svg>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">'
+      + fields.map(([,label,color]) => '<span style="font-size:10px;color:#64748b;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+color+';margin-right:3px;"></span>'+label+'</span>').join('')
+      + '</div>';
+  } else {
+    html += '<p style="font-size:11.5px;color:#94a3b8;">Log ROM at another visit to see the trend.</p>';
+  }
+  html += '</div>';
+  return html;
 }
 
 function confirmBtn(action, id) {
@@ -1587,6 +1757,19 @@ async function renderFollowupsTab(p) {
       + (p.caseType==='surgical' && p.surgeryDate ? '<p style="font-size:11px;color:#94a3b8;margin:-6px 0 10px;">Post-op Day: <b class="mono" id="fu-pod-preview">'+(calcPOD(p, todayStr())??'\u2014')+'</b></p>' : '')
       + '<label class="field-label">Wound / suture status (if applicable)</label><select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'+WOUND_STATUS_OPTIONS.map(s=>'<option'+(s==='N/A'?' selected':'')+'>'+s+'</option>').join('')+'</select>'
       + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? '<label class="field-label">Union status</label><select class="select" id="fu-unionstatus" style="margin-bottom:10px;">'+UNION_STATUS_OPTIONS.map(s=>'<option'+(s==='Not assessed'?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
+      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? (
+          '<div class="row" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">RUST score (optional)</label><button type="button" class="info-help-btn" style="margin-left:6px;" data-action="toggle-rust-help">i</button></div>'
+          + '<div id="rust-help-box">'+(SHOW_RUST_HELP ? RUST_HELP_HTML : '')+'</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
+          + [['anterior','Anterior'],['posterior','Posterior'],['medial','Medial'],['lateral','Lateral']].map(([k,l])=>'<div><label style="font-size:10.5px;color:#94a3b8;display:block;margin-bottom:3px;">'+l+'</label><select class="select" id="fu-rust-'+k+'"><option value="">\u2014</option>'+[1,2,3,4].map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'</select></div>').join('')
+          + '</div>'
+        ) : '')
+      + (p.romTracking ? (
+          '<label class="field-label">'+ROM_JOINT_LABELS[p.romTracking.jointType]+' ROM (degrees, optional)</label>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
+          + (ROM_JOINT_FIELDS[p.romTracking.jointType]||[]).map(([k,l])=>'<div><label style="font-size:10.5px;color:#94a3b8;display:block;margin-bottom:3px;">'+l+'</label><input class="input" type="number" min="0" max="150" id="fu-rom-'+k+'" placeholder="\u00b0"></div>').join('')
+          + '</div>'
+        ) : '')
       + '<label class="field-label">Wound / suture photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
       + '<label class="field-label" style="margin-top:10px;">Photos (general)</label><div id="fu-thumbs">'+thumbGridHtml(FU_PHOTOS,'fu-remove-photo')+'</div>'
       + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
@@ -1634,6 +1817,34 @@ async function renderFollowupsTab(p) {
       + body
       + '</div>';
   });
+
+  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
+}
+
+function renderInjectionsTab(p) {
+  let addBlock;
+  if (!ADD_INJECTION_OPEN) {
+    addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inj">'+ic('plus')+' Add injection</button>';
+  } else {
+    addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
+      + '<label class="field-label">Injection (type + site)</label>'+renderQuickTextChips(INJECTION_LIB_KEY,'inj-label')+'<input class="input" id="inj-label" placeholder="e.g. Intra-articular steroid \u2014 Right knee" style="margin-bottom:10px;">'
+      + '<label class="field-label">Date</label><input class="input" type="date" id="inj-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
+      + '<div class="row between" style="margin:0 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes (optional)</label>'+micButtonHtml('inj-notes')+'</div><textarea class="textarea" id="inj-notes" rows="2" placeholder="Dose, response, next due\u2026"></textarea>'
+      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-inj">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-inj">Save injection</button></div>'
+      + '</div>';
+  }
+
+  let list = '';
+  [...(p.injections||[])].reverse().forEach(inj => {
+    list += '<div class="fu-card">'
+      + '<div class="row between">'
+      + '<span style="font-weight:800;">'+esc(inj.label)+' <span style="font-weight:400;color:#94a3b8;">\u00b7 '+fmtDate(inj.date)+'</span></span>'
+      + confirmBtn('delete-inj', inj.id)
+      + '</div>'
+      + (inj.notes ? '<p style="font-size:12.5px;color:#64748b;margin-top:6px;">'+esc(inj.notes)+'</p>' : '')
+      + '</div>';
+  });
+  if (!list && !ADD_INJECTION_OPEN) list = '<p style="text-align:center;color:#94a3b8;font-size:12px;padding:20px 0;">No injections logged yet.</p>';
 
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
 }
@@ -2164,12 +2375,20 @@ function renderEduResultsHtml(query) {
     return '<p style="font-size:12px;color:#94a3b8;text-align:center;padding:16px 0;">No match for this keyword. Try a different one (e.g. \u201cknee OA\u201d, \u201cACL\u201d, \u201cfracture\u201d).</p>';
   }
   if (!results.length) return '';
-  return '<div style="display:flex;flex-direction:column;gap:8px;">' + results.map(e =>
-    '<button class="patient-card" data-action="view-edu" data-id="'+e.id+'" style="padding:12px 14px;">'
-    + '<span style="font-weight:700;font-size:13.5px;">'+esc(e.name.en)+(EDU_IMAGE_TEMPLATES[e.id]?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Custom</span>':'')+'</span>'
+  return '<div style="display:flex;flex-direction:column;gap:8px;">' + results.map(e => {
+    const hasImage = !!EDU_IMAGE_TEMPLATES[e.id];
+    if (EDU_MULTISELECT && hasImage) {
+      const checked = EDU_SELECTED_IDS.includes(e.id);
+      return '<button class="case-card" data-action="edu-toggle-select" data-id="'+e.id+'" style="padding:12px 14px;'+(checked?'border-color:var(--accent);background:rgba(67,56,202,0.04);':'')+'">'
+        + '<span class="reminder-check'+(checked?' done':'')+'" style="flex:none;">'+(checked?ic('check'):'')+'</span>'
+        + '<span style="font-weight:700;font-size:13.5px;flex:1;text-align:left;margin-left:8px;">'+esc(e.name.en)+'</span>'
+        + '</button>';
+    }
+    return '<button class="case-card" data-action="view-edu" data-id="'+e.id+'" style="padding:12px 14px;">'
+    + '<span style="font-weight:700;font-size:13.5px;">'+esc(e.name.en)+(hasImage?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Custom</span>':'')+'</span>'
     + '<span style="color:#cbd5e1;">'+ic('chevron')+'</span>'
-    + '</button>'
-  ).join('') + '</div>';
+    + '</button>';
+  }).join('') + '</div>';
 }
 
 function renderEducationTab(p) {
@@ -2177,7 +2396,7 @@ function renderEducationTab(p) {
   const directMatch = (p.condition && p.condition !== 'other') ? EDU_LIBRARY.find(e => e.id === p.condition) : null;
   let directHtml = '';
   if (directMatch && EDU_SEARCH === null) {
-    directHtml = '<button class="patient-card" data-action="view-edu" data-id="'+directMatch.id+'" style="padding:14px;margin-bottom:14px;border-color:var(--accent);background:#f5f6ff;">'
+    directHtml = '<button class="case-card" data-action="view-edu" data-id="'+directMatch.id+'" style="padding:14px;margin-bottom:14px;border-color:var(--accent);background:#f5f6ff;">'
       + '<span style="font-weight:800;font-size:14px;color:var(--accent-dark);">'+esc(directMatch.name.en)+' \u2014 patient\u2019s set condition'+(EDU_IMAGE_TEMPLATES[directMatch.id]?' <span class="badge badge-emerald" style="font-size:9px;padding:2px 6px;">Custom</span>':'')+'</span>'
       + '<span style="color:var(--accent);">'+ic('chevron')+'</span>'
       + '</button>';
@@ -2191,9 +2410,13 @@ function renderEducationTab(p) {
         + '</select></div>' : '')
     + '</div>'
     + directHtml
-    + '<div class="search-wrap">'+ic('search')+'<input class="search-input" id="edu-search-input" placeholder="Or search a keyword for another condition (e.g. ACL, fracture)" value="'+esc(query)+'"></div>'
-    + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">Set the condition above, or search a keyword here.</p>'
+    + '<div class="row between" style="margin-bottom:10px;">'
+    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="edu-search-input" placeholder="Or search a keyword for another condition (e.g. ACL, fracture)" value="'+esc(query)+'"></div>'
+    + '<button class="btn btn-sm" style="margin-left:8px;" data-action="edu-toggle-multiselect">'+(EDU_MULTISELECT?'Cancel':'Select multiple')+'</button>'
+    + '</div>'
+    + '<p style="font-size:11px;color:#94a3b8;margin:-4px 0 12px;">'+(EDU_MULTISELECT ? 'Tap to select guides to send together.' : 'Set the condition above, or search a keyword here.')+'</p>'
     + '<div id="edu-results">'+renderEduResultsHtml(query)+'</div>'
+    + (EDU_MULTISELECT && EDU_SELECTED_IDS.length ? '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;"><button class="btn btn-primary btn-block" data-action="open-edu-multi">'+ic('message')+' Share '+EDU_SELECTED_IDS.length+' selected</button></div>' : '')
     + '</div>';
 }
 
@@ -2240,6 +2463,61 @@ async function shareEduImage() {
       toast('Couldn\u2019t share the image directly in this browser \u2014 save it via Print/PDF and send it that way');
     } else {
       toast('Sharing isn\u2019t supported here \u2014 use the Print/PDF button to save the image and send it via WhatsApp');
+    }
+  } catch (err) {
+    toast('Couldn\u2019t share \u2014 try the Print/PDF button');
+  }
+}
+
+function renderEduMultiPrintView() {
+  if (!PRINT_EDU_MULTI) { VIEW='list'; return renderListView(); }
+  const { patient, edus } = PRINT_EDU_MULTI;
+  const waNumber = toWaNumber(patient.whatsapp);
+  const namesList = edus.map(e=>e.name.en).join(', ');
+  const chatLink = waNumber ? ('https://wa.me/' + waNumber + '?text=' + encodeURIComponent('Sending you ' + edus.length + ' guides now \u2014 ' + namesList + '. See the images below.')) : null;
+
+  return '<div class="no-print sticky-top row between px" style="padding:14px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
+    + '<button class="icon-btn" data-action="close-edu-multi-print">'+ic('back')+'</button>'
+    + '<div class="row gap2">'
+    + (chatLink ? '<a href="'+esc(chatLink)+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;" title="Opens the chat \u2014 images not attached automatically, WhatsApp doesn\u2019t allow that via a link">'+ic('message')+' Open Chat</a>' : '')
+    + '<button class="btn" style="background:#25D366;border-color:#25D366;color:#fff;" data-action="share-edu-images">'+ic('message')+' Share All ('+edus.length+')</button>'
+    + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
+    + '</div></div>'
+    + (waNumber ? '<p class="no-print px" style="font-size:11px;color:#94a3b8;margin:8px 0 0;">Tip: tap <b>Open Chat</b> to jump straight to '+esc(patient.name)+'\u2019s WhatsApp, then <b>Share All</b> and pick that same chat \u2014 WhatsApp\u2019s own links can\u2019t attach images automatically.</p>' : '')
+    + edus.map(edu => {
+        const tpl = EDU_IMAGE_TEMPLATES[edu.id];
+        if (!tpl) return '';
+        return '<div class="edu-img-doc" style="margin-bottom:16px;">'
+          + '<div class="edu-img-strip">'
+          + '<span><b>'+esc(patient.name)+'</b> \u00b7 '+formatAge(patient)+' / '+esc(patient.sex)+(patient.patientCode?' \u00b7 <span class="mono">'+esc(patient.patientCode)+'</span>':'')+'</span>'
+          + '<span>'+fmtDate(todayStr())+'</span>'
+          + '</div>'
+          + '<img src="'+tpl.dataUri+'" style="width:100%;display:block;" alt="'+esc(edu.name.en)+'">'
+          + '</div>';
+      }).join('');
+}
+
+async function shareEduImages() {
+  if (!PRINT_EDU_MULTI) return;
+  const { patient, edus } = PRINT_EDU_MULTI;
+  try {
+    const files = [];
+    for (const edu of edus) {
+      const tpl = EDU_IMAGE_TEMPLATES[edu.id];
+      if (!tpl) continue;
+      const resp = await fetch(tpl.dataUri);
+      const blob = await resp.blob();
+      files.push(new File([blob], edu.id+'.jpg', { type: blob.type || 'image/jpeg' }));
+    }
+    if (!files.length) { toast('Nothing to share'); return; }
+    const shareText = 'For ' + patient.name + (patient.whatsapp ? ' (' + patient.whatsapp + ')' : '') + ' \u2014 ' + edus.length + ' guides';
+    if (navigator.canShare && navigator.canShare({ files })) {
+      await navigator.share({ files, text: shareText, title: 'Patient education guides' });
+    } else if (navigator.share) {
+      await navigator.share({ text: shareText, title: 'Patient education guides' });
+      toast('This browser can\u2019t share multiple images at once \u2014 use Print/PDF and send them that way');
+    } else {
+      toast('Sharing isn\u2019t supported here \u2014 use the Print/PDF button');
     }
   } catch (err) {
     toast('Couldn\u2019t share \u2014 try the Print/PDF button');
@@ -2384,8 +2662,9 @@ async function renderRecordsTab(p) {
   const segHtml = '<div class="px" style="padding-top:12px;padding-bottom:0;"><div class="seg">'
     + '<button class="seg-btn'+(RECORDS_SUBVIEW==='investigations'?' active':'')+'" data-action="records-set-subview" data-value="investigations">'+ic('file')+' Investigations</button>'
     + '<button class="seg-btn'+(RECORDS_SUBVIEW==='prescriptions'?' active':'')+'" data-action="records-set-subview" data-value="prescriptions">'+ic('printer')+' Prescriptions</button>'
+    + '<button class="seg-btn'+(RECORDS_SUBVIEW==='injections'?' active':'')+'" data-action="records-set-subview" data-value="injections">'+ic('pill')+' Injections</button>'
     + '</div></div>';
-  const body = RECORDS_SUBVIEW === 'investigations' ? await renderInvestigationsTab(p) : renderPrescriptionsTab(p);
+  const body = RECORDS_SUBVIEW === 'investigations' ? await renderInvestigationsTab(p) : RECORDS_SUBVIEW === 'injections' ? renderInjectionsTab(p) : renderPrescriptionsTab(p);
   return segHtml + body;
 }
 
@@ -2430,6 +2709,7 @@ let ADD_CTEV_SESSION_OPEN = false;
 let CTEV_SESSION_TEMP = null;
 let ADD_CTEV_BRACELOG_OPEN = false;
 let SHOW_PIRANI_HELP = false;
+let SHOW_RUST_HELP = false;
 let SHOW_RA_HELP = false;
 
 function initCtevSessionTemp() { CTEV_SESSION_TEMP = { date: todayStr(), notes:'', left: emptyPiraniComponents(), right: emptyPiraniComponents() }; }
@@ -2563,11 +2843,23 @@ function raLiveScoresHtml() {
     + raScoreBadgeHtml('SDAI', sc.sdai, bandSDAI(sc.sdai)) + '</div>';
 }
 
+const RA_28_JOINTS = [
+  ['Shoulder', 1], ['Elbow', 1], ['Wrist', 1], ['MCP (1st\u20135th)', 5], ['PIP (1st\u20135th)', 5], ['Knee', 1],
+];
 const RA_HELP_HTML = '<div class="help-box"><b>TJC/SJC:</b> count how many of the 28 joints are tender/swollen.<br>'
   + '<b>Patient Global:</b> the patient rates their own disease activity on a 0\u2013100 VAS.<br>'
   + '<b>Physician Global:</b> your assessment on a 0\u201310 scale.<br><br>'
   + '<b>DAS28</b> needs ESR or CRP. <b>CDAI</b> doesn\u2019t need labs (useful when labs aren\u2019t available). <b>SDAI</b> = CDAI + CRP.<br><br>'
-  + 'For all three: Remission (green) &lt; Low &lt; Moderate &lt; High (red) activity.</div>';
+  + 'For all three: Remission (green) &lt; Low &lt; Moderate &lt; High (red) activity.'
+  + '<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">'
+  + '<b>The 28 joints (bilateral \u2014 count both sides):</b>'
+  + '<div style="display:grid;grid-template-columns:1fr auto auto;gap:5px 10px;margin-top:8px;font-size:12px;">'
+  + '<span style="font-weight:700;color:#94a3b8;">Joint</span><span style="font-weight:700;color:#94a3b8;text-align:center;">Per side</span><span style="font-weight:700;color:#94a3b8;text-align:center;">Both sides</span>'
+  + RA_28_JOINTS.map(([name,n]) => '<span>'+name+'</span><span style="text-align:center;" class="mono">'+n+'</span><span style="text-align:center;" class="mono">'+(n*2)+'</span>').join('')
+  + '<span style="font-weight:800;">Total</span><span></span><span style="text-align:center;font-weight:800;" class="mono">28</span>'
+  + '</div>'
+  + '<p style="font-size:11px;color:#94a3b8;margin:8px 0 0;">Hips, ankles, feet, and DIP joints are <b>not</b> part of the 28-joint count \u2014 a common mix-up.</p>'
+  + '</div></div>';
 
 function renderRaTab(p) {
   const ra = p.ra;
@@ -2974,6 +3266,7 @@ async function render() {
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
   if (VIEW === 'edu-print') { app.innerHTML = renderEduPrintView(); return; }
   if (VIEW === 'edu-image-print') { app.innerHTML = renderEduImagePrintView(); return; }
+  if (VIEW === 'edu-multi-print') { app.innerHTML = renderEduMultiPrintView(); return; }
   if (VIEW === 'compare-picker') { app.innerHTML = await renderComparePickerView(); return; }
   if (VIEW === 'compare-view') { app.innerHTML = renderCompareView(); return; }
   if (VIEW === 'calendar') { app.innerHTML = renderCalendarView(); return; }
@@ -3130,7 +3423,7 @@ async function importBackup(file) {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-settings','back-to-list','close-print','close-edu-print','close-edu-image-print','close-compare-picker','close-compare-view','close-calendar','close-more'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-settings','back-to-list','close-print','close-edu-print','close-edu-image-print','close-edu-multi-print','close-compare-picker','close-compare-view','close-calendar','close-more'];
 let SWIPE_START_X = null, SWIPE_START_Y = null, SWIPE_START_TAG = '';
 document.addEventListener('touchstart', (e) => {
   if (e.touches.length !== 1) return;
@@ -3195,6 +3488,12 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'toggle-pirani-help') { SHOW_PIRANI_HELP = !SHOW_PIRANI_HELP; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'toggle-rust-help') {
+    SHOW_RUST_HELP = !SHOW_RUST_HELP;
+    const box = document.getElementById('rust-help-box');
+    if (box) box.innerHTML = SHOW_RUST_HELP ? RUST_HELP_HTML : '';
+    return;
+  }
   if (action === 'toggle-ra-help') { SHOW_RA_HELP = !SHOW_RA_HELP; await renderTabBody(getPatient(SELECTED_ID)); return; }
 
   if (action === 'ctev-open-add-session') { initCtevSessionTemp(); ADD_CTEV_SESSION_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
@@ -3405,6 +3704,48 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'set-open-fracture') {
+    const p = getPatient(SELECTED_ID);
+    p.isOpenFracture = el.dataset.value === 'yes';
+    if (!p.isOpenFracture) GUSTILO_OPEN = false;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'open-gustilo') { GUSTILO_OPEN = true; GUSTILO_ANSWERS = { woundSize:'', mechanism:'', softTissue:'', periosteal:'', vascular:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'close-gustilo') { GUSTILO_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'gustilo-set') { GUSTILO_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'gustilo-insert') {
+    const p = getPatient(SELECTED_ID);
+    p.classification = el.dataset.value;
+    await dbPutPatient(p); await refreshPatients();
+    GUSTILO_OPEN = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    toast('Classification updated');
+    return;
+  }
+  if (action === 'enable-rom') {
+    const p = getPatient(SELECTED_ID);
+    p.romTracking = { jointType: el.dataset.value };
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'disable-rom') {
+    const p = getPatient(SELECTED_ID);
+    p.romTracking = null;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'toggle-pin') {
+    const p = getPatient(SELECTED_ID);
+    p.pinned = !p.pinned;
+    await dbPutPatient(p);
+    await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'duplicate-case') {
     const src = getPatient(SELECTED_ID);
     if (!src) return;
@@ -3440,7 +3781,19 @@ document.addEventListener('click', async (e) => {
     const woundStatus = woundStatusEl ? woundStatusEl.value : 'N/A';
     const unionStatusEl = document.getElementById('fu-unionstatus');
     const unionStatus = unionStatusEl ? unionStatusEl.value : '';
-    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, imageCount: FU_PHOTOS.length + FU_WOUND_PHOTOS.length };
+    let rust = null;
+    const rustAEl = document.getElementById('fu-rust-anterior');
+    if (rustAEl) {
+      const vals = { anterior: rustAEl.value, posterior: document.getElementById('fu-rust-posterior').value, medial: document.getElementById('fu-rust-medial').value, lateral: document.getElementById('fu-rust-lateral').value };
+      if (Object.values(vals).some(v => v)) rust = vals;
+    }
+    let rom = null;
+    if (p.romTracking) {
+      const fields = ROM_JOINT_FIELDS[p.romTracking.jointType] || [];
+      const vals = {}; fields.forEach(([k]) => { const el2 = document.getElementById('fu-rom-'+k); if (el2) vals[k] = el2.value; });
+      if (Object.values(vals).some(v => v)) rom = vals;
+    }
+    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rust, rom, imageCount: FU_PHOTOS.length + FU_WOUND_PHOTOS.length };
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
     await dbPutPatient(p);
@@ -3464,6 +3817,32 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'open-add-inv') { INV_PHOTOS = []; ADD_INVESTIGATION_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'open-add-inj') { ADD_INJECTION_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'cancel-add-inj') { ADD_INJECTION_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'submit-inj') {
+    const p = getPatient(SELECTED_ID);
+    const label = document.getElementById('inj-label').value.trim();
+    if (!label) { toast('Enter the injection type first'); return; }
+    const date = document.getElementById('inj-date').value;
+    const notes = document.getElementById('inj-notes').value;
+    p.injections = p.injections || [];
+    p.injections.push({ id: uid(), label, date, notes });
+    recordTextUsed(INJECTION_LIB_KEY, label);
+    await dbPutPatient(p);
+    await refreshPatients();
+    ADD_INJECTION_OPEN = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'delete-inj' && el.dataset.confirm) {
+    const p = getPatient(SELECTED_ID);
+    p.injections = (p.injections||[]).filter(i => i.id !== el.dataset.id);
+    await dbPutPatient(p);
+    await refreshPatients();
+    ARMED_DELETE = null;
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'cancel-add-inv') { ADD_INVESTIGATION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
   if (action === 'submit-inv') {
     const p = getPatient(SELECTED_ID);
@@ -3863,6 +4242,30 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-edu-image-print') { PRINT_EDU = null; EDU_SEARCH = null; VIEW = 'detail'; TAB = 'education'; render(); return; }
   if (action === 'do-print') { window.print(); return; }
   if (action === 'share-edu-image') { await shareEduImage(); return; }
+  if (action === 'edu-toggle-multiselect') {
+    EDU_MULTISELECT = !EDU_MULTISELECT;
+    EDU_SELECTED_IDS = [];
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'edu-toggle-select') {
+    const id = el.dataset.id;
+    const idx = EDU_SELECTED_IDS.indexOf(id);
+    if (idx >= 0) EDU_SELECTED_IDS.splice(idx, 1); else EDU_SELECTED_IDS.push(id);
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'open-edu-multi') {
+    const p = getPatient(SELECTED_ID);
+    const edus = EDU_SELECTED_IDS.map(id => EDU_LIBRARY.find(e => e.id === id)).filter(Boolean);
+    if (!edus.length) return;
+    PRINT_EDU_MULTI = { patient: p, edus };
+    EDU_MULTISELECT = false; EDU_SELECTED_IDS = [];
+    VIEW = 'edu-multi-print'; render();
+    return;
+  }
+  if (action === 'close-edu-multi-print') { PRINT_EDU_MULTI = null; EDU_SEARCH = null; VIEW = 'detail'; TAB = 'education'; render(); return; }
+  if (action === 'share-edu-images') { await shareEduImages(); return; }
 });
 
 async function render_only_current_view() {
@@ -3939,7 +4342,7 @@ document.addEventListener('change', async (e) => {
     await patchField(t.dataset.field, t.value);
     if (t.dataset.field === 'procedure') recordTextUsed(PROCEDURE_LIB_KEY, t.value);
     if (t.dataset.field === 'diagnosis') recordTextUsed(DIAGNOSIS_LIB_KEY, t.value);
-    if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality') { await render(); }
+    if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality' || t.dataset.field === 'heightCm' || t.dataset.field === 'weightKg') { await render(); }
     return;
   }
   if (t.id === 'preop-add-input' || t.id === 'preop-add-input-cam') {
