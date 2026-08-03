@@ -163,11 +163,13 @@
 
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
   .modal-overlay img { max-width:100%; max-height:78vh; border-radius:8px; }
-  .modal-bar { position:absolute; top:16px; left:16px; right:16px; display:flex; align-items:center; justify-content:space-between; gap:8px; z-index:2; }
+  .modal-bar { position:absolute; top:calc(16px + env(safe-area-inset-top, 0px)); left:16px; right:16px; display:flex; align-items:center; justify-content:space-between; gap:8px; z-index:2; }
   .modal-btn { background:rgba(255,255,255,0.12); color:#fff; border:none; border-radius:999px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; }
   .modal-nav { position:absolute; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.12); color:#fff; border:none; border-radius:999px; width:40px; height:40px; display:flex; align-items:center; justify-content:center; z-index:2; }
   .modal-nav-prev { left:12px; }
   .modal-nav-next { right:12px; }
+  .modal-note-bar { position:absolute; left:16px; right:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); z-index:2; }
+  .modal-note-bar .input { background:rgba(255,255,255,0.96); }
   .modal-label { color:#fff; font-size:12px; margin-top:10px; opacity:0.8; }
 
   .toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%) translateY(0); z-index:40; background:rgba(15,23,42,0.94); color:#fff; font-size:12px; font-weight:600; padding:8px 16px; border-radius:999px; opacity:1; transition:opacity 200ms ease, transform 200ms ease; }
@@ -317,6 +319,8 @@
 
   .usearch-fab { position:absolute; right:16px; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); width:52px; height:52px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 16px rgba(67,56,202,0.4); border:none; }
   .usearch-fab .ic { width:22px; height:22px; }
+  .side-back-btn { position:absolute; left:10px; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:50%; background:rgba(15,23,42,0.85); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.25); border:none; }
+  .side-back-btn .ic { width:20px; height:20px; }
   .usearch-overlay { position:fixed; inset:0; background:#fff; z-index:70; display:flex; flex-direction:column; }
   [data-theme="dark"] .usearch-overlay { background:#0f172a; }
   .usearch-topbar { display:flex; align-items:center; gap:8px; padding:14px 16px; padding-top:calc(14px + env(safe-area-inset-top, 0px)); border-bottom:1px solid var(--border); }
@@ -328,6 +332,9 @@
 <div id="app"></div>
 <div id="usearch-fab-wrap" style="display:none;position:fixed;inset:0;max-width:520px;margin:0 auto;pointer-events:none;z-index:45;">
   <button id="usearch-fab" class="usearch-fab" data-action="open-universal-search" title="Search everything" style="pointer-events:auto;"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+</div>
+<div id="side-back-wrap" style="display:none;position:fixed;inset:0;max-width:520px;margin:0 auto;pointer-events:none;z-index:45;">
+  <button id="side-back-btn" class="side-back-btn" title="Back"><svg class="ic" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
 </div>
 
 <script>
@@ -486,6 +493,8 @@ let GUSTILO_ANSWERS = { woundSize:'', mechanism:'', softTissue:'', periosteal:''
 let EXPANDED_INVESTIGATION = new Set();
 let ADD_PRESCRIPTION_OPEN = false;
 let RX_TEMP = null; // { date, medicines:[{id,name,dose,frequency,duration,instructions}], advice, followUpDate }
+let RX_PHOTOS = [];
+let EXPANDED_PRESCRIPTION = new Set();
 let PRINT_RX = null; // {patient, prescription} when viewing a prescription in print mode
 let EDU_SEARCH = null; // null = use patient's diagnosis as default query
 let EDU_MULTISELECT = false;
@@ -584,15 +593,25 @@ let FU_WOUND_PHOTOS = [];
 let INV_PHOTOS = [];
 
 const PATIENT_COUNTER_KEY = 'surgical-case-log-patient-counter-v1';
+function highestExistingPatientNumber() {
+  let maxN = 0;
+  PATIENTS.forEach(p => {
+    const m = /^PT(\d+)$/.exec(p.patientCode || '');
+    if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+  });
+  return maxN;
+}
 function nextPatientCode() {
-  let n = 1;
-  try { n = parseInt(localStorage.getItem(PATIENT_COUNTER_KEY) || '0', 10) + 1; } catch (e) {}
+  let stored = 0;
+  try { stored = parseInt(localStorage.getItem(PATIENT_COUNTER_KEY) || '0', 10); } catch (e) {}
+  const n = Math.max(highestExistingPatientNumber(), stored) + 1;
   try { localStorage.setItem(PATIENT_COUNTER_KEY, String(n)); } catch (e) {}
   return 'PT' + String(n).padStart(4, '0');
 }
 function peekNextPatientCode() {
-  let n = 1;
-  try { n = parseInt(localStorage.getItem(PATIENT_COUNTER_KEY) || '0', 10) + 1; } catch (e) {}
+  let stored = 0;
+  try { stored = parseInt(localStorage.getItem(PATIENT_COUNTER_KEY) || '0', 10); } catch (e) {}
+  const n = Math.max(highestExistingPatientNumber(), stored) + 1;
   return 'PT' + String(n).padStart(4, '0');
 }
 
@@ -702,8 +721,9 @@ function computeDashboardStats() {
 
   const condCounts = {};
   monthPatients.forEach(p => { if (p.condition && p.condition!=='other') condCounts[p.condition]=(condCounts[p.condition]||0)+1; });
+  const CONDITION_LABEL_OVERRIDES = { trauma:'Trauma', ctev:'CTEV', ra:'Rheumatoid Arthritis', osteoporosis:'Osteoporosis' };
   const topConditions = Object.entries(condCounts).sort((a,b)=>b[1]-a[1]).slice(0,3)
-    .map(([id,n]) => { const e = EDU_LIBRARY.find(x=>x.id===id); return [e?e.name.en:id, n]; });
+    .map(([id,n]) => { const e = EDU_LIBRARY.find(x=>x.id===id); return [CONDITION_LABEL_OVERRIDES[id] || (e?e.name.en:id), n]; });
 
   return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, monthCount: monthPatients.length, topProcedures, topConditions };
 }
@@ -781,6 +801,7 @@ function calcPOD(p, dateStr) {
 
 /* ---- Smart tags ---- */
 const PRESET_TAGS = ['Interesting', 'Teaching Slide', 'Complication', 'Exam Case', 'Revision'];
+const TAG_LIB_KEY = 'surgical-case-log-tag-lib-v1';
 const PRESET_COMORBIDITIES = ['Diabetes (DM)', 'Hypertension (BP)', 'Thyroid disorder', 'Smoking', 'Alcohol use', 'Obesity', 'Asthma / COPD', 'Cardiac disease (IHD)', 'CKD', 'On blood thinners'];
 
 /* ---- Voice-to-text (Web Speech API) ---- */
@@ -1272,13 +1293,13 @@ function updateUsearchFabVisibility() {
 
 function renderListView() {
   const counts = { all: PATIENTS.length };
-  SURGERY_TYPES.forEach(t => counts[t] = PATIENTS.filter(p => p.surgeryType === t).length);
+  SURGERY_TYPES.forEach(t => counts[t] = PATIENTS.filter(p => p.caseType === 'surgical' && p.surgeryType === t).length);
   const ownerProfile = loadProfile();
 
   const allTags = [...new Set(PATIENTS.flatMap(p => p.tags || []))].sort();
 
   const filtered = PATIENTS.filter(p => {
-    if (FILTER_TYPE !== 'all' && p.surgeryType !== FILTER_TYPE) return false;
+    if (FILTER_TYPE !== 'all' && (p.caseType !== 'surgical' || p.surgeryType !== FILTER_TYPE)) return false;
     if (TAG_FILTER && !(p.tags||[]).includes(TAG_FILTER)) return false;
     if (SEARCH) {
       const hit = matchCase(p, SEARCH);
@@ -1323,7 +1344,7 @@ function renderListView() {
     filtered.forEach(p => {
       const fuImgCount = (p.followUps||[]).reduce((s,f) => s + (f.imageCount||0), 0);
       const dot = caseStatusDot(p);
-      cards += '<button class="case-card" data-action="open-patient" data-id="'+p.id+'">'
+      cards += '<div class="case-card" data-action="open-patient" data-id="'+p.id+'">'
         + '<div style="min-width:0;flex:1;">'
         + '<div class="row gap2">'
         + (dot ? '<span class="status-dot" style="background:'+dot.color+';" title="'+dot.label+'"></span>' : '')
@@ -1334,17 +1355,17 @@ function renderListView() {
         + '<div style="font-size:11px;color:var(--muted);margin-top:6px;" class="mono">'+formatAge(p)+' \u00b7 '+esc(p.sex)+(p.patientCode?' \u00b7 '+esc(p.patientCode):'')+'</div>'
         + (p.caseType==='surgical'
             ? '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
-            : '<div style="font-size:11px;color:var(--muted);margin-top:1px;">OPD \u00b7 '+fmtDate(p.surgeryDate)+'</div>')
+            : '<div style="font-size:11px;color:var(--muted);margin-top:1px;">OPD \u00b7 '+esc(p.side||'\u2014')+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>')
         + (SEARCH && p._searchMatchField && !['Name','Diagnosis'].includes(p._searchMatchField) ? '<div style="font-size:10px;color:var(--accent);margin-top:4px;font-weight:600;">'+ic('search')+' Matched in: '+esc(p._searchMatchField)+'</div>' : '')
-        + (isOverdue(p.nextFollowUpDate) ? '<div class="overdue-note">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+'</div>'
-            : (p.nextFollowUpDate ? '<div style="font-size:11px;color:var(--muted);margin-top:4px;">'+ic('calendar')+' Next follow-up '+fmtDate(p.nextFollowUpDate)+'</div>' : ''))
+        + (isOverdue(p.nextFollowUpDate) ? '<button type="button" class="overdue-note" data-action="open-patient-followup" data-id="'+p.id+'" style="background:none;border:none;padding:0;text-decoration:underline;">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+' \u2192</button>'
+            : (p.nextFollowUpDate ? '<button type="button" data-action="open-patient-followup" data-id="'+p.id+'" style="background:none;border:none;padding:0;font-size:11px;color:var(--muted);margin-top:4px;text-decoration:underline;display:flex;align-items:center;gap:4px;">'+ic('calendar')+' Next follow-up '+fmtDate(p.nextFollowUpDate)+' \u2192</button>' : ''))
         + '<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
         + (p.caseType==='surgical' ? '<span class="badge badge-'+TYPE_BADGE[p.surgeryType]+'">'+p.surgeryType+'</span>' : '<span class="badge badge-slate">OPD</span>')
         + (p.caseType==='surgical' ? '<span class="badge badge-slate">'+ic('camera')+p.preOpImageCount+' pre-op \u00b7 '+fuImgCount+' follow-up</span>' : '<span class="badge badge-slate">'+ic('camera')+fuImgCount+' follow-up</span>')
         + (p.tags||[]).map(t=>'<span class="badge badge-indigo" style="font-size:10px;">'+ic('tag')+esc(t)+'</span>').join('')
         + '</div></div>'
         + '<span style="color:#cbd5e1;margin-left:8px;">'+ic('chevron')+'</span>'
-        + '</button>';
+        + '</div>';
     });
     cards += '</div>';
   }
@@ -1407,7 +1428,7 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId) {
     const previewUrl = trackUrl(URL.createObjectURL(blob));
     targetArray.push({ tempId: uid(), blob, previewUrl, label:'' });
   }
-  const removeAction = containerId==='ap-thumbs' ? 'ap-remove-photo' : containerId==='inv-thumbs' ? 'inv-remove-photo' : containerId==='fu-wound-thumbs' ? 'fu-wound-remove-photo' : 'fu-remove-photo';
+  const removeAction = containerId==='ap-thumbs' ? 'ap-remove-photo' : containerId==='inv-thumbs' ? 'inv-remove-photo' : containerId==='rx-thumbs' ? 'rx-remove-photo' : containerId==='fu-wound-thumbs' ? 'fu-wound-remove-photo' : 'fu-remove-photo';
   const container = document.getElementById(containerId);
   if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbGridHtml(targetArray, removeAction)+'</div>';
   toast('Added');
@@ -1525,8 +1546,11 @@ function renderOverviewTab(p) {
     + '</div>'
     + '<button class="btn btn-block" data-action="set-tab" data-value="education">'+ic('book')+' Patient Education</button>'
     + '<div class="card">'
-    + '<label class="field-label">Diagnosis (free text)</label><textarea class="textarea" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'
+    + '<label class="field-label">Diagnosis (free text)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'
     + '</div>'
+    + (!isSurgical ? '<div class="card"><label class="field-label">Special tracking (optional)</label><div class="seg">'
+        + [['','None'],['ctev','CTEV'],['ra','RA'],['osteoporosis','Osteoporosis'],['trauma','Trauma']].map(([v,l])=>'<button class="seg-btn'+((p.condition||'')===v?' active':'')+'" data-action="ov-set-special" data-value="'+v+'">'+l+'</button>').join('')
+        + '</div></div>' : '')
     + (isSurgical ? '<div class="card" style="display:flex;flex-direction:column;gap:10px;">'
       + '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'
@@ -1535,7 +1559,10 @@ function renderOverviewTab(p) {
       + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
       + '</div>'
       + ageFieldHtml(p)
-      + '</div>' : '<div class="card">'+ageFieldHtml(p)+'</div>')
+      + '</div>' : '<div class="card" style="display:flex;flex-direction:column;gap:10px;">'
+      + '<div><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
+      + ageFieldHtml(p)
+      + '</div>')
     + '<div class="card"><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div><textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
     + comorbidityCardHtml(p)
     + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
@@ -1554,6 +1581,7 @@ function renderOverviewTab(p) {
 
 function tagsCardHtml(p) {
   const tags = p.tags || [];
+  const recentCustomTags = topTextChips(TAG_LIB_KEY, 6).map(x=>x.value).filter(t => !PRESET_TAGS.includes(t) && !tags.includes(t));
   return '<div class="card">'
     + '<label class="field-label">'+ic('tag')+' Tags</label>'
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:'+(tags.length?'10px':'0')+';">'
@@ -1561,6 +1589,7 @@ function tagsCardHtml(p) {
     + '</div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
     + PRESET_TAGS.filter(t => !tags.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
+    + recentCustomTags.map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
     + '</div>'
     + '<div class="row gap2"><input class="input" id="custom-tag-input" placeholder="Type a custom tag\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-tag">Add</button></div>'
     + '</div>';
@@ -1939,6 +1968,8 @@ async function renderFollowupsTab(p) {
       + '<label class="field-label">Wound / suture photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
       + '<label class="field-label" style="margin-top:10px;">Photos (general)</label><div id="fu-thumbs">'+thumbGridHtml(FU_PHOTOS,'fu-remove-photo')+'</div>'
       + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
+      + '<label class="field-label" style="margin-top:10px;">Next follow-up date (optional)</label><input class="input" type="date" id="fu-next-followup" value="'+esc(p.nextFollowUpDate||'')+'">'
+      + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">This replaces the patient\u2019s \u201cnext follow-up due\u201d date \u2014 leave blank to clear it.</p>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-fu">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-fu">Save visit</button></div>'
       + '</div>';
   }
@@ -2101,7 +2132,9 @@ function renderQuickAddChips() {
     + '</div></div>';
 }
 
-function renderPrescriptionsTab(p) {
+async function renderPrescriptionsTab(p) {
+  const allImages = await dbGetImagesByPatient(p.id);
+  revokeActiveUrls();
   let addBlock;
   if (!ADD_PRESCRIPTION_OPEN) {
     addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-rx">'+ic('plus')+' New prescription</button>';
@@ -2114,6 +2147,7 @@ function renderPrescriptionsTab(p) {
       + '<div id="rx-med-rows">'+renderRxMedRows()+'</div>'
       + '<button class="btn btn-outline-dashed btn-block" data-action="rx-add-med" style="margin-bottom:12px;">'+ic('plus')+' Add another medicine</button>'
       + '<label class="field-label">Advice</label><textarea class="textarea" rows="2" id="rx-advice" placeholder="General advice, activity restriction\u2026">'+esc(RX_TEMP.advice)+'</textarea>'
+      + '<label class="field-label" style="margin-top:10px;">Photos (optional \u2014 old prescriptions, referral notes)</label><div id="rx-thumbs">'+thumbGridHtml(RX_PHOTOS,'rx-remove-photo')+'</div>'
       + '<label class="field-label" style="margin-top:10px;">Follow-up date (optional)</label><input class="input" type="date" id="rx-followUpDate" value="'+esc(RX_TEMP.followUpDate)+'" style="margin-bottom:10px;">'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-rx">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-rx">Save prescription</button></div>'
       + '</div>';
@@ -2121,15 +2155,31 @@ function renderPrescriptionsTab(p) {
 
   let list = '';
   [...(p.prescriptions||[])].reverse().forEach(rx => {
+    const expanded = EXPANDED_PRESCRIPTION.has(rx.id);
+    const rxImages = allImages.filter(im => im.prescriptionId === rx.id);
     const medNames = rx.medicines.map(m=>m.name).filter(Boolean).join(', ');
+    let body = '';
+    if (expanded) {
+      let grid = '<div class="thumb-grid">';
+      rxImages.forEach(im => {
+        const url = trackUrl(URL.createObjectURL(im.blob));
+        grid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
+      });
+      grid += '<label class="add-photo-tile" data-rx-add="'+rx.id+'">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-rx-input="'+rx.id+'" style="display:none;"></label>';
+      grid += '</div>';
+      grid = '<div style="position:relative;">'+grid+cameraFabHtml('data-rx-input="'+rx.id+'"')+'</div>';
+      body = grid;
+    }
     list += '<div class="fu-card">'
-      + '<div class="row between">'
+      + '<div class="row between" style="cursor:pointer;" data-action="toggle-rx" data-id="'+rx.id+'">'
       + '<span style="font-weight:800;">'+fmtDate(rx.date)+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+rx.medicines.length+' medicine'+(rx.medicines.length!==1?'s':'')+'</span></span>'
       + '<div class="row gap2">'
+      + (rxImages.length || rx.imageCount ? '<span class="badge badge-slate">'+ic('camera')+(rx.imageCount||rxImages.length)+'</span>' : '')
       + '<button class="icon-btn" data-action="view-rx" data-id="'+rx.id+'" style="color:var(--accent);" title="View / Print">'+ic('printer')+'</button>'
       + confirmBtn('delete-rx', rx.id)
       + '</div></div>'
       + (medNames ? '<p style="font-size:12px;color:#64748b;margin-top:4px;">'+esc(medNames)+'</p>' : '')
+      + body
       + '</div>';
   });
 
@@ -2853,7 +2903,7 @@ async function renderRecordsTab(p) {
     + '<button class="seg-btn'+(RECORDS_SUBVIEW==='prescriptions'?' active':'')+'" data-action="records-set-subview" data-value="prescriptions">'+ic('printer')+' Prescriptions</button>'
     + '<button class="seg-btn'+(RECORDS_SUBVIEW==='injections'?' active':'')+'" data-action="records-set-subview" data-value="injections">'+ic('pill')+' Injections</button>'
     + '</div></div>';
-  const body = RECORDS_SUBVIEW === 'investigations' ? await renderInvestigationsTab(p) : RECORDS_SUBVIEW === 'injections' ? renderInjectionsTab(p) : renderPrescriptionsTab(p);
+  const body = RECORDS_SUBVIEW === 'investigations' ? await renderInvestigationsTab(p) : RECORDS_SUBVIEW === 'injections' ? renderInjectionsTab(p) : await renderPrescriptionsTab(p);
   return segHtml + body;
 }
 
@@ -2861,6 +2911,8 @@ function renderTimelineTab(p) {
   let events = [];
   if (p.caseType === 'surgical' && p.surgeryDate) {
     events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Surgery: ' + (p.procedure || p.surgeryType), sub: p.side !== 'N/A' ? p.side : null, jumpTab: 'overview' });
+  } else if (p.surgeryDate) {
+    events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Registration: ' + (p.diagnosis || 'OPD case'), sub: p.side && p.side !== 'N/A' ? p.side : null, jumpTab: 'overview' });
   }
   (p.followUps||[]).forEach(f => events.push({ date: f.date, icon:'calendar', color:'#0d9488', bg:'#ccfbf1', title: 'Follow-up: ' + f.label, sub: (f.woundStatus && f.woundStatus!=='N/A') ? ('Wound: ' + f.woundStatus) : (f.notes || null), jumpTab: 'followups' }));
   (p.investigations||[]).forEach(inv => events.push({ date: inv.date, icon:'file', color:'#7c3aed', bg:'#f3e8ff', title: 'Investigation: ' + inv.label, sub: inv.notes || null, jumpTab: 'investigations' }));
@@ -3190,7 +3242,7 @@ function classifyInvestigationLabel(label) {
   return 'Other investigations';
 }
 
-const PHOTO_FOLDER_ORDER = ['Pre-op','OT / Intra-op','MRI','CT','X-ray','Ultrasound','DEXA','Labs','Other investigations','Follow-up'];
+const PHOTO_FOLDER_ORDER = ['Pre-op','OT / Intra-op','MRI','CT','X-ray','Ultrasound','DEXA','Labs','Other investigations','Prescriptions','Follow-up'];
 
 async function computePhotoFolders(p) {
   const allImages = await dbGetImagesByPatient(p.id);
@@ -3202,6 +3254,7 @@ async function computePhotoFolders(p) {
       folders[classifyInvestigationLabel(inv ? inv.label : '')].push(im);
       return;
     }
+    if (im.prescriptionId) { folders['Prescriptions'].push(im); return; }
     if (im.isIntraOp) { folders['OT / Intra-op'].push(im); return; }
     folders['Pre-op'].push(im);
   });
@@ -3498,6 +3551,7 @@ async function render() {
   const app = document.getElementById('app');
   app.classList.remove('view-transition'); void app.offsetWidth; app.classList.add('view-transition');
   updateUsearchFabVisibility();
+  updateSideBackVisibility();
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
@@ -3531,7 +3585,7 @@ async function patchField(field, value) {
 
 let IMG_GALLERY = null;
 let IMG_GALLERY_IDX = 0;
-function openImageViewer(url, imgId, gallery, idx) {
+async function openImageViewer(url, imgId, gallery, idx) {
   IMG_GALLERY = (gallery && gallery.length > 1) ? gallery : null;
   IMG_GALLERY_IDX = idx || 0;
   let overlay = document.getElementById('img-viewer');
@@ -3551,12 +3605,14 @@ function openImageViewer(url, imgId, gallery, idx) {
       else if (dx < 0 && IMG_GALLERY_IDX < IMG_GALLERY.length-1) viewerNav(1);
     }, { passive:true });
   }
-  renderImageViewerFrame(url, imgId);
+  await renderImageViewerFrame(url, imgId);
 }
-function renderImageViewerFrame(url, imgId) {
+async function renderImageViewerFrame(url, imgId) {
   const overlay = document.getElementById('img-viewer');
   if (!overlay) return;
   const hasGallery = !!IMG_GALLERY;
+  const rec = await dbGetImage(imgId);
+  const note = (rec && rec.note) || '';
   overlay.innerHTML = '<div class="modal-bar">'
     + (hasGallery ? '<span style="color:#fff;font-size:12px;opacity:0.75;">'+(IMG_GALLERY_IDX+1)+' / '+IMG_GALLERY.length+'</span>' : '<span></span>')
     + '<div class="row gap2">'
@@ -3565,7 +3621,8 @@ function renderImageViewerFrame(url, imgId) {
     + '</div></div>'
     + (hasGallery && IMG_GALLERY_IDX > 0 ? '<button class="modal-nav modal-nav-prev" data-action="viewer-prev">'+ic('back')+'</button>' : '')
     + (hasGallery && IMG_GALLERY_IDX < IMG_GALLERY.length-1 ? '<button class="modal-nav modal-nav-next" data-action="viewer-next" style="transform:translateY(-50%) rotate(180deg);">'+ic('back')+'</button>' : '')
-    + '<img src="'+url+'">';
+    + '<img src="'+url+'">'
+    + '<div class="modal-note-bar"><input class="input" id="img-note-input" data-img-note="'+imgId+'" placeholder="Add a note for this image \u2014 what to remember\u2026" value="'+esc(note)+'"></div>';
 }
 function viewerNav(dir) {
   if (!IMG_GALLERY) return;
@@ -3702,6 +3759,22 @@ async function importBackup(file) {
 
 /* ================= Swipe-right to go back ================= */
 const SWIPE_BACK_ACTIONS = ['cancel-add','close-settings','back-to-list','close-print','close-edu-print','close-edu-image-print','close-edu-multi-print','close-compare-picker','close-compare-view','close-calendar','close-more'];
+function findBackActionBtn() {
+  for (const action of SWIPE_BACK_ACTIONS) {
+    const btn = document.querySelector('[data-action="'+action+'"]');
+    if (btn) return btn;
+  }
+  return null;
+}
+function updateSideBackVisibility() {
+  const wrap = document.getElementById('side-back-wrap');
+  if (!wrap) return;
+  wrap.style.display = (!APP_LOCKED && findBackActionBtn()) ? 'block' : 'none';
+}
+document.getElementById('side-back-btn').addEventListener('click', () => {
+  const btn = findBackActionBtn();
+  if (btn) btn.click();
+});
 let SWIPE_START_X = null, SWIPE_START_Y = null, SWIPE_START_TAG = '';
 document.addEventListener('touchstart', (e) => {
   if (e.touches.length !== 1) return;
@@ -3717,10 +3790,8 @@ document.addEventListener('touchend', (e) => {
   SWIPE_START_X = null; SWIPE_START_Y = null; SWIPE_START_TAG = '';
   if (['INPUT','TEXTAREA','SELECT'].includes(startTag)) return;
   if (dx > 90 && Math.abs(dy) < 60) {
-    for (const action of SWIPE_BACK_ACTIONS) {
-      const btn = document.querySelector('[data-action="'+action+'"]');
-      if (btn) { btn.click(); break; }
-    }
+    const btn = findBackActionBtn();
+    if (btn) btn.click();
   }
 }, { passive: true });
 
@@ -3739,6 +3810,11 @@ document.addEventListener('click', async (e) => {
     if (target && target.id === 'ov-procedure') {
       await patchField('procedure', el.dataset.value);
       recordTextUsed(PROCEDURE_LIB_KEY, el.dataset.value);
+      await render();
+    }
+    if (target && target.id === 'ov-diagnosis') {
+      await patchField('diagnosis', el.dataset.value);
+      recordTextUsed(DIAGNOSIS_LIB_KEY, el.dataset.value);
       await render();
     }
     return;
@@ -3920,6 +3996,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-compare-view') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'preop'; await render(); return; }
   if (action === 'cancel-add') { AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='list'; render(); return; }
   if (action === 'open-patient') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
+  if (action === 'open-patient-followup') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='followups'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
   if (action === 'open-universal-search') { openUniversalSearch(); return; }
   if (action === 'close-usearch') { closeUniversalSearch(); return; }
   if (action === 'usearch-open-patient') {
@@ -3952,6 +4029,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'fu-remove-photo') { FU_PHOTOS = FU_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-thumbs').innerHTML = thumbGridHtml(FU_PHOTOS,'fu-remove-photo'); return; }
   if (action === 'fu-wound-remove-photo') { FU_WOUND_PHOTOS = FU_WOUND_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-wound-thumbs').innerHTML = thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo'); return; }
   if (action === 'inv-remove-photo') { INV_PHOTOS = INV_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('inv-thumbs').innerHTML = thumbGridHtml(INV_PHOTOS,'inv-remove-photo'); return; }
+  if (action === 'rx-remove-photo') { RX_PHOTOS = RX_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('rx-thumbs').innerHTML = thumbGridHtml(RX_PHOTOS,'rx-remove-photo'); return; }
 
   if (action === 'save-patient') {
     syncApTempFromDom();
@@ -3970,7 +4048,7 @@ document.addEventListener('click', async (e) => {
     p.caseType = AP_TEMP.caseType;
     p.condition = AP_TEMP.condition;
     p.laterality = AP_TEMP.laterality;
-    p.surgeryType = AP_TEMP.surgeryType;
+    p.surgeryType = AP_TEMP.caseType === 'surgical' ? AP_TEMP.surgeryType : '';
     p.procedure = AP_TEMP.procedure;
     p.side = AP_TEMP.side;
     p.surgeryDate = AP_TEMP.surgeryDate;
@@ -4040,6 +4118,16 @@ document.addEventListener('click', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
+  if (action === 'ov-set-special') {
+    const p = getPatient(SELECTED_ID);
+    p.condition = el.dataset.value;
+    if (p.condition === 'ctev' && !p.ctev) p.ctev = newCtevShape();
+    if (p.condition === 'ra' && !p.ra) p.ra = newRaShape();
+    if (p.condition === 'osteoporosis' && !p.osteo) p.osteo = newOsteoShape();
+    await dbPutPatient(p); await refreshPatients();
+    await render();
+    return;
+  }
   if (action === 'toggle-pin') {
     const p = getPatient(SELECTED_ID);
     p.pinned = !p.pinned;
@@ -4098,6 +4186,8 @@ document.addEventListener('click', async (e) => {
     const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rust, rom, imageCount: FU_PHOTOS.length + FU_WOUND_PHOTOS.length };
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
+    const nextFuEl = document.getElementById('fu-next-followup');
+    if (nextFuEl) p.nextFollowUpDate = nextFuEl.value;
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
@@ -4231,7 +4321,7 @@ document.addEventListener('click', async (e) => {
       gallery = items.map(it => ({ url: it.dataset.url, imgid: it.dataset.imgid }));
       startIdx = items.indexOf(el);
     }
-    openImageViewer(el.dataset.url, el.dataset.imgid, gallery, startIdx);
+    await openImageViewer(el.dataset.url, el.dataset.imgid, gallery, startIdx);
     return;
   }
   if (action === 'viewer-prev') { viewerNav(-1); return; }
@@ -4362,6 +4452,7 @@ document.addEventListener('click', async (e) => {
     const p = getPatient(SELECTED_ID);
     p.tags = p.tags || [];
     if (!p.tags.includes(val)) p.tags.push(val);
+    recordTextUsed(TAG_LIB_KEY, val);
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
@@ -4491,8 +4582,14 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'open-add-rx') { initRxTemp(); ADD_PRESCRIPTION_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
-  if (action === 'cancel-add-rx') { ADD_PRESCRIPTION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'open-add-rx') { initRxTemp(); RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'cancel-add-rx') { RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'toggle-rx') {
+    const id = el.dataset.id;
+    if (EXPANDED_PRESCRIPTION.has(id)) EXPANDED_PRESCRIPTION.delete(id); else EXPANDED_PRESCRIPTION.add(id);
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'rx-add-med') {
     syncRxMedsFromDom();
     RX_TEMP.medicines.push({ id: uid(), name:'', dose:'', frequency:'', duration:'', instructions:'' });
@@ -4528,11 +4625,18 @@ document.addEventListener('click', async (e) => {
     if (!medicines.length) { toast('Add at least one medicine name'); return; }
     recordMedicinesUsed(medicines);
     const p = getPatient(SELECTED_ID);
-    const rx = { id: uid(), date, medicines, advice, followUpDate, createdAt: Date.now() };
+    const rx = { id: uid(), date, medicines, advice, followUpDate, imageCount: RX_PHOTOS.length, createdAt: Date.now() };
     p.prescriptions = p.prescriptions || [];
     p.prescriptions.push(rx);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Saving\u2026';
+    el.disabled = true;
     await dbPutPatient(p);
+    for (const ph of RX_PHOTOS) {
+      await dbAddImage({ id: uid(), patientId: p.id, prescriptionId: rx.id, blob: ph.blob, createdAt: Date.now() });
+    }
     await refreshPatients();
+    RX_PHOTOS = [];
     ADD_PRESCRIPTION_OPEN = false;
     await renderTabBody(getPatient(SELECTED_ID));
     return;
@@ -4629,6 +4733,11 @@ document.addEventListener('change', async (e) => {
     if (t.dataset.osteoField === 'nextDexaDate') await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
+  if (t.dataset && t.dataset.imgNote) {
+    const rec = await dbGetImage(t.dataset.imgNote);
+    if (rec) { rec.note = t.value; await dbAddImage(rec); }
+    return;
+  }
   if (t.dataset && t.dataset.pjiKey) {
     const p = getPatient(SELECTED_ID);
     p.pji = p.pji || {};
@@ -4659,6 +4768,7 @@ document.addEventListener('change', async (e) => {
     else if (which === 'fu-remove-photo') await handlePhotoInputChange(t, FU_PHOTOS, 'fu-thumbs');
     else if (which === 'fu-wound-remove-photo') await handlePhotoInputChange(t, FU_WOUND_PHOTOS, 'fu-wound-thumbs');
     else if (which === 'inv-remove-photo') await handlePhotoInputChange(t, INV_PHOTOS, 'inv-thumbs');
+    else if (which === 'rx-remove-photo') await handlePhotoInputChange(t, RX_PHOTOS, 'rx-thumbs');
     return;
   }
   if (t.dataset && t.dataset.field === 'preOpWoundStatus') {
@@ -4769,6 +4879,22 @@ document.addEventListener('change', async (e) => {
     }
     const inv = (p.investigations||[]).find(i => i.id === invId);
     if (inv) inv.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.investigationId===invId).length;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (t.dataset && t.dataset.rxInput) {
+    const rxId = t.dataset.rxInput;
+    const files = Array.from(t.files || []);
+    if (!files.length) return;
+    const p = getPatient(SELECTED_ID);
+    toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+    for (const file of files) {
+      const blob = await resizeImageFile(file);
+      await dbAddImage({ id: uid(), patientId: p.id, prescriptionId: rxId, blob, createdAt: Date.now() });
+    }
+    const rx = (p.prescriptions||[]).find(r => r.id === rxId);
+    if (rx) rx.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.prescriptionId===rxId).length;
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
