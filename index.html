@@ -484,6 +484,7 @@ let TAG_FILTER = '';
 let TAB = 'overview';
 let RECORDS_SUBVIEW = 'investigations'; // 'investigations' | 'prescriptions' \u2014 sub-view inside the merged Records tab
 let ARMED_DELETE = null;
+let EDITING_PATIENT_CODE = false;
 let ADD_FOLLOWUP_OPEN = false;
 let EXPANDED_FOLLOWUP = new Set();
 let ADD_INVESTIGATION_OPEN = false;
@@ -1517,7 +1518,9 @@ function renderOverviewTab(p) {
   const isSurgical = p.caseType === 'surgical';
   return '<div class="px" style="display:flex;flex-direction:column;gap:12px;padding-top:14px;padding-bottom:20px;">'
     + '<div class="row between" style="padding:2px 2px 0;flex-wrap:wrap;gap:6px;">'
-    + (p.patientCode ? '<span class="badge badge-indigo mono" style="font-size:12px;">'+ic('clipboard')+esc(p.patientCode)+'</span>' : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>')
+    + (EDITING_PATIENT_CODE
+        ? '<div class="row gap2" style="flex:1;min-width:180px;"><input class="input" id="patient-code-input" value="'+esc(p.patientCode||'')+'" style="flex:1;" placeholder="e.g. PT0001"><button class="icon-btn" style="color:var(--emerald);" data-action="save-patient-code" title="Save">'+ic('check')+'</button><button class="icon-btn" data-action="cancel-edit-patient-code" title="Cancel">'+ic('x')+'</button></div>'
+        : (p.patientCode ? '<button class="badge badge-indigo mono" style="font-size:12px;" data-action="edit-patient-code">'+ic('clipboard')+esc(p.patientCode)+'</button>' : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>'))
     + '<span class="badge badge-'+(isSurgical?'indigo':'slate')+'">'+(isSurgical?'Surgical':'OPD')+'</span>'
     + '</div>'
     + (!isSurgical ? '<button class="btn btn-block" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical case</button>' : '<button class="btn btn-block" data-action="convert-to-opd">'+ic('back')+' Convert back to OPD</button>')
@@ -3826,6 +3829,22 @@ document.addEventListener('click', async (e) => {
     render();
     return;
   }
+  if (action === 'edit-patient-code') { EDITING_PATIENT_CODE = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'cancel-edit-patient-code') { EDITING_PATIENT_CODE = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'save-patient-code') {
+    const input = document.getElementById('patient-code-input');
+    const val = input ? input.value.trim() : '';
+    if (!val) { toast('Patient ID can\u2019t be blank'); return; }
+    const clash = PATIENTS.find(x => x.id !== SELECTED_ID && (x.patientCode||'') === val);
+    if (clash) { toast('That ID is already used by '+clash.name+' \u2014 pick a different one'); return; }
+    const p = getPatient(SELECTED_ID);
+    p.patientCode = val;
+    await dbPutPatient(p); await refreshPatients();
+    EDITING_PATIENT_CODE = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    toast('Patient ID updated');
+    return;
+  }
   if (action === 'convert-to-surgical') {
     const p = getPatient(SELECTED_ID);
     p.caseType = 'surgical';
@@ -3995,13 +4014,13 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-compare-picker') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'preop'; await render(); return; }
   if (action === 'close-compare-view') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'preop'; await render(); return; }
   if (action === 'cancel-add') { AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='list'; render(); return; }
-  if (action === 'open-patient') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
-  if (action === 'open-patient-followup') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='followups'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
+  if (action === 'open-patient') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; EDITING_PATIENT_CODE=false; await render(); return; }
+  if (action === 'open-patient-followup') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='followups'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; EDITING_PATIENT_CODE=false; await render(); return; }
   if (action === 'open-universal-search') { openUniversalSearch(); return; }
   if (action === 'close-usearch') { closeUniversalSearch(); return; }
   if (action === 'usearch-open-patient') {
     closeUniversalSearch();
-    SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); recordRecentSearchPatient(el.dataset.id); VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
+    SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); recordRecentSearchPatient(el.dataset.id); VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; EDITING_PATIENT_CODE=false;
     await render();
     return;
   }
