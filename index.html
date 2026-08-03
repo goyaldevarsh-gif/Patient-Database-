@@ -39,6 +39,10 @@
   .scorer-total { display:flex; align-items:center; justify-content:space-between; border-radius:10px; padding:9px 14px; background:#0f172a; color:#fff; font-weight:800; margin-top:2px; font-size:13px; }
   .info-help-btn { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; background:var(--slate-bg); color:var(--slate); border:none; font-size:11px; font-weight:800; font-family:'Fraunces',serif; font-style:italic; margin-left:5px; vertical-align:middle; }
   .help-box { background:#eef2ff; border:1px solid #c7d2fe; border-radius:10px; padding:10px 12px; font-size:12px; color:#3730a3; line-height:1.5; margin-top:8px; }
+  .autocomplete-box { display:flex; flex-direction:column; border:1px solid var(--border); border-radius:10px; background:#fff; box-shadow:0 4px 14px rgba(0,0,0,0.08); margin-top:4px; overflow:hidden; }
+  .autocomplete-item { text-align:left; padding:9px 12px; font-size:13px; background:#fff; border:none; border-bottom:1px solid var(--border); color:var(--ink); }
+  .autocomplete-item:last-child { border-bottom:none; }
+  [data-theme="dark"] .autocomplete-item { background:#1e293b; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; background:#fff; color:var(--ink); }
   body { font-family:'Inter',system-ui,sans-serif; font-size:14px; -webkit-font-smoothing:antialiased; line-height:1.5; }
@@ -170,6 +174,7 @@
   .modal-nav-next { right:12px; }
   .modal-note-bar { position:absolute; left:16px; right:16px; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); z-index:2; }
   .modal-note-bar .input { background:rgba(255,255,255,0.96); }
+  .img-note-caption { position:absolute; top:calc(64px + env(safe-area-inset-top, 0px)); left:16px; right:16px; z-index:2; background:rgba(245,158,11,0.95); color:#1e293b; font-weight:700; font-size:13px; padding:10px 14px; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.25); display:flex; align-items:flex-start; gap:6px; }
   .modal-label { color:#fff; font-size:12px; margin-top:10px; opacity:0.8; }
 
   .toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%) translateY(0); z-index:40; background:rgba(15,23,42,0.94); color:#fff; font-size:12px; font-weight:600; padding:8px 16px; border-radius:999px; opacity:1; transition:opacity 200ms ease, transform 200ms ease; }
@@ -437,6 +442,20 @@ function todayStr() { return new Date().toISOString().slice(0,10); }
 
 const SURGERY_TYPES = ['Arthroplasty','Arthroscopy','Trauma','Spine','Other'];
 const TYPE_BADGE = { Arthroplasty:'indigo', Arthroscopy:'emerald', Trauma:'red', Spine:'amber', Other:'slate' };
+const CASE_REGIONS = [
+  { key:'Upper Limb', keywords:['shoulder','elbow','wrist','hand','finger','humerus','radius','ulna','clavicle','forearm'] },
+  { key:'Lower Limb', keywords:['hip','knee','thigh','femur','tibia','fibula','patella','leg'] },
+  { key:'Spine', keywords:['spine','spinal','vertebra','lumbar','cervical','thoracic','disc'] },
+  { key:'Pelvis & Acetabulum', keywords:['pelvis','pelvic','acetabul','pubic','sacrum','sacroiliac'] },
+  { key:'Foot & Ankle', keywords:['foot','ankle','toe','calcaneus','talus','metatarsal'] },
+  { key:'Arthroplasty', keywords:['replacement','arthroplasty','tkr','thr','prosthesis','resurfacing'] },
+  { key:'Sports Medicine', keywords:['acl','pcl','meniscus','rotator cuff','ligament','sports','arthroscopy','arthroscopic'] },
+  { key:'Trauma', keywords:['fracture',' fx ','fx.','trauma','dislocation','#'] },
+];
+function autoDetectRegions(text) {
+  const t = (' '+(text||'').toLowerCase()+' ');
+  return CASE_REGIONS.filter(r => r.keywords.some(k => t.includes(k))).map(r => r.key);
+}
 const STATUS_OPTIONS = ['Active follow-up','Completed','Lost to follow-up'];
 
 const ICONS = {
@@ -484,6 +503,7 @@ let TAG_FILTER = '';
 let TAB = 'overview';
 let RECORDS_SUBVIEW = 'investigations'; // 'investigations' | 'prescriptions' \u2014 sub-view inside the merged Records tab
 let ARMED_DELETE = null;
+let SHOW_TAG_FILTER = false;
 let EDITING_PATIENT_CODE = false;
 let ADD_FOLLOWUP_OPEN = false;
 let EXPANDED_FOLLOWUP = new Set();
@@ -554,7 +574,7 @@ function continueLastPatientHtml() {
     + '<span style="flex:1;min-width:0;">'
     + '<span style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--accent-dark);">Continue \u00b7 '+relativeTimeAgo(last.at)+'</span>'
     + '<span style="display:block;font-size:14px;font-weight:800;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</span>'
-    + '<span style="display:block;font-size:12px;color:#64748b;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p.caseType==='surgical'?esc(p.procedure||p.surgeryType):esc(p.diagnosis||'OPD case'))+'</span>'
+    + '<span style="display:block;font-size:12px;color:#64748b;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p.caseType==='surgical'?esc(p.procedure||p.surgeryType):((p.diagnosis||p.chiefComplaints)?esc(sideTag(p))+esc(p.diagnosis||p.chiefComplaints):'OPD case'))+'</span>'
     + '</span>'
     + '<span style="flex:none;color:var(--accent);font-size:12px;font-weight:700;display:flex;align-items:center;">Resume '+ic('chevron')+'</span>'
     + '</button>';
@@ -582,7 +602,11 @@ function newReminder(overrides) {
   return Object.assign({ id: uid(), text:'', category:'General', patientId:null, dueDate:'', done:false, createdAt: Date.now() }, overrides||{});
 }
 
-function revokeActiveUrls() { ACTIVE_URLS.forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); ACTIVE_URLS = []; }
+function revokeActiveUrls() {
+  const toRevoke = ACTIVE_URLS;
+  ACTIVE_URLS = [];
+  setTimeout(() => { toRevoke.forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); }, 4000);
+}
 function trackUrl(u) { ACTIVE_URLS.push(u); return u; }
 
 // temp state for add-patient photo staging: [{tempId, blob, previewUrl, label}]
@@ -618,7 +642,7 @@ function peekNextPatientCode() {
 
 function newPatientShape() {
   return {
-    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', sex:'M', diagnosis:'',
+    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', sex:'M', diagnosis:'', chiefComplaints:'', regions: [],
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
@@ -638,6 +662,11 @@ function newPatientShape() {
     kocher: null,
     createdAt: Date.now(),
   };
+}
+function sideTag(p) {
+  if (!p.side || p.side === 'N/A') return '';
+  const short = p.side === 'Bilateral' ? 'B/L' : p.side === 'Left' ? 'L' : p.side === 'Right' ? 'R' : p.side;
+  return '('+short+') ';
 }
 function formatAge(p) {
   const y = (p.age !== '' && p.age != null) ? parseInt(p.age) : null;
@@ -677,7 +706,29 @@ function renderQuickTextChips(key, targetId) {
     + chips.map(c => '<button type="button" class="chip" data-action="quick-fill-text" data-target="'+targetId+'" data-value="'+esc(c.value)+'">'+esc(c.value)+'</button>').join('')
     + '</div>';
 }
+/* Live-filtering autocomplete, shown under a field as the person types (2+ chars) */
+function autocompleteBoxHtml(targetId) {
+  return '<div id="'+targetId+'-ac" class="autocomplete-box" style="display:none;"></div>';
+}
+function updateAutocomplete(targetId, libKey, query, selectAction) {
+  const box = document.getElementById(targetId+'-ac');
+  if (!box) return;
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const matches = loadTextLibrary(libKey)
+    .filter(x => x.value.toLowerCase().includes(q) && x.value.toLowerCase() !== q)
+    .sort((a,b)=>(b.useCount-a.useCount)||(b.lastUsed-a.lastUsed))
+    .slice(0, 5);
+  if (!matches.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.innerHTML = matches.map(x => '<button type="button" class="autocomplete-item" data-action="'+selectAction+'" data-target="'+targetId+'" data-value="'+esc(x.value)+'">'+esc(x.value)+'</button>').join('');
+  box.style.display = 'block';
+}
+function hideAutocomplete(targetId) {
+  const box = document.getElementById(targetId+'-ac');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
 const DIAGNOSIS_LIB_KEY = 'surgical-case-log-diagnosis-lib-v1';
+const CHIEF_COMPLAINT_LIB_KEY = 'surgical-case-log-complaint-lib-v1';
 const PROCEDURE_LIB_KEY = 'surgical-case-log-procedure-lib-v1';
 const INVESTIGATION_LIB_KEY = 'surgical-case-log-investigation-lib-v1';
 const INJECTION_LIB_KEY = 'surgical-case-log-injection-lib-v1';
@@ -839,9 +890,14 @@ function startMic(targetId, btnEl) {
   };
   recognition.onerror = (e) => {
     stopMic();
+    const isStandalone = window.navigator.standalone === true;
     const reasons = {
-      'not-allowed': 'Microphone access is blocked. Check your iPhone Settings \u2192 Safari \u2192 Microphone (or Settings \u2192 this app if opened from Home Screen), then try again.',
-      'service-not-allowed': 'Microphone access is blocked. Check your iPhone Settings \u2192 Safari \u2192 Microphone (or Settings \u2192 this app if opened from Home Screen), then try again.',
+      'not-allowed': isStandalone
+        ? 'Voice input doesn\u2019t work when this app is opened from the Home Screen icon on iPhone \u2014 it\u2019s an Apple/Safari restriction for installed web apps, not a setting you can fix here. Open the site in Safari itself (not the icon) if you need voice input.'
+        : 'Microphone access is blocked. Check Settings \u2192 Safari \u2192 Microphone, then try again.',
+      'service-not-allowed': isStandalone
+        ? 'Voice input doesn\u2019t work when this app is opened from the Home Screen icon on iPhone \u2014 it\u2019s an Apple/Safari restriction for installed web apps, not a setting you can fix here. Open the site in Safari itself (not the icon) if you need voice input.'
+        : 'Microphone access is blocked. Check Settings \u2192 Safari \u2192 Microphone, then try again.',
       'no-speech': 'Didn\u2019t catch that \u2014 no speech detected. Try again.',
       'audio-capture': 'No microphone found on this device.',
       'network': 'Voice input needs an internet connection \u2014 check your network and try again.',
@@ -1072,31 +1128,21 @@ function caseStatusDot(p) {
 function waLink(patient) {
   const digits = toWaNumber(patient.whatsapp);
   if (!digits) return null;
-  const msg = 'Hi ' + patient.name + ', this is regarding your ' + (patient.procedure || 'appointment') + '.';
+  const msg = 'Hi ' + patient.name + ',\nIf you have any concerns or need assistance before your next visit, feel free to reply to this message.\nRegards,\nDr. Devarsh Goyal (MBBS M.S. orthopaedics)';
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
 }
 
 function followUpReminderMessage(patient) {
-  return 'Namaste ' + patient.name + ', Dr. Devarsh Goyal ki taraf se aapka follow-up checkup '
-    + fmtDate(patient.nextFollowUpDate) + ' ko scheduled hai. Kripya apna purana X-ray aur files saath layein.';
+  return 'Hello ' + patient.name + '\nYour next follow-up is on ' + fmtDate(patient.nextFollowUpDate)
+    + '\nPlease bring all previous X-rays, MRI/CT reports and prescriptions.'
+    + '\n\u0915\u0943\u092a\u092f\u093e \u0905\u092a\u0928\u0947 \u0938\u092d\u0940 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0901 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u090f\u0902\u0964'
+    + '\nRegards\nDr Devarsh Goyal';
 }
 function followUpReminderLink(patient) {
   const digits = toWaNumber(patient.whatsapp);
   if (!digits || !patient.nextFollowUpDate) return null;
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(followUpReminderMessage(patient));
 }
-function postOpCareMessage(patient) {
-  let msg = 'Namaste ' + patient.name + ', Dr. Goyal ki taraf se aapki surgery/checkup ke baad ki zaroori baatein: '
-    + '1. Limb elevate rakhein, 2. Ice packs din mein 3 baar lagayein, 3. Wound geela na hone dein.';
-  if (patient.nextFollowUpDate) msg += ' Next visit: ' + fmtDate(patient.nextFollowUpDate) + '.';
-  return msg;
-}
-function postOpCareLink(patient) {
-  const digits = toWaNumber(patient.whatsapp);
-  if (!digits) return null;
-  return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(postOpCareMessage(patient));
-}
-
 function rxWaMessage(patient, rx, profile) {
   let lines = [];
   lines.push('*Prescription \u2014 ' + (profile.clinicName || '') + '*');
@@ -1197,9 +1243,11 @@ function searchFields(p) {
     ['Patient ID', p.patientCode],
     ['Name', p.name],
     ['Diagnosis', p.diagnosis],
+    ['Chief complaints', p.chiefComplaints],
     ['Procedure', p.procedure],
     ['Condition', p.condition],
     ['Surgery type', p.surgeryType],
+    ['Region', (p.regions||[]).join(', ')],
     ['Side', p.side],
     ['Status', p.status],
     ['Classification', p.classification],
@@ -1279,9 +1327,9 @@ function usearchResultRowHtml(p, q) {
   const hit = q ? matchCase(p, q) : null;
   return '<button class="case-card" style="width:100%;" data-action="usearch-open-patient" data-id="'+p.id+'">'
     + '<div style="min-width:0;flex:1;">'
-    + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+esc(p.name)+'</span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
-    + '<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis||'')+'</div>'
-    + (hit && !['Name','Diagnosis'].includes(hit.field) ? '<div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(hit.field)+'</div>' : '')
+    + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+esc(p.name)+'</span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+(p.side && p.side!=='N/A' ? ' \u00b7 '+esc(p.side) : '')+'</span></div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+((p.diagnosis||p.chiefComplaints)?esc(sideTag(p)):'')+esc(p.diagnosis||p.chiefComplaints||'')+'</div>'
+    + (hit && !['Name','Diagnosis','Chief complaints'].includes(hit.field) ? '<div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(hit.field)+'</div>' : '')
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
@@ -1294,13 +1342,13 @@ function updateUsearchFabVisibility() {
 
 function renderListView() {
   const counts = { all: PATIENTS.length };
-  SURGERY_TYPES.forEach(t => counts[t] = PATIENTS.filter(p => p.caseType === 'surgical' && p.surgeryType === t).length);
+  CASE_REGIONS.forEach(r => counts[r.key] = PATIENTS.filter(p => (p.regions||[]).includes(r.key)).length);
   const ownerProfile = loadProfile();
 
   const allTags = [...new Set(PATIENTS.flatMap(p => p.tags || []))].sort();
 
   const filtered = PATIENTS.filter(p => {
-    if (FILTER_TYPE !== 'all' && (p.caseType !== 'surgical' || p.surgeryType !== FILTER_TYPE)) return false;
+    if (FILTER_TYPE !== 'all' && !(p.regions||[]).includes(FILTER_TYPE)) return false;
     if (TAG_FILTER && !(p.tags||[]).includes(TAG_FILTER)) return false;
     if (SEARCH) {
       const hit = matchCase(p, SEARCH);
@@ -1316,17 +1364,21 @@ function renderListView() {
   });
 
   let chips = '<div class="chips">';
-  ['all', ...SURGERY_TYPES].forEach(t => {
+  ['all', ...CASE_REGIONS.map(r=>r.key)].forEach(t => {
     chips += '<button class="chip'+(FILTER_TYPE===t?' active':'')+'" data-action="set-filter" data-value="'+t+'">'+(t==='all'?'All':t)+' ('+counts[t]+')</button>';
   });
   chips += '</div>';
 
   let tagChips = '';
   if (allTags.length) {
-    tagChips = '<div class="chips" style="margin-top:6px;">'
-      + '<button class="chip'+(!TAG_FILTER?' active':'')+'" data-action="set-tag-filter" data-value="">'+ic('tag')+'All tags</button>'
-      + allTags.map(t => '<button class="chip'+(TAG_FILTER===t?' active':'')+'" data-action="set-tag-filter" data-value="'+esc(t)+'">'+esc(t)+' ('+PATIENTS.filter(p=>(p.tags||[]).includes(t)).length+')</button>').join('')
-      + '</div>';
+    if (!SHOW_TAG_FILTER) {
+      tagChips = '<button class="chip" style="margin-top:6px;" data-action="toggle-tag-filter-row">'+ic('tag')+' Filter by tag'+(TAG_FILTER?' \u2014 '+esc(TAG_FILTER):'')+'</button>';
+    } else {
+      tagChips = '<div class="chips" style="margin-top:6px;">'
+        + '<button class="chip'+(!TAG_FILTER?' active':'')+'" data-action="set-tag-filter" data-value="">'+ic('tag')+'All tags</button>'
+        + allTags.map(t => '<button class="chip'+(TAG_FILTER===t?' active':'')+'" data-action="set-tag-filter" data-value="'+esc(t)+'">'+esc(t)+' ('+PATIENTS.filter(p=>(p.tags||[]).includes(t)).length+')</button>').join('')
+        + '</div>';
+    }
   }
 
   let cards = '';
@@ -1352,12 +1404,13 @@ function renderListView() {
         + (p.pinned ? '<span style="color:var(--accent);flex:none;">'+ic('pin')+'</span>' : '')
         + '<span class="display" style="font-weight:800;font-size:15px;">'+esc(p.name)+'</span>'
         + '</div>'
-        + (p.diagnosis ? '<div style="font-size:13px;font-weight:600;color:#334155;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.diagnosis)+'</div>' : '')
+        + (p.diagnosis ? '<div style="font-size:13px;font-weight:600;color:#334155;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(sideTag(p))+esc(p.diagnosis)+'</div>'
+            : (p.chiefComplaints ? '<div style="font-size:13px;font-weight:600;color:#334155;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(sideTag(p))+'C/O: '+esc(p.chiefComplaints)+'</div>' : ''))
         + '<div style="font-size:11px;color:var(--muted);margin-top:6px;" class="mono">'+formatAge(p)+' \u00b7 '+esc(p.sex)+(p.patientCode?' \u00b7 '+esc(p.patientCode):'')+'</div>'
         + (p.caseType==='surgical'
-            ? '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+p.side+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
+            ? '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+esc(p.procedure||'\u2014')+' \u00b7 '+esc(p.side||'\u2014')+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>'
             : '<div style="font-size:11px;color:var(--muted);margin-top:1px;">OPD \u00b7 '+esc(p.side||'\u2014')+' \u00b7 '+fmtDate(p.surgeryDate)+'</div>')
-        + (SEARCH && p._searchMatchField && !['Name','Diagnosis'].includes(p._searchMatchField) ? '<div style="font-size:10px;color:var(--accent);margin-top:4px;font-weight:600;">'+ic('search')+' Matched in: '+esc(p._searchMatchField)+'</div>' : '')
+        + (SEARCH && p._searchMatchField && !['Name','Diagnosis','Chief complaints'].includes(p._searchMatchField) ? '<div style="font-size:10px;color:var(--accent);margin-top:4px;font-weight:600;">'+ic('search')+' Matched in: '+esc(p._searchMatchField)+'</div>' : '')
         + (isOverdue(p.nextFollowUpDate) ? '<button type="button" class="overdue-note" data-action="open-patient-followup" data-id="'+p.id+'" style="background:none;border:none;padding:0;text-decoration:underline;">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+' \u2192</button>'
             : (p.nextFollowUpDate ? '<button type="button" data-action="open-patient-followup" data-id="'+p.id+'" style="background:none;border:none;padding:0;font-size:11px;color:var(--muted);margin-top:4px;text-decoration:underline;display:flex;align-items:center;gap:4px;">'+ic('calendar')+' Next follow-up '+fmtDate(p.nextFollowUpDate)+' \u2192</button>' : ''))
         + '<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
@@ -1374,7 +1427,7 @@ function renderListView() {
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding-top:16px;padding-bottom:10px;">'
     + '<div class="row between" style="margin-bottom:10px;">'
-    + '<div><h1 style="font-size:18px;font-weight:800;margin:0;">Bone Log Pro</h1><p style="font-size:11px;color:var(--muted);margin:2px 0 0;">'+(ownerProfile.doctorName?esc(ownerProfile.doctorName)+' \u00b7 ':'')+PATIENTS.length+' case'+(PATIENTS.length!==1?'s':'')+' on record</p></div>'
+    + '<div><h1 style="font-size:20px;font-weight:800;margin:0;letter-spacing:-0.01em;">Bone Log <span style="color:var(--accent);">Pro</span></h1><p style="font-size:11px;color:var(--muted);margin:3px 0 0;">'+(ownerProfile.doctorName?esc(ownerProfile.doctorName)+' \u00b7 ':'')+'<span style="font-weight:800;color:var(--accent);font-size:13px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p></div>'
     + '<div class="row gap2">'
     + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
     + '<button class="icon-btn" data-action="open-more" title="More">'+ic('menu')+'</button>'
@@ -1440,13 +1493,14 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId) {
 let AP_TEMP = null;
 let AP_DUPLICATE_FROM = null;
 function initApTemp() {
-  AP_TEMP = { name:'', age:'', ageMonths:'', sex:'M', diagnosis:'', caseType:'surgical', condition:'', laterality:'bilateral',
+  AP_TEMP = { name:'', age:'', ageMonths:'', sex:'M', diagnosis:'', chiefComplaints:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'' };
 }
 function syncApTempFromDom() {
   ['name','age','ageMonths','diagnosis','procedure','whatsapp','notes'].forEach(f => { const el = document.getElementById('ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
+  const complaintsEl = document.getElementById('ap-complaints'); if (complaintsEl) AP_TEMP.chiefComplaints = complaintsEl.value;
 }
 function conditionOptionsHtml(selected, caseType) {
   const excluded = caseType === 'surgical' ? ['ctev','ra','osteoporosis'] : [];
@@ -1478,7 +1532,12 @@ function renderAddView() {
     + '<div><label class="field-label">Sex</label><div class="seg">'
     + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
     + '</div>'
-    + '<div style="margin-top:8px;"><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea></div>'
+    + (!isSurgical ? '<div style="margin-top:8px;"><label class="field-label">Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
+    + '<div style="margin-top:8px;"><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')+'</div>'
+    + '<div style="margin-top:8px;"><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ap-auto-region">'+ic('search')+' Auto-detect</button></div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+    + CASE_REGIONS.map(r=>'<button type="button" class="tag-chip'+(AP_TEMP.regions.includes(r.key)?' active':'')+'" data-action="ap-toggle-region" data-value="'+esc(r.key)+'">'+esc(r.key)+'</button>').join('')
+    + '</div></div>'
     + '<div><label class="field-label">Side</label><div class="seg">'
     + ['Left','Right','Bilateral'].map(s=>'<button class="seg-btn'+(AP_TEMP.side===s?' active':'')+'" data-action="ap-set-side" data-value="'+s+'">'+s+'</button>').join('')
     + '</div></div>'
@@ -1538,19 +1597,23 @@ function renderOverviewTab(p) {
     + '<label class="field-label">WhatsApp number</label>'
     + '<input class="input" type="tel" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'" style="margin-bottom:10px;">'
     + (waLink(p)
-        ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Message on WhatsApp</a>'
+        ? '<div class="row gap2"><a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:2;">'+ic('message')+' Message on WhatsApp</a><button class="btn" style="flex:1;" data-action="save-contact" title="Save to Contacts">'+ic('clipboard')+' Save</button></div>'
         : '<p style="font-size:11px;color:var(--muted);">Save a number to send messages.</p>')
-    + (p.whatsapp ? '<div class="row gap2" style="margin-top:8px;">'
+    + (p.whatsapp ? '<div style="margin-top:8px;">'
         + (followUpReminderLink(p)
-            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
-            : '<button class="btn btn-sm" style="flex:1;" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
-        + '<a href="'+esc(postOpCareLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:1;text-decoration:none;">'+ic('shield')+' Post-Op Care</a>'
+            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
+            : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
         + '</div>' : '')
     + '</div>'
     + '<button class="btn btn-block" data-action="set-tab" data-value="education">'+ic('book')+' Patient Education</button>'
+    + (!isSurgical ? '<div class="card"><label class="field-label">Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
     + '<div class="card">'
-    + '<label class="field-label">Diagnosis (free text)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'
+    + '<label class="field-label">Diagnosis (free text)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
     + '</div>'
+    + '<div class="card"><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ov-auto-region">'+ic('search')+' Auto-detect</button></div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+    + CASE_REGIONS.map(r=>'<button type="button" class="tag-chip'+((p.regions||[]).includes(r.key)?' active':'')+'" data-action="ov-toggle-region" data-value="'+esc(r.key)+'">'+esc(r.key)+'</button>').join('')
+    + '</div></div>'
     + (!isSurgical ? '<div class="card"><label class="field-label">Special tracking (optional)</label><div class="seg">'
         + [['','None'],['ctev','CTEV'],['ra','RA'],['osteoporosis','Osteoporosis'],['trauma','Trauma']].map(([v,l])=>'<button class="seg-btn'+((p.condition||'')===v?' active':'')+'" data-action="ov-set-special" data-value="'+v+'">'+l+'</button>').join('')
         + '</div></div>' : '')
@@ -1595,6 +1658,7 @@ function tagsCardHtml(p) {
     + recentCustomTags.map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
     + '</div>'
     + '<div class="row gap2"><input class="input" id="custom-tag-input" placeholder="Type a custom tag\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-tag">Add</button></div>'
+    + autocompleteBoxHtml('custom-tag-input')
     + '</div>';
 }
 
@@ -2095,8 +2159,8 @@ async function renderInvestigationsTab(p) {
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
 }
 
-function initRxTemp() {
-  RX_TEMP = { date: todayStr(), medicines: [{id:uid(), name:'', dose:'', frequency:'', duration:'', instructions:''}], advice:'', followUpDate:'' };
+function initRxTemp(prefillFollowUpDate) {
+  RX_TEMP = { date: todayStr(), medicines: [{id:uid(), name:'', dose:'', frequency:'', duration:'', instructions:''}], advice:'', followUpDate: prefillFollowUpDate || '' };
 }
 function syncRxMedsFromDom() {
   RX_TEMP.medicines.forEach(m => {
@@ -2211,15 +2275,16 @@ function renderPrintView() {
     + '<div class="rx-letterhead">'
     + '<div><div class="rx-clinic-name">'+esc(profile.clinicName||'\u2014')+'</div>'
     + '<div class="rx-clinic-addr">'+esc(profile.clinicAddress||'').replace(/\n/g,'<br>')+'</div>'
-    + (profile.clinicPhone?'<div class="rx-clinic-addr">'+esc(profile.clinicPhone)+'</div>':'')+'</div>'
+    + (profile.clinicPhone?'<div class="rx-clinic-addr" style="margin-top:4px;"><b>Contact Details:</b> '+esc(profile.clinicPhone)+'</div>':'')+'</div>'
     + '<div style="text-align:right;"><div class="rx-doc-name">'+esc(profile.doctorName||'\u2014')+'</div>'
     + '<div class="rx-clinic-addr">'+esc(profile.qualifications||'')+'</div>'
     + '<div class="rx-clinic-addr">Reg. No: '+esc(profile.regNumber||'\u2014')+'</div></div>'
     + '</div>'
     + '<div class="rx-patient-row">'
-    + '<span><b>Patient:</b> '+esc(patient.name)+' &nbsp; ('+formatAge(patient)+' / '+esc(patient.sex)+')'+(patient.patientCode?' &nbsp; <span style="color:var(--muted);">'+esc(patient.patientCode)+'</span>':'')+'</span>'
+    + '<span><b>Patient:</b> '+esc(patient.name)+' &nbsp; ('+formatAge(patient)+' / '+esc(patient.sex)+')'+(patient.side && patient.side!=='N/A' ? ' &nbsp; <b>Side:</b> '+esc(patient.side) : '')+(patient.patientCode?' &nbsp; <span style="color:var(--muted);">'+esc(patient.patientCode)+'</span>':'')+'</span>'
     + '<span><b>Date:</b> '+fmtDate(rx.date)+'</span>'
     + '</div>'
+    + (patient.chiefComplaints ? '<div class="rx-diagnosis"><b>C/O:</b> '+esc(patient.chiefComplaints)+'</div>' : '')
     + (patient.diagnosis ? '<div class="rx-diagnosis">'+esc(patient.diagnosis)+'</div>' : '')
     + '<div class="rx-symbol">R<sub>x</sub></div>'
     + '<table class="rx-table">'+medsHtml+'</table>'
@@ -2913,9 +2978,9 @@ async function renderRecordsTab(p) {
 function renderTimelineTab(p) {
   let events = [];
   if (p.caseType === 'surgical' && p.surgeryDate) {
-    events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Surgery: ' + (p.procedure || p.surgeryType), sub: p.side !== 'N/A' ? p.side : null, jumpTab: 'overview' });
+    events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Surgery: ' + (p.procedure || p.surgeryType), sub: (p.side && p.side !== 'N/A') ? p.side : null, jumpTab: 'overview' });
   } else if (p.surgeryDate) {
-    events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Registration: ' + (p.diagnosis || 'OPD case'), sub: p.side && p.side !== 'N/A' ? p.side : null, jumpTab: 'overview' });
+    events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Registration: ' + (p.diagnosis || p.chiefComplaints ? sideTag(p) + (p.diagnosis || p.chiefComplaints) : 'OPD case'), sub: p.side && p.side !== 'N/A' ? p.side : null, jumpTab: 'overview' });
   }
   (p.followUps||[]).forEach(f => events.push({ date: f.date, icon:'calendar', color:'#0d9488', bg:'#ccfbf1', title: 'Follow-up: ' + f.label, sub: (f.woundStatus && f.woundStatus!=='N/A') ? ('Wound: ' + f.woundStatus) : (f.notes || null), jumpTab: 'followups' }));
   (p.investigations||[]).forEach(inv => events.push({ date: inv.date, icon:'file', color:'#7c3aed', bg:'#f3e8ff', title: 'Investigation: ' + inv.label, sub: inv.notes || null, jumpTab: 'investigations' }));
@@ -3616,12 +3681,16 @@ async function renderImageViewerFrame(url, imgId) {
   const hasGallery = !!IMG_GALLERY;
   const rec = await dbGetImage(imgId);
   const note = (rec && rec.note) || '';
+  const patient = rec ? getPatient(rec.patientId) : null;
+  const downloadName = (patient ? patient.name.replace(/[^a-zA-Z0-9 ]/g,'').trim().replace(/\s+/g,'-') : 'bonelog-photo') + '-' + todayStr() + '.jpg';
   overlay.innerHTML = '<div class="modal-bar">'
     + (hasGallery ? '<span style="color:#fff;font-size:12px;opacity:0.75;">'+(IMG_GALLERY_IDX+1)+' / '+IMG_GALLERY.length+'</span>' : '<span></span>')
     + '<div class="row gap2">'
+    + '<button class="modal-btn" data-action="viewer-download" data-url="'+esc(url)+'" data-filename="'+esc(downloadName)+'" title="Download">'+ic('download')+'</button>'
     + '<button class="modal-btn" data-action="viewer-delete" data-imgid="'+imgId+'">'+ic('trash')+'</button>'
     + '<button class="modal-btn" data-action="viewer-close">'+ic('x')+'</button>'
     + '</div></div>'
+    + (note ? '<div class="img-note-caption">'+ic('tag')+' '+esc(note)+'</div>' : '')
     + (hasGallery && IMG_GALLERY_IDX > 0 ? '<button class="modal-nav modal-nav-prev" data-action="viewer-prev">'+ic('back')+'</button>' : '')
     + (hasGallery && IMG_GALLERY_IDX < IMG_GALLERY.length-1 ? '<button class="modal-nav modal-nav-next" data-action="viewer-next" style="transform:translateY(-50%) rotate(180deg);">'+ic('back')+'</button>' : '')
     + '<img src="'+url+'">'
@@ -3808,6 +3877,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'quick-fill-text') {
     const target = document.getElementById(el.dataset.target);
     if (target) target.value = el.dataset.value;
+    hideAutocomplete(el.dataset.target);
     if (target && target.id === 'ap-diagnosis') AP_TEMP.diagnosis = el.dataset.value;
     if (target && target.id === 'ap-procedure') AP_TEMP.procedure = el.dataset.value;
     if (target && target.id === 'ov-procedure') {
@@ -3820,6 +3890,34 @@ document.addEventListener('click', async (e) => {
       recordTextUsed(DIAGNOSIS_LIB_KEY, el.dataset.value);
       await render();
     }
+    if (target && target.id === 'ap-complaints') AP_TEMP.chiefComplaints = el.dataset.value;
+    if (target && target.id === 'ov-complaints') {
+      await patchField('chiefComplaints', el.dataset.value);
+      recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, el.dataset.value);
+      await render();
+    }
+    return;
+  }
+  if (action === 'autocomplete-add-tag') {
+    hideAutocomplete('custom-tag-input');
+    const val = el.dataset.value;
+    const p = getPatient(SELECTED_ID);
+    p.tags = p.tags || [];
+    if (!p.tags.includes(val)) p.tags.push(val);
+    recordTextUsed(TAG_LIB_KEY, val);
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'save-contact') {
+    const p = getPatient(SELECTED_ID);
+    const digits = toWaNumber(p.whatsapp);
+    if (!digits) { toast('No WhatsApp number saved for this patient'); return; }
+    const vcard = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:'+p.name+'\r\nTEL;TYPE=CELL:+'+digits+'\r\nEND:VCARD\r\n';
+    const blob = new Blob([vcard], { type: 'text/vcard' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
     return;
   }
   if (action === 'assign-patient-code') {
@@ -4027,6 +4125,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); return; }
   if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
   if (action === 'set-tag-filter') { TAG_FILTER = el.dataset.value; render(); return; }
+  if (action === 'toggle-tag-filter-row') { SHOW_TAG_FILTER = !SHOW_TAG_FILTER; render(); return; }
   if (action === 'tl-jump') {
     let target = el.dataset.value;
     if (target === 'investigations' || target === 'prescriptions') { RECORDS_SUBVIEW = target; target = 'records'; }
@@ -4040,7 +4139,43 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') AP_TEMP.condition = ''; render(); return; }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
+  if (action === 'ov-auto-region') {
+    const p = getPatient(SELECTED_ID);
+    const detected = autoDetectRegions((p.diagnosis||'') + ' ' + (p.chiefComplaints||'') + ' ' + (p.procedure||''));
+    p.regions = p.regions || [];
+    detected.forEach(r => { if (!p.regions.includes(r)) p.regions.push(r); });
+    if (!detected.length) { toast('Couldn\u2019t auto-detect \u2014 pick manually'); return; }
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ov-toggle-region') {
+    const p = getPatient(SELECTED_ID);
+    p.regions = p.regions || [];
+    const v = el.dataset.value;
+    const idx = p.regions.indexOf(v);
+    if (idx >= 0) p.regions.splice(idx, 1); else p.regions.push(v);
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'ap-set-side') { syncApTempFromDom(); AP_TEMP.side = el.dataset.value; render(); return; }
+  if (action === 'ap-toggle-region') {
+    syncApTempFromDom();
+    const v = el.dataset.value;
+    const idx = AP_TEMP.regions.indexOf(v);
+    if (idx >= 0) AP_TEMP.regions.splice(idx, 1); else AP_TEMP.regions.push(v);
+    render();
+    return;
+  }
+  if (action === 'ap-auto-region') {
+    syncApTempFromDom();
+    const detected = autoDetectRegions(AP_TEMP.diagnosis + ' ' + AP_TEMP.procedure);
+    detected.forEach(r => { if (!AP_TEMP.regions.includes(r)) AP_TEMP.regions.push(r); });
+    if (!detected.length) toast('Couldn\u2019t auto-detect from the diagnosis/procedure text \u2014 pick manually');
+    render();
+    return;
+  }
   if (action === 'ap-set-laterality') { syncApTempFromDom(); AP_TEMP.laterality = el.dataset.value; render(); return; }
   if (action === 'ap-set-special') { syncApTempFromDom(); AP_TEMP.condition = el.dataset.value; render(); return; }
 
@@ -4064,6 +4199,8 @@ document.addEventListener('click', async (e) => {
     p.ageMonths = AP_TEMP.ageMonths;
     p.sex = AP_TEMP.sex;
     p.diagnosis = AP_TEMP.diagnosis;
+    p.chiefComplaints = AP_TEMP.caseType === 'opd' ? AP_TEMP.chiefComplaints : '';
+    p.regions = AP_TEMP.regions.slice();
     p.caseType = AP_TEMP.caseType;
     p.condition = AP_TEMP.condition;
     p.laterality = AP_TEMP.laterality;
@@ -4075,6 +4212,7 @@ document.addEventListener('click', async (e) => {
     p.notes = AP_TEMP.notes;
     p.preOpImageCount = AP_PHOTOS.length;
     recordTextUsed(DIAGNOSIS_LIB_KEY, p.diagnosis);
+    if (p.chiefComplaints) recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, p.chiefComplaints);
     if (p.caseType === 'surgical') recordTextUsed(PROCEDURE_LIB_KEY, p.procedure);
     if (p.condition === 'ctev') p.ctev = newCtevShape();
     if (p.condition === 'ra') p.ra = newRaShape();
@@ -4346,6 +4484,15 @@ document.addEventListener('click', async (e) => {
   if (action === 'viewer-prev') { viewerNav(-1); return; }
   if (action === 'viewer-next') { viewerNav(1); return; }
   if (action === 'viewer-close') { closeImageViewer(); return; }
+  if (action === 'viewer-download') {
+    const a = document.createElement('a');
+    a.href = el.dataset.url;
+    a.download = el.dataset.filename || 'photo.jpg';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  }
   if (action === 'viewer-delete') {
     const imgId = el.dataset.imgid;
     const p = getPatient(SELECTED_ID);
@@ -4601,7 +4748,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'open-add-rx') { initRxTemp(); RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'open-add-rx') { const p0 = getPatient(SELECTED_ID); initRxTemp(p0 ? p0.nextFollowUpDate : ''); RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = true; await renderTabBody(p0); return; }
   if (action === 'cancel-add-rx') { RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
   if (action === 'toggle-rx') {
     const id = el.dataset.id;
@@ -4647,6 +4794,7 @@ document.addEventListener('click', async (e) => {
     const rx = { id: uid(), date, medicines, advice, followUpDate, imageCount: RX_PHOTOS.length, createdAt: Date.now() };
     p.prescriptions = p.prescriptions || [];
     p.prescriptions.push(rx);
+    if (followUpDate) p.nextFollowUpDate = followUpDate;
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
@@ -4689,7 +4837,15 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'close-edu-print') { PRINT_EDU = null; EDU_SEARCH = null; VIEW = 'detail'; TAB = 'education'; render(); return; }
   if (action === 'close-edu-image-print') { PRINT_EDU = null; EDU_SEARCH = null; VIEW = 'detail'; TAB = 'education'; render(); return; }
-  if (action === 'do-print') { window.print(); return; }
+  if (action === 'do-print') {
+    const originalTitle = document.title;
+    if (PRINT_RX) document.title = PRINT_RX.patient.name + ' - ' + formatAge(PRINT_RX.patient);
+    else if (PRINT_EDU_MULTI) document.title = PRINT_EDU_MULTI.patient.name + ' - Education';
+    else if (PRINT_EDU) document.title = PRINT_EDU.patient.name + ' - ' + PRINT_EDU.edu.name.en;
+    window.print();
+    setTimeout(() => { document.title = originalTitle; }, 1000);
+    return;
+  }
   if (action === 'share-edu-image') { await shareEduImage(); return; }
   if (action === 'edu-toggle-multiselect') {
     EDU_MULTISELECT = !EDU_MULTISELECT;
@@ -4813,6 +4969,7 @@ document.addEventListener('change', async (e) => {
     await patchField(t.dataset.field, t.value);
     if (t.dataset.field === 'procedure') recordTextUsed(PROCEDURE_LIB_KEY, t.value);
     if (t.dataset.field === 'diagnosis') recordTextUsed(DIAGNOSIS_LIB_KEY, t.value);
+    if (t.dataset.field === 'chiefComplaints') recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, t.value);
     if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality' || t.dataset.field === 'heightCm' || t.dataset.field === 'weightKg') { await render(); }
     return;
   }
@@ -4936,9 +5093,24 @@ document.addEventListener('input', (e) => {
     const liveEl = document.getElementById('ra-live-scores');
     if (liveEl) liveEl.innerHTML = raLiveScoresHtml();
   }
+  if (e.target.id === 'ap-diagnosis') { AP_TEMP.diagnosis = e.target.value; updateAutocomplete('ap-diagnosis', DIAGNOSIS_LIB_KEY, e.target.value, 'quick-fill-text'); }
+  if (e.target.id === 'ov-diagnosis') { updateAutocomplete('ov-diagnosis', DIAGNOSIS_LIB_KEY, e.target.value, 'quick-fill-text'); }
+  if (e.target.id === 'ap-complaints') { AP_TEMP.chiefComplaints = e.target.value; updateAutocomplete('ap-complaints', CHIEF_COMPLAINT_LIB_KEY, e.target.value, 'quick-fill-text'); }
+  if (e.target.id === 'ov-complaints') { updateAutocomplete('ov-complaints', CHIEF_COMPLAINT_LIB_KEY, e.target.value, 'quick-fill-text'); }
+  if (e.target.id === 'custom-tag-input') { updateAutocomplete('custom-tag-input', TAG_LIB_KEY, e.target.value, 'autocomplete-add-tag'); }
 });
+document.addEventListener('mousedown', (e) => {
+  if (e.target.closest && e.target.closest('.autocomplete-item')) { e.preventDefault(); }
+});
+document.addEventListener('touchstart', (e) => {
+  if (e.target.closest && e.target.closest('.autocomplete-item')) { e.preventDefault(); }
+}, { passive: false });
 document.addEventListener('blur', async (e) => {
   if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
+  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','custom-tag-input'].includes(e.target.id)) {
+    const id = e.target.id;
+    setTimeout(() => hideAutocomplete(id), 200);
+  }
 }, true);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target && e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
