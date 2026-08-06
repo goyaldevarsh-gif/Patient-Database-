@@ -120,6 +120,7 @@
 
   .thumb-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px; }
   .thumb-wrap { position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; border:1px solid var(--border); background:var(--bg-soft); }
+  .thumb-date { position:absolute; left:0; right:0; bottom:0; background:rgba(15,23,42,0.72); color:#fff; font-size:9px; font-weight:700; text-align:center; padding:2px 3px; }
   .thumb-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
   .thumb-remove { position:absolute; top:3px; right:3px; background:rgba(15,23,42,0.75); color:#fff; border:none; border-radius:999px; width:20px; height:20px; font-size:12px; line-height:1; }
   .thumb-label { position:absolute; bottom:0; left:0; right:0; background:rgba(15,23,42,0.65); color:#fff; font-size:9px; padding:2px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -165,7 +166,7 @@
   .overdue-note { font-size:11px; font-weight:700; color:var(--red); margin-top:3px; display:flex; align-items:center; gap:4px; }
   .bottom-bar { position:sticky; bottom:0; border-top:1px solid var(--border); background:#fff; padding:10px 12px; padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)); display:flex; gap:8px; }
 
-  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; overflow:hidden; touch-action:none; }
   .modal-overlay img { max-width:100%; max-height:78vh; border-radius:8px; }
   .modal-bar { position:absolute; top:calc(16px + env(safe-area-inset-top, 0px)); left:16px; right:16px; display:flex; align-items:center; justify-content:space-between; gap:8px; z-index:2; }
   .modal-btn { background:rgba(255,255,255,0.12); color:#fff; border:none; border-radius:999px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; }
@@ -438,6 +439,7 @@ async function resizeImageFile(file, maxDim, quality) {
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtDate(d) { if (!d) return '\u2014'; const dt = new Date(d); if (isNaN(dt)) return '\u2014'; return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
+function fmtDateShort(d) { if (!d) return '\u2014'; const dt = new Date(d); if (isNaN(dt)) return '\u2014'; return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}); }
 function todayStr() { return new Date().toISOString().slice(0,10); }
 
 const SURGERY_TYPES = ['Arthroplasty','Arthroscopy','Trauma','Spine','Other'];
@@ -501,7 +503,6 @@ let SEARCH = '';
 let FILTER_TYPE = 'all';
 let TAG_FILTER = '';
 let TAB = 'overview';
-let RECORDS_SUBVIEW = 'investigations'; // 'investigations' | 'prescriptions' \u2014 sub-view inside the merged Records tab
 let ARMED_DELETE = null;
 let SHOW_TAG_FILTER = false;
 let EDITING_PATIENT_CODE = false;
@@ -1415,7 +1416,7 @@ function renderListView() {
             : (p.nextFollowUpDate ? '<button type="button" data-action="open-patient-followup" data-id="'+p.id+'" style="background:none;border:none;padding:0;font-size:11px;color:var(--muted);margin-top:4px;text-decoration:underline;display:flex;align-items:center;gap:4px;">'+ic('calendar')+' Next follow-up '+fmtDate(p.nextFollowUpDate)+' \u2192</button>' : ''))
         + '<div style="margin-top:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
         + (p.caseType==='surgical' ? '<span class="badge badge-'+TYPE_BADGE[p.surgeryType]+'">'+p.surgeryType+'</span>' : '<span class="badge badge-slate">OPD</span>')
-        + (p.caseType==='surgical' ? '<span class="badge badge-slate">'+ic('camera')+p.preOpImageCount+' pre-op \u00b7 '+fuImgCount+' follow-up</span>' : '<span class="badge badge-slate">'+ic('camera')+fuImgCount+' follow-up</span>')
+        + (p.caseType==='surgical' ? '<span class="badge badge-slate">'+ic('camera')+p.preOpImageCount+' images \u00b7 '+fuImgCount+' follow-up</span>' : '<span class="badge badge-slate">'+ic('camera')+fuImgCount+' follow-up</span>')
         + (p.tags||[]).map(t=>'<span class="badge badge-indigo" style="font-size:10px;">'+ic('tag')+esc(t)+'</span>').join('')
         + '</div></div>'
         + '<span style="color:#cbd5e1;margin-left:8px;">'+ic('chevron')+'</span>'
@@ -1960,50 +1961,73 @@ function confirmBtn(action, id) {
   return '<button class="icon-btn" data-action="arm-delete" data-arm="'+action+':'+id+'">'+ic('trash')+'</button>';
 }
 
-async function renderPreopTab(p) {
-  const allImages = await dbGetImagesByPatient(p.id);
-  const images = allImages.filter(im => !im.followUpId && !im.investigationId && !im.isWoundPhoto && !im.isIntraOp);
-  const woundImages = allImages.filter(im => !im.followUpId && !im.investigationId && im.isWoundPhoto);
-  const otImages = allImages.filter(im => !im.followUpId && !im.investigationId && im.isIntraOp);
-  revokeActiveUrls();
+/* ================= Images & Records (unified) ================= */
+let IMAGES_RECORDS_SUBVIEW = 'xray';
+const IMAGES_RECORDS_SECTIONS = [
+  ['xray','X-ray'], ['clinical','Clinical Images'], ['wound','Wound / Suture'],
+  ['ct','CT'], ['mri','MRI'], ['usg','USG'],
+  ['investigations','Investigations'], ['injections','Injections'],
+];
+const XRAY_SUBTYPES = ['General OPD','Pre-Reduction','Post-Reduction','Pre-op','Post-op'];
+
+function imageBucketGridHtml(images, uploadAttrs) {
   let grid = '<div class="thumb-grid">';
   images.forEach(im => {
     const url = trackUrl(URL.createObjectURL(im.blob));
-    grid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
+    grid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"><span class="thumb-date">'+fmtDate(im.createdAt)+'</span></div>';
   });
-  grid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple id="preop-add-input" style="display:none;"></label>';
+  grid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple '+uploadAttrs+' style="display:none;"></label>';
   grid += '</div>';
-  const gridFab = cameraFabHtml('id="preop-add-input-cam"');
-  const pw = p.preOpWound || { status:'', notes:'' };
-  let woundGrid = '<div class="thumb-grid">';
-  woundImages.forEach(im => {
-    const url = trackUrl(URL.createObjectURL(im.blob));
-    woundGrid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
-  });
-  woundGrid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple id="preop-wound-add-input" style="display:none;"></label>';
-  woundGrid += '</div>';
-  const woundGridFab = cameraFabHtml('id="preop-wound-add-input-cam"');
-  let otGrid = '<div class="thumb-grid">';
-  otImages.forEach(im => {
-    const url = trackUrl(URL.createObjectURL(im.blob));
-    otGrid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
-  });
-  otGrid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple id="preop-ot-add-input" style="display:none;"></label>';
-  otGrid += '</div>';
-  const otGridFab = cameraFabHtml('id="preop-ot-add-input-cam"');
-  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
-    + (allImages.length ? '<button class="btn btn-block" style="margin-bottom:14px;" data-action="set-tab" data-value="photos">'+ic('folder')+' All Photos (organized)</button>' : '')
-    + (allImages.length >= 2 ? '<button class="btn btn-block" style="margin-bottom:14px;" data-action="open-compare-picker">'+ic('clock')+' Compare Before / After</button>' : '')
-    + '<div class="card" style="margin-bottom:14px;'+(pw.status && !['N/A',''].includes(pw.status) && pw.status!=='Clean' ? 'border-color:var(--red-border);background:var(--red-bg);' : '')+'">'
-    + '<label class="field-label">Wound status (if applicable \u2014 e.g. open fracture)</label>'
-    + '<select class="select" data-field="preOpWoundStatus" style="margin-bottom:10px;">'+PREOP_WOUND_STATUS_OPTIONS.map(s=>'<option'+((pw.status||'N/A')===s?' selected':'')+'>'+s+'</option>').join('')+'</select>'
-    + '<label class="field-label">Wound photo</label><div style="position:relative;">'+woundGrid+woundGridFab+'</div>'
-    + '</div>'
-    + (p.caseType === 'surgical' ? '<div class="card" style="margin-bottom:14px;">'
-    + '<label class="field-label">OT / Intra-op photos</label><div style="position:relative;">'+otGrid+otGridFab+'</div>'
-    + '</div>' : '')
-    + (images.length ? '<div style="position:relative;">'+grid+gridFab+'</div>' : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:20px 0;">No clinical images yet.</div>'+'<div style="position:relative;">'+grid.replace('<div class="thumb-grid">','<div class="thumb-grid" style="grid-template-columns:1fr;">')+gridFab+'</div>')
+  return grid;
+}
+function imageBucketCardHtml(title, images, category, subtype, readonly) {
+  const uploadAttrs = 'data-img-upload="'+category+'"'+(subtype?' data-xray-subtype="'+esc(subtype)+'"':'');
+  return '<div class="card" style="margin-bottom:12px;">'
+    + '<label class="field-label">'+esc(title)+' <span style="color:var(--muted);font-weight:500;">('+images.length+')</span></label>'
+    + (readonly
+        ? (images.length ? '<div class="thumb-grid">'+images.map(im=>{const url=trackUrl(URL.createObjectURL(im.blob));return '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"><span class="thumb-date">'+fmtDate(im.createdAt)+'</span></div>';}).join('')+'</div>' : '<p style="font-size:11.5px;color:var(--muted);margin:0;">Added automatically from Follow-Up visit photos.</p>')
+        : '<div style="position:relative;">'+imageBucketGridHtml(images, uploadAttrs)+cameraFabHtml(uploadAttrs)+'</div>')
     + '</div>';
+}
+
+async function renderImagesRecordsTab(p) {
+  const segHtml = '<div class="px" style="padding-top:12px;padding-bottom:0;"><div style="display:flex;flex-wrap:wrap;gap:6px;">'
+    + IMAGES_RECORDS_SECTIONS.map(([k,l]) => '<button class="chip'+(IMAGES_RECORDS_SUBVIEW===k?' active':'')+'" data-action="imgrec-set-subview" data-value="'+k+'">'+l+'</button>').join('')
+    + '</div></div>';
+
+  if (IMAGES_RECORDS_SUBVIEW === 'investigations') return segHtml + await renderInvestigationsTab(p);
+  if (IMAGES_RECORDS_SUBVIEW === 'injections') return segHtml + renderInjectionsTab(p);
+
+  const allImages = await dbGetImagesByPatient(p.id);
+  revokeActiveUrls();
+  let body = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
+  if (IMAGES_RECORDS_SUBVIEW === 'xray') {
+    const xrayImages = allImages.filter(im => im.imageCategory === 'xray');
+    XRAY_SUBTYPES.forEach(st => {
+      body += imageBucketCardHtml(st, xrayImages.filter(im=>im.xraySubtype===st), 'xray', st, false);
+    });
+    body += imageBucketCardHtml('Follow-Up X-ray', xrayImages.filter(im=>im.xraySubtype==='Follow-up'), 'xray', 'Follow-up', true);
+  } else if (IMAGES_RECORDS_SUBVIEW === 'clinical') {
+    body += imageBucketCardHtml('Clinical Images', allImages.filter(im=>im.imageCategory==='clinical'), 'clinical', null, false);
+    if (p.caseType === 'surgical') body += imageBucketCardHtml('OT / Intra-op photos', allImages.filter(im=>im.isIntraOp), 'ot', null, false);
+  } else if (IMAGES_RECORDS_SUBVIEW === 'wound') {
+    const pw = p.preOpWound || { status:'', notes:'' };
+    body += '<div class="card" style="margin-bottom:12px;'+(pw.status && !['N/A',''].includes(pw.status) && pw.status!=='Clean' ? 'border-color:var(--red-border);background:var(--red-bg);' : '')+'">'
+      + '<label class="field-label">Wound status (if applicable \u2014 e.g. open fracture)</label>'
+      + '<select class="select" data-field="preOpWoundStatus">'+PREOP_WOUND_STATUS_OPTIONS.map(s=>'<option'+((pw.status||'N/A')===s?' selected':'')+'>'+s+'</option>').join('')+'</select>'
+      + '</div>';
+    body += imageBucketCardHtml('Wound / Suture Photos', allImages.filter(im=>im.imageCategory==='wound'), 'wound', null, false);
+  } else if (IMAGES_RECORDS_SUBVIEW === 'ct') {
+    body += imageBucketCardHtml('CT Scan', allImages.filter(im=>im.imageCategory==='ct'), 'ct', null, false);
+  } else if (IMAGES_RECORDS_SUBVIEW === 'mri') {
+    body += imageBucketCardHtml('MRI', allImages.filter(im=>im.imageCategory==='mri'), 'mri', null, false);
+  } else if (IMAGES_RECORDS_SUBVIEW === 'usg') {
+    body += imageBucketCardHtml('USG', allImages.filter(im=>im.imageCategory==='usg'), 'usg', null, false);
+  }
+  if (allImages.length) body += '<button class="btn btn-block" style="margin-bottom:14px;" data-action="set-tab" data-value="photos">'+ic('folder')+' All Photos (organized)</button>';
+  if (allImages.length >= 2) body += '<button class="btn btn-block" style="margin-bottom:14px;" data-action="open-compare-picker">'+ic('clock')+' Compare Before / After</button>';
+  body += '</div>';
+  return segHtml + body;
 }
 
 async function renderFollowupsTab(p) {
@@ -2959,20 +2983,10 @@ async function renderTabBody(p) {
     + '<div class="skeleton-block"></div>'
     + '<div class="skeleton-block" style="margin-top:12px;"></div>'
     + '</div>';
-  if (TAB === 'preop') el.innerHTML = await renderPreopTab(p);
+  if (TAB === 'imagesrecords') el.innerHTML = await renderImagesRecordsTab(p);
   else if (TAB === 'followups') el.innerHTML = await renderFollowupsTab(p);
-  else if (TAB === 'records') el.innerHTML = await renderRecordsTab(p);
+  else if (TAB === 'prescriptions') el.innerHTML = await renderPrescriptionsTab(p);
   else if (TAB === 'photos') el.innerHTML = await renderPhotoOrganiserTab(p);
-}
-
-async function renderRecordsTab(p) {
-  const segHtml = '<div class="px" style="padding-top:12px;padding-bottom:0;"><div class="seg">'
-    + '<button class="seg-btn'+(RECORDS_SUBVIEW==='investigations'?' active':'')+'" data-action="records-set-subview" data-value="investigations">'+ic('file')+' Investigations</button>'
-    + '<button class="seg-btn'+(RECORDS_SUBVIEW==='prescriptions'?' active':'')+'" data-action="records-set-subview" data-value="prescriptions">'+ic('printer')+' Prescriptions</button>'
-    + '<button class="seg-btn'+(RECORDS_SUBVIEW==='injections'?' active':'')+'" data-action="records-set-subview" data-value="injections">'+ic('pill')+' Injections</button>'
-    + '</div></div>';
-  const body = RECORDS_SUBVIEW === 'investigations' ? await renderInvestigationsTab(p) : RECORDS_SUBVIEW === 'injections' ? renderInjectionsTab(p) : await renderPrescriptionsTab(p);
-  return segHtml + body;
 }
 
 function renderTimelineTab(p) {
@@ -3003,12 +3017,12 @@ function renderTimelineTab(p) {
 function visibleTabs(p) {
   const tabs = [{key:'overview', label:'Overview', icon:'info'}];
   tabs.push({key:'timeline', label:'Timeline', icon:'clock'});
-  tabs.push({key:'preop', label:'Imaging', icon:'camera'});
   if (p.condition === 'ctev') tabs.push({key:'ctev', label:'CTEV', icon:'foot'});
   if (p.condition === 'ra') tabs.push({key:'ra', label:'RA', icon:'pill'});
   if (p.condition === 'osteoporosis') tabs.push({key:'osteo', label:'Bone Health', icon:'shield'});
-  tabs.push({key:'followups', label:'Follow-ups', icon:'calendar'});
-  tabs.push({key:'records', label:'Records', icon:'file'});
+  tabs.push({key:'followups', label:'Follow-Up', icon:'calendar'});
+  tabs.push({key:'imagesrecords', label:'Images & Records', icon:'camera'});
+  tabs.push({key:'prescriptions', label:'Prescriptions', icon:'printer'});
   return tabs;
 }
 
@@ -3086,20 +3100,23 @@ function renderCtevTab(p) {
   if (SHOW_PIRANI_HELP) html += PIRANI_HELP_HTML;
 
   if (ctev.castingSessions.length > 1) {
-    const w=300,h=150,padL=26,padR=8,padT=10,padB=26, plotW=w-padL-padR, plotH=h-padT-padB, n=ctev.castingSessions.length;
+    const w=300,h=158,padL=26,padR=8,padT=10,padB=34, plotW=w-padL-padR, plotH=h-padT-padB, n=ctev.castingSessions.length;
     const xFor = i => padL + (n===1?plotW/2:(i/(n-1))*plotW);
     const yFor = score => padT + (1 - score/6) * plotH;
     const firstDate = new Date(ctev.castingSessions[0].date);
     const weekFor = (dateStr) => Math.round((new Date(dateStr) - firstDate) / (7*24*60*60*1000));
     let grid = '';
     [0,2,4,6].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+v+'</text>'; });
-    ctev.castingSessions.forEach((s,i) => { grid += '<text x="'+xFor(i)+'" y="'+(h-8)+'" font-size="8" fill="var(--muted)" text-anchor="middle">Wk '+weekFor(s.date)+'</text>'; });
+    ctev.castingSessions.forEach((s,i) => {
+      grid += '<text x="'+xFor(i)+'" y="'+(h-20)+'" font-size="8" font-weight="700" fill="var(--accent)" text-anchor="middle">Wk '+weekFor(s.date)+'</text>';
+      grid += '<text x="'+xFor(i)+'" y="'+(h-8)+'" font-size="7.5" fill="var(--muted)" text-anchor="middle">'+fmtDateShort(s.date)+'</text>';
+    });
     let lines = '';
     feet.forEach(f => {
       const pts = []; ctev.castingSessions.forEach((s,i) => { if (s[f]) pts.push(xFor(i)+','+yFor(piraniTotal(s[f].components))); });
       if (pts.length) { lines += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+FOOT_COLOR[f]+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'; ctev.castingSessions.forEach((s,i)=>{ if(s[f]) lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(piraniTotal(s[f].components))+'" r="3" fill="'+FOOT_COLOR[f]+'"/>'; }); }
     });
-    html += '<div class="card" style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Pirani trend</div><svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:150px;">'+grid+lines+'</svg></div>';
+    html += '<div class="card" style="margin-bottom:12px;"><div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:4px;">Pirani trend</div><svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:158px;">'+grid+lines+'</svg></div>';
   }
 
   html += '<div class="section-title" style="margin-top:0;">Casting sessions</div>';
@@ -3310,21 +3327,28 @@ function classifyInvestigationLabel(label) {
   return 'Other investigations';
 }
 
-const PHOTO_FOLDER_ORDER = ['Pre-op','OT / Intra-op','MRI','CT','X-ray','Ultrasound','DEXA','Labs','Other investigations','Prescriptions','Follow-up'];
+const PHOTO_FOLDER_ORDER = ['X-ray','Clinical Images','Wound / Suture','CT','MRI','USG','OT / Intra-op','Other investigations','Prescriptions','Follow-up'];
 
 async function computePhotoFolders(p) {
   const allImages = await dbGetImagesByPatient(p.id);
   const folders = {}; PHOTO_FOLDER_ORDER.forEach(k => folders[k] = []);
+  const INV_LABEL_MAP = { 'MRI':'MRI', 'CT':'CT', 'X-ray':'X-ray', 'Ultrasound':'USG', 'DEXA':'Other investigations', 'Labs':'Other investigations', 'Other investigations':'Other investigations' };
   allImages.forEach(im => {
     if (im.followUpId) { folders['Follow-up'].push(im); return; }
     if (im.investigationId) {
       const inv = (p.investigations||[]).find(i => i.id === im.investigationId);
-      folders[classifyInvestigationLabel(inv ? inv.label : '')].push(im);
+      const label = classifyInvestigationLabel(inv ? inv.label : '');
+      folders[INV_LABEL_MAP[label] || 'Other investigations'].push(im);
       return;
     }
     if (im.prescriptionId) { folders['Prescriptions'].push(im); return; }
     if (im.isIntraOp) { folders['OT / Intra-op'].push(im); return; }
-    folders['Pre-op'].push(im);
+    if (im.imageCategory === 'xray') { folders['X-ray'].push(im); return; }
+    if (im.imageCategory === 'wound') { folders['Wound / Suture'].push(im); return; }
+    if (im.imageCategory === 'ct') { folders['CT'].push(im); return; }
+    if (im.imageCategory === 'mri') { folders['MRI'].push(im); return; }
+    if (im.imageCategory === 'usg') { folders['USG'].push(im); return; }
+    folders['Clinical Images'].push(im);
   });
   Object.keys(folders).forEach(k => folders[k].sort((a,b) => (a.createdAt||0) - (b.createdAt||0)));
   return folders;
@@ -3653,24 +3677,67 @@ async function patchField(field, value) {
 
 let IMG_GALLERY = null;
 let IMG_GALLERY_IDX = 0;
+let ZOOM_SCALE = 1, ZOOM_TX = 0, ZOOM_TY = 0;
+function resetZoom() { ZOOM_SCALE = 1; ZOOM_TX = 0; ZOOM_TY = 0; applyZoomTransform(); }
+function applyZoomTransform() {
+  const img = document.querySelector('#img-viewer img');
+  if (img) img.style.transform = 'translate('+ZOOM_TX+'px,'+ZOOM_TY+'px) scale('+ZOOM_SCALE+')';
+}
+function touchDist(t1, t2) { return Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY); }
+
 async function openImageViewer(url, imgId, gallery, idx) {
   IMG_GALLERY = (gallery && gallery.length > 1) ? gallery : null;
   IMG_GALLERY_IDX = idx || 0;
+  resetZoom();
   let overlay = document.getElementById('img-viewer');
   if (!overlay) {
     overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.id = 'img-viewer';
     document.body.appendChild(overlay);
-    let touchStartX = null;
-    overlay.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive:true });
+    let touchStartX = null, touchStartY = null;
+    let pinchStartDist = null, pinchStartScale = 1;
+    let panStartTx = 0, panStartTy = 0;
+    let lastTapTime = 0;
+    overlay.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        pinchStartDist = touchDist(e.touches[0], e.touches[1]);
+        pinchStartScale = ZOOM_SCALE;
+      } else if (e.touches.length === 1) {
+        touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
+        panStartTx = ZOOM_TX; panStartTy = ZOOM_TY;
+      }
+    }, { passive:true });
+    overlay.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && pinchStartDist) {
+        const dist = touchDist(e.touches[0], e.touches[1]);
+        ZOOM_SCALE = Math.min(4, Math.max(1, pinchStartScale * (dist / pinchStartDist)));
+        applyZoomTransform();
+      } else if (e.touches.length === 1 && ZOOM_SCALE > 1.02 && touchStartX != null) {
+        ZOOM_TX = panStartTx + (e.touches[0].clientX - touchStartX);
+        ZOOM_TY = panStartTy + (e.touches[0].clientY - touchStartY);
+        applyZoomTransform();
+      }
+    }, { passive:true });
     overlay.addEventListener('touchend', (e) => {
-      if (touchStartX == null) return;
-      const dx = e.changedTouches[0].clientX - touchStartX;
-      touchStartX = null;
-      if (Math.abs(dx) < 50 || !IMG_GALLERY) return;
-      if (dx > 0 && IMG_GALLERY_IDX > 0) viewerNav(-1);
-      else if (dx < 0 && IMG_GALLERY_IDX < IMG_GALLERY.length-1) viewerNav(1);
+      if (e.touches.length > 0) return;
+      const now = Date.now();
+      const wasPinch = pinchStartDist != null;
+      pinchStartDist = null;
+      if (!wasPinch && e.changedTouches.length === 1 && now - lastTapTime < 300) {
+        if (ZOOM_SCALE > 1.02) resetZoom(); else { ZOOM_SCALE = 2.5; applyZoomTransform(); }
+        lastTapTime = 0; touchStartX = null;
+        return;
+      }
+      lastTapTime = now;
+      if (!wasPinch && ZOOM_SCALE <= 1.02 && touchStartX != null && e.changedTouches.length) {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        if (Math.abs(dx) >= 50 && IMG_GALLERY) {
+          if (dx > 0 && IMG_GALLERY_IDX > 0) viewerNav(-1);
+          else if (dx < 0 && IMG_GALLERY_IDX < IMG_GALLERY.length-1) viewerNav(1);
+        }
+      }
+      touchStartX = null; touchStartY = null;
     }, { passive:true });
   }
   await renderImageViewerFrame(url, imgId);
@@ -3693,7 +3760,7 @@ async function renderImageViewerFrame(url, imgId) {
     + (note ? '<div class="img-note-caption">'+ic('tag')+' '+esc(note)+'</div>' : '')
     + (hasGallery && IMG_GALLERY_IDX > 0 ? '<button class="modal-nav modal-nav-prev" data-action="viewer-prev">'+ic('back')+'</button>' : '')
     + (hasGallery && IMG_GALLERY_IDX < IMG_GALLERY.length-1 ? '<button class="modal-nav modal-nav-next" data-action="viewer-next" style="transform:translateY(-50%) rotate(180deg);">'+ic('back')+'</button>' : '')
-    + '<img src="'+url+'">'
+    + '<img src="'+url+'" style="touch-action:none;transform-origin:center center;">'
     + '<div class="modal-note-bar"><input class="input" id="img-note-input" data-img-note="'+imgId+'" placeholder="Add a note for this image \u2014 what to remember\u2026" value="'+esc(note)+'"></div>';
 }
 function viewerNav(dir) {
@@ -3701,10 +3768,11 @@ function viewerNav(dir) {
   const newIdx = IMG_GALLERY_IDX + dir;
   if (newIdx < 0 || newIdx >= IMG_GALLERY.length) return;
   IMG_GALLERY_IDX = newIdx;
+  resetZoom();
   const g = IMG_GALLERY[IMG_GALLERY_IDX];
   renderImageViewerFrame(g.url, g.imgid);
 }
-function closeImageViewer() { const el = document.getElementById('img-viewer'); if (el) el.remove(); IMG_GALLERY = null; }
+function closeImageViewer() { const el = document.getElementById('img-viewer'); if (el) el.remove(); IMG_GALLERY = null; resetZoom(); }
 document.addEventListener('keydown', (e) => {
   if (!document.getElementById('img-viewer') || !IMG_GALLERY) return;
   if (e.key === 'ArrowLeft') viewerNav(-1);
@@ -4128,14 +4196,15 @@ document.addEventListener('click', async (e) => {
   if (action === 'toggle-tag-filter-row') { SHOW_TAG_FILTER = !SHOW_TAG_FILTER; render(); return; }
   if (action === 'tl-jump') {
     let target = el.dataset.value;
-    if (target === 'investigations' || target === 'prescriptions') { RECORDS_SUBVIEW = target; target = 'records'; }
+    if (target === 'investigations') { IMAGES_RECORDS_SUBVIEW = 'investigations'; target = 'imagesrecords'; }
+    else if (target === 'preop') { IMAGES_RECORDS_SUBVIEW = 'xray'; target = 'imagesrecords'; }
     TAB = target; ADD_FOLLOWUP_OPEN = false;
     const p = getPatient(SELECTED_ID);
     await render();
     return;
   }
   if (action === 'set-tab') { TAB = el.dataset.value; ADD_FOLLOWUP_OPEN=false; const p = getPatient(SELECTED_ID); document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); await renderTabBody(p); return; }
-  if (action === 'records-set-subview') { RECORDS_SUBVIEW = el.dataset.value; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'imgrec-set-subview') { IMAGES_RECORDS_SUBVIEW = el.dataset.value; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') AP_TEMP.condition = ''; render(); return; }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
@@ -4350,10 +4419,10 @@ document.addEventListener('click', async (e) => {
     el.disabled = true;
     await dbPutPatient(p);
     for (const ph of FU_PHOTOS) {
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now() });
+      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: 'xray', xraySubtype: 'Follow-up' });
     }
     for (const ph of FU_WOUND_PHOTOS) {
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, isWoundPhoto: true, blob: ph.blob, createdAt: Date.now() });
+      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, isWoundPhoto: true, imageCategory: 'wound', blob: ph.blob, createdAt: Date.now() });
     }
     await refreshPatients();
     FU_PHOTOS = []; FU_WOUND_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
@@ -4825,7 +4894,7 @@ document.addEventListener('click', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'close-print') { PRINT_RX = null; VIEW = 'detail'; TAB = 'records'; RECORDS_SUBVIEW = 'prescriptions'; render(); return; }
+  if (action === 'close-print') { PRINT_RX = null; VIEW = 'detail'; TAB = 'prescriptions'; render(); return; }
   if (action === 'view-edu') {
     const p = getPatient(SELECTED_ID);
     const edu = EDU_LIBRARY.find(e => e.id === el.dataset.id);
@@ -4973,41 +5042,22 @@ document.addEventListener('change', async (e) => {
     if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality' || t.dataset.field === 'heightCm' || t.dataset.field === 'weightKg') { await render(); }
     return;
   }
-  if (t.id === 'preop-add-input' || t.id === 'preop-add-input-cam') {
+  if (t.dataset && t.dataset.imgUpload) {
     const files = Array.from(t.files || []);
     if (!files.length) return;
     const p = getPatient(SELECTED_ID);
     toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+    const category = t.dataset.imgUpload;
     for (const file of files) {
       const blob = await resizeImageFile(file);
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob, createdAt: Date.now() });
+      const rec = { id: uid(), patientId: p.id, followUpId: null, blob, createdAt: Date.now() };
+      if (category === 'ot') { rec.isIntraOp = true; }
+      else if (category === 'wound') { rec.isWoundPhoto = true; rec.imageCategory = 'wound'; }
+      else { rec.imageCategory = category; if (t.dataset.xraySubtype) rec.xraySubtype = t.dataset.xraySubtype; }
+      await dbAddImage(rec);
     }
     p.preOpImageCount = (await dbGetImagesByPatient(p.id)).filter(i=>!i.followUpId && !i.investigationId && !i.isWoundPhoto && !i.isIntraOp).length;
     await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (t.id === 'preop-wound-add-input' || t.id === 'preop-wound-add-input-cam') {
-    const files = Array.from(t.files || []);
-    if (!files.length) return;
-    const p = getPatient(SELECTED_ID);
-    toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
-    for (const file of files) {
-      const blob = await resizeImageFile(file);
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, isWoundPhoto: true, blob, createdAt: Date.now() });
-    }
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (t.id === 'preop-ot-add-input' || t.id === 'preop-ot-add-input-cam') {
-    const files = Array.from(t.files || []);
-    if (!files.length) return;
-    const p = getPatient(SELECTED_ID);
-    toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
-    for (const file of files) {
-      const blob = await resizeImageFile(file);
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, isIntraOp: true, blob, createdAt: Date.now() });
-    }
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
