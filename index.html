@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>OrthoVault2</title>
+<title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Bone Log Pro">
+<meta name="apple-mobile-web-app-title" content="OrthoVault">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.1/index.min.js"></script>
 <style>
@@ -445,14 +445,15 @@ function todayStr() { return new Date().toISOString().slice(0,10); }
 const SURGERY_TYPES = ['Arthroplasty','Arthroscopy','Trauma','Spine','Other'];
 const TYPE_BADGE = { Arthroplasty:'indigo', Arthroscopy:'emerald', Trauma:'red', Spine:'amber', Other:'slate' };
 const CASE_REGIONS = [
-  { key:'Upper Limb', keywords:['shoulder','elbow','wrist','hand','finger','humerus','radius','ulna','clavicle','forearm'] },
-  { key:'Lower Limb', keywords:['hip','knee','thigh','femur','tibia','fibula','patella','leg'] },
-  { key:'Spine', keywords:['spine','spinal','vertebra','lumbar','cervical','thoracic','disc'] },
+  { key:'Upper Limb', keywords:['shoulder','elbow','wrist','hand','finger','humerus','radius','ulna','clavicle','forearm','bbfa','both bone forearm','supracondylar','olecranon'] },
+  { key:'Hand', keywords:['hand','finger','thumb','metacarpal','phalanx','phalanges'] },
+  { key:'Lower Limb', keywords:['hip','knee','thigh','femur','tibia','fibula','patella','leg','dff','sff','both bone leg','tibfib','tib-fib','tibia fibula'] },
+  { key:'Spine', keywords:['spine','spinal','vertebra','lumbar','cervical','thoracic','disc','plid'] },
   { key:'Pelvis & Acetabulum', keywords:['pelvis','pelvic','acetabul','pubic','sacrum','sacroiliac'] },
-  { key:'Foot & Ankle', keywords:['foot','ankle','toe','calcaneus','talus','metatarsal'] },
+  { key:'Foot & Ankle', keywords:['foot','ankle','toe','calcaneus','talus','metatarsal','ctev','clubfoot','club foot'] },
   { key:'Arthroplasty', keywords:['replacement','arthroplasty','tkr','thr','prosthesis','resurfacing'] },
   { key:'Sports Medicine', keywords:['acl','pcl','meniscus','rotator cuff','ligament','sports','arthroscopy','arthroscopic'] },
-  { key:'Trauma', keywords:['fracture',' fx ','fx.','trauma','dislocation','#'] },
+  { key:'Trauma', keywords:['fracture',' fx ','fx.','trauma','dislocation','#','orif','pop','k-wire','kwire','cl#','close#'] },
 ];
 function autoDetectRegions(text) {
   const t = (' '+(text||'').toLowerCase()+' ');
@@ -659,6 +660,7 @@ function newPatientShape() {
     romTracking: null,
     heightCm: '', weightKg: '',
     pjiSuspected: false,
+    paymentMethod: '', insuranceType: '',
     pji: null,
     kocher: null,
     createdAt: Date.now(),
@@ -813,7 +815,7 @@ async function maybeNotifyToday() {
     if (overdueCount) parts.push(overdueCount + ' overdue');
     if (todayCount) parts.push(todayCount + ' due today');
     const body = parts.join(', ') + ' \u2014 follow-ups, RA labs or DEXA scans.';
-    try { new Notification('Bone Log Pro', { body, icon: 'icons/icon-192.png' }); } catch(e) {}
+    try { new Notification('OrthoVault', { body, icon: 'icons/icon-192.png' }); } catch(e) {}
     try { localStorage.setItem(NOTIF_LAST_SHOWN_KEY, todayKey); } catch(e) {}
   } catch (e) {}
 }
@@ -1126,18 +1128,36 @@ function caseStatusDot(p) {
   return null;
 }
 
+function regardingLine(patient) {
+  if (patient.caseType === 'surgical' && (patient.procedure || patient.surgeryType)) {
+    return '(\u0938\u0902\u092c\u0902\u0927\u093f\u0924: ' + (patient.procedure || patient.surgeryType) + ', \u0938\u0930\u094d\u091c\u0930\u0940 \u0926\u093f\u0928\u093e\u0902\u0915 ' + fmtDate(patient.surgeryDate) + ')';
+  }
+  const cond = patient.diagnosis || patient.chiefComplaints;
+  if (cond) return '(\u0938\u0902\u092c\u0902\u0927\u093f\u0924: ' + cond + ')';
+  return '';
+}
 function waLink(patient) {
   const digits = toWaNumber(patient.whatsapp);
   if (!digits) return null;
-  const msg = 'Hi ' + patient.name + ',\nIf you have any concerns or need assistance before your next visit, feel free to reply to this message.\nRegards,\nDr. Devarsh Goyal (MBBS M.S. orthopaedics)';
+  const profile = loadProfile();
+  const reg = regardingLine(patient);
+  const msg = '\u0928\u092e\u0938\u094d\u0924\u0947 ' + patient.name + ' \u091c\u0940,'
+    + (reg ? '\n' + reg : '')
+    + '\n\u0905\u0917\u0932\u0940 \u0935\u093f\u095b\u093f\u091f \u0938\u0947 \u092a\u0939\u0932\u0947 \u0905\u0917\u0930 \u0915\u094b\u0908 \u092a\u0930\u0947\u0936\u093e\u0928\u0940 \u0939\u094b \u092f\u093e \u092e\u0926\u0926 \u091a\u093e\u0939\u093f\u090f, \u0924\u094b \u0907\u0938 \u092e\u0948\u0938\u0947\u091c \u0915\u093e \u091c\u0935\u093e\u092c \u0926\u0947 \u0926\u0940\u091c\u093f\u090f\u0964'
+    + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
+    + '\n' + (profile.doctorName || 'Dr. Devarsh Goyal') + (profile.qualifications ? ' (' + profile.qualifications + ')' : '');
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
 }
 
 function followUpReminderMessage(patient) {
-  return 'Hello ' + patient.name + '\nYour next follow-up is on ' + fmtDate(patient.nextFollowUpDate)
-    + '\nPlease bring all previous X-rays, MRI/CT reports and prescriptions.'
+  const profile = loadProfile();
+  const reg = regardingLine(patient);
+  return '\u0928\u092e\u0938\u094d\u0924\u0947 ' + patient.name + ' \u091c\u0940,'
+    + '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0928\u093f\u0930\u094d\u0927\u093e\u0930\u093f\u0924 \u0939\u0948\u0964'
+    + (reg ? '\n' + reg : '')
     + '\n\u0915\u0943\u092a\u092f\u093e \u0905\u092a\u0928\u0947 \u0938\u092d\u0940 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0901 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u090f\u0902\u0964'
-    + '\nRegards\nDr Devarsh Goyal';
+    + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
+    + '\n' + (profile.doctorName || 'Dr. Devarsh Goyal');
 }
 function followUpReminderLink(patient) {
   const digits = toWaNumber(patient.whatsapp);
@@ -1428,7 +1448,7 @@ function renderListView() {
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding-top:16px;padding-bottom:10px;">'
     + '<div class="row between" style="margin-bottom:10px;">'
-    + '<div><h1 style="font-size:20px;font-weight:800;margin:0;letter-spacing:-0.01em;">Bone Log <span style="color:var(--accent);">Pro</span></h1><p style="font-size:11px;color:var(--muted);margin:3px 0 0;">'+(ownerProfile.doctorName?esc(ownerProfile.doctorName)+' \u00b7 ':'')+'<span style="font-weight:800;color:var(--accent);font-size:13px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p></div>'
+    + '<div class="row gap2"><img src="icons/icon-192.png" style="width:38px;height:38px;border-radius:10px;flex:none;box-shadow:0 2px 8px rgba(67,56,202,0.25);"><div><h1 style="font-size:21px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1><p style="font-size:11px;color:var(--muted);margin:3px 0 0;">'+(ownerProfile.doctorName?esc(ownerProfile.doctorName)+' \u00b7 ':'')+'<span style="font-weight:800;color:var(--accent);font-size:13px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p></div></div>'
     + '<div class="row gap2">'
     + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
     + '<button class="icon-btn" data-action="open-more" title="More">'+ic('menu')+'</button>'
@@ -1446,7 +1466,7 @@ function renderListView() {
         + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
         + '</div>' : '')
     + cards+'</div>'
-    + (ownerProfile.doctorName ? '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' '+esc(ownerProfile.doctorName)+' \u2014 personal clinical tool, not for redistribution</p>' : '')
+    + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' Dr. Devarsh Goyal \u2014 OrthoVault, all rights reserved</p>'
     + '</div>';
 }
 
@@ -1624,6 +1644,11 @@ function renderOverviewTab(p) {
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
+      + '</div>'
+      + '<div><label class="field-label">Payment</label><div class="seg">'
+      + [['Cash','Cash'],['Insurance','Insurance']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('')
+      + '</div>'
+      + (p.paymentMethod==='Insurance' ? '<input class="input" data-field="insuranceType" placeholder="Insurance type / company name" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
       + '</div>'
       + ageFieldHtml(p)
       + '</div>' : '<div class="card" style="display:flex;flex-direction:column;gap:10px;">'
@@ -4210,10 +4235,17 @@ document.addEventListener('click', async (e) => {
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
   if (action === 'ov-auto-region') {
     const p = getPatient(SELECTED_ID);
-    const detected = autoDetectRegions((p.diagnosis||'') + ' ' + (p.chiefComplaints||'') + ' ' + (p.procedure||''));
+    const detected = autoDetectRegions((p.diagnosis||'') + ' ' + (p.chiefComplaints||'') + ' ' + (p.procedure||'') + ' ' + (p.condition||''));
     p.regions = p.regions || [];
     detected.forEach(r => { if (!p.regions.includes(r)) p.regions.push(r); });
     if (!detected.length) { toast('Couldn\u2019t auto-detect \u2014 pick manually'); return; }
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ov-set-payment') {
+    const p = getPatient(SELECTED_ID);
+    p.paymentMethod = el.dataset.value;
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
@@ -4239,7 +4271,7 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'ap-auto-region') {
     syncApTempFromDom();
-    const detected = autoDetectRegions(AP_TEMP.diagnosis + ' ' + AP_TEMP.procedure);
+    const detected = autoDetectRegions(AP_TEMP.diagnosis + ' ' + AP_TEMP.procedure + ' ' + (AP_TEMP.chiefComplaints||'') + ' ' + (AP_TEMP.condition||''));
     detected.forEach(r => { if (!AP_TEMP.regions.includes(r)) AP_TEMP.regions.push(r); });
     if (!detected.length) toast('Couldn\u2019t auto-detect from the diagnosis/procedure text \u2014 pick manually');
     render();
@@ -5208,7 +5240,7 @@ function renderLockScreen() {
   const ownerProfile = loadProfile();
   return '<div class="lock-screen">'
     + '<div class="lock-icon">'+ic('gear')+'</div>'
-    + '<h2 style="font-size:16px;font-weight:800;margin:14px 0 4px;">Bone Log Pro is locked</h2>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:14px 0 4px;">OrthoVault is locked</h2>'
     + '<p style="font-size:12px;color:var(--muted);margin:0 0 4px;">'+(LOCK_ERROR?'Wrong PIN, try again.':'Enter PIN')+'</p>'
     + (ownerProfile.doctorName ? '<p style="font-size:10px;color:var(--muted);margin:0 0 14px;">Personal clinical tool of '+esc(ownerProfile.doctorName)+'</p>' : '<div style="margin-bottom:16px;"></div>')
     + '<div class="lock-dots" style="'+(LOCK_ERROR?'animation:lock-shake 0.4s;':'')+'">'+dots+'</div>'
