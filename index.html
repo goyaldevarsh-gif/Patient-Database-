@@ -83,20 +83,20 @@
   .chip { flex-shrink:0; border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--muted); padding:6px 10px; font-size:12px; font-weight:600; white-space:nowrap; }
   .chip.active { background:var(--ink); border-color:var(--ink); color:#fff; }
 
-  .card { border:1px solid var(--border); border-radius:14px; background:#fff; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
+  .card { border:1px solid var(--border); border-radius:20px; background:#fff; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
   .skeleton-line, .skeleton-block { background:linear-gradient(90deg, #eef0f3 25%, #f6f7f9 37%, #eef0f3 63%); background-size:400% 100%; animation:skeleton-shimmer 1.4s ease infinite; border-radius:8px; }
   .skeleton-line { height:14px; }
-  .skeleton-block { height:80px; border-radius:14px; }
+  .skeleton-block { height:80px; border-radius:20px; }
   @keyframes skeleton-shimmer { 0% { background-position:100% 50%; } 100% { background-position:0 50%; } }
   [data-theme="dark"] .skeleton-line, [data-theme="dark"] .skeleton-block { background:linear-gradient(90deg, #1e293b 25%, #263449 37%, #1e293b 63%); background-size:400% 100%; }
   .spinner { display:inline-block; width:13px; height:13px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spinner-spin 0.6s linear infinite; vertical-align:-2px; opacity:0.7; }
   @keyframes spinner-spin { to { transform:rotate(360deg); } }
-  .view-transition { animation:view-fade-in 180ms ease; }
-  @keyframes view-fade-in { from { opacity:0.4; } to { opacity:1; } }
-  .case-card { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; border:1px solid var(--border); border-radius:14px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+  .view-transition { animation:view-fade-in 220ms cubic-bezier(0.34,1.2,0.64,1); }
+  @keyframes view-fade-in { from { opacity:0.4; transform:scale(0.99); } to { opacity:1; transform:scale(1); } }
+  .case-card { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; border:1px solid var(--border); border-radius:20px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
   .status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .case-card:active { background:var(--bg-soft); }
-  .btn, .icon-btn, .seg-btn, .chip, .tag-chip, .case-card, .modal-btn, button.badge { transition:transform 150ms ease, opacity 150ms ease, background 150ms ease; }
+  .btn, .icon-btn, .seg-btn, .chip, .tag-chip, .case-card, .modal-btn, button.badge { transition:transform 180ms cubic-bezier(0.34,1.56,0.64,1), opacity 150ms ease, background 150ms ease; }
   .btn:active, .icon-btn:active, .seg-btn:active, .chip:active, .tag-chip:active, .case-card:active, .modal-btn:active, button.badge:active { transform:scale(0.97); opacity:0.85; }
 
   .badge { display:inline-flex; align-items:center; gap:4px; border-radius:999px; border:1px solid; padding:4px 9px; font-size:11px; font-weight:700; }
@@ -136,11 +136,11 @@
   .tab { flex-shrink:0; display:flex; align-items:center; gap:6px; padding:11px 13px; border-bottom:2px solid transparent; color:var(--muted); font-weight:700; font-size:12px; background:none; border-left:none; border-right:none; border-top:none; }
   .tab.active { border-bottom-color:var(--accent); color:var(--accent-dark); }
 
-  .stat-card { border:1px solid var(--border); border-radius:14px; padding:12px; background:#fff; }
-  .dash-tile { flex:1; border-radius:14px; padding:14px 12px; text-align:center; border:1px solid; }
+  .stat-card { border:1px solid var(--border); border-radius:20px; padding:12px; background:#fff; }
+  .dash-tile { flex:1; border-radius:20px; padding:14px 12px; text-align:center; border:1px solid; }
   .dash-tile .dv { font-size:22px; font-weight:800; font-family:'JetBrains Mono',monospace; line-height:1.1; }
   .dash-tile .dl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; margin-top:3px; opacity:0.85; }
-  .backup-banner { display:flex; align-items:center; gap:10px; border-radius:14px; padding:10px 12px; background:var(--amber-bg); border:1px solid var(--amber-border); margin-bottom:12px; }
+  .backup-banner { display:flex; align-items:center; gap:10px; border-radius:20px; padding:10px 12px; background:var(--amber-bg); border:1px solid var(--amber-border); margin-bottom:12px; }
   .insight-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:12px; border-bottom:1px solid var(--border); }
   .insight-row:last-child { border-bottom:none; }
   .mic-btn { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:50%; border:1px solid var(--border); background:#fff; color:var(--muted); flex-shrink:0; }
@@ -156,7 +156,7 @@
   .empty-state { display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; margin-top:56px; padding:0 24px; color:#64748b; }
   .empty-icon-wrap { background:#eef2ff; border-radius:999px; padding:18px; color:var(--accent); margin-bottom:4px; }
 
-  .fu-card { border:1px solid var(--border); border-radius:14px; padding:12px 14px; margin-bottom:10px; }
+  .fu-card { border:1px solid var(--border); border-radius:20px; padding:12px 14px; margin-bottom:10px; }
   .tl-row { display:flex; gap:12px; position:relative; padding-bottom:20px; }
   .tl-row:last-child { padding-bottom:0; }
   .tl-row::before { content:''; position:absolute; left:15px; top:32px; bottom:0; width:2px; background:var(--border); }
@@ -169,7 +169,7 @@
   .overdue-note { font-size:11px; font-weight:700; color:var(--red); margin-top:3px; display:flex; align-items:center; gap:4px; }
   .bottom-bar { position:sticky; bottom:0; border-top:1px solid var(--border); background:#fff; padding:10px 12px; padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)); display:flex; gap:8px; }
 
-  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; overflow:hidden; touch-action:none; }
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; overflow:hidden; touch-action:none; }
   .modal-overlay img { max-width:100%; max-height:78vh; border-radius:8px; }
   .modal-bar { position:absolute; top:calc(16px + env(safe-area-inset-top, 0px)); left:16px; right:16px; display:flex; align-items:center; justify-content:space-between; gap:8px; z-index:2; }
   .modal-btn { background:rgba(255,255,255,0.12); color:#fff; border:none; border-radius:999px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; }
@@ -215,7 +215,7 @@
   .edu-tier-legend b { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; }
   .edu-patient-line { font-size:12px; color:var(--edu-muted); padding-top:12px; border-top:1px solid var(--edu-teal-border); }
 
-  .edu-section { margin:0 22px 14px; padding:16px 18px; border-radius:14px; border-left:4px solid; }
+  .edu-section { margin:0 22px 14px; padding:16px 18px; border-radius:20px; border-left:4px solid; }
   .edu-section.info { background:var(--edu-teal-light); border-color:var(--edu-teal); }
   .edu-section.action { background:var(--edu-gold-light); border-color:var(--edu-gold); }
   .edu-section.urgent { background:var(--edu-red-light); border-color:var(--edu-red); }
@@ -241,7 +241,7 @@
   .edu-subhead { font-weight:700; font-size:12px; color:var(--edu-gold); text-transform:uppercase; letter-spacing:0.04em; margin:14px 0 6px; }
   .edu-subhead:first-child { margin-top:0; }
   .edu-cross { flex-shrink:0; margin-top:1px; width:15px; height:15px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:13px; color:var(--edu-red); }
-  .edu-quote { margin:18px 22px; padding:18px 20px; background:#fff; border-radius:14px; border:1px solid var(--edu-teal-border); text-align:center; }
+  .edu-quote { margin:18px 22px; padding:18px 20px; background:#fff; border-radius:20px; border:1px solid var(--edu-teal-border); text-align:center; }
   .edu-quote-en { font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:16px; color:var(--edu-teal); line-height:1.4; }
   .edu-quote-hi { font-family:'Fraunces',serif; font-style:italic; font-weight:500; font-size:14px; color:var(--edu-muted); margin-top:8px; line-height:1.4; }
 
@@ -330,8 +330,8 @@
   .usearch-fab .ic { width:22px; height:22px; }
   .side-back-btn { position:absolute; left:10px; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:50%; background:rgba(15,23,42,0.85); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.25); border:none; }
   .side-back-btn .ic { width:20px; height:20px; }
-  .usearch-overlay { position:fixed; inset:0; background:#fff; z-index:70; display:flex; flex-direction:column; }
-  [data-theme="dark"] .usearch-overlay { background:#0f172a; }
+  .usearch-overlay { position:fixed; inset:0; background:rgba(255,255,255,0.85); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); z-index:70; display:flex; flex-direction:column; }
+  [data-theme="dark"] .usearch-overlay { background:rgba(15,23,42,0.9); }
   .usearch-topbar { display:flex; align-items:center; gap:8px; padding:14px 16px; padding-top:calc(14px + env(safe-area-inset-top, 0px)); border-bottom:1px solid var(--border); }
   .usearch-results { flex:1; overflow-y:auto; padding:8px 16px 24px; }
   [data-theme="dark"] .reminder-check { background:#1e293b; }
@@ -1244,9 +1244,10 @@ function renderSettingsView() {
     + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.02em;margin:0 0 -4px;">OrthoVault \u2014 Built for Orthopaedic Surgeons</p>'
     + appLockCardHtml()
     + notifCardHtml()
-    + '<div class="card"><label class="field-label">Display</label><div class="row between"><span style="font-size:13px;font-weight:600;">Dark mode</span><div class="seg" style="width:auto;">'
-    + [['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 14px;">'+l+'</button>').join('')
+    + '<div class="card"><label class="field-label">Display</label><div class="row between"><span style="font-size:13px;font-weight:600;">Appearance</span><div class="seg" style="width:auto;">'
+    + [['auto','Auto'],['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div>'
+    + (loadTheme()==='auto' ? '<p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Light 6 AM\u20137 PM, Dark otherwise \u2014 switches automatically.</p>' : '')
     + '<div style="margin-top:12px;"><span style="font-size:13px;font-weight:600;display:block;margin-bottom:8px;">Accent color</span><div style="display:flex;gap:10px;">'
     + Object.entries(ACCENT_THEMES).map(([k,t])=>'<button class="accent-swatch'+(loadAccentTheme()===k?' active':'')+'" data-action="set-accent" data-value="'+k+'" title="'+t.label+'" style="background:'+t.light+';"></button>').join('')
     + '</div></div>'
@@ -2198,7 +2199,16 @@ async function renderImagesRecordsTab(p) {
   let body = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
   if (IMAGES_RECORDS_SUBVIEW === 'xray') {
     const xrayImages = allImages.filter(im => im.imageCategory === 'xray');
-    XRAY_SUBTYPES.forEach(st => {
+    const isTrauma = p.surgeryType === 'Trauma' || p.condition === 'trauma';
+    const isSurgical = p.caseType === 'surgical';
+    const relevantSubtypes = XRAY_SUBTYPES.filter(st => {
+      if (xrayImages.some(im => im.xraySubtype === st)) return true;
+      if (st === 'Pre-Reduction' || st === 'Post-Reduction') return isTrauma;
+      if (st === 'Pre-op' || st === 'Post-op') return isSurgical;
+      if (st === 'General OPD') return !isTrauma && !isSurgical;
+      return true;
+    });
+    relevantSubtypes.forEach(st => {
       body += imageBucketCardHtml(st, xrayImages.filter(im=>im.xraySubtype===st), 'xray', st, false);
     });
     body += imageBucketCardHtml('Follow-Up X-ray', xrayImages.filter(im=>im.xraySubtype==='Follow-up'), 'xray', 'Follow-up', true);
@@ -4275,8 +4285,19 @@ document.addEventListener('click', async (e) => {
   if (action === 'convert-to-surgical') {
     const p = getPatient(SELECTED_ID);
     p.caseType = 'surgical';
-    await dbPutPatient(p); await refreshPatients();
+    await dbPutPatient(p);
+    const images = await dbGetImagesByPatient(p.id);
+    let reclassified = 0;
+    for (const im of images) {
+      if (im.imageCategory === 'xray' && im.xraySubtype === 'General OPD') {
+        im.xraySubtype = 'Pre-op';
+        await dbAddImage(im);
+        reclassified++;
+      }
+    }
+    await refreshPatients();
     render();
+    toast(reclassified ? 'Converted to Surgical \u2014 '+reclassified+' General OPD X-ray'+(reclassified>1?'s':'')+' reclassified as Pre-op' : 'Converted to Surgical');
     return;
   }
   if (action === 'convert-to-opd') {
@@ -5533,12 +5554,18 @@ if ('serviceWorker' in navigator) {
 
 /* ================= Theme (dark mode) ================= */
 const THEME_KEY = 'surgical-case-log-theme-v1';
-function loadTheme() { try { return localStorage.getItem(THEME_KEY) || 'light'; } catch(e) { return 'light'; } }
+function loadTheme() { try { return localStorage.getItem(THEME_KEY) || 'auto'; } catch(e) { return 'auto'; } }
+function computeAutoEffectiveTheme() {
+  const hour = new Date().getHours();
+  return (hour >= 6 && hour < 19) ? 'light' : 'dark';
+}
 function applyTheme(t) {
-  document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
+  const effective = t === 'auto' ? computeAutoEffectiveTheme() : (t === 'dark' ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', effective);
   try { localStorage.setItem(THEME_KEY, t); } catch(e) {}
   applyAccentTheme(loadAccentTheme());
 }
+setInterval(() => { if (loadTheme() === 'auto') applyTheme('auto'); }, 10*60*1000);
 
 const ACCENT_THEMES = {
   indigo: { label:'Indigo', light:'#4338ca', lightDark:'#3730a3', dark:'#818cf8', darkDark:'#a5b4fc' },
