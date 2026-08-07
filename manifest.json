@@ -1,6 +1,6 @@
 {
-  "name": "Bone Log Pro - OPD and Surgical Databook",
-  "short_name": "Bone Log Pro",
+  "name": "OrthoVault - OPD and Surgical Databook",
+  "short_name": "OrthoVault",
   "description": "Personal ortho practice database \u2014 OPD and surgical cases, diagnosis, imaging, follow-ups, prescriptions, and patient education.",
   "start_url": "./index.html",
   "scope": "./",

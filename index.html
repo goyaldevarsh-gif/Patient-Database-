@@ -5694,7 +5694,17 @@ function appLockCardHtml() {
 
 /* ================= Init ================= */
 
+function renderSplashScreen() {
+  return '<div id="splash-screen" class="lock-screen" style="transition:opacity 380ms ease;">'
+    + '<img src="icons/logo-full.png" style="width:230px;max-width:78vw;border-radius:26px;box-shadow:0 14px 36px rgba(0,0,0,0.45);">'
+    + '</div>';
+}
+
 (async () => {
+  const app = document.getElementById('app');
+  app.innerHTML = renderSplashScreen();
+  const splashStart = Date.now();
+
   applyTheme(loadTheme());
   if (navigator.storage && navigator.storage.persist) { try { await navigator.storage.persist(); } catch(e) {} }
   try {
@@ -5704,6 +5714,16 @@ function appLockCardHtml() {
       if (p.deletedAt < cutoff) { await dbDeleteImagesByPatient(p.id); await dbDeletePatient(p.id); }
     }
   } catch(e) {}
+
+  const minSplashMs = 1100;
+  const remaining = minSplashMs - (Date.now() - splashStart);
+  if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
+  const splashEl = document.getElementById('splash-screen');
+  if (splashEl) {
+    splashEl.style.opacity = '0';
+    await new Promise(r => setTimeout(r, 380));
+  }
+
   if (isLockEnabled()) {
     APP_LOCKED = true;
     document.getElementById('app').innerHTML = renderLockScreen();
