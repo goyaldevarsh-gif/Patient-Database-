@@ -441,6 +441,12 @@ async function resizeImageFile(file, maxDim, quality) {
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escName(s) { return esc(String(s ?? '').toUpperCase()); }
+function displayDiagnosis(s) {
+  s = String(s ?? '').trim();
+  if (!s) return '';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 function fmtDate(d) { if (!d) return '\u2014'; const dt = new Date(d); if (isNaN(dt)) return '\u2014'; return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function fmtDateShort(d) { if (!d) return '\u2014'; const dt = new Date(d); if (isNaN(dt)) return '\u2014'; return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}); }
 function todayStr() { return new Date().toISOString().slice(0,10); }
@@ -598,8 +604,8 @@ function continueLastPatientHtml() {
     + '<span style="flex:none;color:var(--accent);">'+ic('clock')+'</span>'
     + '<span style="flex:1;min-width:0;">'
     + '<span style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--accent-dark);">Continue \u00b7 '+relativeTimeAgo(last.at)+'</span>'
-    + '<span style="display:block;font-size:14px;font-weight:800;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</span>'
-    + '<span style="display:block;font-size:12px;color:#64748b;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p.caseType==='surgical'?esc(p.procedure||p.surgeryType):((p.diagnosis||p.chiefComplaints)?esc(sideTag(p))+esc(p.diagnosis||p.chiefComplaints):'OPD case'))+'</span>'
+    + '<span style="display:block;font-size:14px;font-weight:800;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escName(p.name)+'</span>'
+    + '<span style="display:block;font-size:12px;color:#64748b;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p.caseType==='surgical'?esc(p.procedure||p.surgeryType):((p.diagnosis||p.chiefComplaints)?esc(sideTag(p))+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints)):'OPD case'))+'</span>'
     + '</span>'
     + '<span style="flex:none;color:var(--accent);font-size:12px;font-weight:700;display:flex;align-items:center;">Resume '+ic('chevron')+'</span>'
     + '</button>';
@@ -1116,8 +1122,8 @@ async function renderRecentlyDeletedView() {
     + (deleted.length ? deleted.map(p => {
         const daysLeft = Math.max(0, 30 - Math.floor((Date.now()-p.deletedAt)/(24*60*60*1000)));
         return '<div class="fu-card">'
-          + '<div class="row between"><span style="font-weight:800;">'+esc(p.name)+'</span><span class="badge badge-slate">'+daysLeft+' days left</span></div>'
-          + (p.diagnosis || p.chiefComplaints ? '<p style="font-size:12px;color:var(--muted);margin-top:4px;">'+esc(p.diagnosis||p.chiefComplaints)+'</p>' : '')
+          + '<div class="row between"><span style="font-weight:800;">'+escName(p.name)+'</span><span class="badge badge-slate">'+daysLeft+' days left</span></div>'
+          + (p.diagnosis || p.chiefComplaints ? '<p style="font-size:12px;color:var(--muted);margin-top:4px;">'+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints))+'</p>' : '')
           + '<div class="row gap2" style="margin-top:8px;"><button class="btn btn-sm" style="flex:1;" data-action="restore-patient" data-id="'+p.id+'">'+ic('back')+' Restore</button>'+confirmBtn('permanently-delete-patient', p.id)+'</div>'
           + '</div>';
       }).join('')
@@ -1162,17 +1168,17 @@ const ABOUT_SECTIONS = [
     ['Pediatric dose calculator / Rickets guide', 'Show automatically for OPD patients under 18 \u2014 the Rickets reference specifically when "Rickets" is in the diagnosis.'],
   ]},
   { key:'tabs', title:'Patient Record Tabs', icon:'file', items:[
-    ['Overview', 'Diagnosis, chief complaints, region/specialty, side, surgery details, payment method, tags, co-morbidities, and quick links to WhatsApp and Patient Education.'],
+    ['Overview', 'Diagnosis, chief complaints, region/specialty, side, surgery details, payment method, tags, co-morbidities, and quick links to WhatsApp and Patient Education. Tap the Patient ID badge any time to edit it manually.'],
     ['Timeline', 'A chronological view of the whole case \u2014 registration/surgery, follow-ups, and more \u2014 in one scroll.'],
-    ['Follow-Up', 'Log each visit with notes, wound/union status, and photos. Setting a "next follow-up date" here becomes the single source of truth \u2014 it drives the overdue alert on the home card, the Calendar, and the WhatsApp reminder.'],
+    ['Follow-Up', 'Log each visit with notes, wound/union status, and photos sorted into X-ray / Clinical Image / Wound \u2014 quick-preset chips fill the visit label (2 Week, 6 Week\u2026) and next-follow-up date (+2 Weeks, +1 Month\u2026) for you. Setting "next follow-up" here becomes the single source of truth \u2014 it drives the overdue alert on the home card, the Calendar, and the WhatsApp reminder.'],
     ['Images & Records', 'One place for everything visual and investigative: X-rays (by type \u2014 OPD/Pre-Reduction/Post-Reduction/Pre-op/Post-op/Follow-up), Clinical Images, Wound/Suture photos, CT, MRI, USG, Investigations, and Injections.'],
-    ['Prescriptions', 'Write medicines with dose/frequency/duration, print or share as PDF, or send directly on WhatsApp \u2014 letterhead and doctor details fill in automatically.'],
+    ['Prescriptions', 'Write medicines with dose/frequency/duration, save any medicine list as a reusable Template for one-tap reuse, print or share as PDF, or send directly on WhatsApp \u2014 letterhead and doctor details fill in automatically.'],
   ]},
   { key:'smart', title:'Smart Features', icon:'search', items:[
     ['Region auto-detect', 'On Overview, tap "Auto-detect" to guess the region/specialty (Upper Limb, Spine, Trauma, etc.) from the diagnosis and procedure text \u2014 adjust manually anytime.'],
     ['Autocomplete memory', 'Diagnosis, Chief Complaints, and Tags remember what you\u2019ve typed before \u2014 start typing 2+ letters to see matching past entries.'],
     ['Universal search', 'The floating search button searches every field \u2014 name, ID, diagnosis, notes, tags, investigations, prescriptions \u2014 across all cases.'],
-    ['WhatsApp messaging', 'From Overview: a general message, a Follow-up Reminder (auto-fills the visit reason and date), and Save to Contacts \u2014 all in Hindi, using your saved profile name.'],
+    ['WhatsApp messaging', 'From Overview: a general message, a Follow-up Reminder (auto-fills the visit reason and date), a direct Call button, and Save to Contacts \u2014 messages are in Hindi, using your saved profile name.'],
     ['Photo zoom, notes & download', 'Open any photo: pinch to zoom, double-tap to zoom, add a note that shows boldly on the image, or download it.'],
   ]},
   { key:'clinical', title:'Special Condition Tools', icon:'pill', items:[
@@ -1192,11 +1198,14 @@ const ABOUT_SECTIONS = [
   { key:'data', title:'Your Data & Privacy', icon:'shield', items:[
     ['Fully local', 'Everything \u2014 patients, photos, notes \u2014 stays on this device only. Nothing is uploaded anywhere.'],
     ['Backup', 'More \u2192 Export Backup saves a zip of everything. Do this regularly, ideally to Google Drive or similar, in case this device is lost or reset.'],
+    ['Case Log export', 'More \u2192 Export Case Log (Excel/CSV) \u2014 a spreadsheet of every case, handy for audits, CME records, or research \u2014 separate from the full backup.'],
+    ['Recently Deleted', 'Deleting a patient doesn\u2019t erase it right away \u2014 More \u2192 Recently Deleted keeps it for 30 days with a Restore button, in case of a mistake.'],
+    ['Storage usage', 'Settings shows how much space the app is using on your device, so there are no surprises after years of photos.'],
     ['App Lock', 'Optional PIN lock (Settings) so the app can\u2019t be opened without your PIN.'],
   ]},
   { key:'customize', title:'Customization', icon:'gear', items:[
     ['Doctor / Clinic Profile', 'Your name, qualifications, clinic address and phone \u2014 used on prescriptions, WhatsApp messages, and the home screen.'],
-    ['Themes', 'Light or Dark mode, plus 5 accent colors (Indigo, Teal, Emerald, Blue, Plum) \u2014 all in Settings.'],
+    ['Themes', 'Auto (switches Light/Dark with time of day), or set Light/Dark manually, plus 5 accent colors (Indigo, Teal, Emerald, Blue, Plum) \u2014 all in Settings.'],
   ]},
   { key:'tips', title:'Tips for Getting the Most Out of It', icon:'pin', items:[
     ['One follow-up date to rule them all', 'Always keep "next follow-up" current \u2014 set it from Follow-Up or a Prescription, and every reminder (home card, Calendar, WhatsApp) stays accurate without extra work.'],
@@ -1295,7 +1304,7 @@ function regardingLine(patient) {
   if (patient.caseType === 'surgical' && (patient.procedure || patient.surgeryType)) {
     return (patient.procedure || patient.surgeryType) + ' \u0938\u0930\u094d\u091c\u0930\u0940 (\u0926\u093f\u0928\u093e\u0902\u0915 ' + fmtDate(patient.surgeryDate) + ') \u0915\u0947 \u0938\u093f\u0932\u0938\u093f\u0932\u0947 \u092e\u0947\u0902';
   }
-  const cond = patient.diagnosis || patient.chiefComplaints;
+  const cond = displayDiagnosis(patient.diagnosis || patient.chiefComplaints);
   if (cond) return cond + ' \u0915\u0947 \u0938\u093f\u0932\u0938\u093f\u0932\u0947 \u092e\u0947\u0902';
   return '';
 }
@@ -1516,8 +1525,8 @@ function usearchResultRowHtml(p, q) {
   const hit = q ? matchCase(p, q) : null;
   return '<button class="case-card" style="width:100%;" data-action="usearch-open-patient" data-id="'+p.id+'">'
     + '<div style="min-width:0;flex:1;">'
-    + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+esc(p.name)+'</span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+(p.side && p.side!=='N/A' ? ' \u00b7 '+esc(p.side) : '')+'</span></div>'
-    + '<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+((p.diagnosis||p.chiefComplaints)?esc(sideTag(p)):'')+esc(p.diagnosis||p.chiefComplaints||'')+'</div>'
+    + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+escName(p.name)+'</span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+(p.side && p.side!=='N/A' ? ' \u00b7 '+esc(p.side) : '')+'</span></div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+((p.diagnosis||p.chiefComplaints)?esc(sideTag(p)):'')+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||''))+'</div>'
     + (hit && !['Name','Diagnosis','Chief complaints'].includes(hit.field) ? '<div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(hit.field)+'</div>' : '')
     + '</div></button>';
 }
@@ -1591,9 +1600,9 @@ function renderListView() {
         + '<div class="row gap2">'
         + (dot ? '<span class="status-dot" style="background:'+dot.color+';" title="'+dot.label+'"></span>' : '')
         + (p.pinned ? '<span style="color:var(--accent);flex:none;">'+ic('pin')+'</span>' : '')
-        + '<span class="display" style="font-weight:800;font-size:15px;">'+esc(p.name)+'</span>'
+        + '<span class="display" style="font-weight:800;font-size:15px;">'+escName(p.name)+'</span>'
         + '</div>'
-        + (p.diagnosis ? '<div style="font-size:13px;font-weight:600;color:#334155;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(sideTag(p))+esc(p.diagnosis)+'</div>'
+        + (p.diagnosis ? '<div style="font-size:13px;font-weight:600;color:#334155;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(sideTag(p))+esc(displayDiagnosis(p.diagnosis))+'</div>'
             : (p.chiefComplaints ? '<div style="font-size:13px;font-weight:600;color:#334155;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(sideTag(p))+'C/O: '+esc(p.chiefComplaints)+'</div>' : ''))
         + '<div style="font-size:11px;color:var(--muted);margin-top:6px;" class="mono">'+formatAge(p)+' \u00b7 '+esc(p.sex)+(p.patientCode?' \u00b7 '+esc(p.patientCode):'')+'</div>'
         + (p.caseType==='surgical'
@@ -1616,7 +1625,9 @@ function renderListView() {
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding-top:16px;padding-bottom:10px;">'
     + '<div class="row between" style="margin-bottom:10px;">'
-    + '<div class="row gap2"><img src="icons/icon-192.png" style="width:38px;height:38px;border-radius:10px;flex:none;box-shadow:0 2px 8px rgba(67,56,202,0.25);"><div><h1 style="font-size:21px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1><p style="font-size:11px;color:var(--muted);margin:3px 0 0;">'+(ownerProfile.doctorName?esc(ownerProfile.doctorName)+' \u00b7 ':'')+'<span style="font-weight:800;color:var(--accent);font-size:13px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p></div></div>'
+    + '<div class="row gap2"><img src="icons/icon-192.png" style="width:38px;height:38px;border-radius:10px;flex:none;box-shadow:0 2px 8px rgba(67,56,202,0.25);"><div><h1 style="font-size:21px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1>'
+    + (ownerProfile.doctorName ? '<p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:3px 0 0;">'+esc(ownerProfile.doctorName)+'</p>' : '')
+    + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;"><span style="font-weight:800;color:var(--accent);font-size:13px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p></div></div>'
     + '<div class="row gap2">'
     + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
     + '<button class="icon-btn" data-action="open-more" title="More">'+ic('menu')+'</button>'
@@ -2520,11 +2531,11 @@ function renderPrintView() {
     + '<div class="rx-clinic-addr">Reg. No: '+esc(profile.regNumber||'\u2014')+'</div></div>'
     + '</div>'
     + '<div class="rx-patient-row">'
-    + '<span><b>Patient:</b> '+esc(patient.name)+' &nbsp; ('+formatAge(patient)+' / '+esc(patient.sex)+')'+(patient.side && patient.side!=='N/A' ? ' &nbsp; <b>Side:</b> '+esc(patient.side) : '')+(patient.patientCode?' &nbsp; <span style="color:var(--muted);">'+esc(patient.patientCode)+'</span>':'')+'</span>'
+    + '<span><b>Patient:</b> '+escName(patient.name)+' &nbsp; ('+formatAge(patient)+' / '+esc(patient.sex)+')'+(patient.side && patient.side!=='N/A' ? ' &nbsp; <b>Side:</b> '+esc(patient.side) : '')+(patient.patientCode?' &nbsp; <span style="color:var(--muted);">'+esc(patient.patientCode)+'</span>':'')+'</span>'
     + '<span><b>Date:</b> '+fmtDate(rx.date)+'</span>'
     + '</div>'
     + (patient.chiefComplaints ? '<div class="rx-diagnosis"><b>C/O:</b> '+esc(patient.chiefComplaints)+'</div>' : '')
-    + (patient.diagnosis ? '<div class="rx-diagnosis">'+esc(patient.diagnosis)+'</div>' : '')
+    + (patient.diagnosis ? '<div class="rx-diagnosis">'+esc(displayDiagnosis(patient.diagnosis))+'</div>' : '')
     + '<div class="rx-symbol">R<sub>x</sub></div>'
     + '<table class="rx-table">'+medsHtml+'</table>'
     + (rx.advice ? '<div class="rx-advice"><b>Advice:</b> '+esc(rx.advice).replace(/\n/g,'<br>')+'</div>' : '')
@@ -2967,10 +2978,10 @@ function renderEduImagePrintView() {
     + '<button class="btn" style="background:#25D366;border-color:#25D366;color:#fff;" data-action="share-edu-image">'+ic('message')+' Share Image</button>'
     + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
     + '</div></div>'
-    + (waNumber ? '<p class="no-print px" style="font-size:11px;color:var(--muted);margin:8px 0 0;">Tip: tap <b>Open Chat</b> to jump straight to '+esc(patient.name)+'\u2019s WhatsApp, then <b>Share Image</b> and pick that same chat to attach it \u2014 WhatsApp\u2019s own links can\u2019t attach images automatically.</p>' : '')
+    + (waNumber ? '<p class="no-print px" style="font-size:11px;color:var(--muted);margin:8px 0 0;">Tip: tap <b>Open Chat</b> to jump straight to '+escName(patient.name)+'\u2019s WhatsApp, then <b>Share Image</b> and pick that same chat to attach it \u2014 WhatsApp\u2019s own links can\u2019t attach images automatically.</p>' : '')
     + '<div class="edu-img-doc">'
     + '<div class="edu-img-strip">'
-    + '<span><b>'+esc(patient.name)+'</b> \u00b7 '+formatAge(patient)+' / '+esc(patient.sex)+(patient.patientCode?' \u00b7 <span class="mono">'+esc(patient.patientCode)+'</span>':'')+'</span>'
+    + '<span><b>'+escName(patient.name)+'</b> \u00b7 '+formatAge(patient)+' / '+esc(patient.sex)+(patient.patientCode?' \u00b7 <span class="mono">'+esc(patient.patientCode)+'</span>':'')+'</span>'
     + '<span>'+fmtDate(todayStr())+'</span>'
     + '</div>'
     + '<img src="'+tpl.dataUri+'" style="width:100%;display:block;" alt="'+esc(edu.name.en)+'">'
@@ -3017,12 +3028,12 @@ function renderEduMultiPrintView() {
     + (imageEdus.length ? '<button class="btn" style="background:#25D366;border-color:#25D366;color:#fff;" data-action="share-edu-images">'+ic('message')+' Share Images ('+imageEdus.length+')</button>' : '')
     + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
     + '</div></div>'
-    + (waNumber ? '<p class="no-print px" style="font-size:11px;color:var(--muted);margin:8px 0 0;">Tip: tap <b>Open Chat</b> to jump straight to '+esc(patient.name)+'\u2019s WhatsApp'+(imageEdus.length?', then <b>Share Images</b> and pick that same chat to attach them':'')+' \u2014 WhatsApp\u2019s own links can\u2019t attach images automatically.</p>' : '')
+    + (waNumber ? '<p class="no-print px" style="font-size:11px;color:var(--muted);margin:8px 0 0;">Tip: tap <b>Open Chat</b> to jump straight to '+escName(patient.name)+'\u2019s WhatsApp'+(imageEdus.length?', then <b>Share Images</b> and pick that same chat to attach them':'')+' \u2014 WhatsApp\u2019s own links can\u2019t attach images automatically.</p>' : '')
     + imageEdus.map(edu => {
         const tpl = EDU_IMAGE_TEMPLATES[edu.id];
         return '<div class="edu-img-doc" style="margin-bottom:16px;">'
           + '<div class="edu-img-strip">'
-          + '<span><b>'+esc(patient.name)+'</b> \u00b7 '+formatAge(patient)+' / '+esc(patient.sex)+(patient.patientCode?' \u00b7 <span class="mono">'+esc(patient.patientCode)+'</span>':'')+'</span>'
+          + '<span><b>'+escName(patient.name)+'</b> \u00b7 '+formatAge(patient)+' / '+esc(patient.sex)+(patient.patientCode?' \u00b7 <span class="mono">'+esc(patient.patientCode)+'</span>':'')+'</span>'
           + '<span>'+fmtDate(todayStr())+'</span>'
           + '</div>'
           + '<img src="'+tpl.dataUri+'" style="width:100%;display:block;" alt="'+esc(edu.name.en)+'">'
@@ -3105,7 +3116,7 @@ function renderEduPrintView() {
     + '<span><b style="background:var(--edu-gold);"></b>What to do</span>'
     + '<span><b style="background:var(--edu-red);"></b>When to worry</span>'
     + '</div>'
-    + '<div class="edu-patient-line">Prepared for <b>'+esc(patient.name)+'</b>'+(patient.patientCode?' ('+esc(patient.patientCode)+')':'')+' \u00b7 '+fmtDate(todayStr())+'</div>'
+    + '<div class="edu-patient-line">Prepared for <b>'+escName(patient.name)+'</b>'+(patient.patientCode?' ('+esc(patient.patientCode)+')':'')+' \u00b7 '+fmtDate(todayStr())+'</div>'
     + '</div>'
 
     + '<div class="edu-section info">'
@@ -3209,7 +3220,7 @@ function renderTimelineTab(p) {
   if (p.caseType === 'surgical' && p.surgeryDate) {
     events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Surgery: ' + (p.procedure || p.surgeryType), sub: (p.side && p.side !== 'N/A') ? p.side : null, jumpTab: 'overview' });
   } else if (p.surgeryDate) {
-    events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Registration: ' + (p.diagnosis || p.chiefComplaints ? sideTag(p) + (p.diagnosis || p.chiefComplaints) : 'OPD case'), sub: p.side && p.side !== 'N/A' ? p.side : null, jumpTab: 'overview' });
+    events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Registration: ' + (p.diagnosis || p.chiefComplaints ? sideTag(p) + displayDiagnosis(p.diagnosis || p.chiefComplaints) : 'OPD case'), sub: p.side && p.side !== 'N/A' ? p.side : null, jumpTab: 'overview' });
   }
   (p.followUps||[]).forEach(f => events.push({ date: f.date, icon:'calendar', color:'#0d9488', bg:'#ccfbf1', title: 'Follow-up: ' + f.label, sub: (f.woundStatus && f.woundStatus!=='N/A') ? ('Wound: ' + f.woundStatus) : (f.notes || null), jumpTab: 'followups' }));
   (p.investigations||[]).forEach(inv => events.push({ date: inv.date, icon:'file', color:'#7c3aed', bg:'#f3e8ff', title: 'Investigation: ' + inv.label, sub: inv.notes || null, jumpTab: 'investigations' }));
@@ -3705,7 +3716,7 @@ function renderDetailShell(p) {
     + '<div class="sticky-top">'
     + '<div class="row gap3 px" style="padding:14px 16px 10px;">'
     + '<button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button>'
-    + '<div style="min-width:0;flex:1;"><h2 style="font-size:16px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</h2>'
+    + '<div style="min-width:0;flex:1;"><h2 style="font-size:16px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escName(p.name)+'</h2>'
     + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;">'+(p.caseType==='surgical'?p.surgeryType+' \u00b7 '+esc(p.procedure||''):'OPD case')+'</p></div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
     + confirmBtn('delete-patient', p.id)
@@ -3786,7 +3797,7 @@ function renderCalendarDayDetail() {
     + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">'+esc(label)+'</label>'
     + '<button class="btn btn-sm" data-action="reminder-add-for-date" data-value="'+dateStr+'">'+ic('plus')+' Reminder</button></div>'
     + (!fus.length && !rems.length ? '<p style="font-size:12px;color:var(--muted);padding:4px 0;">Nothing due this day.</p>' : '')
-    + fus.map(p => '<div class="row between" data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;padding:7px 0;border-top:1px solid var(--border);"><span style="font-size:13px;font-weight:600;">'+esc(p.name)+'</span><span class="badge '+(isOverdue(p.nextFollowUpDate)?'badge-red':'badge-indigo')+'" style="font-size:10px;">Follow-up</span></div>').join('')
+    + fus.map(p => '<div class="row between" data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;padding:7px 0;border-top:1px solid var(--border);"><span style="font-size:13px;font-weight:600;">'+escName(p.name)+'</span><span class="badge '+(isOverdue(p.nextFollowUpDate)?'badge-red':'badge-indigo')+'" style="font-size:10px;">Follow-up</span></div>').join('')
     + rems.map(r => reminderRowHtml(r)).join('')
     + '</div>';
 }
@@ -3798,7 +3809,7 @@ function reminderRowHtml(r) {
     + '<button class="reminder-check'+(r.done?' done':'')+'" data-action="reminder-toggle" data-id="'+r.id+'">'+(r.done?ic('check'):'')+'</button>'
     + '<div style="min-width:0;">'
     + '<div style="font-size:13px;font-weight:600;'+(r.done?'text-decoration:line-through;color:var(--muted);':'')+'">'+esc(r.text)+'</div>'
-    + '<div style="font-size:10px;color:var(--muted);margin-top:2px;">'+esc(patient?'Patient':r.category)+(patient?' \u00b7 '+esc(patient.name):'')+(r.dueDate?' \u00b7 '+fmtDate(r.dueDate):'')+'</div>'
+    + '<div style="font-size:10px;color:var(--muted);margin-top:2px;">'+esc(patient?'Patient':r.category)+(patient?' \u00b7 '+escName(patient.name):'')+(r.dueDate?' \u00b7 '+fmtDate(r.dueDate):'')+'</div>'
     + '</div></div>'
     + confirmBtn('delete-reminder', r.id)
     + '</div>';
@@ -3823,7 +3834,7 @@ function renderRemindersList() {
 function renderReminderForm() {
   const patient = REMINDER_FORM_PATIENT_ID ? getPatient(REMINDER_FORM_PATIENT_ID) : null;
   return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-    + '<label class="field-label">New reminder'+(patient?' for '+esc(patient.name):'')+'</label>'
+    + '<label class="field-label">New reminder'+(patient?' for '+escName(patient.name):'')+'</label>'
     + '<textarea class="textarea" id="rem-text" rows="2" placeholder="e.g. Order implant set for Tuesday\u2019s OT list"></textarea>'
     + (!patient ? '<label class="field-label" style="margin-top:8px;">Category</label><div class="seg">'+REMINDER_CATEGORIES.map(c=>'<button class="seg-btn'+(REMINDER_FORM_CATEGORY===c?' active':'')+'" data-action="reminder-set-category" data-value="'+c+'">'+c+'</button>').join('')+'</div>' : '')
     + '<label class="field-label" style="margin-top:8px;">Due date (optional)</label><input class="input" type="date" id="rem-date" value="'+esc(REMINDER_FORM_DATE)+'">'
@@ -5696,7 +5707,7 @@ function appLockCardHtml() {
 
 function renderSplashScreen() {
   return '<div id="splash-screen" class="lock-screen" style="transition:opacity 380ms ease;">'
-    + '<img src="icons/logo-full.png" style="width:230px;max-width:78vw;border-radius:26px;box-shadow:0 14px 36px rgba(0,0,0,0.45);">'
+    + '<img src="icons/logo-full.png" style="width:300px;max-width:88vw;border-radius:30px;box-shadow:0 16px 40px rgba(0,0,0,0.45);">'
     + '</div>';
 }
 
@@ -5715,7 +5726,7 @@ function renderSplashScreen() {
     }
   } catch(e) {}
 
-  const minSplashMs = 1100;
+  const minSplashMs = 1900;
   const remaining = minSplashMs - (Date.now() - splashStart);
   if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
   const splashEl = document.getElementById('splash-screen');
