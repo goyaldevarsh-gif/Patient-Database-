@@ -121,6 +121,9 @@
   .thumb-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px; }
   .thumb-wrap { position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; border:1px solid var(--border); background:var(--bg-soft); }
   .thumb-date { position:absolute; left:0; right:0; bottom:0; background:rgba(15,23,42,0.72); color:#fff; font-size:9px; font-weight:700; text-align:center; padding:2px 3px; }
+  .accent-swatch { width:34px; height:34px; border-radius:50%; border:2px solid transparent; flex:none; }
+  .accent-swatch.active { border-color:var(--ink); box-shadow:0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+  [data-theme="dark"] .accent-swatch.active { box-shadow:0 0 0 2px #0f172a, 0 0 0 4px var(--ink); }
   .thumb-wrap img { width:100%; height:100%; object-fit:cover; display:block; }
   .thumb-remove { position:absolute; top:3px; right:3px; background:rgba(15,23,42,0.75); color:#fff; border:none; border-radius:999px; width:20px; height:20px; font-size:12px; line-height:1; }
   .thumb-label { position:absolute; bottom:0; left:0; right:0; background:rgba(15,23,42,0.65); color:#fff; font-size:9px; padding:2px 5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -470,6 +473,7 @@ const ICONS = {
   chevron:'<polyline points="9 18 15 12 9 6"/>',
   camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
   info:'<circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>',
+  phone:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>',
   clipboard:'<path d="M9 2h6a1 1 0 0 1 1 1v1H8V3a1 1 0 0 1 1-1z"/><rect x="6" y="4" width="12" height="17" rx="1.5"/><line x1="9" y1="10.5" x2="15" y2="10.5"/><line x1="9" y1="14.5" x2="15" y2="14.5"/>',
   book:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
   calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
@@ -506,7 +510,26 @@ let TAG_FILTER = '';
 let TAB = 'overview';
 let ARMED_DELETE = null;
 let SHOW_TAG_FILTER = false;
+let SHOW_INSIGHTS = false;
+let SHOW_ALL_ATTENTION = false;
+let SHOW_LEGEND = false;
 let EDITING_PATIENT_CODE = false;
+function resetPerPatientUiState() {
+  EDITING_PATIENT_CODE = false;
+  ADD_FOLLOWUP_OPEN = false;
+  ADD_INVESTIGATION_OPEN = false;
+  ADD_INJECTION_OPEN = false;
+  ADD_PRESCRIPTION_OPEN = false;
+  ADD_CTEV_SESSION_OPEN = false;
+  ADD_CTEV_BRACELOG_OPEN = false;
+  ADD_RA_VISIT_OPEN = false;
+  ADD_DEXA_OPEN = false;
+  RX_PHOTOS = [];
+  INV_PHOTOS = [];
+  FU_PHOTOS = [];
+  FU_CLINICAL_PHOTOS = [];
+  FU_WOUND_PHOTOS = [];
+}
 let ADD_FOLLOWUP_OPEN = false;
 let EXPANDED_FOLLOWUP = new Set();
 let ADD_INVESTIGATION_OPEN = false;
@@ -614,7 +637,8 @@ function trackUrl(u) { ACTIVE_URLS.push(u); return u; }
 // temp state for add-patient photo staging: [{tempId, blob, previewUrl, label}]
 let AP_PHOTOS = [];
 // temp state for add-followup photo staging
-let FU_PHOTOS = [];
+let FU_PHOTOS = []; // X-ray photos for this follow-up visit
+let FU_CLINICAL_PHOTOS = [];
 let FU_WOUND_PHOTOS = [];
 // temp state for add-investigation photo staging
 let INV_PHOTOS = [];
@@ -1063,7 +1087,10 @@ function renderMoreView() {
     + '</div>'
     + '<div class="px" style="padding-top:10px;display:flex;flex-direction:column;gap:10px;">'
     + moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead, App Lock, dark mode, reminders', 'open-settings')
+    + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
+    + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
     + moreRowHtml('download', 'Export Backup', 'Save a zip of all cases, photos and reminders \u2014 tip: pick your Google Drive folder for an automatic cloud copy', 'export-backup')
+    + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 handy for audits, CME records, or research', 'export-case-log')
     + moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import')
     + '<input type="file" accept=".zip,application/zip" id="import-file-input" style="display:none;">'
     + '</div>'
@@ -1077,6 +1104,135 @@ function moreRowHtml(icon, title, sub, action) {
     + '</button>';
 }
 
+/* ================= Recently Deleted (soft-delete safety net) ================= */
+async function renderRecentlyDeletedView() {
+  const deleted = await dbGetDeletedPatients();
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-recently-deleted">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Recently Deleted</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
+    + (deleted.length ? '<p style="font-size:11.5px;color:var(--muted);margin:0 0 14px;">Kept for 30 days after deletion, then removed permanently \u2014 restore any time before that.</p>' : '')
+    + (deleted.length ? deleted.map(p => {
+        const daysLeft = Math.max(0, 30 - Math.floor((Date.now()-p.deletedAt)/(24*60*60*1000)));
+        return '<div class="fu-card">'
+          + '<div class="row between"><span style="font-weight:800;">'+esc(p.name)+'</span><span class="badge badge-slate">'+daysLeft+' days left</span></div>'
+          + (p.diagnosis || p.chiefComplaints ? '<p style="font-size:12px;color:var(--muted);margin-top:4px;">'+esc(p.diagnosis||p.chiefComplaints)+'</p>' : '')
+          + '<div class="row gap2" style="margin-top:8px;"><button class="btn btn-sm" style="flex:1;" data-action="restore-patient" data-id="'+p.id+'">'+ic('back')+' Restore</button>'+confirmBtn('permanently-delete-patient', p.id)+'</div>'
+          + '</div>';
+      }).join('')
+      : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">Nothing here.</div>')
+    + '</div></div>';
+}
+
+/* ================= About & Help Guide ================= */
+let ABOUT_EXPANDED = new Set(['getting-started']);
+const ABOUT_SECTIONS = [
+  { key:'getting-started', title:'Getting Started', icon:'clipboard', items:[
+    ['Adding a case', 'Tap "+ Add" on the home screen. Choose OPD or Surgical, fill in the basics, and save \u2014 it appears at the top of your list.'],
+    ['Opening a patient', 'Tap anywhere on a patient card to open their full record.'],
+    ['Editing anything later', 'Almost every field \u2014 diagnosis, side, region, payment, tags \u2014 stays editable from the Overview tab, any time.'],
+  ]},
+  { key:'opd-process', title:'Full Process \u2014 Adding an OPD Case', icon:'calendar', items:[
+    ['1. Start the case', 'Tap "+ Add", choose OPD, and fill in Name, Age, Sex.'],
+    ['2. Chief Complaints first', 'If a diagnosis isn\u2019t settled yet, type what the patient is presenting with \u2014 this shows on the home card until a diagnosis is added.'],
+    ['3. Diagnosis, once known', 'Add it any time \u2014 it will then take over as the headline on the card, and both feed autocomplete for future patients.'],
+    ['4. Side & Region', 'Set Left/Right/Bilateral, then tap "Auto-detect" for Region/Specialty \u2014 check the suggestion and adjust if needed.'],
+    ['5. Special Tracking (if relevant)', 'For CTEV, RA, or Osteoporosis cases, set this on Overview \u2014 it unlocks a dedicated tracking tab (Pirani scoring, DAS28, or DEXA).'],
+    ['6. Ongoing visits', 'Each time the patient returns, log it under Follow-Up \u2014 notes, photos, and the next follow-up date all go there.'],
+    ['7. Prescriptions', 'Write and share/print a prescription any time from its own tab \u2014 the follow-up date you set there also updates the patient\u2019s next-follow-up automatically.'],
+  ]},
+  { key:'surgical-process', title:'Full Process \u2014 Adding a Surgical Case', icon:'clipboard', items:[
+    ['1. Start the case', 'Tap "+ Add", choose Surgical, and fill in Name, Age, Sex.'],
+    ['2. Diagnosis & Region', 'Add the diagnosis, then Side and Region/Specialty (Auto-detect works well once Procedure is filled in too).'],
+    ['3. Surgery details', 'Surgery type, Procedure, Surgery date, and Payment method (Cash/Insurance) all live in the same card on Overview.'],
+    ['4. Pre-op images', 'Once saved, go to Images & Records \u2192 X-ray \u2192 Pre-op (or Clinical Images) to attach whatever you have.'],
+    ['5. On the day of surgery', 'Add OT/Intra-op photos from Images & Records \u2192 Clinical Images, and Post-op X-rays under X-ray \u2192 Post-op.'],
+    ['6. After discharge', 'Every subsequent visit goes under Follow-Up \u2014 photos added there are automatically filed as "Follow-up X-ray" too, no extra step.'],
+    ['7. Keep the follow-up date current', 'Whatever you set as "next follow-up" (in Follow-Up or on a Prescription) is what drives the overdue alert, the Calendar, and the WhatsApp reminder \u2014 there\u2019s only one date to keep updated.'],
+  ]},
+  { key:'when-tools', title:'When to Use Which Special Tool', icon:'search', items:[
+    ['CTEV tracking', 'Set Special Tracking = CTEV on an OPD clubfoot case \u2014 gives you Pirani scoring per cast, a trend graph, and an automatic tenotomy alert.'],
+    ['RA tracking', 'Set Special Tracking = RA \u2014 gives you DAS28/CDAI/SDAI scoring and a management reference.'],
+    ['Osteoporosis tracking', 'Set Special Tracking = Osteoporosis \u2014 gives you DEXA tracking and a FRAX/risk-factor guide.'],
+    ['Gustilo-Anderson / RUST', 'Appear automatically once a case is marked Trauma with an open fracture \u2014 no separate setup.'],
+    ['Kocher\u2019s criteria', 'Shows automatically when the diagnosis mentions "Septic Arthritis".'],
+    ['PJI (MSIS) checklist', 'On an Arthroplasty case, toggle "PJI suspected?" on Overview if infection is suspected \u2014 don\u2019t need it otherwise.'],
+    ['BMI calculator', 'Shows automatically for Arthroplasty and Knee OA cases.'],
+    ['Pediatric dose calculator / Rickets guide', 'Show automatically for OPD patients under 18 \u2014 the Rickets reference specifically when "Rickets" is in the diagnosis.'],
+  ]},
+  { key:'tabs', title:'Patient Record Tabs', icon:'file', items:[
+    ['Overview', 'Diagnosis, chief complaints, region/specialty, side, surgery details, payment method, tags, co-morbidities, and quick links to WhatsApp and Patient Education.'],
+    ['Timeline', 'A chronological view of the whole case \u2014 registration/surgery, follow-ups, and more \u2014 in one scroll.'],
+    ['Follow-Up', 'Log each visit with notes, wound/union status, and photos. Setting a "next follow-up date" here becomes the single source of truth \u2014 it drives the overdue alert on the home card, the Calendar, and the WhatsApp reminder.'],
+    ['Images & Records', 'One place for everything visual and investigative: X-rays (by type \u2014 OPD/Pre-Reduction/Post-Reduction/Pre-op/Post-op/Follow-up), Clinical Images, Wound/Suture photos, CT, MRI, USG, Investigations, and Injections.'],
+    ['Prescriptions', 'Write medicines with dose/frequency/duration, print or share as PDF, or send directly on WhatsApp \u2014 letterhead and doctor details fill in automatically.'],
+  ]},
+  { key:'smart', title:'Smart Features', icon:'search', items:[
+    ['Region auto-detect', 'On Overview, tap "Auto-detect" to guess the region/specialty (Upper Limb, Spine, Trauma, etc.) from the diagnosis and procedure text \u2014 adjust manually anytime.'],
+    ['Autocomplete memory', 'Diagnosis, Chief Complaints, and Tags remember what you\u2019ve typed before \u2014 start typing 2+ letters to see matching past entries.'],
+    ['Universal search', 'The floating search button searches every field \u2014 name, ID, diagnosis, notes, tags, investigations, prescriptions \u2014 across all cases.'],
+    ['WhatsApp messaging', 'From Overview: a general message, a Follow-up Reminder (auto-fills the visit reason and date), and Save to Contacts \u2014 all in Hindi, using your saved profile name.'],
+    ['Photo zoom, notes & download', 'Open any photo: pinch to zoom, double-tap to zoom, add a note that shows boldly on the image, or download it.'],
+  ]},
+  { key:'clinical', title:'Special Condition Tools', icon:'pill', items:[
+    ['CTEV (clubfoot)', 'Pirani scoring per cast session with a trend graph, and an automatic alert when your own tenotomy criteria are met.'],
+    ['RA (rheumatoid arthritis)', 'DAS28/CDAI/SDAI tracking with a 28-joint reference, plus a management reference (MTX, HCQ, steroids).'],
+    ['Osteoporosis', 'DEXA tracking (spine/hip/wrist), risk factors with a FRAX explainer and link.'],
+    ['Trauma tools', 'Gustilo-Anderson assistant, RUST score with trend graph, union tracking, Kocher\u2019s criteria (septic arthritis).'],
+    ['Arthroplasty tools', 'BMI calculator, PJI (MSIS criteria) checklist.'],
+    ['Pediatrics', 'Weight-based dose calculator and a Rickets management reference, shown automatically for pediatric OPD cases.'],
+  ]},
+  { key:'organized', title:'Staying Organized', icon:'calendar', items:[
+    ['Calendar & Reminders', 'See follow-ups due on a calendar, plus a separate Reminders list for clinic/OT/general tasks.'],
+    ['Pinning', 'Pin an important case from Overview \u2014 it always sorts to the top of the home list.'],
+    ['Tags', 'Free-form labels (Interesting, Teaching Slide, Complication\u2026) \u2014 filter the home list by tag.'],
+    ['Region filter', 'Home screen chips filter by Upper Limb, Lower Limb, Hand, Spine, Trauma, etc. \u2014 works for OPD and Surgical cases alike.'],
+  ]},
+  { key:'data', title:'Your Data & Privacy', icon:'shield', items:[
+    ['Fully local', 'Everything \u2014 patients, photos, notes \u2014 stays on this device only. Nothing is uploaded anywhere.'],
+    ['Backup', 'More \u2192 Export Backup saves a zip of everything. Do this regularly, ideally to Google Drive or similar, in case this device is lost or reset.'],
+    ['App Lock', 'Optional PIN lock (Settings) so the app can\u2019t be opened without your PIN.'],
+  ]},
+  { key:'customize', title:'Customization', icon:'gear', items:[
+    ['Doctor / Clinic Profile', 'Your name, qualifications, clinic address and phone \u2014 used on prescriptions, WhatsApp messages, and the home screen.'],
+    ['Themes', 'Light or Dark mode, plus 5 accent colors (Indigo, Teal, Emerald, Blue, Plum) \u2014 all in Settings.'],
+  ]},
+  { key:'tips', title:'Tips for Getting the Most Out of It', icon:'pin', items:[
+    ['One follow-up date to rule them all', 'Always keep "next follow-up" current \u2014 set it from Follow-Up or a Prescription, and every reminder (home card, Calendar, WhatsApp) stays accurate without extra work.'],
+    ['Duplicate Case for back-to-back surgeries', 'Operating on two similar cases same day? Open the first patient \u2192 Duplicate Case \u2014 diagnosis, procedure, region and side all carry over, you just adjust name and age.'],
+    ['Tag as you go', 'Mark teaching cases, complications, or exam cases with Tags the moment you notice them \u2014 far easier than trying to remember later.'],
+    ['Back up regularly', 'More \u2192 Export Backup, ideally saved to Google Drive \u2014 do this every week or two.'],
+    ['Let Auto-detect do the typing', 'Fill in Diagnosis/Procedure first, then tap Auto-detect for Region \u2014 it\u2019s usually right, and you only need to adjust occasionally.'],
+  ]},
+];
+function renderAboutView() {
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-about">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">About & Help</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:16px;">'
+    + '<div style="text-align:center;margin-bottom:20px;">'
+    + '<h1 style="font-size:19px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1>'
+    + '<p style="font-size:11px;color:var(--muted);font-weight:600;margin:2px 0 10px;">Built for Orthopaedic Surgeons</p>'
+    + '<p style="font-size:12.5px;color:var(--muted);line-height:1.5;max-width:340px;margin:0 auto;">A personal, private patient record-keeping app for orthopaedic practice \u2014 OPD and surgical cases, photos, prescriptions and follow-ups, all in one place. No internet, no cloud \u2014 everything stays on this device.</p>'
+    + '</div>'
+    + ABOUT_SECTIONS.map(sec => {
+        const open = ABOUT_EXPANDED.has(sec.key);
+        return '<div class="card" style="margin-bottom:10px;">'
+          + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:0;cursor:pointer;" data-action="toggle-about-section" data-value="'+sec.key+'">'
+          + '<span class="row gap2" style="color:var(--ink);"><span style="color:var(--accent);">'+ic(sec.icon)+'</span><span style="font-size:14px;font-weight:700;">'+sec.title+'</span></span>'
+          + '<span style="color:var(--muted);transform:rotate('+(open?'90':'0')+'deg);transition:transform 150ms;">'+ic('chevron')+'</span>'
+          + '</button>'
+          + (open ? '<div style="margin-top:12px;display:flex;flex-direction:column;gap:10px;">'
+              + sec.items.map(([name,desc]) => '<div><div style="font-size:12.5px;font-weight:700;color:var(--ink);">'+name+'</div><div style="font-size:12px;color:var(--muted);line-height:1.4;margin-top:2px;">'+desc+'</div></div>').join('')
+              + '</div>' : '')
+          + '</div>';
+      }).join('')
+    + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' Dr. Devarsh Goyal \u2014 OrthoVault, all rights reserved</p>'
+    + '</div></div>';
+}
+
 function renderSettingsView() {
   const pr = loadProfile();
   return '<div style="padding-bottom:90px;">'
@@ -1085,11 +1241,17 @@ function renderSettingsView() {
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">Doctor / clinic profile</h2>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
+    + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.02em;margin:0 0 -4px;">OrthoVault \u2014 Built for Orthopaedic Surgeons</p>'
     + appLockCardHtml()
     + notifCardHtml()
     + '<div class="card"><label class="field-label">Display</label><div class="row between"><span style="font-size:13px;font-weight:600;">Dark mode</span><div class="seg" style="width:auto;">'
     + [['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 14px;">'+l+'</button>').join('')
-    + '</div></div></div>'
+    + '</div></div>'
+    + '<div style="margin-top:12px;"><span style="font-size:13px;font-weight:600;display:block;margin-bottom:8px;">Accent color</span><div style="display:flex;gap:10px;">'
+    + Object.entries(ACCENT_THEMES).map(([k,t])=>'<button class="accent-swatch'+(loadAccentTheme()===k?' active':'')+'" data-action="set-accent" data-value="'+k+'" title="'+t.label+'" style="background:'+t.light+';"></button>').join('')
+    + '</div></div>'
+    + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
+    + '</div>'
     + '<p style="font-size:12px;color:var(--muted);">These details print on the prescription letterhead. Fill them in once, edit anytime from here.</p>'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="Dr. Devarsh Goyal"></div>'
     + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
@@ -1130,20 +1292,18 @@ function caseStatusDot(p) {
 
 function regardingLine(patient) {
   if (patient.caseType === 'surgical' && (patient.procedure || patient.surgeryType)) {
-    return '(\u0938\u0902\u092c\u0902\u0927\u093f\u0924: ' + (patient.procedure || patient.surgeryType) + ', \u0938\u0930\u094d\u091c\u0930\u0940 \u0926\u093f\u0928\u093e\u0902\u0915 ' + fmtDate(patient.surgeryDate) + ')';
+    return (patient.procedure || patient.surgeryType) + ' \u0938\u0930\u094d\u091c\u0930\u0940 (\u0926\u093f\u0928\u093e\u0902\u0915 ' + fmtDate(patient.surgeryDate) + ') \u0915\u0947 \u0938\u093f\u0932\u0938\u093f\u0932\u0947 \u092e\u0947\u0902';
   }
   const cond = patient.diagnosis || patient.chiefComplaints;
-  if (cond) return '(\u0938\u0902\u092c\u0902\u0927\u093f\u0924: ' + cond + ')';
+  if (cond) return cond + ' \u0915\u0947 \u0938\u093f\u0932\u0938\u093f\u0932\u0947 \u092e\u0947\u0902';
   return '';
 }
 function waLink(patient) {
   const digits = toWaNumber(patient.whatsapp);
   if (!digits) return null;
   const profile = loadProfile();
-  const reg = regardingLine(patient);
   const msg = '\u0928\u092e\u0938\u094d\u0924\u0947 ' + patient.name + ' \u091c\u0940,'
-    + (reg ? '\n' + reg : '')
-    + '\n\u0905\u0917\u0932\u0940 \u0935\u093f\u095b\u093f\u091f \u0938\u0947 \u092a\u0939\u0932\u0947 \u0905\u0917\u0930 \u0915\u094b\u0908 \u092a\u0930\u0947\u0936\u093e\u0928\u0940 \u0939\u094b \u092f\u093e \u092e\u0926\u0926 \u091a\u093e\u0939\u093f\u090f, \u0924\u094b \u0907\u0938 \u092e\u0948\u0938\u0947\u091c \u0915\u093e \u091c\u0935\u093e\u092c \u0926\u0947 \u0926\u0940\u091c\u093f\u090f\u0964'
+    + '\n\u0909\u092e\u094d\u092e\u0940\u0926 \u0939\u0948 \u0906\u092a \u0920\u0940\u0915 \u0939\u094b\u0902\u0917\u0947\u0964 \u0905\u0917\u0932\u0940 \u0935\u093f\u095b\u093f\u091f \u0938\u0947 \u092a\u0939\u0932\u0947 \u0905\u0917\u0930 \u0915\u094b\u0908 \u0926\u093f\u0915\u094d\u0915\u0924 \u092f\u093e \u0938\u0935\u093e\u0932 \u0939\u094b, \u0924\u094b \u0907\u0938\u0940 \u0928\u0902\u092c\u0930 \u092a\u0930 \u092c\u0947\u091d\u093f\u091d\u0915 \u0938\u0902\u092a\u0930\u094d\u0915 \u0915\u0930 \u0938\u0915\u0924\u0947 \u0939\u0948\u0902\u0964'
     + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
     + '\n' + (profile.doctorName || 'Dr. Devarsh Goyal') + (profile.qualifications ? ' (' + profile.qualifications + ')' : '');
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
@@ -1153,9 +1313,8 @@ function followUpReminderMessage(patient) {
   const profile = loadProfile();
   const reg = regardingLine(patient);
   return '\u0928\u092e\u0938\u094d\u0924\u0947 ' + patient.name + ' \u091c\u0940,'
-    + '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0928\u093f\u0930\u094d\u0927\u093e\u0930\u093f\u0924 \u0939\u0948\u0964'
-    + (reg ? '\n' + reg : '')
-    + '\n\u0915\u0943\u092a\u092f\u093e \u0905\u092a\u0928\u0947 \u0938\u092d\u0940 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0901 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u090f\u0902\u0964'
+    + '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964'
+    + '\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0907\u090f\u0917\u093e\u0964'
     + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
     + '\n' + (profile.doctorName || 'Dr. Devarsh Goyal');
 }
@@ -1190,7 +1349,8 @@ function rxWaLink(patient, rx, profile) {
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(rxWaMessage(patient, rx, profile));
 }
 
-async function refreshPatients() { PATIENTS = await dbGetAllPatients(); }
+async function refreshPatients() { const all = await dbGetAllPatients(); PATIENTS = all.filter(p => !p.deletedAt); }
+async function dbGetDeletedPatients() { const all = await dbGetAllPatients(); return all.filter(p => p.deletedAt).sort((a,b) => b.deletedAt - a.deletedAt); }
 function getPatient(id) { return PATIENTS.find(p => p.id === id); }
 async function savePatient(p) { await dbPutPatient(p); await refreshPatients(); }
 
@@ -1237,23 +1397,30 @@ function renderDashboardSection() {
     + '</div>';
 
   if (s.important.length) {
+    const showAll = SHOW_ALL_ATTENTION || s.important.length <= 3;
+    const shown = showAll ? s.important.slice(0,8) : s.important.slice(0,3);
     html += '<div class="card" style="margin-bottom:12px;">'
       + '<label class="field-label">Needs attention today \u2014 follow-ups, RA labs, DEXA scans</label>'
-      + s.important.slice(0,8).map(item => '<div class="row between" data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;padding:6px 0;">'
+      + shown.map(item => '<div class="row between" data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;padding:6px 0;">'
           + '<span style="font-size:13px;font-weight:600;">'+esc(item.patient.name)+'<span style="font-weight:400;color:var(--muted);"> \u00b7 '+esc(item.type)+'</span></span>'
           + '<span class="badge '+(item.isOverdue?'badge-red':'badge-amber')+'" style="font-size:10px;">'+(item.isOverdue?'Overdue':'Today')+'</span>'
           + '</div>').join('')
+      + (!showAll ? '<button class="chip" style="margin-top:6px;" data-action="toggle-show-all-attention">Show all '+s.important.length+'</button>' : '')
       + '</div>';
   }
 
   if (s.topProcedures.length || s.topConditions.length) {
-    html += '<div class="card" style="margin-bottom:14px;">'
-      + '<label class="field-label">This month\u2019s insights ('+s.monthCount+' cases added)</label>'
-      + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top procedures</span>'
-          + s.topProcedures.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
-      + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top conditions</span>'
-          + s.topConditions.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
-      + '</div>';
+    if (!SHOW_INSIGHTS) {
+      html += '<button class="chip" style="margin-bottom:12px;" data-action="toggle-insights">'+ic('search')+' This month\u2019s insights ('+s.monthCount+' cases added)</button>';
+    } else {
+      html += '<div class="card" style="margin-bottom:14px;">'
+        + '<label class="field-label">This month\u2019s insights ('+s.monthCount+' cases added)</label>'
+        + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top procedures</span>'
+            + s.topProcedures.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
+        + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top conditions</span>'
+            + s.topConditions.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
+        + '</div>';
+    }
   }
   return html;
 }
@@ -1459,12 +1626,15 @@ function renderListView() {
     + tagChips
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'+continueLastPatientHtml()+renderDashboardSection()
-    + (PATIENTS.length ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:var(--muted);">'
-        + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
-        + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to follow-up</span>'
-        + '<span class="row gap1"><span class="status-dot" style="background:#16a34a;"></span> Complete</span>'
-        + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
-        + '</div>' : '')
+    + (PATIENTS.length ? (SHOW_LEGEND
+        ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:var(--muted);cursor:pointer;" data-action="toggle-legend">'
+          + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
+          + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to follow-up</span>'
+          + '<span class="row gap1"><span class="status-dot" style="background:#16a34a;"></span> Complete</span>'
+          + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
+          + '</div>'
+        : '<button class="icon-btn" style="width:22px;height:22px;margin-bottom:10px;color:var(--muted);" data-action="toggle-legend" title="What do the dot colors mean?">'+ic('info')+'</button>'
+      ) : '')
     + cards+'</div>'
     + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' Dr. Devarsh Goyal \u2014 OrthoVault, all rights reserved</p>'
     + '</div>';
@@ -1503,7 +1673,7 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId) {
     const previewUrl = trackUrl(URL.createObjectURL(blob));
     targetArray.push({ tempId: uid(), blob, previewUrl, label:'' });
   }
-  const removeAction = containerId==='ap-thumbs' ? 'ap-remove-photo' : containerId==='inv-thumbs' ? 'inv-remove-photo' : containerId==='rx-thumbs' ? 'rx-remove-photo' : containerId==='fu-wound-thumbs' ? 'fu-wound-remove-photo' : 'fu-remove-photo';
+  const removeAction = containerId==='ap-thumbs' ? 'ap-remove-photo' : containerId==='inv-thumbs' ? 'inv-remove-photo' : containerId==='rx-thumbs' ? 'rx-remove-photo' : containerId==='fu-wound-thumbs' ? 'fu-wound-remove-photo' : containerId==='fu-clinical-thumbs' ? 'fu-clinical-remove-photo' : 'fu-remove-photo';
   const container = document.getElementById(containerId);
   if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbGridHtml(targetArray, removeAction)+'</div>';
   toast('Added');
@@ -1618,7 +1788,7 @@ function renderOverviewTab(p) {
     + '<label class="field-label">WhatsApp number</label>'
     + '<input class="input" type="tel" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'" style="margin-bottom:10px;">'
     + (waLink(p)
-        ? '<div class="row gap2"><a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:2;">'+ic('message')+' Message on WhatsApp</a><button class="btn" style="flex:1;" data-action="save-contact" title="Save to Contacts">'+ic('clipboard')+' Save</button></div>'
+        ? '<div class="row gap2"><a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:2;">'+ic('message')+' Message on WhatsApp</a><a href="tel:+'+esc(toWaNumber(p.whatsapp))+'" class="btn" style="flex:1;text-decoration:none;" title="Call">'+ic('phone')+'</a><button class="btn" style="flex:1;" data-action="save-contact" title="Save to Contacts">'+ic('clipboard')+'</button></div>'
         : '<p style="font-size:11px;color:var(--muted);">Save a number to send messages.</p>')
     + (p.whatsapp ? '<div style="margin-top:8px;">'
         + (followUpReminderLink(p)
@@ -2063,7 +2233,11 @@ async function renderFollowupsTab(p) {
     addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-fu">'+ic('plus')+' Add follow-up visit</button>';
   } else {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-      + '<label class="field-label">Visit label</label><input class="input" id="fu-label" placeholder="e.g. 2 weeks / 6 weeks / 3 months" style="margin-bottom:10px;">'
+      + '<label class="field-label">Visit label</label>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
+      + ['2 Week','6 Week','3 Month','6 Month','1 Year'].map(l=>'<button type="button" class="chip" data-action="fu-set-label" data-value="'+l+'">'+l+'</button>').join('')
+      + '</div>'
+      + '<input class="input" id="fu-label" placeholder="e.g. 2 weeks / 6 weeks / 3 months" style="margin-bottom:10px;">'
       + '<label class="field-label">Visit date</label><input class="input" type="date" id="fu-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
       + (p.caseType==='surgical' && p.surgeryDate ? '<p style="font-size:11px;color:var(--muted);margin:-6px 0 10px;">Post-op Day: <b class="mono" id="fu-pod-preview">'+(calcPOD(p, todayStr())??'\u2014')+'</b></p>' : '')
       + '<label class="field-label">Wound / suture status (if applicable)</label><select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'+WOUND_STATUS_OPTIONS.map(s=>'<option'+(s==='N/A'?' selected':'')+'>'+s+'</option>').join('')+'</select>'
@@ -2081,10 +2255,15 @@ async function renderFollowupsTab(p) {
           + (ROM_JOINT_FIELDS[p.romTracking.jointType]||[]).map(([k,l])=>'<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">'+l+'</label><input class="input" type="number" min="0" max="150" id="fu-rom-'+k+'" placeholder="\u00b0"></div>').join('')
           + '</div>'
         ) : '')
-      + '<label class="field-label">Wound / suture photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
-      + '<label class="field-label" style="margin-top:10px;">Photos (general)</label><div id="fu-thumbs">'+thumbGridHtml(FU_PHOTOS,'fu-remove-photo')+'</div>'
+      + '<label class="field-label">X-ray</label><div id="fu-thumbs">'+thumbGridHtml(FU_PHOTOS,'fu-remove-photo')+'</div>'
+      + '<label class="field-label" style="margin-top:10px;">Clinical Image</label><div id="fu-clinical-thumbs">'+thumbGridHtml(FU_CLINICAL_PHOTOS,'fu-clinical-remove-photo')+'</div>'
+      + '<label class="field-label" style="margin-top:10px;">Wound / Suture Photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
       + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
-      + '<label class="field-label" style="margin-top:10px;">Next follow-up date (optional)</label><input class="input" type="date" id="fu-next-followup" value="'+esc(p.nextFollowUpDate||'')+'">'
+      + '<label class="field-label" style="margin-top:10px;">Next follow-up date (optional)</label>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
+      + [['2w','+2 Weeks'],['1m','+1 Month'],['6w','+6 Weeks'],['3m','+3 Months'],['6m','+6 Months']].map(([v,l])=>'<button type="button" class="chip" data-action="fu-set-next-followup" data-value="'+v+'">'+l+'</button>').join('')
+      + '</div>'
+      + '<input class="input" id="fu-next-followup" type="date" value="'+esc(p.nextFollowUpDate||'')+'">'
       + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">This replaces the patient\u2019s \u201cnext follow-up due\u201d date \u2014 leave blank to clear it.</p>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-fu">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-fu">Save visit</button></div>'
       + '</div>';
@@ -2093,30 +2272,30 @@ async function renderFollowupsTab(p) {
   let list = '';
   [...(p.followUps||[])].reverse().forEach(f => {
     const expanded = EXPANDED_FOLLOWUP.has(f.id);
-    const fuImages = allImages.filter(im => im.followUpId === f.id && !im.isWoundPhoto);
+    const fuXrayImages = allImages.filter(im => im.followUpId === f.id && !im.isWoundPhoto && im.imageCategory !== 'clinical');
+    const fuClinicalImages = allImages.filter(im => im.followUpId === f.id && im.imageCategory === 'clinical');
     const fuWoundImages = allImages.filter(im => im.followUpId === f.id && im.isWoundPhoto);
     const pod = calcPOD(p, f.date);
     let body = '';
     if (expanded) {
-      let grid = '<div class="thumb-grid">';
-      fuImages.forEach(im => {
-        const url = trackUrl(URL.createObjectURL(im.blob));
-        grid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
-      });
-      grid += '<label class="add-photo-tile" data-fu-add="'+f.id+'">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-fu-input="'+f.id+'" style="display:none;"></label>';
-      grid += '</div>';
-      grid = '<div style="position:relative;">'+grid+cameraFabHtml('data-fu-input="'+f.id+'"')+'</div>';
-      let woundGrid = '';
-      if (f.woundStatus && f.woundStatus !== 'N/A' || fuWoundImages.length) {
-        woundGrid = '<div style="margin-top:10px;"><div class="row gap2" style="margin-bottom:6px;"><span class="badge '+woundBadgeClass(f.woundStatus)+'">'+esc(f.woundStatus||'N/A')+'</span></div><div style="position:relative;"><div class="thumb-grid">';
-        fuWoundImages.forEach(im => {
+      const photoGroupHtml = (label, images, inputAttr) => {
+        let grid = '<div class="thumb-grid">';
+        images.forEach(im => {
           const url = trackUrl(URL.createObjectURL(im.blob));
-          woundGrid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
+          grid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
         });
-        woundGrid += '<label class="add-photo-tile" data-fu-wound-add="'+f.id+'">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-fu-wound-input="'+f.id+'" style="display:none;"></label>';
-        woundGrid += '</div>'+cameraFabHtml('data-fu-wound-input="'+f.id+'"')+'</div></div>';
-      }
-      body = grid + woundGrid + (f.notes ? '<p style="font-size:12px;color:#64748b;margin-top:8px;">'+esc(f.notes)+'</p>' : '');
+        grid += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple '+inputAttr+' style="display:none;"></label>';
+        grid += '</div>';
+        return '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:6px;">'+label+'</label><div style="position:relative;">'+grid+cameraFabHtml(inputAttr)+'</div></div>';
+      };
+      body = photoGroupHtml('X-ray', fuXrayImages, 'data-fu-input="'+f.id+'"')
+        + photoGroupHtml('Clinical Image', fuClinicalImages, 'data-fu-clinical-input="'+f.id+'"')
+        + (f.woundStatus && f.woundStatus !== 'N/A' || fuWoundImages.length
+            ? '<div style="margin-top:10px;"><div class="row gap2" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Wound / Suture Photo</label><span class="badge '+woundBadgeClass(f.woundStatus)+'">'+esc(f.woundStatus||'N/A')+'</span></div>'
+              + (() => { let wg = '<div class="thumb-grid">'; fuWoundImages.forEach(im => { const url = trackUrl(URL.createObjectURL(im.blob)); wg += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>'; }); wg += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-fu-wound-input="'+f.id+'" style="display:none;"></label>'; wg += '</div>'; return '<div style="position:relative;">'+wg+cameraFabHtml('data-fu-wound-input="'+f.id+'"')+'</div>'; })()
+              + '</div>'
+            : '')
+        + (f.notes ? '<p style="font-size:12px;color:#64748b;margin-top:10px;">'+esc(f.notes)+'</p>' : '');
     }
     list += '<div class="fu-card">'
       + '<div class="row between" style="cursor:pointer;" data-action="toggle-fu" data-id="'+f.id+'">'
@@ -2259,6 +2438,7 @@ async function renderPrescriptionsTab(p) {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
       + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
+      + renderRxTemplatesRow()
       + renderQuickAddChips()
       + '<div id="rx-med-rows">'+renderRxMedRows()+'</div>'
       + '<button class="btn btn-outline-dashed btn-block" data-action="rx-add-med" style="margin-bottom:12px;">'+ic('plus')+' Add another medicine</button>'
@@ -3327,14 +3507,20 @@ let COMPARE_SELECTED = [];
 let COMPARE_IMAGES_CACHE = [];
 
 function imageSourceLabel(im, patient) {
-  if (im.isWoundPhoto && !im.followUpId && !im.investigationId) return 'Pre-op wound';
-  if (im.isIntraOp && !im.followUpId && !im.investigationId) return 'OT / Intra-op';
   if (im.investigationId) { const inv = (patient.investigations||[]).find(i=>i.id===im.investigationId); return inv ? inv.label : 'Investigation'; }
+  if (im.prescriptionId) return 'Prescription';
   if (im.followUpId) {
     const fu = (patient.followUps||[]).find(f=>f.id===im.followUpId);
     const base = fu ? fu.label : 'Follow-up';
     return base + (im.isWoundPhoto ? ' (wound)' : '');
   }
+  if (im.isIntraOp) return 'OT / Intra-op';
+  if (im.imageCategory === 'xray') return 'X-ray' + (im.xraySubtype ? ' \u2014 ' + im.xraySubtype : '');
+  if (im.imageCategory === 'wound' || im.isWoundPhoto) return 'Wound / Suture';
+  if (im.imageCategory === 'ct') return 'CT';
+  if (im.imageCategory === 'mri') return 'MRI';
+  if (im.imageCategory === 'usg') return 'USG';
+  if (im.imageCategory === 'clinical') return 'Clinical';
   return patient.caseType === 'surgical' ? 'Pre-op' : 'Clinical';
 }
 
@@ -3427,7 +3613,7 @@ function renderCompareView() {
   const p = getPatient(SELECTED_ID);
   const imA = COMPARE_IMAGES_CACHE.find(im => im.id === COMPARE_SELECTED[0]);
   const imB = COMPARE_IMAGES_CACHE.find(im => im.id === COMPARE_SELECTED[1]);
-  if (!imA || !imB) { VIEW = 'detail'; TAB = 'preop'; return renderDetailShell(p); }
+  if (!imA || !imB) { VIEW = 'detail'; TAB = 'imagesrecords'; return renderDetailShell(p); }
   const urlA = trackUrl(URL.createObjectURL(imA.blob));
   const urlB = trackUrl(URL.createObjectURL(imB.blob));
   return '<div class="sticky-top px row gap3" style="padding:14px 16px;">'
@@ -3680,6 +3866,8 @@ async function render() {
   if (VIEW === 'compare-view') { app.innerHTML = renderCompareView(); return; }
   if (VIEW === 'calendar') { app.innerHTML = renderCalendarView(); return; }
   if (VIEW === 'more') { app.innerHTML = renderMoreView(); return; }
+  if (VIEW === 'about') { app.innerHTML = renderAboutView(); return; }
+  if (VIEW === 'recently-deleted') { app.innerHTML = await renderRecentlyDeletedView(); return; }
   if (VIEW === 'detail') {
     const p = getPatient(SELECTED_ID);
     if (!p) { VIEW='list'; return render(); }
@@ -3806,6 +3994,54 @@ document.addEventListener('keydown', (e) => {
 
 /* ================= Export backup ================= */
 
+const RX_TEMPLATE_KEY = 'surgical-case-log-rx-templates-v1';
+function loadRxTemplates() {
+  try { return JSON.parse(localStorage.getItem(RX_TEMPLATE_KEY) || '[]'); } catch(e) { return []; }
+}
+function saveRxTemplateList(list) {
+  try { localStorage.setItem(RX_TEMPLATE_KEY, JSON.stringify(list)); } catch(e) {}
+}
+function renderRxTemplatesRow() {
+  const templates = loadRxTemplates();
+  return '<div style="margin-bottom:10px;">'
+    + '<div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Templates</label><button type="button" class="chip" data-action="rx-save-template">'+ic('plus')+' Save current as template</button></div>'
+    + (templates.length
+        ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + templates.map(t =>
+            '<span class="tag-chip" style="cursor:pointer;" data-action="rx-load-template" data-id="'+t.id+'">'+esc(t.name)+' ('+t.medicines.length+')<button type="button" data-action="rx-delete-template" data-id="'+t.id+'" style="background:none;border:none;color:inherit;padding:0 0 0 6px;cursor:pointer;">'+ic('x')+'</button></span>'
+          ).join('') + '</div>'
+        : '<p style="font-size:11px;color:var(--muted);margin:0;">No saved templates yet \u2014 fill in medicines below, then save them as a reusable template.</p>')
+    + '</div>';
+}
+
+function csvCell(v) {
+  const s = (v==null?'':String(v)).replace(/"/g,'""');
+  return '"' + s + '"';
+}
+function exportCaseLogCsv() {
+  const headers = ['Patient ID','Name','Age','Sex','Case Type','Diagnosis','Chief Complaints','Region / Specialty','Side','Procedure','Surgery Type','Date','Payment Method','Insurance Type','Next Follow-up','Status','Tags'];
+  const rows = [headers.map(csvCell).join(',')];
+  PATIENTS.forEach(p => {
+    rows.push([
+      p.patientCode, p.name, formatAge(p), p.sex, p.caseType==='surgical'?'Surgical':'OPD',
+      p.diagnosis, p.chiefComplaints, (p.regions||[]).join('; '), p.side, p.procedure,
+      p.caseType==='surgical'?p.surgeryType:'', fmtDate(p.surgeryDate),
+      p.paymentMethod||'', p.insuranceType||'', fmtDate(p.nextFollowUpDate),
+      p.status||'', (p.tags||[]).join('; ')
+    ].map(csvCell).join(','));
+  });
+  const csv = '\uFEFF' + rows.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'OrthoVault-case-log-' + todayStr() + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  toast('Case log exported \u2014 ' + PATIENTS.length + ' cases');
+}
+
 async function exportBackup(auto) {
   if (typeof JSZip === 'undefined') { if (!auto) toast('Backup tool failed to load \u2014 check your internet connection'); return; }
   if (!auto) toast('Preparing backup\u2026');
@@ -3923,7 +4159,7 @@ async function importBackup(file) {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-settings','back-to-list','close-print','close-edu-print','close-edu-image-print','close-edu-multi-print','close-compare-picker','close-compare-view','close-calendar','close-more'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-settings','back-to-list','close-print','close-edu-print','close-edu-image-print','close-edu-multi-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -4202,16 +4438,16 @@ document.addEventListener('click', async (e) => {
     await render();
     return;
   }
-  if (action === 'close-compare-picker') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'preop'; await render(); return; }
-  if (action === 'close-compare-view') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'preop'; await render(); return; }
+  if (action === 'close-compare-picker') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'imagesrecords'; await render(); return; }
+  if (action === 'close-compare-view') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'imagesrecords'; await render(); return; }
   if (action === 'cancel-add') { AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='list'; render(); return; }
-  if (action === 'open-patient') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; EDITING_PATIENT_CODE=false; await render(); return; }
-  if (action === 'open-patient-followup') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='followups'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; EDITING_PATIENT_CODE=false; await render(); return; }
+  if (action === 'open-patient') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
+  if (action === 'open-patient-followup') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='followups'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
   if (action === 'open-universal-search') { openUniversalSearch(); return; }
   if (action === 'close-usearch') { closeUniversalSearch(); return; }
   if (action === 'usearch-open-patient') {
     closeUniversalSearch();
-    SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); recordRecentSearchPatient(el.dataset.id); VIEW='detail'; TAB='overview'; ADD_FOLLOWUP_OPEN=false; EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; EDITING_PATIENT_CODE=false;
+    SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); recordRecentSearchPatient(el.dataset.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
     await render();
     return;
   }
@@ -4219,6 +4455,9 @@ document.addEventListener('click', async (e) => {
   if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
   if (action === 'set-tag-filter') { TAG_FILTER = el.dataset.value; render(); return; }
   if (action === 'toggle-tag-filter-row') { SHOW_TAG_FILTER = !SHOW_TAG_FILTER; render(); return; }
+  if (action === 'toggle-insights') { SHOW_INSIGHTS = !SHOW_INSIGHTS; render(); return; }
+  if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
+  if (action === 'toggle-legend') { SHOW_LEGEND = !SHOW_LEGEND; render(); return; }
   if (action === 'tl-jump') {
     let target = el.dataset.value;
     if (target === 'investigations') { IMAGES_RECORDS_SUBVIEW = 'investigations'; target = 'imagesrecords'; }
@@ -4283,6 +4522,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'ap-remove-photo') { AP_PHOTOS = AP_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('ap-thumbs').innerHTML = thumbGridHtml(AP_PHOTOS,'ap-remove-photo'); return; }
   if (action === 'fu-remove-photo') { FU_PHOTOS = FU_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-thumbs').innerHTML = thumbGridHtml(FU_PHOTOS,'fu-remove-photo'); return; }
   if (action === 'fu-wound-remove-photo') { FU_WOUND_PHOTOS = FU_WOUND_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-wound-thumbs').innerHTML = thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo'); return; }
+  if (action === 'fu-clinical-remove-photo') { FU_CLINICAL_PHOTOS = FU_CLINICAL_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-clinical-thumbs').innerHTML = thumbGridHtml(FU_CLINICAL_PHOTOS,'fu-clinical-remove-photo'); return; }
   if (action === 'inv-remove-photo') { INV_PHOTOS = INV_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('inv-thumbs').innerHTML = thumbGridHtml(INV_PHOTOS,'inv-remove-photo'); return; }
   if (action === 'rx-remove-photo') { RX_PHOTOS = RX_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('rx-thumbs').innerHTML = thumbGridHtml(RX_PHOTOS,'rx-remove-photo'); return; }
 
@@ -4408,6 +4648,7 @@ document.addEventListener('click', async (e) => {
     AP_TEMP.surgeryType = src.surgeryType;
     AP_TEMP.procedure = src.procedure;
     AP_TEMP.side = src.side;
+    AP_TEMP.regions = (src.regions||[]).slice();
     AP_TEMP.surgeryDate = todayStr();
     AP_PHOTOS = [];
     AP_DUPLICATE_FROM = src.name;
@@ -4418,8 +4659,19 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'open-add-fu') { FU_PHOTOS = []; FU_WOUND_PHOTOS = []; ADD_FOLLOWUP_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
-  if (action === 'cancel-add-fu') { FU_WOUND_PHOTOS = []; ADD_FOLLOWUP_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'open-add-fu') { FU_PHOTOS = []; FU_CLINICAL_PHOTOS = []; FU_WOUND_PHOTOS = []; ADD_FOLLOWUP_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'cancel-add-fu') { FU_PHOTOS = []; FU_CLINICAL_PHOTOS = []; FU_WOUND_PHOTOS = []; ADD_FOLLOWUP_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'fu-set-label') { const inp = document.getElementById('fu-label'); if (inp) inp.value = el.dataset.value; return; }
+  if (action === 'fu-set-next-followup') {
+    const inp = document.getElementById('fu-next-followup');
+    if (!inp) return;
+    const map = { '2w':14, '6w':42, '1m':30, '3m':90, '6m':182 };
+    const days = map[el.dataset.value] || 0;
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    inp.value = d.toISOString().slice(0,10);
+    return;
+  }
   if (action === 'submit-fu') {
     const p = getPatient(SELECTED_ID);
     const label = document.getElementById('fu-label').value.trim() || 'Follow-up';
@@ -4453,11 +4705,14 @@ document.addEventListener('click', async (e) => {
     for (const ph of FU_PHOTOS) {
       await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: 'xray', xraySubtype: 'Follow-up' });
     }
+    for (const ph of FU_CLINICAL_PHOTOS) {
+      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: 'clinical' });
+    }
     for (const ph of FU_WOUND_PHOTOS) {
       await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, isWoundPhoto: true, imageCategory: 'wound', blob: ph.blob, createdAt: Date.now() });
     }
     await refreshPatients();
-    FU_PHOTOS = []; FU_WOUND_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
+    FU_PHOTOS = []; FU_CLINICAL_PHOTOS = []; FU_WOUND_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -4564,10 +4819,11 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'delete-patient' && el.dataset.confirm) {
-    await dbDeleteImagesByPatient(el.dataset.id);
-    await dbDeletePatient(el.dataset.id);
+    const p = getPatient(el.dataset.id);
+    if (p) { p.deletedAt = Date.now(); await dbPutPatient(p); }
     await refreshPatients();
     ARMED_DELETE = null; VIEW='list'; render();
+    toast('Moved to Recently Deleted \u2014 restore any time within 30 days');
     return;
   }
 
@@ -4625,8 +4881,37 @@ document.addEventListener('click', async (e) => {
     try { await exportBackup(); } finally { el.innerHTML = originalHtml; el.disabled = false; }
     return;
   }
+  if (action === 'export-case-log') { exportCaseLogCsv(); return; }
+  if (action === 'rx-save-template') {
+    syncRxMedsFromDom();
+    const meds = RX_TEMP.medicines.filter(m => m.name.trim());
+    if (!meds.length) { toast('Add at least one medicine first'); return; }
+    const name = prompt('Name this template (e.g. "Post-op pain management"):');
+    if (!name || !name.trim()) return;
+    const templates = loadRxTemplates();
+    templates.push({ id: uid(), name: name.trim(), medicines: meds.map(m => ({name:m.name, dose:m.dose, frequency:m.frequency, duration:m.duration, instructions:m.instructions})) });
+    saveRxTemplateList(templates);
+    toast('Template saved');
+    render();
+    return;
+  }
+  if (action === 'rx-load-template') {
+    const templates = loadRxTemplates();
+    const t = templates.find(x => x.id === el.dataset.id);
+    if (!t) return;
+    RX_TEMP.medicines = t.medicines.map(m => ({ id: uid(), name:m.name, dose:m.dose, frequency:m.frequency, duration:m.duration, instructions:m.instructions }));
+    render();
+    toast('Template loaded \u2014 review before saving');
+    return;
+  }
+  if (action === 'rx-delete-template') {
+    saveRxTemplateList(loadRxTemplates().filter(x => x.id !== el.dataset.id));
+    render();
+    return;
+  }
   if (action === 'dismiss-backup-banner') { BACKUP_BANNER_DISMISSED = true; render(); return; }
   if (action === 'set-theme') { applyTheme(el.dataset.value); render(); return; }
+  if (action === 'set-accent') { applyAccentTheme(el.dataset.value); render(); return; }
   if (action === 'enable-notifs') {
     if (typeof Notification === 'undefined') { toast('Notifications aren\u2019t supported in this browser'); return; }
     if (Notification.permission === 'granted') {
@@ -4767,10 +5052,37 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'trigger-import') { document.getElementById('import-file-input').click(); return; }
 
-  if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); return; }
+  if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); updateStorageIndicator(); return; }
   if (action === 'close-settings') { VIEW = 'more'; render(); return; }
   if (action === 'open-more') { VIEW = 'more'; render(); return; }
   if (action === 'close-more') { VIEW = 'list'; render(); return; }
+  if (action === 'open-about') { VIEW = 'about'; render(); return; }
+  if (action === 'close-about') { VIEW = 'more'; render(); return; }
+  if (action === 'open-recently-deleted') { VIEW = 'recently-deleted'; await render(); return; }
+  if (action === 'close-recently-deleted') { VIEW = 'more'; render(); return; }
+  if (action === 'restore-patient') {
+    const all = await dbGetAllPatients();
+    const p = all.find(x => x.id === el.dataset.id);
+    if (p) { delete p.deletedAt; await dbPutPatient(p); }
+    await refreshPatients();
+    await render();
+    toast('Restored');
+    return;
+  }
+  if (action === 'permanently-delete-patient' && el.dataset.confirm) {
+    await dbDeleteImagesByPatient(el.dataset.id);
+    await dbDeletePatient(el.dataset.id);
+    ARMED_DELETE = null;
+    await render();
+    toast('Permanently deleted');
+    return;
+  }
+  if (action === 'toggle-about-section') {
+    const k = el.dataset.value;
+    if (ABOUT_EXPANDED.has(k)) ABOUT_EXPANDED.delete(k); else ABOUT_EXPANDED.add(k);
+    render();
+    return;
+  }
 
   if (action === 'open-calendar') {
     const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
@@ -5043,6 +5355,7 @@ document.addEventListener('change', async (e) => {
     if (which === 'ap-remove-photo') await handlePhotoInputChange(t, AP_PHOTOS, 'ap-thumbs');
     else if (which === 'fu-remove-photo') await handlePhotoInputChange(t, FU_PHOTOS, 'fu-thumbs');
     else if (which === 'fu-wound-remove-photo') await handlePhotoInputChange(t, FU_WOUND_PHOTOS, 'fu-wound-thumbs');
+    else if (which === 'fu-clinical-remove-photo') await handlePhotoInputChange(t, FU_CLINICAL_PHOTOS, 'fu-clinical-thumbs');
     else if (which === 'inv-remove-photo') await handlePhotoInputChange(t, INV_PHOTOS, 'inv-thumbs');
     else if (which === 'rx-remove-photo') await handlePhotoInputChange(t, RX_PHOTOS, 'rx-thumbs');
     return;
@@ -5101,7 +5414,23 @@ document.addEventListener('change', async (e) => {
     toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
     for (const file of files) {
       const blob = await resizeImageFile(file);
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fuId, blob, createdAt: Date.now() });
+      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fuId, blob, createdAt: Date.now(), imageCategory: 'xray', xraySubtype: 'Follow-up' });
+    }
+    const fu = (p.followUps||[]).find(f => f.id === fuId);
+    if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (t.dataset && t.dataset.fuClinicalInput) {
+    const fuId = t.dataset.fuClinicalInput;
+    const files = Array.from(t.files || []);
+    if (!files.length) return;
+    const p = getPatient(SELECTED_ID);
+    toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+    for (const file of files) {
+      const blob = await resizeImageFile(file);
+      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fuId, blob, createdAt: Date.now(), imageCategory: 'clinical' });
     }
     const fu = (p.followUps||[]).find(f => f.id === fuId);
     if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
@@ -5117,7 +5446,7 @@ document.addEventListener('change', async (e) => {
     toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
     for (const file of files) {
       const blob = await resizeImageFile(file);
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fuId, isWoundPhoto: true, blob, createdAt: Date.now() });
+      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fuId, isWoundPhoto: true, imageCategory: 'wound', blob, createdAt: Date.now() });
     }
     const fu = (p.followUps||[]).find(f => f.id === fuId);
     if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
@@ -5208,6 +5537,37 @@ function loadTheme() { try { return localStorage.getItem(THEME_KEY) || 'light'; 
 function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t === 'dark' ? 'dark' : 'light');
   try { localStorage.setItem(THEME_KEY, t); } catch(e) {}
+  applyAccentTheme(loadAccentTheme());
+}
+
+const ACCENT_THEMES = {
+  indigo: { label:'Indigo', light:'#4338ca', lightDark:'#3730a3', dark:'#818cf8', darkDark:'#a5b4fc' },
+  teal:   { label:'Teal',   light:'#0d9488', lightDark:'#0f766e', dark:'#2dd4bf', darkDark:'#5eead4' },
+  emerald:{ label:'Emerald',light:'#059669', lightDark:'#047857', dark:'#34d399', darkDark:'#6ee7b7' },
+  blue:   { label:'Blue',   light:'#2563eb', lightDark:'#1d4ed8', dark:'#60a5fa', darkDark:'#93c5fd' },
+  plum:   { label:'Plum',   light:'#7e22ce', lightDark:'#6b21a8', dark:'#c084fc', darkDark:'#d8b4fe' },
+};
+const ACCENT_KEY = 'surgical-case-log-accent-v1';
+function loadAccentTheme() { try { return localStorage.getItem(ACCENT_KEY) || 'indigo'; } catch(e) { return 'indigo'; } }
+async function updateStorageIndicator() {
+  const el = document.getElementById('storage-indicator');
+  if (!el) return;
+  if (!navigator.storage || !navigator.storage.estimate) { el.textContent = ''; return; }
+  try {
+    const est = await navigator.storage.estimate();
+    const usedMB = (est.usage / (1024*1024)).toFixed(1);
+    const quotaMB = est.quota ? (est.quota / (1024*1024)).toFixed(0) : null;
+    const pct = est.quota ? Math.round((est.usage/est.quota)*100) : null;
+    el.textContent = usedMB + ' MB used' + (quotaMB ? ' of ~' + quotaMB + ' MB available' : '') + (pct!=null ? ' (' + pct + '%)' : '');
+  } catch(e) { el.textContent = ''; }
+}
+function applyAccentTheme(key) {
+  const t = ACCENT_THEMES[key] || ACCENT_THEMES.indigo;
+  const isDark = loadTheme() === 'dark';
+  const root = document.documentElement.style;
+  root.setProperty('--accent', isDark ? t.dark : t.light);
+  root.setProperty('--accent-dark', isDark ? t.darkDark : t.lightDark);
+  try { localStorage.setItem(ACCENT_KEY, key); } catch(e) {}
 }
 
 /* ================= App Lock (local PIN) ================= */
@@ -5239,8 +5599,7 @@ function renderLockScreen() {
   const dots = Array.from({length:PIN_LENGTH}, (_,i) => '<span class="lock-dot'+(i<LOCK_PIN_INPUT.length?' filled':'')+'"></span>').join('');
   const ownerProfile = loadProfile();
   return '<div class="lock-screen">'
-    + '<div class="lock-icon">'+ic('gear')+'</div>'
-    + '<h2 style="font-size:16px;font-weight:800;margin:14px 0 4px;">OrthoVault is locked</h2>'
+    + '<img src="icons/logo-full.png" style="width:150px;height:150px;border-radius:32px;box-shadow:0 8px 24px rgba(0,0,0,0.35);margin-bottom:6px;">'
     + '<p style="font-size:12px;color:var(--muted);margin:0 0 4px;">'+(LOCK_ERROR?'Wrong PIN, try again.':'Enter PIN')+'</p>'
     + (ownerProfile.doctorName ? '<p style="font-size:10px;color:var(--muted);margin:0 0 14px;">Personal clinical tool of '+esc(ownerProfile.doctorName)+'</p>' : '<div style="margin-bottom:16px;"></div>')
     + '<div class="lock-dots" style="'+(LOCK_ERROR?'animation:lock-shake 0.4s;':'')+'">'+dots+'</div>'
@@ -5311,6 +5670,13 @@ function appLockCardHtml() {
 (async () => {
   applyTheme(loadTheme());
   if (navigator.storage && navigator.storage.persist) { try { await navigator.storage.persist(); } catch(e) {} }
+  try {
+    const deleted = await dbGetDeletedPatients();
+    const cutoff = Date.now() - 30*24*60*60*1000;
+    for (const p of deleted) {
+      if (p.deletedAt < cutoff) { await dbDeleteImagesByPatient(p.id); await dbDeletePatient(p.id); }
+    }
+  } catch(e) {}
   if (isLockEnabled()) {
     APP_LOCKED = true;
     document.getElementById('app').innerHTML = renderLockScreen();
