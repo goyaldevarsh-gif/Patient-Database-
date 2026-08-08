@@ -404,12 +404,18 @@ async function dbDeletePatient(id) { const s = await storeOf('patients','readwri
 /* ================= Cloud Sync Engine (background, best-effort \u2014 local IndexedDB always stays the source of truth for the UI) ================= */
 let SYNC_APPLYING_REMOTE = false; // true while writing incoming cloud changes locally, to avoid re-pushing them right back up
 let SYNC_UNSUBSCRIBE = null;
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error((label||'Request') + ' timed out \u2014 check your internet connection')), ms))
+  ]);
+}
 function syncPatientToCloud(p) {
   if (!CURRENT_USER || SYNC_APPLYING_REMOTE) return;
   try {
     const clean = JSON.parse(JSON.stringify(p));
-    firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('patients').doc(String(p.id)).set(clean)
-      .catch(function(err) { console.error('Cloud sync (save) failed for patient', p.id, err); });
+    withTimeout(firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('patients').doc(String(p.id)).set(clean), 20000, 'Sync')
+      .catch(function(err) { console.error('Cloud sync (save) failed for patient', p.id, err); toast('Cloud sync failed for "' + (p.name||p.id) + '": ' + (err && err.message ? err.message : 'unknown error')); });
   } catch (e) {}
 }
 function deletePatientFromCloud(id) {
@@ -4380,8 +4386,13 @@ document.addEventListener('click', async (e) => {
       let count = 0;
       for (const p of patients) {
         const clean = JSON.parse(JSON.stringify(p));
-        await firestoreDB.collection('users').doc(uid).collection('patients').doc(String(p.id)).set(clean);
-        count++;
+        try {
+          await withTimeout(firestoreDB.collection('users').doc(uid).collection('patients').doc(String(p.id)).set(clean), 15000, 'Backup');
+          count++;
+        } catch (err) {
+          toast('Backup stopped at "' + (p.name||p.id) + '": ' + (err && err.message ? err.message : 'unknown error') + ' (' + count + ' saved before this)');
+          return;
+        }
       }
       toast('Backed up ' + count + ' patient(s) to cloud');
     } catch (err) {
@@ -5771,7 +5782,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js').catch(()=>{}); });
+  window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).catch(()=>{}); });
 }
 
 /* ================= Theme (dark mode) ================= */
