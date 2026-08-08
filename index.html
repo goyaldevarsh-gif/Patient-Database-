@@ -4220,21 +4220,28 @@ async function exportBackup(auto) {
       }
     }
     const blob = await zip.generateAsync({type:'blob'});
+    const filename = 'bone-log-pro-backup-'+todayStr()+'.zip';
     if (fileHandle) {
       const writable = await fileHandle.createWritable();
       await writable.write(blob);
       await writable.close();
     } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = 'bone-log-pro-backup-'+todayStr()+'.zip';
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      const file = new File([blob], filename, { type: 'application/zip' });
+      if (!auto && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+      }
     }
     try { localStorage.setItem(BACKUP_REMINDER_KEY, String(Date.now())); } catch(e) {}
     BACKUP_BANNER_DISMISSED = true;
     toast(auto ? 'Automatic backup saved to your downloads' : 'Backup saved');
   } catch (err) {
+    if (err && err.name === 'AbortError') return; // person cancelled the share sheet \u2014 not a real failure
     if (!auto) toast('Backup failed: '+err.message);
   }
 }
@@ -4461,8 +4468,16 @@ document.addEventListener('click', async (e) => {
     if (!digits) { toast('No WhatsApp number saved for this patient'); return; }
     const vcard = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:'+p.name+'\r\nTEL;TYPE=CELL:+'+digits+'\r\nEND:VCARD\r\n';
     const blob = new Blob([vcard], { type: 'text/vcard' });
+    const file = new File([blob], (p.name||'contact')+'.vcf', { type: 'text/vcard' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: p.name }); }
+      catch (err) { if (err && err.name !== 'AbortError') toast('Could not save contact'); }
+      return;
+    }
     const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
+    const a = document.createElement('a');
+    a.href = url; a.download = (p.name||'contact')+'.vcf';
+    document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
     return;
   }
