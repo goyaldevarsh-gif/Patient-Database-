@@ -396,8 +396,49 @@ async function storeOf(name, mode) { const db = await openDB(); return db.transa
 function reqToPromise(req) { return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); }
 
 async function dbGetAllPatients() { const s = await storeOf('patients','readonly'); return reqToPromise(s.getAll()); }
-async function dbPutPatient(p) { const s = await storeOf('patients','readwrite'); return reqToPromise(s.put(p)); }
-async function dbDeletePatient(id) { const s = await storeOf('patients','readwrite'); return reqToPromise(s.delete(id)); }
+async function dbPutPatient(p) { const s = await storeOf('patients','readwrite'); const r = await reqToPromise(s.put(p)); syncPatientToCloud(p); return r; }
+async function dbDeletePatient(id) { const s = await storeOf('patients','readwrite'); const r = await reqToPromise(s.delete(id)); deletePatientFromCloud(id); return r; }
+
+/* ================= Cloud Sync Engine (background, best-effort \u2014 local IndexedDB always stays the source of truth for the UI) ================= */
+let SYNC_APPLYING_REMOTE = false; // true while writing incoming cloud changes locally, to avoid re-pushing them right back up
+let SYNC_UNSUBSCRIBE = null;
+function syncPatientToCloud(p) {
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE) return;
+  try {
+    const clean = JSON.parse(JSON.stringify(p));
+    firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('patients').doc(String(p.id)).set(clean)
+      .catch(function(err) { console.error('Cloud sync (save) failed for patient', p.id, err); });
+  } catch (e) {}
+}
+function deletePatientFromCloud(id) {
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE) return;
+  try {
+    firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('patients').doc(String(id)).delete()
+      .catch(function(err) { console.error('Cloud sync (delete) failed for patient', id, err); });
+  } catch (e) {}
+}
+function startCloudSync(uid) {
+  stopCloudSync();
+  SYNC_UNSUBSCRIBE = firestoreDB.collection('users').doc(uid).collection('patients')
+    .onSnapshot(function(snapshot) { applyRemoteChanges(snapshot); },
+                function(err) { console.error('Cloud sync listener error', err); });
+}
+function stopCloudSync() {
+  if (SYNC_UNSUBSCRIBE) { SYNC_UNSUBSCRIBE(); SYNC_UNSUBSCRIBE = null; }
+}
+async function applyRemoteChanges(snapshot) {
+  SYNC_APPLYING_REMOTE = true;
+  try {
+    for (const change of snapshot.docChanges()) {
+      if (change.type === 'removed') await dbDeletePatient(change.doc.id);
+      else await dbPutPatient(change.doc.data());
+    }
+    await refreshPatients();
+    if (VIEW === 'list') render(); // avoid disrupting an in-progress form on other screens; they'll see fresh data next time they navigate
+  } finally {
+    SYNC_APPLYING_REMOTE = false;
+  }
+}
 async function dbAddImage(rec) { const s = await storeOf('images','readwrite'); return reqToPromise(s.put(rec)); }
 async function dbGetImage(id) { const s = await storeOf('images','readonly'); return reqToPromise(s.get(id)); }
 async function dbGetImagesByPatient(patientId) {
@@ -5808,13 +5849,13 @@ function syncCardHtml() {
   if (user) {
     return '<div class="card">'
       + '<label class="field-label">Cloud Sync Account</label>'
-      + '<div style="margin:6px 0 10px;"><div style="font-size:13px;font-weight:700;">Signed in</div><div style="font-size:11px;color:var(--muted);">'+esc(user.email||'')+'</div></div>'
-      + '<button class="btn btn-primary btn-sm btn-block" data-action="backup-to-cloud">Backup Patients to Cloud</button>'
-      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">One-way: copies your local patient records to the cloud. Doesn\u2019t change anything on this device.</p>'
+      + '<div style="margin:6px 0 10px;"><div style="font-size:13px;font-weight:700;">Signed in</div><div style="font-size:11px;color:var(--muted);">'+esc(user.email||'')+'</div><div style="font-size:11px;color:var(--emerald,#16a34a);margin-top:2px;">\u25cf Syncing automatically in the background</div></div>'
+      + '<button class="btn btn-primary btn-sm btn-block" data-action="backup-to-cloud">Force Full Backup to Cloud</button>'
+      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">Not usually needed \u2014 changes sync automatically now. Use this only if you want to manually re-push everything.</p>'
       + (ARMED_DELETE === 'restore-from-cloud:x'
           ? '<button class="btn btn-sm btn-danger-confirm btn-block" data-action="restore-from-cloud" data-confirm="1">'+ic('check')+' Yes, restore from cloud</button>'
-          : '<button class="btn btn-sm btn-block" data-action="arm-delete" data-arm="restore-from-cloud:x">Restore from Cloud</button>')
-      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">Use once on a new device to pull down existing patients. If this device already has newer local changes for a patient, the cloud copy will overwrite them \u2014 back up first if unsure.</p>'
+          : '<button class="btn btn-sm btn-block" data-action="arm-delete" data-arm="restore-from-cloud:x">Force Full Restore from Cloud</button>')
+      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">Not usually needed \u2014 signing in already pulls everything down automatically. If this device has newer local changes for a patient, the cloud copy will overwrite them.</p>'
       + '<button class="btn btn-sm btn-block" data-action="account-sign-out">Sign out</button>'
       + '</div>';
   }
@@ -5834,6 +5875,7 @@ function syncCardHtml() {
 }
 function onAuthChanged(user) {
   CURRENT_USER = user;
+  if (user) startCloudSync(user.uid); else stopCloudSync();
   if (VIEW === 'settings') render();
 }
 function onAuthError(err) {
