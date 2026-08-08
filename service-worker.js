@@ -23,6 +23,8 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const reqUrl = new URL(event.request.url);
+  if (reqUrl.origin !== self.location.origin) return; // don't intercept cross-origin requests (Firebase Storage/Firestore, etc.) \u2014 let the browser handle those directly
   // Network-first: always serve the latest version when online.
   // Falls back to the cached copy only if there is no network (offline use).
   event.respondWith(
