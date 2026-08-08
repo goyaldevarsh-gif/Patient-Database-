@@ -579,15 +579,15 @@ function todayStr() { return new Date().toISOString().slice(0,10); }
 const SURGERY_TYPES = ['Arthroplasty','Arthroscopy','Trauma','Spine','Other'];
 const TYPE_BADGE = { Arthroplasty:'indigo', Arthroscopy:'emerald', Trauma:'red', Spine:'amber', Other:'slate' };
 const CASE_REGIONS = [
-  { key:'Upper Limb', keywords:['shoulder','elbow','wrist','hand','finger','humerus','radius','ulna','clavicle','forearm','bbfa','both bone forearm','supracondylar','olecranon'] },
-  { key:'Hand', keywords:['hand','finger','thumb','metacarpal','phalanx','phalanges'] },
-  { key:'Lower Limb', keywords:['hip','knee','thigh','femur','tibia','fibula','patella','leg','dff','sff','both bone leg','tibfib','tib-fib','tibia fibula'] },
-  { key:'Spine', keywords:['spine','spinal','vertebra','lumbar','cervical','thoracic','disc','plid'] },
-  { key:'Pelvis & Acetabulum', keywords:['pelvis','pelvic','acetabul','pubic','sacrum','sacroiliac'] },
-  { key:'Foot & Ankle', keywords:['foot','ankle','toe','calcaneus','talus','metatarsal','ctev','clubfoot','club foot'] },
-  { key:'Arthroplasty', keywords:['replacement','arthroplasty','tkr','thr','prosthesis','resurfacing'] },
-  { key:'Sports Medicine', keywords:['acl','pcl','meniscus','rotator cuff','ligament','sports','arthroscopy','arthroscopic'] },
-  { key:'Trauma', keywords:['fracture',' fx ','fx.','trauma','dislocation','#','orif','pop','k-wire','kwire','cl#','close#'] },
+  { key:'Upper Limb', keywords:['shoulder','elbow','wrist','hand','finger','humerus','radius','ulna','clavicle','forearm','bbfa','both bone forearm','supracondylar','olecranon','brachial','deltoid','rotator cuff','rotator','bicep','tricep','carpal','scaphoid','colles','colle\u2019s','smith fracture','monteggia','galeazzi','distal radius','proximal humerus','shaft humerus','frozen shoulder','periarthritis','tennis elbow','golfer\u2019s elbow','lateral epicondylitis','medial epicondylitis'] },
+  { key:'Hand', keywords:['hand','finger','thumb','metacarpal','phalanx','phalanges','trigger finger','de quervain','carpal tunnel','mallet finger','boutonniere','bennett','rolando'] },
+  { key:'Lower Limb', keywords:['hip','knee','thigh','femur','tibia','fibula','patella','leg','dff','sff','both bone leg','tibfib','tib-fib','tibia fibula','quadriceps','hamstring','patellar','distal femur','proximal tibia','shaft femur','shaft tibia','genu varum','genu valgum','osteoarthritis knee','knee oa','hip oa','avn hip','avascular necrosis','perthes','slipped capital','sufe','meniscus','mcl','lcl','pcl tear'] },
+  { key:'Spine', keywords:['spine','spinal','vertebra','lumbar','cervical','thoracic','disc','plid','sciatica','radiculopathy','spondylolisthesis','spondylosis','scoliosis','kyphosis','stenosis','ivdp','back pain','neck pain','compression fracture'] },
+  { key:'Pelvis & Acetabulum', keywords:['pelvis','pelvic','acetabul','pubic','sacrum','sacroiliac','iliac','ischium','symphysis'] },
+  { key:'Foot & Ankle', keywords:['foot','ankle','toe','calcaneus','talus','metatarsal','ctev','clubfoot','club foot','malleolus','bimalleolar','trimalleolar','achilles','plantar fasciitis','hallux','bunion','pilon','heel pain','flat foot'] },
+  { key:'Arthroplasty', keywords:['replacement','arthroplasty','tkr','thr','prosthesis','resurfacing','hip replacement','knee replacement','revision arthroplasty','hemiarthroplasty','bipolar'] },
+  { key:'Sports Medicine', keywords:['acl','pcl','meniscus','rotator cuff','ligament','sports','arthroscopy','arthroscopic','acl reconstruction','meniscal','labral','labrum','impingement','instability'] },
+  { key:'Trauma', keywords:['fracture','#',' fx ','fx.','trauma','dislocation','orif','pop','k-wire','kwire','cl#','close#','comminuted','displaced','undisplaced','compound fracture','open fracture','closed fracture','open reduction','internal fixation','external fixation','nailing','interlocking nail','plating','traction','rta','road traffic accident','fall','injury'] },
 ];
 function autoDetectRegions(text) {
   const t = (' '+(text||'').toLowerCase()+' ');
@@ -799,7 +799,7 @@ function peekNextPatientCode() {
 
 function newPatientShape() {
   return {
-    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', sex:'M', diagnosis:'', chiefComplaints:'', regions: [],
+    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', sex:'M', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [],
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
@@ -873,8 +873,13 @@ function updateAutocomplete(targetId, libKey, query, selectAction) {
   if (!box) return;
   const q = query.trim().toLowerCase();
   if (q.length < 2) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const queryWords = q.split(/\s+/).filter(Boolean);
   const matches = loadTextLibrary(libKey)
-    .filter(x => x.value.toLowerCase().includes(q) && x.value.toLowerCase() !== q)
+    .filter(x => {
+      const v = x.value.toLowerCase();
+      if (v === q) return false;
+      return queryWords.every(w => v.includes(w));
+    })
     .sort((a,b)=>(b.useCount-a.useCount)||(b.lastUsed-a.lastUsed))
     .slice(0, 5);
   if (!matches.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
@@ -1349,7 +1354,7 @@ function renderAboutView() {
     + '<div style="text-align:center;margin-bottom:20px;">'
     + '<h1 style="font-size:19px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1>'
     + '<p style="font-size:11px;color:var(--muted);font-weight:600;margin:2px 0 10px;">Built for Orthopaedic Surgeons</p>'
-    + '<p style="font-size:12.5px;color:var(--muted);line-height:1.5;max-width:340px;margin:0 auto;">A personal, private patient record-keeping app for orthopaedic practice \u2014 OPD and surgical cases, photos, prescriptions and follow-ups, all in one place. No internet, no cloud \u2014 everything stays on this device.</p>'
+    + '<p style="font-size:12.5px;color:var(--muted);line-height:1.5;max-width:340px;margin:0 auto;">A personal, private patient record-keeping app for orthopaedic practice \u2014 OPD and surgical cases, photos, prescriptions and follow-ups, all in one place. Works fully offline, and can privately sync across your own devices when you sign in.</p>'
     + '</div>'
     + ABOUT_SECTIONS.map(sec => {
         const open = ABOUT_EXPANDED.has(sec.key);
@@ -1822,11 +1827,11 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId) {
 let AP_TEMP = null;
 let AP_DUPLICATE_FROM = null;
 function initApTemp() {
-  AP_TEMP = { name:'', age:'', ageMonths:'', sex:'M', diagnosis:'', chiefComplaints:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
+  AP_TEMP = { name:'', age:'', ageMonths:'', sex:'M', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'' };
 }
 function syncApTempFromDom() {
-  ['name','age','ageMonths','diagnosis','procedure','whatsapp','notes'].forEach(f => { const el = document.getElementById('ap-'+f); if (el) AP_TEMP[f] = el.value; });
+  ['name','age','ageMonths','diagnosis','procedure','whatsapp','notes','symptomDuration'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
   const complaintsEl = document.getElementById('ap-complaints'); if (complaintsEl) AP_TEMP.chiefComplaints = complaintsEl.value;
@@ -1864,6 +1869,7 @@ function renderAddView() {
     + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
     + '</div>'
     + (!isSurgical ? '<div style="margin-top:8px;"><label class="field-label">Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
+    + '<div style="margin-top:8px;"><label class="field-label">Duration of symptoms</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div>'
     + '<div style="margin-top:8px;"><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')+'</div>'
     + '<div style="margin-top:8px;"><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ap-auto-region">'+ic('search')+' Auto-detect</button></div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
@@ -1884,7 +1890,7 @@ function renderAddView() {
 
     + (isSurgical ? (
         '<div style="margin-top:8px;"><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
-        + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'
+        + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
         + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
       ) : (
         '<div style="margin-top:8px;"><label class="field-label">Visit date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
@@ -1938,6 +1944,7 @@ function renderOverviewTab(p) {
     + '</div>'
     + '<button class="btn btn-block" data-action="set-tab" data-value="education">'+ic('book')+' Patient Education</button>'
     + (!isSurgical ? '<div class="card"><label class="field-label">Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
+    + '<div class="card"><label class="field-label">Duration of symptoms</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
     + '<div class="card">'
     + '<label class="field-label">Diagnosis (free text)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
     + '</div>'
@@ -1950,7 +1957,7 @@ function renderOverviewTab(p) {
         + '</div></div>' : '')
     + (isSurgical ? '<div class="card" style="display:flex;flex-direction:column;gap:10px;">'
       + '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
-      + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'
+      + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('ov-procedure')
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
@@ -4795,6 +4802,7 @@ document.addEventListener('click', async (e) => {
     p.sex = AP_TEMP.sex;
     p.diagnosis = AP_TEMP.diagnosis;
     p.chiefComplaints = AP_TEMP.caseType === 'opd' ? AP_TEMP.chiefComplaints : '';
+    p.symptomDuration = AP_TEMP.symptomDuration;
     p.regions = AP_TEMP.regions.slice();
     p.caseType = AP_TEMP.caseType;
     p.condition = AP_TEMP.condition;
@@ -4901,6 +4909,7 @@ document.addEventListener('click', async (e) => {
     AP_TEMP.laterality = src.laterality;
     AP_TEMP.surgeryType = src.surgeryType;
     AP_TEMP.procedure = src.procedure;
+    AP_TEMP.symptomDuration = src.symptomDuration||'';
     AP_TEMP.side = src.side;
     AP_TEMP.regions = (src.regions||[]).slice();
     AP_TEMP.surgeryDate = todayStr();
@@ -5762,6 +5771,9 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'ov-diagnosis') { updateAutocomplete('ov-diagnosis', DIAGNOSIS_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ap-complaints') { AP_TEMP.chiefComplaints = e.target.value; updateAutocomplete('ap-complaints', CHIEF_COMPLAINT_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ov-complaints') { updateAutocomplete('ov-complaints', CHIEF_COMPLAINT_LIB_KEY, e.target.value, 'quick-fill-text'); }
+  if (e.target.id === 'ap-procedure') { AP_TEMP.procedure = e.target.value; updateAutocomplete('ap-procedure', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
+  if (e.target.id === 'ov-procedure') { updateAutocomplete('ov-procedure', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
+  if (e.target.id === 'ap-duration') { AP_TEMP.symptomDuration = e.target.value; }
   if (e.target.id === 'custom-tag-input') { updateAutocomplete('custom-tag-input', TAG_LIB_KEY, e.target.value, 'autocomplete-add-tag'); }
 });
 document.addEventListener('mousedown', (e) => {
@@ -5772,7 +5784,7 @@ document.addEventListener('touchstart', (e) => {
 }, { passive: false });
 document.addEventListener('blur', async (e) => {
   if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
-  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','custom-tag-input'].includes(e.target.id)) {
+  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','ov-procedure','custom-tag-input'].includes(e.target.id)) {
     const id = e.target.id;
     setTimeout(() => hideAutocomplete(id), 200);
   }
