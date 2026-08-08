@@ -12,6 +12,29 @@
 <meta name="apple-mobile-web-app-title" content="OrthoVault">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.1/index.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
+<script>
+  /* ================= Firebase (Auth only for now \u2014 no Firestore/Storage sync wired up yet) ================= */
+  const firebaseConfig = {
+    apiKey: "AIzaSyAehCjdYB6sHZN5Hdw7kTiy2L5dtOPfqWA",
+    authDomain: "orthovault02.firebaseapp.com",
+    projectId: "orthovault02",
+    storageBucket: "orthovault02.firebasestorage.app",
+    messagingSenderId: "251974181391",
+    appId: "1:251974181391:web:348e0e07d0e53ec672f97a",
+    measurementId: "G-NRDTY5SCV1"
+  };
+  firebase.initializeApp(firebaseConfig);
+  let CURRENT_USER = null;
+  firebase.auth().onAuthStateChanged(function(user) {
+    CURRENT_USER = user;
+    if (typeof onAuthChanged === 'function') onAuthChanged(user);
+  });
+  firebase.auth().getRedirectResult().catch(function(err) {
+    if (typeof onAuthError === 'function') onAuthError(err);
+  });
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&display=swap');
   :root {
@@ -1252,6 +1275,7 @@ function renderSettingsView() {
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
     + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.02em;margin:0 0 -4px;">OrthoVault \u2014 Built for Orthopaedic Surgeons</p>'
     + appLockCardHtml()
+    + syncCardHtml()
     + notifCardHtml()
     + '<div class="card"><label class="field-label">Display</label><div class="row between"><span style="font-size:13px;font-weight:600;">Appearance</span><div class="seg" style="width:auto;">'
     + [['auto','Auto'],['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
@@ -4224,6 +4248,25 @@ document.addEventListener('click', async (e) => {
   if (!el) return;
   const action = el.dataset.action;
 
+  if (action === 'google-sign-in') {
+    try {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      await firebase.auth().signInWithRedirect(provider);
+    } catch (err) {
+      toast('Sign-in failed: ' + (err && err.message ? err.message : 'unknown error'));
+    }
+    return;
+  }
+  if (action === 'google-sign-out') {
+    try {
+      await firebase.auth().signOut();
+      toast('Signed out');
+      render();
+    } catch (err) {
+      toast('Sign-out failed');
+    }
+    return;
+  }
   if (action === 'go-add') { initApTemp(); AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
   if (action === 'clear-list-filters') { SEARCH = ''; FILTER_TYPE = 'all'; TAG_FILTER = ''; render(); return; }
   if (action === 'quick-fill-text') {
@@ -5703,6 +5746,30 @@ function appLockCardHtml() {
         ? '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="lock-start-change">Change PIN</button><button class="btn btn-sm" style="flex:1;" data-action="lock-start-disable">Disable</button></div>'
         : '<button class="btn btn-primary btn-block" data-action="lock-start-enable">Enable App Lock</button>')
     + '</div>';
+}
+
+/* ================= Cloud Sync Account (Auth only for now) ================= */
+function syncCardHtml() {
+  const user = CURRENT_USER;
+  return '<div class="card">'
+    + '<label class="field-label">Cloud Sync Account</label>'
+    + (user
+        ? '<div class="row gap3" style="align-items:center;margin:6px 0 10px;">'
+          + (user.photoURL ? '<img src="'+esc(user.photoURL)+'" style="width:36px;height:36px;border-radius:50%;">' : '')
+          + '<div style="flex:1;"><div style="font-size:13px;font-weight:700;">'+esc(user.displayName||'Signed in')+'</div><div style="font-size:11px;color:var(--muted);">'+esc(user.email||'')+'</div></div>'
+          + '</div>'
+          + '<button class="btn btn-sm btn-block" data-action="google-sign-out">Sign out</button>'
+        : '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Sign in with Google to prepare for multi-device sync. Sync isn\u2019t active yet \u2014 your data stays local for now.</p>'
+          + '<button class="btn btn-primary btn-block" data-action="google-sign-in">Sign in with Google</button>')
+    + '</div>';
+}
+function onAuthChanged(user) {
+  CURRENT_USER = user;
+  if (VIEW === 'settings') render();
+}
+function onAuthError(err) {
+  if (err && err.code === 'auth/no-auth-event') return; // fires harmlessly when no redirect was pending
+  toast('Sign-in error: ' + (err && err.message ? err.message : 'something went wrong'));
 }
 
 /* ================= Init ================= */
