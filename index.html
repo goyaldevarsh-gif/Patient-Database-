@@ -14,8 +14,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.1/index.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
 <script>
-  /* ================= Firebase (Auth only for now \u2014 no Firestore/Storage sync wired up yet) ================= */
+  /* ================= Firebase (Auth + Firestore \u2014 Storage/photo sync not wired up yet) ================= */
   const firebaseConfig = {
     apiKey: "AIzaSyAehCjdYB6sHZN5Hdw7kTiy2L5dtOPfqWA",
     authDomain: "orthovault02.firebaseapp.com",
@@ -26,6 +27,7 @@
     measurementId: "G-NRDTY5SCV1"
   };
   firebase.initializeApp(firebaseConfig);
+  const firestoreDB = firebase.firestore();
   let CURRENT_USER = null;
   firebase.auth().onAuthStateChanged(function(user) {
     CURRENT_USER = user;
@@ -4245,6 +4247,24 @@ document.addEventListener('click', async (e) => {
   if (!el) return;
   const action = el.dataset.action;
 
+  if (action === 'backup-to-cloud') {
+    if (!CURRENT_USER) { toast('Sign in first'); return; }
+    try {
+      toast('Backing up\u2026');
+      const patients = await dbGetAllPatients();
+      const uid = CURRENT_USER.uid;
+      let count = 0;
+      for (const p of patients) {
+        const clean = JSON.parse(JSON.stringify(p));
+        await firestoreDB.collection('users').doc(uid).collection('patients').doc(String(p.id)).set(clean);
+        count++;
+      }
+      toast('Backed up ' + count + ' patient(s) to cloud');
+    } catch (err) {
+      toast('Backup failed: ' + (err && err.message ? err.message : 'unknown error'));
+    }
+    return;
+  }
   if (action === 'email-sign-up') {
     const email = (document.getElementById('auth-email')||{}).value || '';
     const password = (document.getElementById('auth-password')||{}).value || '';
@@ -5769,6 +5789,8 @@ function syncCardHtml() {
     return '<div class="card">'
       + '<label class="field-label">Cloud Sync Account</label>'
       + '<div style="margin:6px 0 10px;"><div style="font-size:13px;font-weight:700;">Signed in</div><div style="font-size:11px;color:var(--muted);">'+esc(user.email||'')+'</div></div>'
+      + '<button class="btn btn-primary btn-sm btn-block" data-action="backup-to-cloud">Backup Patients to Cloud</button>'
+      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">One-way for now: copies your local patient records to the cloud. Doesn\u2019t change anything on this device, and doesn\u2019t pull anything down yet.</p>'
       + '<button class="btn btn-sm btn-block" data-action="account-sign-out">Sign out</button>'
       + '</div>';
   }
