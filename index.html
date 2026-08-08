@@ -15,8 +15,9 @@
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-storage-compat.js"></script>
 <script>
-  /* ================= Firebase (Auth + Firestore \u2014 Storage/photo sync not wired up yet) ================= */
+  /* ================= Firebase (Auth + Firestore + Storage) ================= */
   const firebaseConfig = {
     apiKey: "AIzaSyAehCjdYB6sHZN5Hdw7kTiy2L5dtOPfqWA",
     authDomain: "orthovault02.firebaseapp.com",
@@ -28,6 +29,7 @@
   };
   firebase.initializeApp(firebaseConfig);
   const firestoreDB = firebase.firestore();
+  const firebaseStorage = firebase.storage();
   let CURRENT_USER = null;
   firebase.auth().onAuthStateChanged(function(user) {
     CURRENT_USER = user;
@@ -439,17 +441,71 @@ async function applyRemoteChanges(snapshot) {
     SYNC_APPLYING_REMOTE = false;
   }
 }
-async function dbAddImage(rec) { const s = await storeOf('images','readwrite'); return reqToPromise(s.put(rec)); }
+async function dbAddImage(rec) { const s = await storeOf('images','readwrite'); const r = await reqToPromise(s.put(rec)); syncImageToCloud(rec); return r; }
 async function dbGetImage(id) { const s = await storeOf('images','readonly'); return reqToPromise(s.get(id)); }
 async function dbGetImagesByPatient(patientId) {
   const s = await storeOf('images','readonly');
   const idx = s.index('patientId');
   return reqToPromise(idx.getAll(patientId));
 }
-async function dbDeleteImage(id) { const s = await storeOf('images','readwrite'); return reqToPromise(s.delete(id)); }
+async function dbDeleteImage(id) { const s = await storeOf('images','readwrite'); const r = await reqToPromise(s.delete(id)); deleteImageFromCloud(id); return r; }
 async function dbDeleteImagesByPatient(patientId) {
   const imgs = await dbGetImagesByPatient(patientId);
   for (const img of imgs) await dbDeleteImage(img.id);
+}
+
+function syncImageToCloud(rec) {
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE || !rec.blob) return;
+  try {
+    const uid = CURRENT_USER.uid;
+    const contentType = rec.blob.type || 'image/jpeg';
+    const meta = JSON.parse(JSON.stringify(Object.assign({}, rec, { contentType: contentType })));
+    delete meta.blob;
+    firebaseStorage.ref('users/' + uid + '/images/' + rec.id).put(rec.blob, { contentType: contentType })
+      .then(function() { return firestoreDB.collection('users').doc(uid).collection('images').doc(String(rec.id)).set(meta); })
+      .catch(function(err) { console.error('Cloud image sync failed for', rec.id, err); });
+  } catch (e) {}
+}
+function deleteImageFromCloud(id) {
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE) return;
+  try {
+    const uid = CURRENT_USER.uid;
+    firebaseStorage.ref('users/' + uid + '/images/' + id).delete().catch(function() {});
+    firestoreDB.collection('users').doc(uid).collection('images').doc(String(id)).delete().catch(function() {});
+  } catch (e) {}
+}
+let IMAGE_SYNC_UNSUBSCRIBE = null;
+function startImageCloudSync(uid) {
+  stopImageCloudSync();
+  IMAGE_SYNC_UNSUBSCRIBE = firestoreDB.collection('users').doc(uid).collection('images')
+    .onSnapshot(function(snapshot) { applyRemoteImageChanges(snapshot, uid); },
+                function(err) { console.error('Image sync listener error', err); });
+}
+function stopImageCloudSync() {
+  if (IMAGE_SYNC_UNSUBSCRIBE) { IMAGE_SYNC_UNSUBSCRIBE(); IMAGE_SYNC_UNSUBSCRIBE = null; }
+}
+async function applyRemoteImageChanges(snapshot, uid) {
+  let changed = false;
+  for (const change of snapshot.docChanges()) {
+    if (change.type === 'removed') {
+      SYNC_APPLYING_REMOTE = true;
+      try { await dbDeleteImage(change.doc.id); changed = true; } finally { SYNC_APPLYING_REMOTE = false; }
+      continue;
+    }
+    const existing = await dbGetImage(change.doc.id).catch(function() { return null; });
+    if (existing) continue; // already have this photo locally, nothing to download
+    try {
+      const url = await firebaseStorage.ref('users/' + uid + '/images/' + change.doc.id).getDownloadURL();
+      const resp = await fetch(url);
+      const blob = await resp.blob();
+      const meta = change.doc.data();
+      delete meta.contentType;
+      SYNC_APPLYING_REMOTE = true;
+      try { await dbAddImage(Object.assign({}, meta, { id: change.doc.id, blob: blob })); changed = true; }
+      finally { SYNC_APPLYING_REMOTE = false; }
+    } catch (err) { console.error('Image download failed for', change.doc.id, err); }
+  }
+  if (changed && VIEW === 'list') render();
 }
 
 /* ================= Image resize (with safe fallback) ================= */
@@ -5849,7 +5905,7 @@ function syncCardHtml() {
   if (user) {
     return '<div class="card">'
       + '<label class="field-label">Cloud Sync Account</label>'
-      + '<div style="margin:6px 0 10px;"><div style="font-size:13px;font-weight:700;">Signed in</div><div style="font-size:11px;color:var(--muted);">'+esc(user.email||'')+'</div><div style="font-size:11px;color:var(--emerald,#16a34a);margin-top:2px;">\u25cf Syncing automatically in the background</div></div>'
+      + '<div style="margin:6px 0 10px;"><div style="font-size:13px;font-weight:700;">Signed in</div><div style="font-size:11px;color:var(--muted);">'+esc(user.email||'')+'</div><div style="font-size:11px;color:var(--emerald,#16a34a);margin-top:2px;">\u25cf Syncing patients and photos automatically</div></div>'
       + '<button class="btn btn-primary btn-sm btn-block" data-action="backup-to-cloud">Force Full Backup to Cloud</button>'
       + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">Not usually needed \u2014 changes sync automatically now. Use this only if you want to manually re-push everything.</p>'
       + (ARMED_DELETE === 'restore-from-cloud:x'
@@ -5875,7 +5931,8 @@ function syncCardHtml() {
 }
 function onAuthChanged(user) {
   CURRENT_USER = user;
-  if (user) startCloudSync(user.uid); else stopCloudSync();
+  if (user) { startCloudSync(user.uid); startImageCloudSync(user.uid); }
+  else { stopCloudSync(); stopImageCloudSync(); }
   if (VIEW === 'settings') render();
 }
 function onAuthError(err) {
