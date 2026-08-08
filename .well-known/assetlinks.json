@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.orthovault.app",
+        "sha256_cert_fingerprints": ["21:3B:36:DF:34:4E:25:22:90:AF:42:5A:75:F5:24:14:4E:AD:03:1E:07:EE:CB:88:4F:3B:DC:7C:96:19:BC:2A"]
+      }
+    }]
