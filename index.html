@@ -4247,6 +4247,26 @@ document.addEventListener('click', async (e) => {
   if (!el) return;
   const action = el.dataset.action;
 
+  if (action === 'restore-from-cloud') {
+    if (!CURRENT_USER) { toast('Sign in first'); return; }
+    ARMED_DELETE = null;
+    try {
+      toast('Restoring\u2026');
+      const uid = CURRENT_USER.uid;
+      const snap = await firestoreDB.collection('users').doc(uid).collection('patients').get();
+      let count = 0;
+      for (const doc of snap.docs) {
+        await dbPutPatient(doc.data());
+        count++;
+      }
+      await refreshPatients();
+      render();
+      toast('Restored ' + count + ' patient(s) from cloud');
+    } catch (err) {
+      toast('Restore failed: ' + (err && err.message ? err.message : 'unknown error'));
+    }
+    return;
+  }
   if (action === 'backup-to-cloud') {
     if (!CURRENT_USER) { toast('Sign in first'); return; }
     try {
@@ -5790,7 +5810,11 @@ function syncCardHtml() {
       + '<label class="field-label">Cloud Sync Account</label>'
       + '<div style="margin:6px 0 10px;"><div style="font-size:13px;font-weight:700;">Signed in</div><div style="font-size:11px;color:var(--muted);">'+esc(user.email||'')+'</div></div>'
       + '<button class="btn btn-primary btn-sm btn-block" data-action="backup-to-cloud">Backup Patients to Cloud</button>'
-      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">One-way for now: copies your local patient records to the cloud. Doesn\u2019t change anything on this device, and doesn\u2019t pull anything down yet.</p>'
+      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">One-way: copies your local patient records to the cloud. Doesn\u2019t change anything on this device.</p>'
+      + (ARMED_DELETE === 'restore-from-cloud:x'
+          ? '<button class="btn btn-sm btn-danger-confirm btn-block" data-action="restore-from-cloud" data-confirm="1">'+ic('check')+' Yes, restore from cloud</button>'
+          : '<button class="btn btn-sm btn-block" data-action="arm-delete" data-arm="restore-from-cloud:x">Restore from Cloud</button>')
+      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">Use once on a new device to pull down existing patients. If this device already has newer local changes for a patient, the cloud copy will overwrite them \u2014 back up first if unsure.</p>'
       + '<button class="btn btn-sm btn-block" data-action="account-sign-out">Sign out</button>'
       + '</div>';
   }
