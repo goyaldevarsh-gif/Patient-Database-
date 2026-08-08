@@ -343,7 +343,7 @@
   <button id="usearch-fab" class="usearch-fab" data-action="open-universal-search" title="Search everything" style="pointer-events:auto;"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
 </div>
 <div id="side-back-wrap" style="display:none;position:fixed;inset:0;max-width:520px;margin:0 auto;pointer-events:none;z-index:45;">
-  <button id="side-back-btn" class="side-back-btn" title="Back"><svg class="ic" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+  <button id="side-back-btn" class="side-back-btn" title="Back" style="pointer-events:auto;"><svg class="ic" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
 </div>
 
 <script>
@@ -1729,9 +1729,11 @@ function renderAddView() {
     + '</div></div>'
 
     + '<div><label class="field-label">Patient name</label><input class="input" id="ap-name" placeholder="Patient name" value="'+esc(AP_TEMP.name)+'"></div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">'
-    + '<div><label class="field-label">Years</label><input class="input" type="number" min="0" id="ap-age" placeholder="Yrs" value="'+esc(AP_TEMP.age)+'"></div>'
-    + '<div><label class="field-label">Months</label><input class="input" type="number" min="0" max="11" id="ap-ageMonths" placeholder="Mo" value="'+esc(AP_TEMP.ageMonths)+'"></div>'
+    + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
+    + '<div><label class="field-label">Age</label><div class="row gap2">'
+    + '<input class="input" type="number" min="0" id="ap-age" placeholder="Years" value="'+esc(AP_TEMP.age)+'" style="flex:1;">'
+    + '<input class="input" type="number" min="0" max="11" id="ap-ageMonths" placeholder="Months" value="'+esc(AP_TEMP.ageMonths)+'" style="flex:1;">'
+    + '</div></div>'
     + '<div><label class="field-label">Sex</label><div class="seg">'
     + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
     + '</div>'
@@ -3716,7 +3718,7 @@ function renderDetailShell(p) {
     + '<div class="sticky-top">'
     + '<div class="row gap3 px" style="padding:14px 16px 10px;">'
     + '<button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button>'
-    + '<div style="min-width:0;flex:1;"><h2 style="font-size:16px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escName(p.name)+'</h2>'
+    + '<div style="min-width:0;flex:1;"><h2 style="font-size:16px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escName(p.name)+' <span style="font-weight:600;color:var(--muted);font-size:13px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>'
     + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;">'+(p.caseType==='surgical'?p.surgeryType+' \u00b7 '+esc(p.procedure||''):'OPD case')+'</p></div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
     + confirmBtn('delete-patient', p.id)
