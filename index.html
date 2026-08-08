@@ -463,7 +463,7 @@ function syncImageToCloud(rec) {
     delete meta.blob;
     firebaseStorage.ref('users/' + uid + '/images/' + rec.id).put(rec.blob, { contentType: contentType })
       .then(function() { return firestoreDB.collection('users').doc(uid).collection('images').doc(String(rec.id)).set(meta); })
-      .catch(function(err) { console.error('Cloud image sync failed for', rec.id, err); });
+      .catch(function(err) { console.error('Cloud image sync failed for', rec.id, err); toast('Photo cloud sync failed: ' + (err && err.message ? err.message : 'unknown error')); });
   } catch (e) {}
 }
 function deleteImageFromCloud(id) {
@@ -503,7 +503,7 @@ async function applyRemoteImageChanges(snapshot, uid) {
       SYNC_APPLYING_REMOTE = true;
       try { await dbAddImage(Object.assign({}, meta, { id: change.doc.id, blob: blob })); changed = true; }
       finally { SYNC_APPLYING_REMOTE = false; }
-    } catch (err) { console.error('Image download failed for', change.doc.id, err); }
+    } catch (err) { console.error('Image download failed for', change.doc.id, err); toast('Photo download failed: ' + (err && err.message ? err.message : 'unknown error')); }
   }
   if (changed && VIEW === 'list') render();
 }
