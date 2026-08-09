@@ -2555,8 +2555,8 @@ async function renderFollowupsTab(p) {
       + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
       + [['2w','+2 Weeks'],['1m','+1 Month'],['6w','+6 Weeks'],['3m','+3 Months'],['6m','+6 Months']].map(([v,l])=>'<button type="button" class="chip" data-action="fu-set-next-followup" data-value="'+v+'">'+l+'</button>').join('')
       + '</div>'
-      + '<input class="input" id="fu-next-followup" type="date" value="'+esc(p.nextFollowUpDate||'')+'">'
-      + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">This replaces the patient\u2019s \u201cnext follow-up due\u201d date \u2014 leave blank to clear it.</p>'
+      + '<input class="input" id="fu-next-followup" type="date" value="">'
+      + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">This replaces the patient\u2019s \u201cnext follow-up due\u201d date. Starts blank \u2014 pick a preset above or a date if another visit is needed, otherwise it\u2019s cleared (no longer overdue) once you save.</p>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-fu">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-fu">Save visit</button></div>'
       + '</div>';
   }
