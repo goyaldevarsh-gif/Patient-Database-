@@ -666,6 +666,8 @@ let ADD_INVESTIGATION_OPEN = false;
 let ADD_INJECTION_OPEN = false;
 let GUSTILO_OPEN = false;
 let GUSTILO_ANSWERS = { woundSize:'', mechanism:'', softTissue:'', periosteal:'', vascular:'' };
+let LAUGE_HANSEN_OPEN = false;
+let LAUGE_HANSEN_ANSWERS = { fibulaLevel:'', medial:'', posterior:'' };
 let EXPANDED_INVESTIGATION = new Set();
 let ADD_PRESCRIPTION_OPEN = false;
 let RX_TEMP = null; // { date, medicines:[{id,name,dose,frequency,duration,instructions}], advice, followUpDate }
@@ -1314,7 +1316,7 @@ const ABOUT_SECTIONS = [
     ['CTEV (clubfoot)', 'Pirani scoring per cast session with a trend graph, and an automatic alert when your own tenotomy criteria are met.'],
     ['RA (rheumatoid arthritis)', 'DAS28/CDAI/SDAI tracking with a 28-joint reference, plus a management reference (MTX, HCQ, steroids).'],
     ['Osteoporosis', 'DEXA tracking (spine/hip/wrist), risk factors with a FRAX explainer and link.'],
-    ['Trauma tools', 'Gustilo-Anderson assistant, RUST score with trend graph, union tracking, Kocher\u2019s criteria (septic arthritis).'],
+    ['Trauma tools', 'Gustilo-Anderson assistant, Lauge-Hansen assistant (auto-appears for bi/trimalleolar and other ankle fractures), RUST score with trend graph, union tracking, Kocher\u2019s criteria (septic arthritis).'],
     ['Arthroplasty tools', 'BMI calculator, PJI (MSIS criteria) checklist.'],
     ['Pediatrics', 'Weight-based dose calculator and a Rickets management reference, shown automatically for pediatric OPD cases.'],
   ]},
@@ -2153,6 +2155,10 @@ function comorbidityCardHtml(p) {
     + '</div>';
 }
 
+function isAnkleFractureCase(p) {
+  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
+  return /malleol|ankle fracture|weber|maisonneuve/.test(text);
+}
 function classificationCardHtml(p) {
   return '<div class="card">'
     + '<label class="field-label">'+ic('tag')+' Fracture Classification <span style="color:var(--muted);font-weight:500;">(optional)</span></label>'
@@ -2164,6 +2170,7 @@ function classificationCardHtml(p) {
     + [['no','No'],['yes','Yes']].map(([v,l])=>'<button class="seg-btn'+(((p.isOpenFracture?'yes':'no')===v)?' active':'')+'" data-action="set-open-fracture" data-value="'+v+'" style="padding:6px 14px;">'+l+'</button>').join('')
     + '</div></div>'
     + (p.isOpenFracture ? gustiloSectionHtml(p) : '')
+    + (isAnkleFractureCase(p) ? laugeHansenSectionHtml(p) : '')
     + '</div>';
 }
 
@@ -2201,6 +2208,49 @@ function gustiloCompute(a) {
   }
   if (a.woundSize === '1-10' || a.softTissue === 'moderate') return { type: 'II', note: 'Wound 1\u201310 cm with moderate soft tissue damage and minimal periosteal stripping.' };
   return { type: 'I', note: 'Wound < 1 cm, clean, minimal soft tissue damage, simple fracture pattern.' };
+}
+
+function laugeHansenSectionHtml(p) {
+  if (!LAUGE_HANSEN_OPEN) {
+    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-lauge-hansen">'+ic('tag')+' Lauge-Hansen Assistant</button>';
+  }
+  const a = LAUGE_HANSEN_ANSWERS;
+  const result = laugeHansenCompute(a);
+  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
+    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="lauge-hansen-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div></div>';
+  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
+    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Lauge-Hansen Assistant</label><button class="icon-btn" data-action="close-lauge-hansen">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">Based on fibula fracture level and medial/posterior involvement on X-ray. A working estimate \u2014 correlate clinically.</p>'
+    + q('fibulaLevel', 'Fibula fracture level', [['below','Below the joint line'],['at','At the joint line (spiral/oblique)'],['above-short','Just above, short segment'],['high','Well above (high fibula)']])
+    + q('medial', 'Medial malleolus / deltoid ligament', [['intact','Intact'],['fractured','Medial malleolus fractured'],['deltoid','Deltoid ligament torn']])
+    + q('posterior', 'Posterior malleolus fractured?', [['no','No'],['yes','Yes']])
+    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested pattern</span><span class="mono">'+result.pattern+' \u2014 Stage '+result.stage+'</span></div>'
+        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
+        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="lauge-hansen-insert" data-value="'+esc(result.pattern+' Stage '+result.stage)+'">Insert into Classification</button>'
+      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the fibula level and medial-side questions to see the suggested pattern.</p>')
+    + '</div>';
+}
+function laugeHansenCompute(a) {
+  if (!a.fibulaLevel || !a.medial) return null;
+  const posteriorInvolved = a.posterior === 'yes';
+  if (a.fibulaLevel === 'below') {
+    if (a.medial === 'intact') return { pattern: 'Supination-Adduction (SA)', stage: 'I', note: 'Transverse fibula fracture (often avulsion-type) below the joint line, medial side intact.' };
+    return { pattern: 'Supination-Adduction (SA)', stage: 'II', note: 'Fibula fracture below the joint line plus a medial malleolus fracture (often near-vertical) or deep deltoid injury.' };
+  }
+  if (a.fibulaLevel === 'at') {
+    if (a.medial !== 'intact') return { pattern: 'Supination-External Rotation (SER)', stage: 'IV', note: 'Classic spiral/oblique fibula fracture at the joint line, plus medial malleolus fracture or deltoid ligament injury \u2014 the full unstable pattern.' };
+    if (posteriorInvolved) return { pattern: 'Supination-External Rotation (SER)', stage: 'III', note: 'Spiral/oblique fibula fracture at the joint line with a posterior malleolus fragment; medial side intact so far.' };
+    return { pattern: 'Supination-External Rotation (SER)', stage: 'II', note: 'The most common ankle fracture pattern \u2014 spiral/oblique fibula fracture at the joint line, medial and posterior structures intact.' };
+  }
+  if (a.fibulaLevel === 'above-short') {
+    return { pattern: 'Pronation-Abduction (PA)', stage: 'III', note: 'Short oblique or comminuted ("butterfly") fibula fracture just above the joint line, with medial malleolus/deltoid injury \u2014 implies the syndesmosis is disrupted too.' };
+  }
+  if (a.fibulaLevel === 'high') {
+    if (posteriorInvolved) return { pattern: 'Pronation-External Rotation (PER)', stage: 'IV', note: 'High spiral fibula fracture (consider Maisonneuve \u2014 examine the proximal fibula/knee) with posterior malleolus involvement.' };
+    return { pattern: 'Pronation-External Rotation (PER)', stage: 'III', note: 'High spiral fibula fracture (consider Maisonneuve \u2014 examine the proximal fibula/knee), with medial malleolus/deltoid injury.' };
+  }
+  return null;
 }
 
 function unionProgressCardHtml(p) {
@@ -4721,6 +4771,18 @@ document.addEventListener('click', async (e) => {
     p.classification = el.dataset.value;
     await dbPutPatient(p); await refreshPatients();
     GUSTILO_OPEN = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    toast('Classification updated');
+    return;
+  }
+  if (action === 'open-lauge-hansen') { LAUGE_HANSEN_OPEN = true; LAUGE_HANSEN_ANSWERS = { fibulaLevel:'', medial:'', posterior:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'close-lauge-hansen') { LAUGE_HANSEN_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'lauge-hansen-set') { LAUGE_HANSEN_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'lauge-hansen-insert') {
+    const p = getPatient(SELECTED_ID);
+    p.classification = el.dataset.value;
+    await dbPutPatient(p); await refreshPatients();
+    LAUGE_HANSEN_OPEN = false;
     await renderTabBody(getPatient(SELECTED_ID));
     toast('Classification updated');
     return;
