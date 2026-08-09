@@ -1264,30 +1264,30 @@ async function renderRecentlyDeletedView() {
 let ABOUT_EXPANDED = new Set(['getting-started']);
 const ABOUT_SECTIONS = [
   { key:'getting-started', title:'Getting Started', icon:'clipboard', items:[
-    ['Adding a case', 'Tap "+ Add" on the home screen. Choose OPD or Surgical, fill in the basics, and save \u2014 it appears at the top of your list.'],
+    ['Adding a case', 'Tap "+ Add" on the home screen. Choose OPD or Surgical, then work through the 4 tabs (Patient Details, Complaints & Diagnosis, Special Tracking/Surgery Details, Investigations) and save \u2014 it appears at the top of your list.'],
+    ['Quick Add (Front Desk)', 'The small clock icon next to "+ Add" opens a stripped-down form (Name, Age, Sex, Chief Complaints only) \u2014 meant for reception/an assistant to fill while the patient waits. It syncs immediately; open the patient later to complete diagnosis and the rest.'],
     ['Opening a patient', 'Tap anywhere on a patient card to open their full record.'],
-    ['Editing anything later', 'Almost every field \u2014 diagnosis, side, region, payment, tags \u2014 stays editable from the Overview tab, any time.'],
+    ['Editing anything later', 'Almost every field \u2014 diagnosis, side, region, payment, tags \u2014 stays editable from Overview\u2019s tabs, any time.'],
   ]},
   { key:'opd-process', title:'Full Process \u2014 Adding an OPD Case', icon:'calendar', items:[
-    ['1. Start the case', 'Tap "+ Add", choose OPD, and fill in Name, Age, Sex.'],
-    ['2. Chief Complaints first', 'If a diagnosis isn\u2019t settled yet, type what the patient is presenting with \u2014 this shows on the home card until a diagnosis is added.'],
-    ['3. Diagnosis, once known', 'Add it any time \u2014 it will then take over as the headline on the card, and both feed autocomplete for future patients.'],
-    ['4. Side & Region', 'Set Left/Right/Bilateral, then tap "Auto-detect" for Region/Specialty \u2014 check the suggestion and adjust if needed.'],
-    ['5. Special Tracking (if relevant)', 'For CTEV, RA, or Osteoporosis cases, set this on Overview \u2014 it unlocks a dedicated tracking tab (Pirani scoring, DAS28, or DEXA).'],
-    ['6. Ongoing visits', 'Each time the patient returns, log it under Follow-Up \u2014 notes, photos, and the next follow-up date all go there.'],
-    ['7. Prescriptions', 'Write and share/print a prescription any time from its own tab \u2014 the follow-up date you set there also updates the patient\u2019s next-follow-up automatically.'],
+    ['1. Patient Details tab', 'Tap "+ Add", choose OPD, and fill in Name, Age, Sex, Occupation, Hand dominance, WhatsApp.'],
+    ['2. Complaints & Diagnosis tab', 'Chief complaints and Duration of symptoms first if diagnosis isn\u2019t settled \u2014 this shows on the home card until a diagnosis is added. Add Diagnosis any time \u2014 it then takes over as the card headline. Set Side, then tap "Auto-detect" for Region/Specialty and adjust if needed.'],
+    ['3. Special Tracking tab (if relevant)', 'For CTEV, RA, or Osteoporosis cases, set this here \u2014 it unlocks a dedicated tracking tab (Pirani scoring, DAS28, or DEXA) once saved.'],
+    ['4. Investigations tab (optional)', 'Already have an X-ray or report at intake? Pick the category (and X-ray type), add the photo \u2014 it\u2019s filed correctly the moment you save.'],
+    ['5. Ongoing visits', 'Each time the patient returns, log it under Follow-Up \u2014 notes, photos (any category via the same dropdown), and the next follow-up date all go there.'],
+    ['6. Prescriptions', 'Write and share/print a prescription any time from its own tab \u2014 the follow-up date you set there also updates the patient\u2019s next-follow-up automatically.'],
   ]},
   { key:'surgical-process', title:'Full Process \u2014 Adding a Surgical Case', icon:'clipboard', items:[
-    ['1. Start the case', 'Tap "+ Add", choose Surgical, and fill in Name, Age, Sex.'],
-    ['2. Diagnosis & Region', 'Add the diagnosis, then Side and Region/Specialty (Auto-detect works well once Procedure is filled in too).'],
-    ['3. Surgery details', 'Surgery type, Procedure, Surgery date, and Payment method (Cash/Insurance) all live in the same card on Overview.'],
-    ['4. Pre-op images', 'Once saved, go to Images & Records \u2192 X-ray \u2192 Pre-op (or Clinical Images) to attach whatever you have.'],
-    ['5. On the day of surgery', 'Add OT/Intra-op photos from Images & Records \u2192 Clinical Images, and Post-op X-rays under X-ray \u2192 Post-op.'],
-    ['6. After discharge', 'Every subsequent visit goes under Follow-Up \u2014 photos added there are automatically filed as "Follow-up X-ray" too, no extra step.'],
+    ['1. Patient Details tab', 'Tap "+ Add", choose Surgical, and fill in Name, Age, Sex, Occupation, Hand dominance, WhatsApp.'],
+    ['2. Diagnosis tab', 'Add the diagnosis, Side, then Region/Specialty (Auto-detect works well once Procedure is filled in too).'],
+    ['3. Surgery Details tab', 'Surgery type, Procedure, Surgery date, and Payment method (Cash/Insurance) \u2014 settable right here at intake, no need to wait until Overview.'],
+    ['4. Investigations tab', 'Add pre-op X-rays, clinical images, or any report you already have \u2014 pick the category (X-ray also asks the type), add the photo. No need to wait until after saving.'],
+    ['5. On the day of surgery', 'Open the patient \u2192 Images & Records to add OT/Intra-op photos and Post-op X-rays.'],
+    ['6. After discharge', 'Every subsequent visit goes under Follow-Up \u2014 pick a category from the same dropdown for each photo (X-ray, Clinical, Wound, CT, MRI, USG, etc.).'],
     ['7. Keep the follow-up date current', 'Whatever you set as "next follow-up" (in Follow-Up or on a Prescription) is what drives the overdue alert, the Calendar, and the WhatsApp reminder \u2014 there\u2019s only one date to keep updated.'],
   ]},
   { key:'when-tools', title:'When to Use Which Special Tool', icon:'search', items:[
-    ['CTEV tracking', 'Set Special Tracking = CTEV on an OPD clubfoot case \u2014 gives you Pirani scoring per cast, a trend graph, and an automatic tenotomy alert.'],
+    ['CTEV tracking', 'Set Special Tracking = CTEV on the Special Tracking tab of an OPD clubfoot case \u2014 gives you Pirani scoring per cast, a trend graph, and an automatic tenotomy alert.'],
     ['RA tracking', 'Set Special Tracking = RA \u2014 gives you DAS28/CDAI/SDAI scoring and a management reference.'],
     ['Osteoporosis tracking', 'Set Special Tracking = Osteoporosis \u2014 gives you DEXA tracking and a FRAX/risk-factor guide.'],
     ['Gustilo-Anderson / RUST', 'Appear automatically once a case is marked Trauma with an open fracture \u2014 no separate setup.'],
@@ -1297,18 +1297,18 @@ const ABOUT_SECTIONS = [
     ['Pediatric dose calculator / Rickets guide', 'Show automatically for OPD patients under 18 \u2014 the Rickets reference specifically when "Rickets" is in the diagnosis.'],
   ]},
   { key:'tabs', title:'Patient Record Tabs', icon:'file', items:[
-    ['Overview', 'Diagnosis, chief complaints, region/specialty, side, surgery details, payment method, tags, co-morbidities, and quick links to WhatsApp. Tap the Patient ID badge any time to edit it manually.'],
+    ['Overview', 'Split into 3 tabs \u2014 Patient Details (name/age/occupation/hand dominance/WhatsApp), Complaints & Diagnosis (or just Diagnosis for surgical) with Side and Region, and Special Tracking / Surgery Details (condition tracking or surgery+payment, plus any condition-specific tools like RUST/ROM/BMI/PJI). Notes, Tags and Reminder sit below the tabs. Tap the Patient ID badge any time to edit it manually.'],
     ['Timeline', 'A chronological view of the whole case \u2014 registration/surgery, follow-ups, and more \u2014 in one scroll.'],
-    ['Follow-Up', 'Log each visit with notes, wound/union status, and photos sorted into X-ray / Clinical Image / Wound \u2014 quick-preset chips fill the visit label (2 Week, 6 Week\u2026) and next-follow-up date (+2 Weeks, +1 Month\u2026) for you. Setting "next follow-up" here becomes the single source of truth \u2014 it drives the overdue alert on the home card, the Calendar, and the WhatsApp reminder.'],
-    ['Images & Records', 'One place for everything visual and investigative: X-rays (by type \u2014 OPD/Pre-Reduction/Post-Reduction/Pre-op/Post-op/Follow-up), Clinical Images, Wound/Suture photos, CT, MRI, USG, Investigations, and Injections.'],
+    ['Follow-Up', 'Log each visit with notes, wound/union status, and photos \u2014 pick any category (X-ray, Clinical, Wound, CT, MRI, USG, etc.) from one dropdown, add the photo, it\u2019s filed correctly. Quick-preset chips fill the visit label (2 Week, 6 Week\u2026) and next-follow-up date (+2 Weeks, +1 Month\u2026) for you. Setting "next follow-up" here becomes the single source of truth \u2014 it drives the overdue alert, the Calendar, and the WhatsApp reminder.'],
+    ['Images & Records', 'One place for everything visual and investigative: X-rays (by type \u2014 General OPD/Pre-Reduction/Post-Reduction/Pre-op/Post-op), Clinical Images, Wound/Suture photos, CT, MRI, USG, Investigations, and Injections.'],
     ['Prescriptions', 'Write medicines with dose/frequency/duration, save any medicine list as a reusable Template for one-tap reuse, print or share as PDF, or send directly on WhatsApp \u2014 letterhead and doctor details fill in automatically.'],
   ]},
   { key:'smart', title:'Smart Features', icon:'search', items:[
     ['Region auto-detect', 'On Overview, tap "Auto-detect" to guess the region/specialty (Upper Limb, Spine, Trauma, etc.) from the diagnosis and procedure text \u2014 adjust manually anytime.'],
-    ['Autocomplete memory', 'Diagnosis, Chief Complaints, and Tags remember what you\u2019ve typed before \u2014 start typing 2+ letters to see matching past entries.'],
+    ['Autocomplete memory', 'Diagnosis, Chief Complaints, Procedure, and Tags remember what you\u2019ve typed before \u2014 start typing 2+ letters to see matching past entries, in any word order.'],
     ['Universal search', 'The floating search button searches every field \u2014 name, ID, diagnosis, notes, tags, investigations, prescriptions \u2014 across all cases.'],
-    ['WhatsApp messaging', 'From Overview: a general message, a Follow-up Reminder (auto-fills the visit reason and date), a direct Call button, and Save to Contacts \u2014 messages are in Hindi, using your saved profile name.'],
-    ['Photo zoom, notes & download', 'Open any photo: pinch to zoom, double-tap to zoom, add a note that shows boldly on the image, or download it.'],
+    ['WhatsApp messaging', 'From Overview: a general message, a Follow-up Reminder (auto-fills the visit reason and date), and a direct Call button \u2014 messages are in Hindi, using your saved profile name.'],
+    ['Photo zoom, notes & download', 'Open any photo: use the +/\u2212 buttons or pinch/double-tap to zoom, add a note that shows boldly on the image, or download it.'],
   ]},
   { key:'clinical', title:'Special Condition Tools', icon:'pill', items:[
     ['CTEV (clubfoot)', 'Pirani scoring per cast session with a trend graph, and an automatic alert when your own tenotomy criteria are met.'],
@@ -1319,14 +1319,15 @@ const ABOUT_SECTIONS = [
     ['Pediatrics', 'Weight-based dose calculator and a Rickets management reference, shown automatically for pediatric OPD cases.'],
   ]},
   { key:'organized', title:'Staying Organized', icon:'calendar', items:[
+    ['Recent patients only, by default', 'The home list shows only the last 2 months\u2019 patients, plus anything pinned \u2014 keeps it usable as your case count grows. Older patients haven\u2019t gone anywhere; search by name or ID to find them.'],
     ['Calendar & Reminders', 'See follow-ups due on a calendar, plus a separate Reminders list for clinic/OT/general tasks.'],
-    ['Pinning', 'Pin an important case from Overview \u2014 it always sorts to the top of the home list.'],
+    ['Pinning', 'Pin an important case from Overview \u2014 it always sorts to the top of the home list and stays visible regardless of how old it is.'],
     ['Tags', 'Free-form labels (Interesting, Teaching Slide, Complication\u2026) \u2014 filter the home list by tag.'],
     ['Region filter', 'Home screen chips filter by Upper Limb, Lower Limb, Hand, Spine, Trauma, etc. \u2014 works for OPD and Surgical cases alike.'],
   ]},
   { key:'data', title:'Your Data & Privacy', icon:'shield', items:[
-    ['Fully local', 'Everything \u2014 patients, photos, notes \u2014 stays on this device only. Nothing is uploaded anywhere.'],
-    ['Backup', 'More \u2192 Export Backup saves a zip of everything. Do this regularly, ideally to Google Drive or similar, in case this device is lost or reset.'],
+    ['Local + optional cloud sync', 'Everything works fully offline and always stays on this device first. Sign in under Settings \u2192 Cloud Sync Account and your patients + photos also sync privately across your own devices \u2014 each account\u2019s data is isolated, only you can access yours.'],
+    ['Backup', 'More \u2192 Export Backup saves a zip of everything. Do this regularly, ideally to Google Drive or similar, in case this device is lost or reset \u2014 useful even with cloud sync on.'],
     ['Case Log export', 'More \u2192 Export Case Log (Excel/CSV) \u2014 a spreadsheet of every case, handy for audits, CME records, or research \u2014 separate from the full backup.'],
     ['Recently Deleted', 'Deleting a patient doesn\u2019t erase it right away \u2014 More \u2192 Recently Deleted keeps it for 30 days with a Restore button, in case of a mistake.'],
     ['Storage usage', 'Settings shows how much space the app is using on your device, so there are no surprises after years of photos.'],
@@ -1822,18 +1823,21 @@ function apInvCatLabel(cat) {
   return found ? found[1] : cat;
 }
 function categorizedThumbsHtml(photos, removeAction) {
-  if (!photos.length) return '<p style="font-size:11.5px;color:var(--muted);margin:0;">No photos added yet.</p>';
-  let html = '<div class="thumb-grid">';
+  let html = '<div style="position:relative;">';
+  html += '<div class="thumb-grid">';
   photos.forEach(ph => {
     const label = apInvCatLabel(ph.category) + (ph.xraySubtype ? ' \u00b7 ' + ph.xraySubtype : '');
     html += '<div class="thumb-wrap"><img src="'+ph.previewUrl+'"><span class="badge badge-slate" style="position:absolute;bottom:3px;left:3px;right:3px;font-size:8.5px;padding:2px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(label)+'</span><button class="thumb-remove" data-action="'+removeAction+'" data-tempid="'+ph.tempId+'">\u2715</button></div>';
   });
+  html += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-photo-input="'+removeAction+'" style="display:none;"></label>';
+  html += '</div>';
+  html += cameraFabHtml('data-photo-input="'+removeAction+'"');
   html += '</div>';
   return html;
 }
 function fuInvControlsHtml() {
   return (FU_INV_CATEGORY === 'xray' ? '<select class="select" id="fu-inv-xray-subtype" style="margin-bottom:8px;">'+FU_XRAY_SUBTYPES.map(s=>'<option'+(FU_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
-    + '<label class="btn btn-block" style="cursor:pointer;margin-bottom:8px;">'+ic('camera')+' Add photo to '+esc(apInvCatLabel(FU_INV_CATEGORY))+(FU_INV_CATEGORY==='xray'?' \u2014 '+esc(FU_INV_XRAY_SUBTYPE):'')+'<input type="file" accept="image/*" multiple data-photo-input="fu-inv-remove-photo" style="display:none;"></label>';
+    + '<p style="font-size:11px;color:var(--muted);margin:0 0 8px;">New photos will be tagged as '+esc(apInvCatLabel(FU_INV_CATEGORY))+(FU_INV_CATEGORY==='xray'?' \u2014 '+esc(FU_INV_XRAY_SUBTYPE):'')+'.</p>';
 }
 function apInvThumbsHtml() { return categorizedThumbsHtml(AP_INVESTIGATIONS, 'ap-inv-remove-photo'); }
 function fuInvThumbsHtml() { return categorizedThumbsHtml(FU_INV_PHOTOS, 'fu-inv-remove-photo'); }
@@ -1987,7 +1991,6 @@ function renderAddView() {
       + '<p style="font-size:11.5px;color:var(--muted);margin:0;">Pick a category, then add a photo \u2014 it\u2019ll be filed there automatically.</p>'
       + '<div><label class="field-label">Category</label><select class="select" id="ap-inv-category">'+IMAGES_RECORDS_SECTIONS.map(([v,l])=>'<option value="'+v+'"'+(AP_INV_CATEGORY===v?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'
       + (AP_INV_CATEGORY === 'xray' ? '<div><label class="field-label">X-ray type</label><select class="select" id="ap-inv-xray-subtype">'+XRAY_SUBTYPES.map(s=>'<option'+(AP_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>' : '')
-      + '<label class="btn btn-block" style="cursor:pointer;">'+ic('camera')+' Add photo to '+esc(apInvCatLabel(AP_INV_CATEGORY))+(AP_INV_CATEGORY==='xray'?' \u2014 '+esc(AP_INV_XRAY_SUBTYPE):'')+'<input type="file" accept="image/*" multiple data-photo-input="ap-inv-remove-photo" style="display:none;"></label>'
       + '<div id="ap-inv-thumbs">'+apInvThumbsHtml()+'</div>'
       + '</div>';
   }
@@ -3945,6 +3948,8 @@ async function renderImageViewerFrame(url, imgId) {
   overlay.innerHTML = '<div class="modal-bar">'
     + (hasGallery ? '<span style="color:#fff;font-size:12px;opacity:0.75;">'+(IMG_GALLERY_IDX+1)+' / '+IMG_GALLERY.length+'</span>' : '<span></span>')
     + '<div class="row gap2">'
+    + '<button class="modal-btn" data-action="viewer-zoom-out" title="Zoom out" style="font-weight:800;font-size:18px;">\u2212</button>'
+    + '<button class="modal-btn" data-action="viewer-zoom-in" title="Zoom in" style="font-weight:800;font-size:16px;">+</button>'
     + '<button class="modal-btn" data-action="viewer-download" data-url="'+esc(url)+'" data-filename="'+esc(downloadName)+'" title="Download">'+ic('download')+'</button>'
     + '<button class="modal-btn" data-action="viewer-delete" data-imgid="'+imgId+'">'+ic('trash')+'</button>'
     + '<button class="modal-btn" data-action="viewer-close">'+ic('x')+'</button>'
@@ -4967,6 +4972,8 @@ document.addEventListener('click', async (e) => {
   if (action === 'viewer-prev') { viewerNav(-1); return; }
   if (action === 'viewer-next') { viewerNav(1); return; }
   if (action === 'viewer-close') { closeImageViewer(); return; }
+  if (action === 'viewer-zoom-in') { ZOOM_SCALE = Math.min(4, ZOOM_SCALE + 0.5); applyZoomTransform(); return; }
+  if (action === 'viewer-zoom-out') { ZOOM_SCALE = Math.max(1, ZOOM_SCALE - 0.5); if (ZOOM_SCALE === 1) { ZOOM_TX = 0; ZOOM_TY = 0; } applyZoomTransform(); return; }
   if (action === 'viewer-download') {
     const a = document.createElement('a');
     a.href = el.dataset.url;
