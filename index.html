@@ -658,9 +658,7 @@ function resetPerPatientUiState() {
   ADD_DEXA_OPEN = false;
   RX_PHOTOS = [];
   INV_PHOTOS = [];
-  FU_PHOTOS = [];
-  FU_CLINICAL_PHOTOS = [];
-  FU_WOUND_PHOTOS = [];
+  FU_INV_PHOTOS = [];
 }
 let ADD_FOLLOWUP_OPEN = false;
 let EXPANDED_FOLLOWUP = new Set();
@@ -769,9 +767,9 @@ function trackUrl(u) { ACTIVE_URLS.push(u); return u; }
 // temp state for add-patient photo staging: [{tempId, blob, previewUrl, label}]
 let AP_PHOTOS = [];
 // temp state for add-followup photo staging
-let FU_PHOTOS = []; // X-ray photos for this follow-up visit
-let FU_CLINICAL_PHOTOS = [];
-let FU_WOUND_PHOTOS = [];
+let FU_INV_PHOTOS = [];
+let FU_INV_CATEGORY = 'xray';
+let FU_INV_XRAY_SUBTYPE = FU_XRAY_SUBTYPES[0];
 // temp state for add-investigation photo staging
 let INV_PHOTOS = [];
 
@@ -1677,6 +1675,11 @@ function renderListView() {
 
   const allTags = [...new Set(PATIENTS.flatMap(p => p.tags || []))].sort();
 
+  const CUTOFF_DAYS = 60;
+  const cutoffDate = new Date(); cutoffDate.setDate(cutoffDate.getDate() - CUTOFF_DAYS);
+  const isRecentOrPinned = (p) => p.pinned || (p.surgeryDate && new Date(p.surgeryDate) >= cutoffDate);
+  const olderCount = PATIENTS.filter(p => !isRecentOrPinned(p)).length;
+
   const filtered = PATIENTS.filter(p => {
     if (FILTER_TYPE !== 'all' && !(p.regions||[]).includes(FILTER_TYPE)) return false;
     if (TAG_FILTER && !(p.tags||[]).includes(TAG_FILTER)) return false;
@@ -1684,6 +1687,8 @@ function renderListView() {
       const hit = matchCase(p, SEARCH);
       if (!hit) return false;
       p._searchMatchField = hit.field;
+    } else {
+      if (!isRecentOrPinned(p)) return false;
     }
     return true;
   }).sort((a,b) => {
@@ -1711,35 +1716,44 @@ function renderListView() {
     }
   }
 
+  const recencyNote = (!SEARCH && olderCount > 0)
+    ? '<p style="font-size:11px;color:var(--muted);margin:6px 2px 0;">Showing recent (last 2 months) + pinned. '+olderCount+' older patient'+(olderCount===1?'':'s')+' \u2014 search by name/ID to find them.</p>'
+    : '';
+
   let cards = '';
   if (!filtered.length) {
     const noCasesAtAll = PATIENTS.length === 0;
+    const noneRecent = !noCasesAtAll && !SEARCH && FILTER_TYPE === 'all' && !TAG_FILTER && olderCount > 0;
     cards = '<div class="empty-state">'
       + '<div class="empty-icon-wrap">'+ic(noCasesAtAll ? 'clipboard' : 'search')+'</div>'
       + (noCasesAtAll
           ? '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No cases yet</p><p style="font-size:12px;margin:2px 0 0;">Start your databook by adding your first patient.</p>'
-          : '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No matches</p><p style="font-size:12px;margin:2px 0 0;">Try a different search term or clear the filters.</p>')
+          : noneRecent
+            ? '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No recent patients</p><p style="font-size:12px;margin:2px 0 0;">You have '+olderCount+' older patient'+(olderCount===1?'':'s')+' \u2014 search by name or ID to find them.</p>'
+            : '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No matches</p><p style="font-size:12px;margin:2px 0 0;">Try a different search term or clear the filters.</p>')
       + (noCasesAtAll ? '<button class="btn btn-primary" style="width:auto;padding:9px 18px;margin-top:4px;" data-action="go-add">'+ic('plus')+' Add your first case</button>'
+          : noneRecent ? ''
           : '<button class="btn" style="width:auto;padding:9px 18px;margin-top:4px;" data-action="clear-list-filters">Clear search &amp; filters</button>')
       + '</div>';
   } else {
     cards = '<div style="display:flex;flex-direction:column;gap:8px;">';
     filtered.forEach(p => {
       const dot = caseStatusDot(p);
-      const summaryText = p.diagnosis ? displayDiagnosis(p.diagnosis) : (p.chiefComplaints ? 'C/O: ' + p.chiefComplaints : '');
-      const metaBits = [formatAge(p) + ' ' + p.sex, p.patientCode].filter(Boolean).join(' \u00b7 ');
+      const summaryText = p.caseType === 'surgical'
+        ? (p.procedure ? sideTag(p) + p.procedure : '')
+        : (p.diagnosis ? sideTag(p) + displayDiagnosis(p.diagnosis) : '');
       cards += '<div class="case-card" data-action="open-patient" data-id="'+p.id+'">'
         + '<div style="min-width:0;flex:1;">'
-        + '<div class="row gap2">'
+        + (p.patientCode ? '<div class="mono" style="font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:0.02em;">'+esc(p.patientCode)+'</div>' : '')
+        + '<div class="row gap2" style="margin-top:1px;">'
         + (dot ? '<span class="status-dot" style="background:'+dot.color+';" title="'+dot.label+'"></span>' : '')
         + (p.pinned ? '<span style="color:var(--accent);flex:none;">'+ic('pin')+'</span>' : '')
         + '<span class="display" style="font-weight:800;font-size:15px;">'+escName(p.name)+'</span>'
+        + '<span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+'</span>'
         + '</div>'
         + '<div style="font-size:12.5px;color:#334155;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
-        + (summaryText ? '<span style="font-weight:600;">'+esc(sideTag(p))+esc(summaryText)+'</span>' : '<span style="color:var(--muted);">No diagnosis yet</span>')
-        + (metaBits ? ' <span class="mono" style="color:var(--muted);">\u00b7 '+esc(metaBits)+'</span>' : '')
+        + (summaryText ? '<span style="font-weight:600;">'+esc(summaryText)+'</span>' : '<span style="color:var(--muted);">No diagnosis yet</span>')
         + '</div>'
-        + (isOverdue(p.nextFollowUpDate) ? '<button type="button" class="overdue-note" data-action="open-patient-followup" data-id="'+p.id+'" style="background:none;border:none;padding:0;margin-top:4px;text-decoration:underline;">'+ic('alert')+' Follow-up overdue since '+fmtDate(p.nextFollowUpDate)+'</button>' : '')
         + '</div>'
         + '<span style="color:#cbd5e1;margin-left:8px;">'+ic('chevron')+'</span>'
         + '</div>';
@@ -1762,6 +1776,7 @@ function renderListView() {
     + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
     + tagChips
+    + recencyNote
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'+continueLastPatientHtml()+renderDashboardSection()
     + (PATIENTS.length ? (SHOW_LEGEND
@@ -1806,28 +1821,40 @@ function apInvCatLabel(cat) {
   const found = IMAGES_RECORDS_SECTIONS.find(s => s[0] === cat);
   return found ? found[1] : cat;
 }
-function apInvThumbsHtml() {
-  if (!AP_INVESTIGATIONS.length) return '<p style="font-size:11.5px;color:var(--muted);margin:0;">No photos added yet.</p>';
+function categorizedThumbsHtml(photos, removeAction) {
+  if (!photos.length) return '<p style="font-size:11.5px;color:var(--muted);margin:0;">No photos added yet.</p>';
   let html = '<div class="thumb-grid">';
-  AP_INVESTIGATIONS.forEach(ph => {
+  photos.forEach(ph => {
     const label = apInvCatLabel(ph.category) + (ph.xraySubtype ? ' \u00b7 ' + ph.xraySubtype : '');
-    html += '<div class="thumb-wrap"><img src="'+ph.previewUrl+'"><span class="badge badge-slate" style="position:absolute;bottom:3px;left:3px;right:3px;font-size:8.5px;padding:2px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(label)+'</span><button class="thumb-remove" data-action="ap-inv-remove-photo" data-tempid="'+ph.tempId+'">\u2715</button></div>';
+    html += '<div class="thumb-wrap"><img src="'+ph.previewUrl+'"><span class="badge badge-slate" style="position:absolute;bottom:3px;left:3px;right:3px;font-size:8.5px;padding:2px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(label)+'</span><button class="thumb-remove" data-action="'+removeAction+'" data-tempid="'+ph.tempId+'">\u2715</button></div>';
   });
   html += '</div>';
   return html;
 }
-async function handleApInvPhotoChange(fileInput) {
+function fuInvControlsHtml() {
+  return (FU_INV_CATEGORY === 'xray' ? '<select class="select" id="fu-inv-xray-subtype" style="margin-bottom:8px;">'+FU_XRAY_SUBTYPES.map(s=>'<option'+(FU_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
+    + '<label class="btn btn-block" style="cursor:pointer;margin-bottom:8px;">'+ic('camera')+' Add photo to '+esc(apInvCatLabel(FU_INV_CATEGORY))+(FU_INV_CATEGORY==='xray'?' \u2014 '+esc(FU_INV_XRAY_SUBTYPE):'')+'<input type="file" accept="image/*" multiple data-photo-input="fu-inv-remove-photo" style="display:none;"></label>';
+}
+function apInvThumbsHtml() { return categorizedThumbsHtml(AP_INVESTIGATIONS, 'ap-inv-remove-photo'); }
+function fuInvThumbsHtml() { return categorizedThumbsHtml(FU_INV_PHOTOS, 'fu-inv-remove-photo'); }
+async function handleCategorizedPhotoChange(fileInput, targetArray, category, xraySubtype, containerId, thumbsFn) {
   const files = Array.from(fileInput.files || []);
   if (!files.length) return;
   toast('Processing '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
   for (const file of files) {
     const blob = await resizeImageFile(file);
     const previewUrl = trackUrl(URL.createObjectURL(blob));
-    AP_INVESTIGATIONS.push({ tempId: uid(), blob, previewUrl, category: AP_INV_CATEGORY, xraySubtype: AP_INV_CATEGORY === 'xray' ? AP_INV_XRAY_SUBTYPE : null });
+    targetArray.push({ tempId: uid(), blob, previewUrl, category, xraySubtype: category === 'xray' ? xraySubtype : null });
   }
-  const container = document.getElementById('ap-inv-thumbs');
-  if (container) container.outerHTML = '<div id="ap-inv-thumbs">'+apInvThumbsHtml()+'</div>';
+  const container = document.getElementById(containerId);
+  if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbsFn()+'</div>';
   toast('Added');
+}
+async function handleApInvPhotoChange(fileInput) {
+  await handleCategorizedPhotoChange(fileInput, AP_INVESTIGATIONS, AP_INV_CATEGORY, AP_INV_XRAY_SUBTYPE, 'ap-inv-thumbs', apInvThumbsHtml);
+}
+async function handleFuInvPhotoChange(fileInput) {
+  await handleCategorizedPhotoChange(fileInput, FU_INV_PHOTOS, FU_INV_CATEGORY, FU_INV_XRAY_SUBTYPE, 'fu-inv-thumbs', fuInvThumbsHtml);
 }
 
 async function handlePhotoInputChange(fileInput, targetArray, containerId) {
@@ -2415,6 +2442,7 @@ const IMAGES_RECORDS_SECTIONS = [
   ['investigations','Investigations'], ['injections','Injections'],
 ];
 const XRAY_SUBTYPES = ['General OPD','Pre-Reduction','Post-Reduction','Pre-op','Post-op'];
+const FU_XRAY_SUBTYPES = XRAY_SUBTYPES.filter(s => s !== 'Pre-Reduction' && s !== 'Pre-op');
 
 function imageBucketGridHtml(images, uploadAttrs) {
   let grid = '<div class="thumb-grid">';
@@ -2515,9 +2543,10 @@ async function renderFollowupsTab(p) {
           + (ROM_JOINT_FIELDS[p.romTracking.jointType]||[]).map(([k,l])=>'<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">'+l+'</label><input class="input" type="number" min="0" max="150" id="fu-rom-'+k+'" placeholder="\u00b0"></div>').join('')
           + '</div>'
         ) : '')
-      + '<label class="field-label">X-ray</label><div id="fu-thumbs">'+thumbGridHtml(FU_PHOTOS,'fu-remove-photo')+'</div>'
-      + '<label class="field-label" style="margin-top:10px;">Clinical Image</label><div id="fu-clinical-thumbs">'+thumbGridHtml(FU_CLINICAL_PHOTOS,'fu-clinical-remove-photo')+'</div>'
-      + '<label class="field-label" style="margin-top:10px;">Wound / Suture Photo</label><div id="fu-wound-thumbs">'+thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo')+'</div>'
+      + '<label class="field-label">Add photo (optional)</label>'
+      + '<select class="select" id="fu-inv-category" style="margin-bottom:8px;">'+IMAGES_RECORDS_SECTIONS.map(([v,l])=>'<option value="'+v+'"'+(FU_INV_CATEGORY===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'
+      + '<div id="fu-inv-controls">'+fuInvControlsHtml()+'</div>'
+      + '<div id="fu-inv-thumbs">'+fuInvThumbsHtml()+'</div>'
       + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
       + '<label class="field-label" style="margin-top:10px;">Next follow-up date (optional)</label>'
       + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
@@ -4603,9 +4632,12 @@ document.addEventListener('click', async (e) => {
   if (action === 'ap-set-special') { syncApTempFromDom(); AP_TEMP.condition = el.dataset.value; render(); return; }
 
   if (action === 'ap-remove-photo') { AP_PHOTOS = AP_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('ap-thumbs').innerHTML = thumbGridHtml(AP_PHOTOS,'ap-remove-photo'); return; }
-  if (action === 'fu-remove-photo') { FU_PHOTOS = FU_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-thumbs').innerHTML = thumbGridHtml(FU_PHOTOS,'fu-remove-photo'); return; }
-  if (action === 'fu-wound-remove-photo') { FU_WOUND_PHOTOS = FU_WOUND_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-wound-thumbs').innerHTML = thumbGridHtml(FU_WOUND_PHOTOS,'fu-wound-remove-photo'); return; }
-  if (action === 'fu-clinical-remove-photo') { FU_CLINICAL_PHOTOS = FU_CLINICAL_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('fu-clinical-thumbs').innerHTML = thumbGridHtml(FU_CLINICAL_PHOTOS,'fu-clinical-remove-photo'); return; }
+  if (action === 'fu-inv-remove-photo') {
+    FU_INV_PHOTOS = FU_INV_PHOTOS.filter(p => p.tempId !== el.dataset.tempid);
+    const container = document.getElementById('fu-inv-thumbs');
+    if (container) container.outerHTML = '<div id="fu-inv-thumbs">'+fuInvThumbsHtml()+'</div>';
+    return;
+  }
   if (action === 'inv-remove-photo') { INV_PHOTOS = INV_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('inv-thumbs').innerHTML = thumbGridHtml(INV_PHOTOS,'inv-remove-photo'); return; }
   if (action === 'rx-remove-photo') { RX_PHOTOS = RX_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('rx-thumbs').innerHTML = thumbGridHtml(RX_PHOTOS,'rx-remove-photo'); return; }
 
@@ -4756,8 +4788,8 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'open-add-fu') { FU_PHOTOS = []; FU_CLINICAL_PHOTOS = []; FU_WOUND_PHOTOS = []; ADD_FOLLOWUP_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
-  if (action === 'cancel-add-fu') { FU_PHOTOS = []; FU_CLINICAL_PHOTOS = []; FU_WOUND_PHOTOS = []; ADD_FOLLOWUP_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'open-add-fu') { FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'cancel-add-fu') { FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
   if (action === 'fu-set-label') { const inp = document.getElementById('fu-label'); if (inp) inp.value = el.dataset.value; return; }
   if (action === 'fu-set-next-followup') {
     const inp = document.getElementById('fu-next-followup');
@@ -4790,7 +4822,7 @@ document.addEventListener('click', async (e) => {
       const vals = {}; fields.forEach(([k]) => { const el2 = document.getElementById('fu-rom-'+k); if (el2) vals[k] = el2.value; });
       if (Object.values(vals).some(v => v)) rom = vals;
     }
-    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rust, rom, imageCount: FU_PHOTOS.length + FU_WOUND_PHOTOS.length };
+    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rust, rom, imageCount: FU_INV_PHOTOS.length };
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
     const nextFuEl = document.getElementById('fu-next-followup');
@@ -4799,17 +4831,14 @@ document.addEventListener('click', async (e) => {
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
     await dbPutPatient(p);
-    for (const ph of FU_PHOTOS) {
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: 'xray', xraySubtype: 'Follow-up' });
-    }
-    for (const ph of FU_CLINICAL_PHOTOS) {
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: 'clinical' });
-    }
-    for (const ph of FU_WOUND_PHOTOS) {
-      await dbAddImage({ id: uid(), patientId: p.id, followUpId: fu.id, isWoundPhoto: true, imageCategory: 'wound', blob: ph.blob, createdAt: Date.now() });
+    for (const ph of FU_INV_PHOTOS) {
+      const imgRec = { id: uid(), patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: ph.category };
+      if (ph.category === 'xray' && ph.xraySubtype) imgRec.xraySubtype = ph.xraySubtype;
+      if (ph.category === 'wound') imgRec.isWoundPhoto = true;
+      await dbAddImage(imgRec);
     }
     await refreshPatients();
-    FU_PHOTOS = []; FU_CLINICAL_PHOTOS = []; FU_WOUND_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
+    FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -5355,6 +5384,13 @@ document.addEventListener('change', async (e) => {
   if (t.id === 'ap-condition') { syncApTempFromDom(); AP_TEMP.condition = t.value; render(); return; }
   if (t.id === 'ap-inv-category') { syncApTempFromDom(); AP_INV_CATEGORY = t.value; render(); return; }
   if (t.id === 'ap-inv-xray-subtype') { AP_INV_XRAY_SUBTYPE = t.value; return; }
+  if (t.id === 'fu-inv-category') {
+    FU_INV_CATEGORY = t.value;
+    const container = document.getElementById('fu-inv-controls');
+    if (container) container.outerHTML = fuInvControlsHtml();
+    return;
+  }
+  if (t.id === 'fu-inv-xray-subtype') { FU_INV_XRAY_SUBTYPE = t.value; return; }
 
   if (t.dataset && t.dataset.ctevField) {
     const p = getPatient(SELECTED_ID);
@@ -5414,9 +5450,7 @@ document.addEventListener('change', async (e) => {
   if (t.matches && t.matches('[data-photo-input]')) {
     const which = t.dataset.photoInput;
     if (which === 'ap-remove-photo') await handlePhotoInputChange(t, AP_PHOTOS, 'ap-thumbs');
-    else if (which === 'fu-remove-photo') await handlePhotoInputChange(t, FU_PHOTOS, 'fu-thumbs');
-    else if (which === 'fu-wound-remove-photo') await handlePhotoInputChange(t, FU_WOUND_PHOTOS, 'fu-wound-thumbs');
-    else if (which === 'fu-clinical-remove-photo') await handlePhotoInputChange(t, FU_CLINICAL_PHOTOS, 'fu-clinical-thumbs');
+    else if (which === 'fu-inv-remove-photo') await handleFuInvPhotoChange(t);
     else if (which === 'inv-remove-photo') await handlePhotoInputChange(t, INV_PHOTOS, 'inv-thumbs');
     else if (which === 'rx-remove-photo') await handlePhotoInputChange(t, RX_PHOTOS, 'rx-thumbs');
     else if (which === 'ap-inv-remove-photo') await handleApInvPhotoChange(t);
