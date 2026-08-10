@@ -1682,7 +1682,7 @@ function usearchResultRowHtml(p, q) {
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
-const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','compare-picker','compare-view','print'];
+const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','compare-picker','compare-view','print'];
 function updateUsearchFabVisibility() {
   const wrap = document.getElementById('usearch-fab-wrap');
   if (!wrap) return;
@@ -1790,6 +1790,7 @@ function renderListView() {
     + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;"><span style="font-weight:800;color:var(--accent);font-size:13px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p></div></div>'
     + '<div class="row gap2">'
     + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
+    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<button class="icon-btn" data-action="open-ai-query" title="Ask AI about your patients">'+ic('shield')+'</button>' : '')
     + '<button class="icon-btn" data-action="open-more" title="More">'+ic('menu')+'</button>'
     + '<button class="icon-btn" data-action="go-quick-add" title="Quick Add (Front Desk) \u2014 name + complaints only, fill rest later">'+ic('clock')+'</button>'
     + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:4px;padding:9px 12px;" data-action="go-add">'+ic('plus')+' Add</button>'
@@ -1931,6 +1932,30 @@ function initQuickAddTemp() { QUICK_ADD_TEMP = { name:'', age:'', ageMonths:'', 
 function syncQuickAddFromDom() {
   ['name','age','ageMonths','chiefComplaints'].forEach(f => { const el = document.getElementById('qa-'+(f==='chiefComplaints'?'complaints':f==='ageMonths'?'agemonths':f)); if (el) QUICK_ADD_TEMP[f] = el.value; });
 }
+function buildPatientDataSummaryForAi() {
+  return PATIENTS.map(p => {
+    const parts = [
+      p.patientCode || p.id.slice(0,6),
+      p.name, p.sex, formatAge(p), p.caseType,
+      p.diagnosis || '', p.side || '', p.condition || '',
+      p.surgeryType || '', p.classification || '', p.procedure || '',
+      p.surgeryDate ? ('date:'+p.surgeryDate) : '',
+      p.nextFollowUpDate ? ('next-fu:'+p.nextFollowUpDate) : '',
+      (p.tags||[]).length ? ('tags:'+p.tags.join(',')) : ''
+    ].filter(Boolean).join(' | ');
+    return parts;
+  }).join('\n');
+}
+function renderAiQueryView() {
+  return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
+    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-query">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ask AI about your patients</h2><span style="width:36px;"></span></div>'
+    + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;">Plain-language question over your current patient list (' + PATIENTS.length + ' patients). Answers only from your own data \u2014 nothing external.</p>'
+    + '<textarea class="textarea" id="ai-query-input" rows="3" placeholder="e.g. List all CTEV cases from the last 6 months\u2026">'+esc(AI_QUERY_TEXT||'')+'</textarea>'
+    + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-query">'+ic('shield')+' Ask</button>'
+    + (AI_QUERY_ANSWER ? '<div class="card" style="margin-top:16px;white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_QUERY_ANSWER)+'</div>' : '')
+    + '</div>';
+}
+
 function renderQuickAddView() {
   return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
     + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="cancel-quick-add">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Quick Add (Front Desk)</h2><span style="width:36px;"></span></div>'
@@ -2035,7 +2060,7 @@ function renderAddView() {
     + '<div class="card" style="padding:14px;">' + tabBody + '</div>'
 
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea>'
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<button class="btn btn-sm" style="margin-top:8px;" data-action="ai-fill-from-notes">'+ic('search')+' AI: Fill diagnosis/duration/side from notes</button><div id="ai-fill-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>' : '')
+    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<button class="btn btn-sm" style="margin-top:8px;" data-action="ai-fill-from-notes">'+ic('mic')+' AI: Fill all fields from notes</button><div id="ai-fill-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>' : '')
     + '</div>'
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
@@ -2145,6 +2170,8 @@ function renderOverviewTab(p) {
 }
 
 let AI_TAG_SUGGESTIONS = null;
+let AI_QUERY_ANSWER = null;
+let AI_QUERY_TEXT = '';
 function tagsCardHtml(p) {
   const tags = p.tags || [];
   const recentCustomTags = topTextChips(TAG_LIB_KEY, 6).map(x=>x.value).filter(t => !PRESET_TAGS.includes(t) && !tags.includes(t));
@@ -4122,6 +4149,7 @@ async function render() {
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
   if (VIEW === 'quick-add') { app.innerHTML = renderQuickAddView(); return; }
+  if (VIEW === 'ai-query') { app.innerHTML = renderAiQueryView(); return; }
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
   if (VIEW === 'compare-picker') { app.innerHTML = await renderComparePickerView(); return; }
@@ -4430,7 +4458,7 @@ async function importBackup(file) {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-settings','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-settings','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -4586,19 +4614,25 @@ document.addEventListener('click', async (e) => {
     try {
       const askClaude = firebaseFunctions.httpsCallable('askClaude');
       const isSurgical = AP_TEMP.caseType === 'surgical';
-      const sys = 'You are a clinical data extraction assistant for an orthopaedic practice app. Given free-text clinical notes, extract fields and return ONLY a JSON object, no markdown fences, no explanation. Fields: {"diagnosis": string, "symptomDuration": string, "side": one of "Left","Right","Bilateral", or "", "chiefComplaints": string}. Leave a field as an empty string if it is not mentioned or not applicable. symptomDuration should be short, like "3 months" or "2 weeks". chiefComplaints is the patient-reported presenting complaint' + (isSurgical ? ' (usually not applicable for a surgical case, leave empty unless clearly stated)' : '') + '.';
+      const sys = 'You are a clinical data extraction assistant for an orthopaedic practice app. Given free-text dictated notes from a doctor during patient intake, extract fields and return ONLY a JSON object, no markdown fences, no explanation. Fields: {"name": string, "age": string (years, digits only), "ageMonths": string (months, digits only, usually empty unless a young child), "sex": one of "M","F", or "", "occupation": string, "handDominance": one of "Left","Right","Ambidextrous", or "", "diagnosis": string, "symptomDuration": string, "side": one of "Left","Right","Bilateral", or "", "chiefComplaints": string}. Leave a field as an empty string if it is not mentioned. symptomDuration should be short, like "3 months" or "2 weeks". chiefComplaints is the patient-reported presenting complaint' + (isSurgical ? ' (usually not applicable for a surgical case, leave empty unless clearly stated)' : '') + '.';
       const result = await askClaude({ systemPrompt: sys, userMessage: notesText, maxTokens: 300 });
       let raw = (result.data.text || '').trim();
       raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
       const extracted = JSON.parse(raw);
       let filledCount = 0;
+      if (extracted.name) { AP_TEMP.name = extracted.name; filledCount++; }
+      if (extracted.age) { AP_TEMP.age = extracted.age; filledCount++; }
+      if (extracted.ageMonths) { AP_TEMP.ageMonths = extracted.ageMonths; filledCount++; }
+      if (extracted.sex && ['M','F'].includes(extracted.sex)) { AP_TEMP.sex = extracted.sex; filledCount++; }
+      if (extracted.occupation) { AP_TEMP.occupation = extracted.occupation; filledCount++; }
+      if (extracted.handDominance && ['Left','Right','Ambidextrous'].includes(extracted.handDominance)) { AP_TEMP.handDominance = extracted.handDominance; filledCount++; }
       if (extracted.diagnosis) { AP_TEMP.diagnosis = extracted.diagnosis; filledCount++; }
       if (extracted.symptomDuration) { AP_TEMP.symptomDuration = extracted.symptomDuration; filledCount++; }
       if (extracted.side && ['Left','Right','Bilateral'].includes(extracted.side)) { AP_TEMP.side = extracted.side; filledCount++; }
       if (extracted.chiefComplaints && !isSurgical) { AP_TEMP.chiefComplaints = extracted.chiefComplaints; filledCount++; }
-      AP_SUBTAB = 'complaints';
+      AP_SUBTAB = 'details';
       render();
-      toast(filledCount ? ('Filled ' + filledCount + ' field(s) \u2014 please review') : 'Nothing clear to extract from those notes');
+      toast(filledCount ? ('Filled ' + filledCount + ' field(s) across tabs \u2014 please review each tab') : 'Nothing clear to extract from those notes');
     } catch (err) {
       console.error('AI fill failed:', err);
       if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = '\u2717 ' + (err && err.message ? err.message : 'Request failed'); }
@@ -4629,6 +4663,30 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'go-add') { initApTemp(); AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
   if (action === 'go-quick-add') { initQuickAddTemp(); VIEW='quick-add'; render(); return; }
+  if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
+  if (action === 'close-ai-query') { VIEW = 'list'; render(); return; }
+  if (action === 'ask-ai-query') {
+    const inputEl = document.getElementById('ai-query-input');
+    AI_QUERY_TEXT = inputEl ? inputEl.value.trim() : '';
+    if (!AI_QUERY_TEXT) { toast('Type a question first'); return; }
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Reading your patient list\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const dataSummary = buildPatientDataSummaryForAi();
+      const sys = 'You are a data assistant for a single orthopaedic doctor\u2019s own patient log. Below is their patient list, one per line: PatientID | Name | Sex | Age | CaseType | Diagnosis | Side | SpecialCondition | SurgeryType | Classification | Procedure | date:SurgeryDate | next-fu:NextFollowUpDate | tags:Tag1,Tag2\n\nAnswer the doctor\u2019s question using ONLY this data. If listing patients, include Name and PatientID. Be concise. If nothing matches, say so plainly. Do not invent data not present in the list.\n\nPATIENT LIST:\n' + dataSummary;
+      const result = await askClaude({ systemPrompt: sys, userMessage: AI_QUERY_TEXT, maxTokens: 1024 });
+      AI_QUERY_ANSWER = result.data.text || '(empty response)';
+      render();
+    } catch (err) {
+      console.error('AI query failed:', err);
+      toast('AI query failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
   if (action === 'clear-list-filters') { SEARCH = ''; FILTER_TYPE = 'all'; TAG_FILTER = ''; render(); return; }
   if (action === 'quick-fill-text') {
     const target = document.getElementById(el.dataset.target);
