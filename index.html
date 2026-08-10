@@ -1042,6 +1042,13 @@ function calcPOD(p, dateStr) {
 
 /* ---- Smart tags ---- */
 const PRESET_TAGS = ['Interesting', 'Teaching Slide', 'Complication', 'Exam Case', 'Revision'];
+const OP_NOTE_TEMPLATES = [
+  ['TKR', 'Diagnosis: \nAnaesthesia: \nApproach: Medial parapatellar\nTourniquet time: \nFindings: \nProcedure: Standard TKR \u2014 femoral cut, tibial cut, trial reduction, final implantation with cement\nImplant used: \nAlignment/stability checked: satisfactory\nClosure: Layered closure, drain [placed/not placed]\nBlood loss: \nPost-op plan: '],
+  ['THR', 'Diagnosis: \nAnaesthesia: \nApproach: Posterior/Lateral\nFindings: \nProcedure: Standard THR \u2014 acetabular preparation, cup placement, femoral preparation, stem + head placement, trial reduction, final implantation\nImplant used: \nStability checked: satisfactory, no impingement\nClosure: Layered closure, drain [placed/not placed]\nBlood loss: \nPost-op plan: '],
+  ['DHS', 'Diagnosis: Intertrochanteric fracture\nAnaesthesia: \nApproach: Lateral, standard DHS approach\nReduction: Closed reduction on traction table, checked under II\nProcedure: Guidewire placement, triangulation check, DHS plate + screw fixation\nImplant used: DHS [size] with [barrel length] plate\nFixation checked under II: satisfactory, TAD acceptable\nClosure: Layered closure\nBlood loss: \nPost-op plan: '],
+  ['ORIF', 'Diagnosis: \nAnaesthesia: \nApproach: \nReduction: \nFixation: \nImplant used: \nStability/alignment checked under II: satisfactory\nClosure: Layered closure\nBlood loss: \nPost-op plan: '],
+  ['Arthroscopy', 'Diagnosis: \nAnaesthesia: \nPortals used: \nDiagnostic arthroscopy findings: \nProcedure performed: \nClosure: Portal closure\nPost-op plan: '],
+];
 const TAG_LIB_KEY = 'surgical-case-log-tag-lib-v1';
 const PRESET_COMORBIDITIES = ['Diabetes (DM)', 'Hypertension (BP)', 'Thyroid disorder', 'Smoking', 'Alcohol use', 'Obesity', 'Asthma / COPD', 'Cardiac disease (IHD)', 'CKD', 'On blood thinners'];
 
@@ -1278,12 +1285,12 @@ function renderAiDigestView() {
 
 function renderAiAssistantView() {
   const disclaimer = '<div class="card" style="background:#fffbeb;border-color:#fde68a;">'
-    + '<div style="display:flex;gap:8px;align-items:flex-start;"><span style="flex:none;color:#b45309;">'+ic('alert')+'</span><p style="font-size:11.5px;color:#92400e;margin:0;line-height:1.5;"><strong>Clinical decision-support, not a decision-maker.</strong> This lists considerations to weigh \u2014 differentials, investigations, red flags. It never gives you a single diagnosis or treatment plan. The final call, always, is yours.</p></div>'
+    + '<div style="display:flex;gap:8px;align-items:flex-start;"><span style="flex:none;color:#b45309;">'+ic('alert')+'</span><p style="font-size:11.5px;color:#92400e;margin:0;line-height:1.5;"><strong>Reference and support, not a decision-maker.</strong> For a case: considerations to weigh, never a single diagnosis or plan. For technique: the standard, widely-taught approach, not your final word \u2014 your training, seniors, and institutional protocol always take priority. The final call, always, is yours.</p></div>'
     + '</div>';
   return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
     + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-assistant">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ask OrthoVault</h2><span style="width:36px;"></span></div>'
     + disclaimer
-    + '<div style="margin-top:12px;"><label class="field-label">Case vignette</label><textarea class="textarea" id="ai-assistant-input" rows="5" placeholder="e.g. 42M, twisting injury, Lachman 2+, pivot shift positive, MRI shows ACL tear + lateral meniscus tear. What should I consider?">'+esc(AI_ASSISTANT_QUESTION||'')+'</textarea></div>'
+    + '<div style="margin-top:12px;"><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Case vignette or surgical approach question</label>'+micButtonHtml('ai-assistant-input')+'</div><textarea class="textarea" id="ai-assistant-input" rows="5" placeholder="e.g. 42M, twisting injury, Lachman 2+, pivot shift positive, MRI shows ACL tear + lateral meniscus tear. What should I consider?\n\u2014 or \u2014\nWalk me through the standard approach for a TKR.">'+esc(AI_ASSISTANT_QUESTION||'')+'</textarea></div>'
     + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-assistant">'+ic('heart')+' Get considerations</button>'
     + (AI_ASSISTANT_ANSWER ? '<div class="card" style="margin-top:16px;white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_ASSISTANT_ANSWER)+'</div>' + disclaimer : '')
     + '</div>';
@@ -1294,6 +1301,7 @@ function renderAiKnowledgeView() {
   return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
     + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-knowledge">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ortho Knowledge Engine</h2><span style="width:36px;"></span></div>'
     + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;">Ask "why" or "how", not just "what" \u2014 clinical reasoning and mechanisms, not a patient lookup.</p>'
+    + '<div class="row between" style="margin-bottom:4px;"><span></span>'+micButtonHtml('ai-knowledge-input')+'</div>'
     + '<textarea class="textarea" id="ai-knowledge-input" rows="3" placeholder="e.g. Why does a Segond fracture indicate ACL injury?">'+esc(AI_KNOWLEDGE_QUESTION||'')+'</textarea>'
     + '<label class="field-label" style="margin-top:10px;margin-bottom:4px;">Explain for</label>'
     + '<div class="seg" style="flex-wrap:wrap;height:auto;">' + levels.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:7px 12px;'+(AI_KNOWLEDGE_LEVEL===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="ai-knowledge-set-level" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
@@ -1308,7 +1316,7 @@ function renderAiHubView() {
     ['shield', 'Ask AI about your patients', 'Plain-language question over your whole patient list', 'open-ai-query'],
     ['shield', 'This Week\u2019s Digest', 'Surgeries, due follow-ups, overdue cases \u2014 summarized', 'open-ai-digest'],
     ['book', 'Ortho Knowledge Engine', 'Ask "why", not just "what" \u2014 clinical reasoning', 'open-ai-knowledge'],
-    ['heart', 'Ask OrthoVault', 'Case vignette \u2192 differentials, investigations, red flags', 'open-ai-assistant'],
+    ['heart', 'Ask OrthoVault', 'Case vignette or surgical approach \u2014 considerations, technique reference', 'open-ai-assistant'],
   ];
   const elsewhere = [
     ['Fill fields from notes (or voice)', 'Add Case \u2192 below the Notes field'],
@@ -2086,6 +2094,7 @@ function renderAiQueryView() {
   return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
     + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-query">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ask AI about your patients</h2><span style="width:36px;"></span></div>'
     + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;">Plain-language question over your current patient list (' + PATIENTS.length + ' patients). Answers only from your own data \u2014 nothing external.</p>'
+    + '<div class="row between" style="margin-bottom:4px;"><span></span>'+micButtonHtml('ai-query-input')+'</div>'
     + '<textarea class="textarea" id="ai-query-input" rows="3" placeholder="e.g. List all CTEV cases from the last 6 months\u2026">'+esc(AI_QUERY_TEXT||'')+'</textarea>'
     + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-query">'+ic('shield')+' Ask</button>'
     + (AI_QUERY_ANSWER ? '<div class="card" style="margin-top:16px;white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_QUERY_ANSWER)+'</div>' : '')
@@ -2323,7 +2332,9 @@ function renderOverviewTab(p) {
 
     + '<div style="display:flex;flex-direction:column;gap:12px;">' + tabBody + '</div>'
 
-    + '<div class="card"><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div><textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
+    + '<div class="card"><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
+    + (isSurgical ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'+OP_NOTE_TEMPLATES.map(([n]) => '<button type="button" class="chip" data-action="insert-op-template" data-value="'+esc(n)+'">'+ic('printer')+' '+esc(n)+'</button>').join('')+'</div>' : '')
+    + '<textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
     + tagsCardHtml(p)
     + reminderMiniCardHtml(p)
     + '</div>';
@@ -4842,6 +4853,18 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+  if (action === 'insert-op-template') {
+    const template = OP_NOTE_TEMPLATES.find(t => t[0] === el.dataset.value);
+    if (!template) return;
+    const notesEl = document.getElementById('ov-notes');
+    if (notesEl) {
+      const existing = notesEl.value.trim();
+      notesEl.value = existing ? (existing + '\n\n' + template[1]) : template[1];
+      await patchField('notes', notesEl.value);
+      toast(el.dataset.value + ' template inserted \u2014 fill in the blanks');
+    }
+    return;
+  }
   if (action === 'ai-suggest-tags') {
     const p = getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
@@ -4970,7 +4993,7 @@ document.addEventListener('click', async (e) => {
     el.disabled = true;
     try {
       const askClaude = firebaseFunctions.httpsCallable('askClaude');
-      const sys = 'You are a clinical decision-SUPPORT assistant for a practicing orthopaedic surgeon \u2014 you help them think through a case, you do NOT make the final call and you never present a single definitive diagnosis or treatment plan. Given a clinical vignette, structure your response with these headed sections: Likely diagnoses (plural, framed as possibilities to weigh), Important differentials to rule out, Relevant examination/tests to narrow it down, Investigations to consider, Treatment options (present the range, not one directive), Red flags to watch for, Important things not to miss. Be clinically thorough but concise, plain text with simple headers, no markdown formatting. If literature is genuinely divided on management, say so plainly. Frame everything as considerations for the doctor\u2019s own judgement, never as instructions.';
+      const sys = 'You are a clinical assistant for a practicing orthopaedic surgeon, helping them think through cases and surgical technique \u2014 you do NOT make the final call, and you never present anything as the single correct answer; the surgeon\u2019s own judgement, training, and institutional protocol always take priority. Two kinds of questions may come in \u2014 read the question and respond in the matching format:\n\n(A) A CLINICAL CASE (history/exam/imaging findings, asking what to consider): use these headed sections \u2014 Likely diagnoses (plural, framed as possibilities to weigh), Important differentials to rule out, Relevant examination/tests to narrow it down, Investigations to consider, Treatment options (present the range, not one directive), Red flags to watch for, Important things not to miss.\n\n(B) A SURGICAL APPROACH/TECHNIQUE question (asking how a procedure is done): describe the STANDARD, widely-taught approach only (as in established references like Campbell\u2019s Operative Orthopaedics or AO principles) \u2014 never a personal or novel variation presented as authoritative. Use these headed sections \u2014 Position, Approach/Incision, Layer-by-layer dissection, Structures at risk, Core steps, Common pitfalls/technical pearls, Closure. Explicitly note that technique varies by surgeon/institution and this is a general teaching reference, not a substitute for training or senior guidance \u2014 especially for anything the surgeon isn\u2019t already confident about.\n\nBe clinically thorough but concise, plain text with simple headers, no markdown formatting. If literature or technique is genuinely divided, say so plainly.';
       const result = await askClaude({ systemPrompt: sys, userMessage: AI_ASSISTANT_QUESTION, maxTokens: 1400 });
       AI_ASSISTANT_ANSWER = result.data.text || '(empty response)';
       render();
