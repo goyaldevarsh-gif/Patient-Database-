@@ -1271,6 +1271,63 @@ function renderAiDigestView() {
     + '</div>';
 }
 
+function renderAiAssistantView() {
+  const disclaimer = '<div class="card" style="background:#fffbeb;border-color:#fde68a;">'
+    + '<div style="display:flex;gap:8px;align-items:flex-start;"><span style="flex:none;color:#b45309;">'+ic('alert')+'</span><p style="font-size:11.5px;color:#92400e;margin:0;line-height:1.5;"><strong>Clinical decision-support, not a decision-maker.</strong> This lists considerations to weigh \u2014 differentials, investigations, red flags. It never gives you a single diagnosis or treatment plan. The final call, always, is yours.</p></div>'
+    + '</div>';
+  return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
+    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-assistant">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ask OrthoVault</h2><span style="width:36px;"></span></div>'
+    + disclaimer
+    + '<div style="margin-top:12px;"><label class="field-label">Case vignette</label><textarea class="textarea" id="ai-assistant-input" rows="5" placeholder="e.g. 42M, twisting injury, Lachman 2+, pivot shift positive, MRI shows ACL tear + lateral meniscus tear. What should I consider?">'+esc(AI_ASSISTANT_QUESTION||'')+'</textarea></div>'
+    + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-assistant">'+ic('heart')+' Get considerations</button>'
+    + (AI_ASSISTANT_ANSWER ? '<div class="card" style="margin-top:16px;white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_ASSISTANT_ANSWER)+'</div>' + disclaimer : '')
+    + '</div>';
+}
+
+function renderAiKnowledgeView() {
+  const levels = [['resident','Explain like I\u2019m a resident'],['colleague','Colleague-level, concise'],['patient','Patient-friendly, simple']];
+  return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
+    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-knowledge">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ortho Knowledge Engine</h2><span style="width:36px;"></span></div>'
+    + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;">Ask "why" or "how", not just "what" \u2014 clinical reasoning and mechanisms, not a patient lookup.</p>'
+    + '<textarea class="textarea" id="ai-knowledge-input" rows="3" placeholder="e.g. Why does a Segond fracture indicate ACL injury?">'+esc(AI_KNOWLEDGE_QUESTION||'')+'</textarea>'
+    + '<label class="field-label" style="margin-top:10px;margin-bottom:4px;">Explain for</label>'
+    + '<div class="seg" style="flex-wrap:wrap;height:auto;">' + levels.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:7px 12px;'+(AI_KNOWLEDGE_LEVEL===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="ai-knowledge-set-level" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
+    + '<button class="btn btn-primary btn-block" style="margin-top:12px;" data-action="ask-ai-knowledge">'+ic('shield')+' Ask</button>'
+    + (AI_KNOWLEDGE_ANSWER ? '<div class="card" style="margin-top:16px;white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_KNOWLEDGE_ANSWER)+'</div>' : '')
+    + '<p style="font-size:10.5px;color:var(--muted);margin-top:16px;">General clinical education/reference only \u2014 not tied to any patient record, and not a substitute for your own clinical judgement.</p>'
+    + '</div>';
+}
+
+function renderAiHubView() {
+  const directAccess = [
+    ['shield', 'Ask AI about your patients', 'Plain-language question over your whole patient list', 'open-ai-query'],
+    ['shield', 'This Week\u2019s Digest', 'Surgeries, due follow-ups, overdue cases \u2014 summarized', 'open-ai-digest'],
+    ['book', 'Ortho Knowledge Engine', 'Ask "why", not just "what" \u2014 clinical reasoning', 'open-ai-knowledge'],
+    ['heart', 'Ask OrthoVault', 'Case vignette \u2192 differentials, investigations, red flags', 'open-ai-assistant'],
+  ];
+  const elsewhere = [
+    ['Fill fields from notes (or voice)', 'Add Case \u2192 below the Notes field'],
+    ['Suggest tags', 'Overview \u2192 Tags card'],
+    ['Suggested investigations', 'Overview \u2192 Complaints & Diagnosis tab, below Diagnosis'],
+    ['Personalize WhatsApp reminder', 'Overview \u2192 Patient Details tab, below Follow-up Reminder'],
+    ['Draft a prescription', 'Prescriptions tab \u2192 New prescription form'],
+    ['Check for data-entry mismatches', 'Add Case \u2192 above Save, before you save a new case'],
+  ];
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-ai-hub">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">AI Features</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:10px;display:flex;flex-direction:column;gap:10px;">'
+    + directAccess.map(([icon,title,sub,action]) => moreRowHtml(icon,title,sub,action)).join('')
+    + '<div style="margin-top:8px;padding-top:12px;border-top:1px dashed var(--border);">'
+    + '<label class="field-label">Also built into the app, per-patient</label>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">'
+    + elsewhere.map(([title,loc]) => '<div class="card" style="padding:10px 12px;"><div style="font-size:13px;font-weight:700;">'+esc(title)+'</div><div style="font-size:11.5px;color:var(--muted);margin-top:2px;">'+esc(loc)+'</div></div>').join('')
+    + '</div></div>'
+    + '</div>'
+    + '</div>';
+}
+
 function renderMoreView() {
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
@@ -1279,7 +1336,7 @@ function renderMoreView() {
     + '<div class="px" style="padding-top:10px;display:flex;flex-direction:column;gap:10px;">'
     + moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead, App Lock, dark mode, reminders', 'open-settings')
     + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? moreRowHtml('shield', 'This Week\u2019s Digest (AI)', 'Surgeries, due follow-ups, and overdue cases \u2014 summarized', 'open-ai-digest') : '')
+    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? moreRowHtml('shield', 'AI Features', 'Everything AI in one place \u2014 patient queries, digest, knowledge engine, clinical assistant, and where the rest live', 'open-ai-hub') : '')
     + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
     + moreRowHtml('download', 'Export Backup', 'Save a zip of all cases, photos and reminders \u2014 tip: pick your Google Drive folder for an automatic cloud copy', 'export-backup')
     + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 handy for audits, CME records, or research', 'export-case-log')
@@ -1719,7 +1776,7 @@ function usearchResultRowHtml(p, q) {
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
-const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','ai-digest','compare-picker','compare-view','print'];
+const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','compare-picker','compare-view','print'];
 function updateUsearchFabVisibility() {
   const wrap = document.getElementById('usearch-fab-wrap');
   if (!wrap) return;
@@ -1827,7 +1884,6 @@ function renderListView() {
     + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;"><span style="font-weight:800;color:var(--accent);font-size:13px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p></div></div>'
     + '<div class="row gap2">'
     + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<button class="icon-btn" data-action="open-ai-query" title="Ask AI about your patients">'+ic('shield')+'</button>' : '')
     + '<button class="icon-btn" data-action="open-more" title="More">'+ic('menu')+'</button>'
     + '<button class="icon-btn" data-action="go-quick-add" title="Quick Add (Front Desk) \u2014 name + complaints only, fill rest later">'+ic('clock')+'</button>'
     + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:4px;padding:9px 12px;" data-action="go-add">'+ic('plus')+' Add</button>'
@@ -2236,6 +2292,11 @@ let AI_INVESTIGATION_SUGGESTIONS = null;
 let AI_PERSONALIZED_REMINDER = null;
 let AI_DIGEST_SUMMARY = null;
 let AI_SANITY_CHECK_RESULT = null;
+let AI_KNOWLEDGE_LEVEL = 'colleague';
+let AI_KNOWLEDGE_QUESTION = '';
+let AI_KNOWLEDGE_ANSWER = null;
+let AI_ASSISTANT_QUESTION = '';
+let AI_ASSISTANT_ANSWER = null;
 function tagsCardHtml(p) {
   const tags = p.tags || [];
   const recentCustomTags = topTextChips(TAG_LIB_KEY, 6).map(x=>x.value).filter(t => !PRESET_TAGS.includes(t) && !tags.includes(t));
@@ -4216,6 +4277,9 @@ async function render() {
   if (VIEW === 'quick-add') { app.innerHTML = renderQuickAddView(); return; }
   if (VIEW === 'ai-query') { app.innerHTML = renderAiQueryView(); return; }
   if (VIEW === 'ai-digest') { app.innerHTML = renderAiDigestView(); return; }
+  if (VIEW === 'ai-knowledge') { app.innerHTML = renderAiKnowledgeView(); return; }
+  if (VIEW === 'ai-assistant') { app.innerHTML = renderAiAssistantView(); return; }
+  if (VIEW === 'ai-hub') { app.innerHTML = renderAiHubView(); return; }
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
   if (VIEW === 'compare-picker') { app.innerHTML = await renderComparePickerView(); return; }
@@ -4524,7 +4588,7 @@ async function importBackup(file) {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-ai-digest','close-settings','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-settings','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -4805,7 +4869,65 @@ document.addEventListener('click', async (e) => {
   if (action === 'go-quick-add') { initQuickAddTemp(); VIEW='quick-add'; render(); return; }
   if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
   if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; VIEW = 'ai-digest'; render(); return; }
-  if (action === 'close-ai-digest') { VIEW = 'more'; render(); return; }
+  if (action === 'open-ai-knowledge') { AI_KNOWLEDGE_ANSWER = null; VIEW = 'ai-knowledge'; render(); return; }
+  if (action === 'open-ai-assistant') { AI_ASSISTANT_ANSWER = null; VIEW = 'ai-assistant'; render(); return; }
+  if (action === 'close-ai-assistant') { VIEW = 'ai-hub'; render(); return; }
+  if (action === 'ask-ai-assistant') {
+    const inputEl = document.getElementById('ai-assistant-input');
+    AI_ASSISTANT_QUESTION = inputEl ? inputEl.value.trim() : '';
+    if (!AI_ASSISTANT_QUESTION) { toast('Describe the case first'); return; }
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const sys = 'You are a clinical decision-SUPPORT assistant for a practicing orthopaedic surgeon \u2014 you help them think through a case, you do NOT make the final call and you never present a single definitive diagnosis or treatment plan. Given a clinical vignette, structure your response with these headed sections: Likely diagnoses (plural, framed as possibilities to weigh), Important differentials to rule out, Relevant examination/tests to narrow it down, Investigations to consider, Treatment options (present the range, not one directive), Red flags to watch for, Important things not to miss. Be clinically thorough but concise, plain text with simple headers, no markdown formatting. If literature is genuinely divided on management, say so plainly. Frame everything as considerations for the doctor\u2019s own judgement, never as instructions.';
+      const result = await askClaude({ systemPrompt: sys, userMessage: AI_ASSISTANT_QUESTION, maxTokens: 1400 });
+      AI_ASSISTANT_ANSWER = result.data.text || '(empty response)';
+      render();
+    } catch (err) {
+      console.error('AI assistant query failed:', err);
+      toast('AI query failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
+  if (action === 'close-ai-knowledge') { VIEW = 'ai-hub'; render(); return; }
+  if (action === 'ai-knowledge-set-level') {
+    const inputEl = document.getElementById('ai-knowledge-input');
+    AI_KNOWLEDGE_QUESTION = inputEl ? inputEl.value : '';
+    AI_KNOWLEDGE_LEVEL = el.dataset.value;
+    render();
+    return;
+  }
+  if (action === 'ask-ai-knowledge') {
+    const inputEl = document.getElementById('ai-knowledge-input');
+    AI_KNOWLEDGE_QUESTION = inputEl ? inputEl.value.trim() : '';
+    if (!AI_KNOWLEDGE_QUESTION) { toast('Type a question first'); return; }
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const levelInstructions = {
+        resident: 'Explain at the depth you would for a first-year orthopaedic resident \u2014 walk through the underlying mechanism/reasoning step by step, defining terms as you go, the way a teaching attending would.',
+        colleague: 'Explain concisely, colleague-to-colleague \u2014 assume strong existing orthopaedic knowledge, focus on the key reasoning without over-explaining basics.',
+        patient: 'Explain simply, in plain language a patient without medical training could follow \u2014 avoid jargon, use short sentences and everyday analogies.'
+      };
+      const sys = 'You are an orthopaedic clinical knowledge assistant for a practicing orthopaedic surgeon. Focus on the "why"/"how" \u2014 clinical reasoning and mechanisms, not just definitions. ' + (levelInstructions[AI_KNOWLEDGE_LEVEL] || levelInstructions.colleague) + ' If something is genuinely debated or evolving in the literature, say so plainly rather than presenting it as settled. This is general clinical education, not advice about any specific patient.';
+      const result = await askClaude({ systemPrompt: sys, userMessage: AI_KNOWLEDGE_QUESTION, maxTokens: 1024 });
+      AI_KNOWLEDGE_ANSWER = result.data.text || '(empty response)';
+      render();
+    } catch (err) {
+      console.error('AI knowledge query failed:', err);
+      toast('AI query failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
+  if (action === 'close-ai-digest') { VIEW = 'ai-hub'; render(); return; }
   if (action === 'ai-write-digest') {
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Writing\u2026';
@@ -4826,7 +4948,7 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
-  if (action === 'close-ai-query') { VIEW = 'list'; render(); return; }
+  if (action === 'close-ai-query') { VIEW = 'ai-hub'; render(); return; }
   if (action === 'ask-ai-query') {
     const inputEl = document.getElementById('ai-query-input');
     AI_QUERY_TEXT = inputEl ? inputEl.value.trim() : '';
@@ -5837,6 +5959,8 @@ document.addEventListener('click', async (e) => {
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); updateStorageIndicator(); return; }
   if (action === 'close-settings') { VIEW = 'more'; render(); return; }
   if (action === 'open-more') { VIEW = 'more'; render(); return; }
+  if (action === 'open-ai-hub') { VIEW = 'ai-hub'; render(); return; }
+  if (action === 'close-ai-hub') { VIEW = 'more'; render(); return; }
   if (action === 'close-more') { VIEW = 'list'; render(); return; }
   if (action === 'open-about') { VIEW = 'about'; render(); return; }
   if (action === 'close-about') { VIEW = 'more'; render(); return; }
