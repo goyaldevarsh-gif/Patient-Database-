@@ -16,6 +16,7 @@
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-functions-compat.js"></script>
 <script>
   /* ================= Firebase (Auth + Firestore + Storage) ================= */
   const firebaseConfig = {
@@ -30,6 +31,12 @@
   firebase.initializeApp(firebaseConfig);
   const firestoreDB = firebase.firestore();
   const firebaseStorage = firebase.storage();
+  const firebaseFunctions = firebase.app().functions('asia-south2');
+  // Only this account sees AI-feature UI. Must match the ALLOWED_UIDS
+  // entry in the Cloud Function - find your UID in Firebase Console ->
+  // Authentication -> Users. This is a UX nicety only; the real gate
+  // is server-side in the Cloud Function itself.
+  const MY_UID = 'oc3eOgkVgqQ200UoswTzEH1Feuh1';
   let CURRENT_USER = null;
   firebase.auth().onAuthStateChanged(function(user) {
     CURRENT_USER = user;
@@ -4529,6 +4536,26 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+  if (action === 'test-ai') {
+    const resultEl = document.getElementById('ai-test-result');
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Testing\u2026';
+    el.disabled = true;
+    if (resultEl) resultEl.textContent = '';
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const result = await askClaude({ userMessage: 'Reply with exactly one short sentence confirming you received this test message.' });
+      if (resultEl) { resultEl.style.color = 'var(--emerald,#16a34a)'; resultEl.textContent = '\u2713 ' + result.data.text; }
+      toast('AI connection working!');
+    } catch (err) {
+      console.error('AI test failed:', err);
+      if (resultEl) { resultEl.style.color = '#dc2626'; resultEl.textContent = '\u2717 ' + (err && err.message ? err.message : 'Request failed'); }
+      toast('AI test failed \u2014 see details below the button');
+    }
+    el.innerHTML = originalHtml;
+    el.disabled = false;
+    return;
+  }
   if (action === 'go-add') { initApTemp(); AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
   if (action === 'go-quick-add') { initQuickAddTemp(); VIEW='quick-add'; render(); return; }
   if (action === 'clear-list-filters') { SEARCH = ''; FILTER_TYPE = 'all'; TAG_FILTER = ''; render(); return; }
@@ -6117,6 +6144,13 @@ function syncCardHtml() {
           : '<button class="btn btn-sm btn-block" data-action="arm-delete" data-arm="restore-from-cloud:x">Force Full Restore from Cloud</button>')
       + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">Not usually needed \u2014 signing in already pulls everything down automatically. If this device has newer local changes for a patient, the cloud copy will overwrite them.</p>'
       + '<button class="btn btn-sm btn-block" data-action="account-sign-out">Sign out</button>'
+      + (user.uid === MY_UID
+          ? '<div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);">'
+            + '<label class="field-label">'+ic('shield')+' AI Features <span style="color:var(--muted);font-weight:500;">(only visible to you)</span></label>'
+            + '<button class="btn btn-sm btn-block" data-action="test-ai">Test AI Connection</button>'
+            + '<div id="ai-test-result" style="font-size:11.5px;color:var(--muted);margin-top:8px;"></div>'
+            + '</div>'
+          : '')
       + '</div>';
   }
   return '<div class="card">'
