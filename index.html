@@ -1328,6 +1328,42 @@ function renderAiHubView() {
     + '</div>';
 }
 
+function renderCashAuditView() {
+  const monthly = {};
+  let grandTotal = 0, grandCount = 0;
+  PATIENTS.forEach(p => {
+    if (p.paymentMethod !== 'Cash' && p.paymentMethod !== 'Both') return;
+    const amt = parseFloat(p.cashAmount);
+    if (!amt || isNaN(amt) || amt <= 0) return;
+    if (!p.surgeryDate) return;
+    const monthKey = p.surgeryDate.slice(0,7);
+    if (!monthly[monthKey]) monthly[monthKey] = { total: 0, count: 0, patients: [] };
+    monthly[monthKey].total += amt;
+    monthly[monthKey].count += 1;
+    monthly[monthKey].patients.push(p);
+    grandTotal += amt;
+    grandCount += 1;
+  });
+  const months = Object.keys(monthly).sort().reverse();
+  const monthLabel = (key) => { const [y,m] = key.split('-'); return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m,10)-1] + ' ' + y; };
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-cash-audit">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Cash Collection Audit</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:12px;">'
+    + '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;"><div class="stat-label">Total cash (all time)</div><div class="stat-value mono" style="font-size:22px;">\u20b9'+grandTotal.toLocaleString('en-IN')+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">across '+grandCount+' case'+(grandCount!==1?'s':'')+'</div></div>'
+    + (months.length ? months.map(mk => {
+        const m = monthly[mk];
+        return '<div class="card" style="margin-bottom:8px;">'
+          + '<div class="row between"><span style="font-size:13.5px;font-weight:700;">'+monthLabel(mk)+'</span><span class="mono" style="font-weight:800;">\u20b9'+m.total.toLocaleString('en-IN')+'</span></div>'
+          + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+m.count+' case'+(m.count!==1?'s':'')+': '+m.patients.map(p=>escName(p.name)).join(', ')+'</div>'
+          + '</div>';
+      }).join('')
+      : '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:24px;">No cash payments recorded yet.</p>')
+    + '</div>'
+    + '</div>';
+}
+
 function renderMoreView() {
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
@@ -1340,6 +1376,7 @@ function renderMoreView() {
     + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
     + moreRowHtml('download', 'Export Backup', 'Save a zip of all cases, photos and reminders \u2014 tip: pick your Google Drive folder for an automatic cloud copy', 'export-backup')
     + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 handy for audits, CME records, or research', 'export-case-log')
+    + moreRowHtml('printer', 'Cash Collection Audit', 'Monthly totals of cash payments across all surgical cases', 'open-cash-audit')
     + moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import')
     + '<input type="file" accept=".zip,application/zip" id="import-file-input" style="display:none;">'
     + '</div>'
@@ -1776,7 +1813,7 @@ function usearchResultRowHtml(p, q) {
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
-const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','compare-picker','compare-view','print'];
+const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','cash-audit','compare-picker','compare-view','print'];
 function updateUsearchFabVisibility() {
   const wrap = document.getElementById('usearch-fab-wrap');
   if (!wrap) return;
@@ -2000,7 +2037,7 @@ let AP_INV_CATEGORY = 'xray';
 let AP_INV_XRAY_SUBTYPE = 'General OPD';
 function initApTemp() {
   AP_TEMP = { name:'', age:'', ageMonths:'', sex:'M', occupation:'', handDominance:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
-    surgeryType:'Arthroplasty', procedure:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'', paymentMethod:'', insuranceType:'' };
+    surgeryType:'Arthroplasty', procedure:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
   AP_SUBTAB = 'details';
   AP_INVESTIGATIONS = [];
   AP_INV_CATEGORY = 'xray';
@@ -2008,7 +2045,7 @@ function initApTemp() {
   AI_SANITY_CHECK_RESULT = null;
 }
 function syncApTempFromDom() {
-  ['name','age','ageMonths','occupation','handDominance','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
+  ['name','age','ageMonths','occupation','handDominance','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
   const complaintsEl = document.getElementById('ap-complaints'); if (complaintsEl) AP_TEMP.chiefComplaints = complaintsEl.value;
@@ -2110,9 +2147,10 @@ function renderAddView() {
       + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
       + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
       + '<div><label class="field-label">Payment</label><div class="seg">'
-      + [['Cash','Cash'],['Insurance','Insurance']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.paymentMethod===v?' active':'')+'" data-action="ap-set-payment" data-value="'+v+'">'+l+'</button>').join('')
+      + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.paymentMethod===v?' active':'')+'" data-action="ap-set-payment" data-value="'+v+'">'+l+'</button>').join('')
       + '</div>'
-      + (AP_TEMP.paymentMethod==='Insurance' ? '<input class="input" id="ap-insurance" placeholder="Insurance type / company name" value="'+esc(AP_TEMP.insuranceType||'')+'" style="margin-top:8px;">' : '')
+      + (AP_TEMP.paymentMethod==='Insurance' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-insurance" placeholder="Insurance type / company name" value="'+esc(AP_TEMP.insuranceType||'')+'" style="margin-top:8px;">' : '')
+      + (AP_TEMP.paymentMethod==='Cash' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-cash-amount" type="number" inputmode="numeric" placeholder="Cash amount (\u20b9)" value="'+esc(AP_TEMP.cashAmount||'')+'" style="margin-top:8px;">' : '')
       + '</div>'
       + '</div>'
     ) : (
@@ -2233,9 +2271,10 @@ function renderOverviewTab(p) {
       + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('ov-procedure')
       + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
       + '<div><label class="field-label">Payment</label><div class="seg">'
-      + [['Cash','Cash'],['Insurance','Insurance']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('')
+      + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('')
       + '</div>'
-      + (p.paymentMethod==='Insurance' ? '<input class="input" data-field="insuranceType" placeholder="Insurance type / company name" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
+      + (p.paymentMethod==='Insurance' || p.paymentMethod==='Both' ? '<input class="input" data-field="insuranceType" placeholder="Insurance type / company name" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
+      + (p.paymentMethod==='Cash' || p.paymentMethod==='Both' ? '<input class="input" type="number" inputmode="numeric" data-field="cashAmount" placeholder="Cash amount (\u20b9)" value="'+esc(p.cashAmount||'')+'" style="margin-top:8px;">' : '')
       + '</div>'
       + '</div>'
       : '<div class="card"><label class="field-label">Special tracking (optional)</label><div class="seg">'
@@ -4270,8 +4309,11 @@ function renderCalendarView() {
 async function render() {
   const app = document.getElementById('app');
   app.classList.remove('view-transition'); void app.offsetWidth; app.classList.add('view-transition');
+  await renderCurrentView(app);
   updateUsearchFabVisibility();
   updateSideBackVisibility();
+}
+async function renderCurrentView(app) {
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
   if (VIEW === 'quick-add') { app.innerHTML = renderQuickAddView(); return; }
@@ -4280,6 +4322,7 @@ async function render() {
   if (VIEW === 'ai-knowledge') { app.innerHTML = renderAiKnowledgeView(); return; }
   if (VIEW === 'ai-assistant') { app.innerHTML = renderAiAssistantView(); return; }
   if (VIEW === 'ai-hub') { app.innerHTML = renderAiHubView(); return; }
+  if (VIEW === 'cash-audit') { app.innerHTML = renderCashAuditView(); return; }
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
   if (VIEW === 'compare-picker') { app.innerHTML = await renderComparePickerView(); return; }
@@ -4440,14 +4483,14 @@ function csvCell(v) {
   return '"' + s + '"';
 }
 function exportCaseLogCsv() {
-  const headers = ['Patient ID','Name','Age','Sex','Case Type','Diagnosis','Chief Complaints','Region / Specialty','Side','Procedure','Surgery Type','Date','Payment Method','Insurance Type','Next Follow-up','Status','Tags'];
+  const headers = ['Patient ID','Name','Age','Sex','Case Type','Diagnosis','Chief Complaints','Region / Specialty','Side','Procedure','Surgery Type','Date','Payment Method','Cash Amount','Insurance Type','Next Follow-up','Status','Tags'];
   const rows = [headers.map(csvCell).join(',')];
   PATIENTS.forEach(p => {
     rows.push([
       p.patientCode, p.name, formatAge(p), p.sex, p.caseType==='surgical'?'Surgical':'OPD',
       p.diagnosis, p.chiefComplaints, (p.regions||[]).join('; '), p.side, p.procedure,
       p.caseType==='surgical'?p.surgeryType:'', fmtDate(p.surgeryDate),
-      p.paymentMethod||'', p.insuranceType||'', fmtDate(p.nextFollowUpDate),
+      p.paymentMethod||'', p.cashAmount||'', p.insuranceType||'', fmtDate(p.nextFollowUpDate),
       p.status||'', (p.tags||[]).join('; ')
     ].map(csvCell).join(','));
   });
@@ -4588,7 +4631,7 @@ async function importBackup(file) {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-settings','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -5372,7 +5415,8 @@ document.addEventListener('click', async (e) => {
     p.side = AP_TEMP.side;
     p.surgeryDate = AP_TEMP.surgeryDate;
     p.paymentMethod = AP_TEMP.caseType === 'surgical' ? AP_TEMP.paymentMethod : '';
-    p.insuranceType = AP_TEMP.paymentMethod === 'Insurance' ? AP_TEMP.insuranceType : '';
+    p.insuranceType = (AP_TEMP.paymentMethod === 'Insurance' || AP_TEMP.paymentMethod === 'Both') ? AP_TEMP.insuranceType : '';
+    p.cashAmount = (AP_TEMP.paymentMethod === 'Cash' || AP_TEMP.paymentMethod === 'Both') ? AP_TEMP.cashAmount : '';
     p.whatsapp = AP_TEMP.whatsapp;
     p.notes = AP_TEMP.notes;
     p.preOpImageCount = AP_INVESTIGATIONS.length;
@@ -5960,6 +6004,8 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-settings') { VIEW = 'more'; render(); return; }
   if (action === 'open-more') { VIEW = 'more'; render(); return; }
   if (action === 'open-ai-hub') { VIEW = 'ai-hub'; render(); return; }
+  if (action === 'open-cash-audit') { VIEW = 'cash-audit'; render(); return; }
+  if (action === 'close-cash-audit') { VIEW = 'more'; render(); return; }
   if (action === 'close-ai-hub') { VIEW = 'more'; render(); return; }
   if (action === 'close-more') { VIEW = 'list'; render(); return; }
   if (action === 'open-about') { VIEW = 'about'; render(); return; }
