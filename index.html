@@ -667,6 +667,8 @@ function resetPerPatientUiState() {
   INV_PHOTOS = [];
   FU_INV_PHOTOS = [];
   AI_TAG_SUGGESTIONS = null;
+  AI_INVESTIGATION_SUGGESTIONS = null;
+  AI_PERSONALIZED_REMINDER = null;
 }
 let ADD_FOLLOWUP_OPEN = false;
 let EXPANDED_FOLLOWUP = new Set();
@@ -1235,6 +1237,40 @@ function medNameSuggestions() {
   return names;
 }
 
+function computeWeeklyDigestStats() {
+  const now = new Date();
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+  const weekAhead = new Date(); weekAhead.setDate(weekAhead.getDate() + 7);
+  let surgeriesThisWeek = 0, newOpdThisWeek = 0, overdueFollowUps = 0, dueNext7Days = 0;
+  PATIENTS.forEach(p => {
+    const d = p.surgeryDate ? new Date(p.surgeryDate) : null;
+    if (d && d >= weekAgo && d <= now) {
+      if (p.caseType === 'surgical') surgeriesThisWeek++; else newOpdThisWeek++;
+    }
+    if (isOverdue(p.nextFollowUpDate)) overdueFollowUps++;
+    else if (p.nextFollowUpDate) {
+      const fu = new Date(p.nextFollowUpDate);
+      if (fu >= now && fu <= weekAhead) dueNext7Days++;
+    }
+  });
+  return { surgeriesThisWeek, newOpdThisWeek, overdueFollowUps, dueNext7Days, totalPatients: PATIENTS.length };
+}
+function renderAiDigestView() {
+  const stats = computeWeeklyDigestStats();
+  return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
+    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-digest">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">This Week\u2019s Digest</h2><span style="width:36px;"></span></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">'
+    + '<div class="stat-card"><div class="stat-label">Surgeries (7 days)</div><div class="stat-value mono">'+stats.surgeriesThisWeek+'</div></div>'
+    + '<div class="stat-card"><div class="stat-label">New OPD (7 days)</div><div class="stat-value mono">'+stats.newOpdThisWeek+'</div></div>'
+    + '<div class="stat-card" style="'+(stats.overdueFollowUps?'border-color:var(--red-border);background:var(--red-bg);':'')+'"><div class="stat-label">Overdue follow-ups</div><div class="stat-value mono">'+stats.overdueFollowUps+'</div></div>'
+    + '<div class="stat-card"><div class="stat-label">Due in next 7 days</div><div class="stat-value mono">'+stats.dueNext7Days+'</div></div>'
+    + '</div>'
+    + (AI_DIGEST_SUMMARY
+        ? '<div class="card" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_DIGEST_SUMMARY)+'</div>'
+        : '<button class="btn btn-primary btn-block" data-action="ai-write-digest">'+ic('shield')+' AI: Write a summary</button>')
+    + '</div>';
+}
+
 function renderMoreView() {
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
@@ -1243,6 +1279,7 @@ function renderMoreView() {
     + '<div class="px" style="padding-top:10px;display:flex;flex-direction:column;gap:10px;">'
     + moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead, App Lock, dark mode, reminders', 'open-settings')
     + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
+    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? moreRowHtml('shield', 'This Week\u2019s Digest (AI)', 'Surgeries, due follow-ups, and overdue cases \u2014 summarized', 'open-ai-digest') : '')
     + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
     + moreRowHtml('download', 'Export Backup', 'Save a zip of all cases, photos and reminders \u2014 tip: pick your Google Drive folder for an automatic cloud copy', 'export-backup')
     + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 handy for audits, CME records, or research', 'export-case-log')
@@ -1682,7 +1719,7 @@ function usearchResultRowHtml(p, q) {
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
-const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','compare-picker','compare-view','print'];
+const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','ai-digest','compare-picker','compare-view','print'];
 function updateUsearchFabVisibility() {
   const wrap = document.getElementById('usearch-fab-wrap');
   if (!wrap) return;
@@ -1912,6 +1949,7 @@ function initApTemp() {
   AP_INVESTIGATIONS = [];
   AP_INV_CATEGORY = 'xray';
   AP_INV_XRAY_SUBTYPE = 'General OPD';
+  AI_SANITY_CHECK_RESULT = null;
 }
 function syncApTempFromDom() {
   ['name','age','ageMonths','occupation','handDominance','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
@@ -2062,6 +2100,12 @@ function renderAddView() {
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea>'
     + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<button class="btn btn-sm" style="margin-top:8px;" data-action="ai-fill-from-notes">'+ic('mic')+' AI: Fill all fields from notes</button><div id="ai-fill-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>' : '')
     + '</div>'
+    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+        '<div>'
+        + '<button class="btn btn-sm btn-block" data-action="ai-sanity-check">'+ic('shield')+' AI: Check for mismatches before saving</button>'
+        + (AI_SANITY_CHECK_RESULT ? '<div class="card" style="margin-top:8px;font-size:12.5px;white-space:pre-wrap;">'+esc(AI_SANITY_CHECK_RESULT)+'</div>' : '')
+        + '</div>'
+      ) : '')
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
     + '<button class="btn" style="flex:1;" data-action="cancel-add">Cancel</button>'
@@ -2098,6 +2142,13 @@ function renderOverviewTab(p) {
           + (followUpReminderLink(p)
               ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
               : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
+          + (CURRENT_USER && CURRENT_USER.uid === MY_UID && p.nextFollowUpDate ? (
+              '<div style="margin-top:8px;">'
+              + (AI_PERSONALIZED_REMINDER
+                  ? '<div class="card" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PERSONALIZED_REMINDER)+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
+                  : '<button class="btn btn-sm btn-block" data-action="ai-personalize-reminder">'+ic('shield')+' AI: Personalize this reminder</button>')
+              + '</div>'
+            ) : '')
           + '</div>' : '')
       + '</div>';
   } else if (OV_SUBTAB === 'complaints') {
@@ -2105,6 +2156,15 @@ function renderOverviewTab(p) {
       + '<div class="card"><label class="field-label">Duration of symptoms</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
       + '<div class="card">'
       + '<label class="field-label">Diagnosis (free text)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
+      + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+          '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
+          + (AI_INVESTIGATION_SUGGESTIONS === null
+              ? '<button class="btn btn-sm" data-action="ai-suggest-investigations">'+ic('shield')+' AI: Suggested investigations</button>'
+              : (AI_INVESTIGATION_SUGGESTIONS.length
+                  ? '<label class="field-label" style="margin-bottom:4px;">Typically indicated (reference only)</label><ul style="margin:0;padding-left:18px;font-size:12.5px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li style="margin-bottom:3px;">'+esc(s)+'</li>').join('')+'</ul>'
+                  : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add a diagnosis first.</p>'))
+          + '</div>'
+        ) : '')
       + '</div>'
       + '<div class="card"><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
       + '<div class="card"><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ov-auto-region">'+ic('search')+' Auto-detect</button></div>'
@@ -2172,6 +2232,10 @@ function renderOverviewTab(p) {
 let AI_TAG_SUGGESTIONS = null;
 let AI_QUERY_ANSWER = null;
 let AI_QUERY_TEXT = '';
+let AI_INVESTIGATION_SUGGESTIONS = null;
+let AI_PERSONALIZED_REMINDER = null;
+let AI_DIGEST_SUMMARY = null;
+let AI_SANITY_CHECK_RESULT = null;
 function tagsCardHtml(p) {
   const tags = p.tags || [];
   const recentCustomTags = topTextChips(TAG_LIB_KEY, 6).map(x=>x.value).filter(t => !PRESET_TAGS.includes(t) && !tags.includes(t));
@@ -3037,6 +3101,7 @@ async function renderPrescriptionsTab(p) {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
       + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
+      + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<button class="btn btn-sm btn-block" style="margin-bottom:12px;" data-action="ai-draft-rx">'+ic('shield')+' AI: Draft from diagnosis/notes</button>' : '')
       + renderRxTemplatesRow()
       + renderQuickAddChips()
       + '<div id="rx-med-rows">'+renderRxMedRows()+'</div>'
@@ -4150,6 +4215,7 @@ async function render() {
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
   if (VIEW === 'quick-add') { app.innerHTML = renderQuickAddView(); return; }
   if (VIEW === 'ai-query') { app.innerHTML = renderAiQueryView(); return; }
+  if (VIEW === 'ai-digest') { app.innerHTML = renderAiDigestView(); return; }
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
   if (VIEW === 'compare-picker') { app.innerHTML = await renderComparePickerView(); return; }
@@ -4458,7 +4524,7 @@ async function importBackup(file) {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-settings','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-ai-digest','close-settings','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -4579,6 +4645,50 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+  if (action === 'ai-personalize-reminder') {
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Writing\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const profile = loadProfile();
+      const sys = 'You write a warm, natural WhatsApp follow-up reminder message in Hindi (Devanagari script) from a doctor to their patient, matching this style exactly:\n\n\u0928\u092e\u0938\u094d\u0924\u0947 [PatientName] \u091c\u0940,\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f [context] [date] \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0907\u090f\u0917\u093e\u0964\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n[DoctorName]\n\nPersonalize the middle part based on the patient\u2019s specific procedure/diagnosis and any relevant concern from their notes, while keeping the same warm tone, structure, and length. Return ONLY the final message text, nothing else.';
+      const context = 'Patient name: ' + p.name + '\nProcedure/Diagnosis: ' + (p.procedure || p.diagnosis || '\u2014') + '\nNext follow-up date: ' + fmtDate(p.nextFollowUpDate) + '\nNotes: ' + (p.notes || '\u2014') + '\nDoctor name: ' + (profile.doctorName || 'Dr. Devarsh Goyal');
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 300 });
+      AI_PERSONALIZED_REMINDER = (result.data.text || '').trim();
+      await renderTabBody(getPatient(SELECTED_ID));
+    } catch (err) {
+      console.error('AI personalized reminder failed:', err);
+      toast('AI draft failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
+  if (action === 'ai-suggest-investigations') {
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const sys = 'You are a reference assistant for an orthopaedic doctor. Given a diagnosis, list 2-5 investigations that are typically indicated for that presentation, as a JSON array of short strings, e.g. ["X-ray AP/Lateral","MRI if suspicion of AVN"]. This is a general reference only, not a directive \u2014 the doctor decides what is actually needed for this specific patient. Return ONLY the JSON array, no other text.';
+      const context = 'Diagnosis: ' + (p.diagnosis||'\u2014') + (p.regions && p.regions.length ? ('\nRegion: ' + p.regions.join(', ')) : '');
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 200 });
+      let raw = (result.data.text || '').trim();
+      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+      const suggestions = JSON.parse(raw);
+      AI_INVESTIGATION_SUGGESTIONS = Array.isArray(suggestions) ? suggestions.filter(s => typeof s === 'string' && s.trim()).slice(0, 5) : [];
+      await renderTabBody(getPatient(SELECTED_ID));
+    } catch (err) {
+      console.error('AI investigation suggestion failed:', err);
+      toast('AI suggestion failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
   if (action === 'ai-suggest-tags') {
     const p = getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
@@ -4597,6 +4707,36 @@ document.addEventListener('click', async (e) => {
     } catch (err) {
       console.error('AI tag suggestion failed:', err);
       toast('AI suggestion failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
+  if (action === 'ai-sanity-check') {
+    syncApTempFromDom();
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Checking\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const sys = 'You are a data-entry sanity checker for a clinical case form. You do NOT give clinical opinions or diagnoses. Given the form field values below, check ONLY for internal logical inconsistencies or likely typos \u2014 for example: the diagnosis mentions a body part that does not match the selected Region/Specialty, or Side is set but the diagnosis text mentions the opposite side. If you find a clear mismatch, describe it in one short sentence per issue. If nothing looks inconsistent, respond with exactly: "No mismatches found." Do not comment on fields that are simply empty, only on genuine contradictions between fields that are filled in.';
+      const context = [
+        'Name: ' + (AP_TEMP.name||'\u2014'),
+        'Age: ' + (AP_TEMP.age||'\u2014') + ' years' + (AP_TEMP.ageMonths ? ' ' + AP_TEMP.ageMonths + ' months' : ''),
+        'Sex: ' + AP_TEMP.sex,
+        'Case type: ' + AP_TEMP.caseType,
+        'Diagnosis: ' + (AP_TEMP.diagnosis||'\u2014'),
+        'Chief complaints: ' + (AP_TEMP.chiefComplaints||'\u2014'),
+        'Side: ' + (AP_TEMP.side||'\u2014'),
+        'Region/Specialty: ' + ((AP_TEMP.regions||[]).join(', ')||'\u2014'),
+        AP_TEMP.caseType === 'surgical' ? ('Surgery type: ' + AP_TEMP.surgeryType + '\nProcedure: ' + (AP_TEMP.procedure||'\u2014')) : ('Special tracking: ' + (AP_TEMP.condition||'None'))
+      ].join('\n');
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 250 });
+      AI_SANITY_CHECK_RESULT = (result.data.text || '').trim();
+      render();
+    } catch (err) {
+      console.error('AI sanity check failed:', err);
+      toast('AI check failed: ' + (err && err.message ? err.message : 'try again'));
       el.innerHTML = originalHtml;
       el.disabled = false;
     }
@@ -4664,6 +4804,28 @@ document.addEventListener('click', async (e) => {
   if (action === 'go-add') { initApTemp(); AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
   if (action === 'go-quick-add') { initQuickAddTemp(); VIEW='quick-add'; render(); return; }
   if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
+  if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; VIEW = 'ai-digest'; render(); return; }
+  if (action === 'close-ai-digest') { VIEW = 'more'; render(); return; }
+  if (action === 'ai-write-digest') {
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Writing\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const stats = computeWeeklyDigestStats();
+      const sys = 'You write a short, friendly 2-3 sentence practice summary for a doctor, based on these exact pre-computed numbers (do not recalculate or guess, just phrase them naturally). Mention anything that needs attention (like overdue follow-ups) supportively, not alarmingly. Return plain text only, no markdown.';
+      const context = 'Surgeries in the last 7 days: ' + stats.surgeriesThisWeek + '\nNew OPD cases in the last 7 days: ' + stats.newOpdThisWeek + '\nOverdue follow-ups: ' + stats.overdueFollowUps + '\nFollow-ups due in the next 7 days: ' + stats.dueNext7Days + '\nTotal patients in the log: ' + stats.totalPatients;
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 200 });
+      AI_DIGEST_SUMMARY = (result.data.text || '').trim();
+      render();
+    } catch (err) {
+      console.error('AI digest failed:', err);
+      toast('AI summary failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
   if (action === 'close-ai-query') { VIEW = 'list'; render(); return; }
   if (action === 'ask-ai-query') {
     const inputEl = document.getElementById('ai-query-input');
@@ -5781,6 +5943,33 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'ai-draft-rx') {
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Drafting\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const sys = 'You help a doctor draft a prescription for their own review and editing \u2014 you are not prescribing anything yourself, only suggesting a starting draft based on common practice for the given presentation. Given the diagnosis and clinical notes below, suggest 1-4 commonly-used medicines, and brief general advice. Return ONLY JSON, no markdown fences: {"medicines": [{"name": string, "dose": string, "frequency": string, "duration": string, "instructions": string}], "advice": string}. Use standard abbreviations for frequency (e.g. "1-0-1", "OD", "BD", "TDS"). This is a draft only \u2014 the doctor will review and edit before finalizing.';
+      const context = 'Diagnosis: ' + (p.diagnosis||'\u2014') + '\nNotes: ' + (p.notes||'\u2014');
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 500 });
+      let raw = (result.data.text || '').trim();
+      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+      const draft = JSON.parse(raw);
+      if (Array.isArray(draft.medicines) && draft.medicines.length) {
+        RX_TEMP.medicines = draft.medicines.map(m => ({ id: uid(), name: m.name||'', dose: m.dose||'', frequency: m.frequency||'', duration: m.duration||'', instructions: m.instructions||'' }));
+      }
+      if (draft.advice) RX_TEMP.advice = draft.advice;
+      await renderTabBody(getPatient(SELECTED_ID));
+      toast('Draft ready \u2014 please review before saving');
+    } catch (err) {
+      console.error('AI prescription draft failed:', err);
+      toast('AI draft failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
   if (action === 'open-add-rx') { const p0 = getPatient(SELECTED_ID); initRxTemp(p0 ? p0.nextFollowUpDate : ''); RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = true; await renderTabBody(p0); return; }
   if (action === 'cancel-add-rx') { RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
   if (action === 'toggle-rx') {
