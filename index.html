@@ -668,6 +668,16 @@ let GUSTILO_OPEN = false;
 let GUSTILO_ANSWERS = { woundSize:'', mechanism:'', softTissue:'', periosteal:'', vascular:'' };
 let LAUGE_HANSEN_OPEN = false;
 let LAUGE_HANSEN_ANSWERS = { fibulaLevel:'', medial:'', posterior:'' };
+let SALTER_HARRIS_OPEN = false;
+let SALTER_HARRIS_ANSWERS = { metaphysis:'', epiphysis:'', crush:'' };
+let GARDEN_OPEN = false;
+let GARDEN_ANSWERS = { complete:'', displaced:'', extent:'' };
+let NEER_OPEN = false;
+let NEER_ANSWERS = { displacedCount:'' };
+let SCHATZKER_OPEN = false;
+let SCHATZKER_ANSWERS = { condyle:'', lateralType:'', dissociation:'' };
+let SANDERS_OPEN = false;
+let SANDERS_ANSWERS = { displaced:'', lines:'' };
 let EXPANDED_INVESTIGATION = new Set();
 let ADD_PRESCRIPTION_OPEN = false;
 let RX_TEMP = null; // { date, medicines:[{id,name,dose,frequency,duration,instructions}], advice, followUpDate }
@@ -1316,7 +1326,7 @@ const ABOUT_SECTIONS = [
     ['CTEV (clubfoot)', 'Pirani scoring per cast session with a trend graph, and an automatic alert when your own tenotomy criteria are met.'],
     ['RA (rheumatoid arthritis)', 'DAS28/CDAI/SDAI tracking with a 28-joint reference, plus a management reference (MTX, HCQ, steroids).'],
     ['Osteoporosis', 'DEXA tracking (spine/hip/wrist), risk factors with a FRAX explainer and link.'],
-    ['Trauma tools', 'Gustilo-Anderson assistant, Lauge-Hansen assistant (auto-appears for bi/trimalleolar and other ankle fractures), RUST score with trend graph, union tracking, Kocher\u2019s criteria (septic arthritis).'],
+    ['Trauma tools', 'Guided assistants that auto-appear based on diagnosis \u2014 Gustilo-Anderson (open fractures), Lauge-Hansen/Weber (ankle fractures), Salter-Harris (paediatric physeal fractures), Garden (femoral neck), Neer (proximal humerus), Schatzker (tibial plateau), Sanders (calcaneus) \u2014 plus RUST score with trend graph, union tracking, and Kocher\u2019s criteria (septic arthritis).'],
     ['Arthroplasty tools', 'BMI calculator, PJI (MSIS criteria) checklist.'],
     ['Pediatrics', 'Weight-based dose calculator and a Rickets management reference, shown automatically for pediatric OPD cases.'],
   ]},
@@ -2099,7 +2109,7 @@ function renderOverviewTab(p) {
     + '<span class="badge badge-'+(isSurgical?'indigo':'slate')+'">'+(isSurgical?'Surgical':'OPD')+'</span>'
     + '</div>'
     + '<div class="row between" style="align-items:center;">'
-    + (!isSurgical ? '<button class="btn btn-sm" style="background:transparent;color:var(--accent-dark);font-weight:700;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical</button>' : '<button class="btn btn-sm" style="background:transparent;color:var(--accent-dark);font-weight:700;" data-action="convert-to-opd">'+ic('back')+' Convert to OPD</button>')
+    + (!isSurgical ? '<button class="btn btn-sm" style="background:transparent;color:var(--accent-dark);font-weight:700;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical</button>' : convertToOpdButtonHtml(p))
     + '<div class="row gap2">'
     + '<button class="icon-btn" data-action="duplicate-case" title="Duplicate Case">'+ic('copy')+'</button>'
     + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
@@ -2141,6 +2151,22 @@ function tagsCardHtml(p) {
     + '</div>';
 }
 
+function hasRealSurgicalData(p) {
+  return !!(p.procedure && p.procedure.trim()) || (p.preOpImageCount > 0) || !!(p.insuranceType && p.insuranceType.trim()) || !!p.paymentMethod;
+}
+function convertToOpdButtonHtml(p) {
+  if (!hasRealSurgicalData(p)) {
+    return '<button class="btn btn-sm" style="background:transparent;color:var(--accent-dark);font-weight:700;" data-action="convert-to-opd" data-id="'+p.id+'">'+ic('back')+' Convert to OPD</button>';
+  }
+  if (ARMED_DELETE === 'convert-to-opd:'+p.id) {
+    return '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
+      + '<button class="btn btn-sm btn-danger-confirm" data-action="convert-to-opd" data-id="'+p.id+'" data-confirm="1">'+ic('check')+' Confirm \u2014 hide surgical details</button>'
+      + '<span style="font-size:10px;color:var(--muted);">Procedure/photos stay saved, just hidden until converted back</span>'
+      + '</div>';
+  }
+  return '<button class="btn btn-sm" style="background:transparent;color:var(--accent-dark);font-weight:700;" data-action="arm-delete" data-arm="convert-to-opd:'+p.id+'">'+ic('back')+' Convert to OPD</button>';
+}
+
 function comorbidityCardHtml(p) {
   const list = p.comorbidities || [];
   return '<div class="card">'
@@ -2159,6 +2185,26 @@ function isAnkleFractureCase(p) {
   const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
   return /malleol|ankle fracture|weber|maisonneuve/.test(text);
 }
+function isPediatricPhysealCase(p) {
+  const age = parseFloat(p.age);
+  return (p.surgeryType === 'Trauma' || p.condition === 'trauma') && !isNaN(age) && age > 0 && age < 16;
+}
+function isFemoralNeckCase(p) {
+  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
+  return /femoral neck|neck of femur|\bnof\b/.test(text);
+}
+function isProximalHumerusCase(p) {
+  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
+  return /proximal humerus/.test(text) || (/humerus/.test(text) && (p.regions||[]).includes('Upper Limb') && !/shaft/.test(text));
+}
+function isTibialPlateauCase(p) {
+  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
+  return /tibial plateau|plateau fracture/.test(text);
+}
+function isCalcanealCase(p) {
+  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
+  return /calcane/.test(text);
+}
 function classificationCardHtml(p) {
   return '<div class="card">'
     + '<label class="field-label">'+ic('tag')+' Fracture Classification <span style="color:var(--muted);font-weight:500;">(optional)</span></label>'
@@ -2171,6 +2217,11 @@ function classificationCardHtml(p) {
     + '</div></div>'
     + (p.isOpenFracture ? gustiloSectionHtml(p) : '')
     + (isAnkleFractureCase(p) ? laugeHansenSectionHtml(p) : '')
+    + (isPediatricPhysealCase(p) ? salterHarrisSectionHtml(p) : '')
+    + (isFemoralNeckCase(p) ? gardenSectionHtml(p) : '')
+    + (isProximalHumerusCase(p) ? neerSectionHtml(p) : '')
+    + (isTibialPlateauCase(p) ? schatzkerSectionHtml(p) : '')
+    + (isCalcanealCase(p) ? sandersSectionHtml(p) : '')
     + '</div>';
 }
 
@@ -2210,24 +2261,32 @@ function gustiloCompute(a) {
   return { type: 'I', note: 'Wound < 1 cm, clean, minimal soft tissue damage, simple fracture pattern.' };
 }
 
+function weberFromFibulaLevel(level) {
+  if (level === 'below') return 'A';
+  if (level === 'at') return 'B';
+  if (level === 'above-short' || level === 'high') return 'C';
+  return null;
+}
 function laugeHansenSectionHtml(p) {
   if (!LAUGE_HANSEN_OPEN) {
-    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-lauge-hansen">'+ic('tag')+' Lauge-Hansen Assistant</button>';
+    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-lauge-hansen">'+ic('tag')+' Lauge-Hansen / Weber Assistant</button>';
   }
   const a = LAUGE_HANSEN_ANSWERS;
   const result = laugeHansenCompute(a);
+  const weber = weberFromFibulaLevel(a.fibulaLevel);
   const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
     + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="lauge-hansen-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
     + '</div></div>';
   return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
-    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Lauge-Hansen Assistant</label><button class="icon-btn" data-action="close-lauge-hansen">'+ic('x')+'</button></div>'
+    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Lauge-Hansen / Weber Assistant</label><button class="icon-btn" data-action="close-lauge-hansen">'+ic('x')+'</button></div>'
     + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">Based on fibula fracture level and medial/posterior involvement on X-ray. A working estimate \u2014 correlate clinically.</p>'
     + q('fibulaLevel', 'Fibula fracture level', [['below','Below the joint line'],['at','At the joint line (spiral/oblique)'],['above-short','Just above, short segment'],['high','Well above (high fibula)']])
     + q('medial', 'Medial malleolus / deltoid ligament', [['intact','Intact'],['fractured','Medial malleolus fractured'],['deltoid','Deltoid ligament torn']])
     + q('posterior', 'Posterior malleolus fractured?', [['no','No'],['yes','Yes']])
     + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested pattern</span><span class="mono">'+result.pattern+' \u2014 Stage '+result.stage+'</span></div>'
+        + (weber ? '<div class="scorer-total" style="margin-top:6px;"><span>Weber (from fibula level)</span><span class="mono">Type '+weber+'</span></div>' : '')
         + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
-        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="lauge-hansen-insert" data-value="'+esc(result.pattern+' Stage '+result.stage)+'">Insert into Classification</button>'
+        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="lauge-hansen-insert" data-value="'+esc(result.pattern+' Stage '+result.stage+(weber?' / Weber '+weber:''))+'">Insert into Classification</button>'
       : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the fibula level and medial-side questions to see the suggested pattern.</p>')
     + '</div>';
 }
@@ -2251,6 +2310,155 @@ function laugeHansenCompute(a) {
     return { pattern: 'Pronation-External Rotation (PER)', stage: 'III', note: 'High spiral fibula fracture (consider Maisonneuve \u2014 examine the proximal fibula/knee), with medial malleolus/deltoid injury.' };
   }
   return null;
+}
+
+function salterHarrisSectionHtml(p) {
+  if (!SALTER_HARRIS_OPEN) {
+    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-salter-harris">'+ic('tag')+' Salter-Harris Assistant</button>';
+  }
+  const a = SALTER_HARRIS_ANSWERS;
+  const result = salterHarrisCompute(a);
+  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
+    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="salter-harris-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div></div>';
+  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
+    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Salter-Harris Assistant</label><button class="icon-btn" data-action="close-salter-harris">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">For a paediatric fracture involving the growth plate (physis). A working estimate \u2014 correlate with X-ray.</p>'
+    + q('crush', 'Crush/compression injury to the physis (no clear fracture line)?', [['no','No'],['yes','Yes']])
+    + (a.crush !== 'yes' ? q('metaphysis', 'Fracture line extends into the metaphysis?', [['no','No'],['yes','Yes']]) : '')
+    + (a.crush !== 'yes' ? q('epiphysis', 'Fracture line extends into the epiphysis (joint surface)?', [['no','No'],['yes','Yes']]) : '')
+    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Salter-Harris '+result.type+'</span></div>'
+        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
+        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="salter-harris-insert" data-value="Salter-Harris Type '+result.type+'">Insert into Classification</button>'
+      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the questions above to see the suggested type.</p>')
+    + '</div>';
+}
+function salterHarrisCompute(a) {
+  if (a.crush === 'yes') return { type: 'V', note: 'Compression injury to the physis with no clear fracture line \u2014 often only visible in retrospect when growth arrest appears. Highest risk of growth disturbance.' };
+  if (!a.metaphysis || !a.epiphysis) return null;
+  if (a.metaphysis === 'yes' && a.epiphysis === 'yes') return { type: 'IV', note: 'Fracture line crosses metaphysis, physis, and epiphysis \u2014 often needs anatomic reduction to prevent growth arrest.' };
+  if (a.epiphysis === 'yes') return { type: 'III', note: 'Fracture line through physis and epiphysis (intra-articular), metaphysis spared.' };
+  if (a.metaphysis === 'yes') return { type: 'II', note: 'Fracture line through physis and metaphysis \u2014 the most common type, generally good prognosis.' };
+  return { type: 'I', note: 'Fracture line through the physis only (pure separation) \u2014 metaphysis and epiphysis both spared.' };
+}
+
+function gardenSectionHtml(p) {
+  if (!GARDEN_OPEN) {
+    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-garden">'+ic('tag')+' Garden Assistant</button>';
+  }
+  const a = GARDEN_ANSWERS;
+  const result = gardenCompute(a);
+  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
+    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="garden-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div></div>';
+  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
+    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Garden Assistant</label><button class="icon-btn" data-action="close-garden">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">For a femoral neck fracture. A working estimate \u2014 correlate with X-ray trabecular alignment.</p>'
+    + q('complete', 'Fracture complete (through both cortices)?', [['no','Incomplete'],['yes','Complete']])
+    + (a.complete === 'yes' ? q('displaced', 'Displaced?', [['no','Undisplaced'],['yes','Displaced']]) : '')
+    + (a.complete === 'yes' && a.displaced === 'yes' ? q('extent', 'Extent of displacement', [['partial','Partial (trabeculae malaligned)'],['full','Complete (trabeculae align with acetabulum)']]) : '')
+    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Garden Type '+result.type+'</span></div>'
+        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
+        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="garden-insert" data-value="Garden Type '+result.type+'">Insert into Classification</button>'
+      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the questions above to see the suggested type.</p>')
+    + '</div>';
+}
+function gardenCompute(a) {
+  if (!a.complete) return null;
+  if (a.complete === 'no') return { type: 'I', note: 'Incomplete fracture, often valgus impacted \u2014 relatively stable.' };
+  if (!a.displaced) return null;
+  if (a.displaced === 'no') return { type: 'II', note: 'Complete fracture, undisplaced.' };
+  if (!a.extent) return null;
+  if (a.extent === 'partial') return { type: 'III', note: 'Complete and displaced, but trabeculae still malaligned rather than parallel to the acetabulum \u2014 some residual contact.' };
+  return { type: 'IV', note: 'Complete and fully displaced \u2014 trabeculae align with the acetabulum, fragments lie free. Highest AVN risk.' };
+}
+
+function neerSectionHtml(p) {
+  if (!NEER_OPEN) {
+    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-neer">'+ic('tag')+' Neer Assistant</button>';
+  }
+  const a = NEER_ANSWERS;
+  const result = neerCompute(a);
+  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
+    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Neer Assistant</label><button class="icon-btn" data-action="close-neer">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">For a proximal humerus fracture. A fragment counts as "displaced" if >1cm displaced or >45\u00b0 angulated.</p>'
+    + '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">How many of the 4 possible fragments (head, greater tuberosity, lesser tuberosity, shaft) are significantly displaced?</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
+    + ['0','1','2','3'].map(v=>'<button class="seg-btn" style="flex:none;padding:6px 14px;'+(a.displacedCount===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="neer-set" data-value="'+v+'">'+v+'</button>').join('')
+    + '</div></div>'
+    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Neer '+result.type+'</span></div>'
+        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
+        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="neer-insert" data-value="Neer '+result.type+'">Insert into Classification</button>'
+      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Select a count above to see the suggested type.</p>')
+    + '</div>';
+}
+function neerCompute(a) {
+  if (!a.displacedCount) return null;
+  const map = { '0': { type: '1-part', note: 'No fragment significantly displaced, regardless of the number of fracture lines \u2014 usually managed conservatively.' },
+    '1': { type: '2-part', note: 'One fragment significantly displaced relative to the rest.' },
+    '2': { type: '3-part', note: 'Two fragments significantly displaced \u2014 usually needs surgical fixation.' },
+    '3': { type: '4-part', note: 'Three fragments significantly displaced (all 4 parts separate) \u2014 highest AVN risk, often needs arthroplasty in the elderly.' } };
+  return map[a.displacedCount];
+}
+
+function schatzkerSectionHtml(p) {
+  if (!SCHATZKER_OPEN) {
+    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-schatzker">'+ic('tag')+' Schatzker Assistant</button>';
+  }
+  const a = SCHATZKER_ANSWERS;
+  const result = schatzkerCompute(a);
+  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
+    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="schatzker-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div></div>';
+  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
+    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Schatzker Assistant</label><button class="icon-btn" data-action="close-schatzker">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">For a tibial plateau fracture. A working estimate \u2014 correlate with X-ray/CT.</p>'
+    + q('dissociation', 'Metaphyseal-diaphyseal dissociation (plateau completely separated from the shaft)?', [['no','No'],['yes','Yes']])
+    + (a.dissociation !== 'yes' ? q('condyle', 'Which condyle(s) involved?', [['lateral','Lateral only'],['medial','Medial only'],['both','Both (bicondylar)']]) : '')
+    + (a.dissociation !== 'yes' && a.condyle === 'lateral' ? q('lateralType', 'Lateral plateau pattern', [['split','Split only'],['both','Split + depression'],['depression','Depression only']]) : '')
+    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Schatzker Type '+result.type+'</span></div>'
+        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
+        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="schatzker-insert" data-value="Schatzker Type '+result.type+'">Insert into Classification</button>'
+      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the questions above to see the suggested type.</p>')
+    + '</div>';
+}
+function schatzkerCompute(a) {
+  if (a.dissociation === 'yes') return { type: 'VI', note: 'Plateau fracture with complete metaphyseal-diaphyseal dissociation \u2014 usually high-energy, needs a spanning external fixator initially.' };
+  if (!a.condyle) return null;
+  if (a.condyle === 'both') return { type: 'V', note: 'Bicondylar fracture, but the metaphysis still continuous with the diaphysis.' };
+  if (a.condyle === 'medial') return { type: 'IV', note: 'Medial plateau fracture \u2014 higher-energy than it looks, watch for associated ligament/vascular injury.' };
+  if (!a.lateralType) return null;
+  if (a.lateralType === 'split') return { type: 'I', note: 'Pure lateral plateau split (wedge), no depression \u2014 usually younger patients, good bone quality.' };
+  if (a.lateralType === 'both') return { type: 'II', note: 'Lateral plateau split with depression \u2014 the most common type.' };
+  return { type: 'III', note: 'Pure lateral plateau depression, no split \u2014 usually lower-energy, older/osteoporotic bone.' };
+}
+
+function sandersSectionHtml(p) {
+  if (!SANDERS_OPEN) {
+    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-sanders">'+ic('tag')+' Sanders Assistant</button>';
+  }
+  const a = SANDERS_ANSWERS;
+  const result = sandersCompute(a);
+  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
+    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="sanders-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div></div>';
+  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
+    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Sanders Assistant</label><button class="icon-btn" data-action="close-sanders">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">CT-based, coronal cut through the posterior facet. Sub-types (A/B/C by fragment location) need direct CT correlation \u2014 this gives the working number.</p>'
+    + q('displaced', 'Posterior facet displaced on CT?', [['no','No'],['yes','Yes']])
+    + (a.displaced === 'yes' ? q('lines', 'Number of fracture lines through the posterior facet', [['1','1 line (2 fragments)'],['2','2 lines (3 fragments)'],['3','3+ lines (comminuted)']]) : '')
+    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Sanders Type '+result.type+'</span></div>'
+        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
+        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="sanders-insert" data-value="Sanders Type '+result.type+'">Insert into Classification</button>'
+      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the questions above to see the suggested type.</p>')
+    + '</div>';
+}
+function sandersCompute(a) {
+  if (!a.displaced) return null;
+  if (a.displaced === 'no') return { type: 'I', note: 'Non-displaced posterior facet, regardless of the number of fracture lines \u2014 usually managed non-operatively.' };
+  if (!a.lines) return null;
+  if (a.lines === '1') return { type: 'II', note: 'One fracture line through the posterior facet (2 fragments) \u2014 sub-type A/B/C depends on the line\u2019s location, check CT directly.' };
+  if (a.lines === '2') return { type: 'III', note: 'Two fracture lines (3 fragments), often with a depressed central fragment.' };
+  return { type: 'IV', note: 'Comminuted posterior facet (4+ fragments) \u2014 worst prognosis, primary subtalar fusion sometimes considered.' };
 }
 
 function unionProgressCardHtml(p) {
@@ -4403,6 +4611,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'convert-to-opd') {
     const p = getPatient(SELECTED_ID);
     p.caseType = 'opd';
+    ARMED_DELETE = null;
     await dbPutPatient(p); await refreshPatients();
     render();
     return;
@@ -4783,6 +4992,66 @@ document.addEventListener('click', async (e) => {
     p.classification = el.dataset.value;
     await dbPutPatient(p); await refreshPatients();
     LAUGE_HANSEN_OPEN = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    toast('Classification updated');
+    return;
+  }
+  if (action === 'open-salter-harris') { SALTER_HARRIS_OPEN = true; SALTER_HARRIS_ANSWERS = { metaphysis:'', epiphysis:'', crush:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'close-salter-harris') { SALTER_HARRIS_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'salter-harris-set') { SALTER_HARRIS_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'salter-harris-insert') {
+    const p = getPatient(SELECTED_ID);
+    p.classification = el.dataset.value;
+    await dbPutPatient(p); await refreshPatients();
+    SALTER_HARRIS_OPEN = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    toast('Classification updated');
+    return;
+  }
+  if (action === 'open-garden') { GARDEN_OPEN = true; GARDEN_ANSWERS = { complete:'', displaced:'', extent:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'close-garden') { GARDEN_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'garden-set') { GARDEN_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'garden-insert') {
+    const p = getPatient(SELECTED_ID);
+    p.classification = el.dataset.value;
+    await dbPutPatient(p); await refreshPatients();
+    GARDEN_OPEN = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    toast('Classification updated');
+    return;
+  }
+  if (action === 'open-neer') { NEER_OPEN = true; NEER_ANSWERS = { displacedCount:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'close-neer') { NEER_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'neer-set') { NEER_ANSWERS.displacedCount = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'neer-insert') {
+    const p = getPatient(SELECTED_ID);
+    p.classification = el.dataset.value;
+    await dbPutPatient(p); await refreshPatients();
+    NEER_OPEN = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    toast('Classification updated');
+    return;
+  }
+  if (action === 'open-schatzker') { SCHATZKER_OPEN = true; SCHATZKER_ANSWERS = { condyle:'', lateralType:'', dissociation:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'close-schatzker') { SCHATZKER_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'schatzker-set') { SCHATZKER_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'schatzker-insert') {
+    const p = getPatient(SELECTED_ID);
+    p.classification = el.dataset.value;
+    await dbPutPatient(p); await refreshPatients();
+    SCHATZKER_OPEN = false;
+    await renderTabBody(getPatient(SELECTED_ID));
+    toast('Classification updated');
+    return;
+  }
+  if (action === 'open-sanders') { SANDERS_OPEN = true; SANDERS_ANSWERS = { displaced:'', lines:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'close-sanders') { SANDERS_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'sanders-set') { SANDERS_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'sanders-insert') {
+    const p = getPatient(SELECTED_ID);
+    p.classification = el.dataset.value;
+    await dbPutPatient(p); await refreshPatients();
+    SANDERS_OPEN = false;
     await renderTabBody(getPatient(SELECTED_ID));
     toast('Classification updated');
     return;
@@ -5549,7 +5818,7 @@ document.addEventListener('change', async (e) => {
     if (t.dataset.field === 'procedure') recordTextUsed(PROCEDURE_LIB_KEY, t.value);
     if (t.dataset.field === 'diagnosis') recordTextUsed(DIAGNOSIS_LIB_KEY, t.value);
     if (t.dataset.field === 'chiefComplaints') recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, t.value);
-    if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality' || t.dataset.field === 'heightCm' || t.dataset.field === 'weightKg') { await render(); }
+    if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality' || t.dataset.field === 'heightCm' || t.dataset.field === 'weightKg' || t.dataset.field === 'surgeryType') { await render(); }
     return;
   }
   if (t.dataset && t.dataset.imgUpload) {
