@@ -666,6 +666,7 @@ function resetPerPatientUiState() {
   RX_PHOTOS = [];
   INV_PHOTOS = [];
   FU_INV_PHOTOS = [];
+  AI_TAG_SUGGESTIONS = null;
 }
 let ADD_FOLLOWUP_OPEN = false;
 let EXPANDED_FOLLOWUP = new Set();
@@ -2033,7 +2034,9 @@ function renderAddView() {
 
     + '<div class="card" style="padding:14px;">' + tabBody + '</div>'
 
-    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
+    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea>'
+    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<button class="btn btn-sm" style="margin-top:8px;" data-action="ai-fill-from-notes">'+ic('search')+' AI: Fill diagnosis/duration/side from notes</button><div id="ai-fill-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>' : '')
+    + '</div>'
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
     + '<button class="btn" style="flex:1;" data-action="cancel-add">Cancel</button>'
@@ -2141,6 +2144,7 @@ function renderOverviewTab(p) {
     + '</div>';
 }
 
+let AI_TAG_SUGGESTIONS = null;
 function tagsCardHtml(p) {
   const tags = p.tags || [];
   const recentCustomTags = topTextChips(TAG_LIB_KEY, 6).map(x=>x.value).filter(t => !PRESET_TAGS.includes(t) && !tags.includes(t));
@@ -2155,6 +2159,17 @@ function tagsCardHtml(p) {
     + '</div>'
     + '<div class="row gap2"><input class="input" id="custom-tag-input" placeholder="Type a custom tag\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-tag">Add</button></div>'
     + autocompleteBoxHtml('custom-tag-input')
+    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+        '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
+        + (AI_TAG_SUGGESTIONS === null
+            ? '<button class="btn btn-sm" data-action="ai-suggest-tags">'+ic('search')+' AI: Suggest tags</button>'
+            : (AI_TAG_SUGGESTIONS.length
+                ? '<label class="field-label" style="margin-bottom:4px;">Suggested</label><div style="display:flex;flex-wrap:wrap;gap:6px;">'
+                  + AI_TAG_SUGGESTIONS.filter(t => !tags.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
+                  + '</div>'
+                : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add diagnosis/notes first.</p>'))
+        + '</div>'
+      ) : '')
     + '</div>';
 }
 
@@ -4533,6 +4548,62 @@ document.addEventListener('click', async (e) => {
       render();
     } catch (err) {
       toast('Sign-out failed');
+    }
+    return;
+  }
+  if (action === 'ai-suggest-tags') {
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const context = ['Diagnosis: ' + (p.diagnosis||'\u2014'), 'Procedure: ' + (p.procedure||'\u2014'), 'Notes: ' + (p.notes||'\u2014')].join('\n');
+      const sys = 'You suggest short organizational tags for a doctor\u2019s patient case log. Existing tag vocabulary this doctor uses: ' + PRESET_TAGS.join(', ') + '. Given the case details, suggest 2-4 relevant tags as a JSON array of short strings only, e.g. ["Interesting","Revision"]. Prefer the existing vocabulary when it fits; only propose a new short tag (2-3 words max) if genuinely warranted (e.g. a specific named complication). Return ONLY the JSON array, no other text.';
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 150 });
+      let raw = (result.data.text || '').trim();
+      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+      const suggestions = JSON.parse(raw);
+      AI_TAG_SUGGESTIONS = Array.isArray(suggestions) ? suggestions.filter(t => typeof t === 'string' && t.trim()).slice(0, 4) : [];
+      await renderTabBody(getPatient(SELECTED_ID));
+    } catch (err) {
+      console.error('AI tag suggestion failed:', err);
+      toast('AI suggestion failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
+  if (action === 'ai-fill-from-notes') {
+    syncApTempFromDom();
+    const notesText = (AP_TEMP.notes || '').trim();
+    const statusEl = document.getElementById('ai-fill-status');
+    if (!notesText) { if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'Write something in Notes first.'; } return; }
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Reading notes\u2026';
+    el.disabled = true;
+    if (statusEl) statusEl.textContent = '';
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const isSurgical = AP_TEMP.caseType === 'surgical';
+      const sys = 'You are a clinical data extraction assistant for an orthopaedic practice app. Given free-text clinical notes, extract fields and return ONLY a JSON object, no markdown fences, no explanation. Fields: {"diagnosis": string, "symptomDuration": string, "side": one of "Left","Right","Bilateral", or "", "chiefComplaints": string}. Leave a field as an empty string if it is not mentioned or not applicable. symptomDuration should be short, like "3 months" or "2 weeks". chiefComplaints is the patient-reported presenting complaint' + (isSurgical ? ' (usually not applicable for a surgical case, leave empty unless clearly stated)' : '') + '.';
+      const result = await askClaude({ systemPrompt: sys, userMessage: notesText, maxTokens: 300 });
+      let raw = (result.data.text || '').trim();
+      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+      const extracted = JSON.parse(raw);
+      let filledCount = 0;
+      if (extracted.diagnosis) { AP_TEMP.diagnosis = extracted.diagnosis; filledCount++; }
+      if (extracted.symptomDuration) { AP_TEMP.symptomDuration = extracted.symptomDuration; filledCount++; }
+      if (extracted.side && ['Left','Right','Bilateral'].includes(extracted.side)) { AP_TEMP.side = extracted.side; filledCount++; }
+      if (extracted.chiefComplaints && !isSurgical) { AP_TEMP.chiefComplaints = extracted.chiefComplaints; filledCount++; }
+      AP_SUBTAB = 'complaints';
+      render();
+      toast(filledCount ? ('Filled ' + filledCount + ' field(s) \u2014 please review') : 'Nothing clear to extract from those notes');
+    } catch (err) {
+      console.error('AI fill failed:', err);
+      if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = '\u2717 ' + (err && err.message ? err.message : 'Request failed'); }
+      el.innerHTML = originalHtml;
+      el.disabled = false;
     }
     return;
   }
