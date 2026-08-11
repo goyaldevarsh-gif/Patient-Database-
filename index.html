@@ -655,6 +655,8 @@ let ARMED_DELETE = null;
 let SHOW_TAG_FILTER = false;
 let SHOW_INSIGHTS = false;
 let SHOW_ALL_ATTENTION = false;
+let ATTENTION_EXPANDED = false;
+let PATIENT_LIST_EXPANDED = false;
 let SHOW_LEGEND = false;
 let EDITING_PATIENT_CODE = false;
 function resetPerPatientUiState() {
@@ -767,7 +769,7 @@ let REMINDERS = [];
 let CAL_YEAR = new Date().getFullYear();
 let CAL_MONTH = new Date().getMonth(); // 0-indexed
 let CAL_SELECTED_DATE = todayStr();
-let CAL_SUBVIEW = 'calendar'; // 'calendar' | 'reminders'
+let CAL_SUBVIEW = 'upcoming'; // 'calendar' | 'upcoming' | 'reminders'
 let REMINDER_FORM_OPEN = false;
 let REMINDER_FORM_PATIENT_ID = null; // set when adding a reminder from a patient's page
 let REMINDER_FORM_CATEGORY = 'General';
@@ -1128,7 +1130,7 @@ function startMasterVoice() {
 async function classifyMasterVoiceIntent(transcript) {
   try {
     const askClaude = firebaseFunctions.httpsCallable('askClaude');
-    const sys = 'You interpret a spoken command for a clinical practice app (OrthoVault) into a structured action. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "quick_add" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-knowledge","ai-assistant","cash-audit","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the spoken command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "naya OPD/surgical case banao [name]" \u2192 new_case with caseType + patientName if given. "quick add" / "reception mein daalo" \u2192 quick_add. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "cash audit dikhao" \u2192 open_view view=cash-audit. "calendar/reminders dikhao" \u2192 open_view view=calendar. "AI features dikhao" \u2192 open_view view=ai-hub. If genuinely ambiguous or unsupported (e.g. asking to edit/delete a specific field, or anything not covered above), use "unclear".';
+    const sys = 'You interpret a spoken command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "quick_add" | "set_followup" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-knowledge","ai-assistant","cash-audit","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "followUpDate": "YYYY-MM-DD" or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the spoken command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "naya OPD/surgical case banao [name]" \u2192 new_case with caseType + patientName if given. "quick add" / "reception mein daalo" \u2192 quick_add. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "cash audit dikhao" \u2192 open_view view=cash-audit. "calendar/reminders dikhao" \u2192 open_view view=calendar. "AI features dikhao" \u2192 open_view view=ai-hub. "X ko [date/relative-date] follow-up ke liye bulao" / "X ka follow-up [date] rakho" \u2192 set_followup with patientQuery=X and followUpDate computed from today\u2019s date given above (resolve "kal"/"tomorrow", "N din baad", "agle hafte", explicit dates, etc. into an actual YYYY-MM-DD). If genuinely ambiguous or unsupported (e.g. asking to edit/delete a specific field other than follow-up date, or anything not covered above), use "unclear".';
     const result = await askClaude({ systemPrompt: sys, userMessage: transcript, maxTokens: 300 });
     let raw = (result.data.text || '').trim();
     raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
@@ -1140,7 +1142,7 @@ async function classifyMasterVoiceIntent(transcript) {
   MASTER_VOICE_STATE = 'confirming';
   updateMasterVoiceUI();
 }
-function executeMasterVoiceAction() {
+async function executeMasterVoiceAction() {
   const r = MASTER_VOICE_RESULT;
   if (r) {
     if (r.action === 'open_view' && r.view) {
@@ -1157,6 +1159,19 @@ function executeMasterVoiceAction() {
       initQuickAddTemp();
       if (r.patientName) QUICK_ADD_TEMP.name = r.patientName;
       VIEW = 'quick-add';
+    } else if (r.action === 'set_followup' && r.patientQuery && r.followUpDate) {
+      const q = r.patientQuery.toLowerCase();
+      const matches = PATIENTS.filter(p => p.name && p.name.toLowerCase().includes(q));
+      if (matches.length === 1) {
+        matches[0].nextFollowUpDate = r.followUpDate;
+        await dbPutPatient(matches[0]);
+        await refreshPatients();
+        toast('Follow-up set for ' + matches[0].name + ' \u2014 ' + fmtDate(r.followUpDate));
+      } else {
+        SEARCH = r.patientQuery;
+        VIEW = 'list';
+        toast(matches.length === 0 ? 'Patient not found \u2014 showing search instead' : matches.length + ' matches found \u2014 open the right one to set the date');
+      }
     }
   }
   MASTER_VOICE_STATE = 'idle';
@@ -1803,16 +1818,22 @@ function renderDashboardSection() {
     + '</div>';
 
   if (s.important.length) {
-    const showAll = SHOW_ALL_ATTENTION || s.important.length <= 3;
-    const shown = showAll ? s.important.slice(0,8) : s.important.slice(0,3);
-    html += '<div class="card" style="margin-bottom:12px;">'
-      + '<label class="field-label">Needs attention today \u2014 follow-ups, RA labs, DEXA scans</label>'
-      + shown.map(item => '<div class="row between" data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;padding:6px 0;">'
-          + '<span style="font-size:13px;font-weight:600;">'+esc(item.patient.name)+'<span style="font-weight:400;color:var(--muted);"> \u00b7 '+esc(item.type)+'</span></span>'
-          + '<span class="badge '+(item.isOverdue?'badge-red':'badge-amber')+'" style="font-size:10px;">'+(item.isOverdue?'Overdue':'Today')+'</span>'
-          + '</div>').join('')
-      + (!showAll ? '<button class="chip" style="margin-top:6px;" data-action="toggle-show-all-attention">Show all '+s.important.length+'</button>' : '')
-      + '</div>';
+    html += '<button type="button" class="btn" style="width:100%;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-weight:800;background:var(--red-bg);border-color:var(--red-border);color:var(--red);" data-action="toggle-attention-expanded">'
+      + '<span>'+ic('alert')+' Needs Attention Today ('+s.important.length+')</span>'
+      + '<span style="font-size:16px;">'+(ATTENTION_EXPANDED?'\u2212':'+')+'</span>'
+      + '</button>';
+    if (ATTENTION_EXPANDED) {
+      const showAll = SHOW_ALL_ATTENTION || s.important.length <= 3;
+      const shown = showAll ? s.important.slice(0,8) : s.important.slice(0,3);
+      html += '<div class="card" style="margin-bottom:12px;">'
+        + '<label class="field-label">Follow-ups, RA labs, DEXA scans</label>'
+        + shown.map(item => '<div class="row between" data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;padding:6px 0;">'
+            + '<span style="font-size:13px;font-weight:600;">'+esc(item.patient.name)+'<span style="font-weight:400;color:var(--muted);"> \u00b7 '+esc(item.type)+'</span></span>'
+            + '<span class="badge '+(item.isOverdue?'badge-red':'badge-amber')+'" style="font-size:10px;">'+(item.isOverdue?'Overdue':'Today')+'</span>'
+            + '</div>').join('')
+        + (!showAll ? '<button class="chip" style="margin-top:6px;" data-action="toggle-show-all-attention">Show all '+s.important.length+'</button>' : '')
+        + '</div>';
+    }
   }
 
   if (s.topProcedures.length || s.topConditions.length) {
@@ -2045,16 +2066,21 @@ function renderListView() {
     + recencyNote
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'+continueLastPatientHtml()+renderDashboardSection()
-    + (PATIENTS.length ? (SHOW_LEGEND
-        ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:var(--muted);cursor:pointer;" data-action="toggle-legend">'
-          + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
-          + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to follow-up</span>'
-          + '<span class="row gap1"><span class="status-dot" style="background:#16a34a;"></span> Complete</span>'
-          + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
-          + '</div>'
-        : '<button class="icon-btn" style="width:22px;height:22px;margin-bottom:10px;color:var(--muted);" data-action="toggle-legend" title="What do the dot colors mean?">'+ic('info')+'</button>'
-      ) : '')
-    + cards+'</div>'
+    + (SEARCH || FILTER_TYPE !== 'all' || TAG_FILTER || PATIENT_LIST_EXPANDED
+        ? ((PATIENTS.length ? (SHOW_LEGEND
+            ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:var(--muted);cursor:pointer;" data-action="toggle-legend">'
+              + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
+              + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to follow-up</span>'
+              + '<span class="row gap1"><span class="status-dot" style="background:#16a34a;"></span> Complete</span>'
+              + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
+              + '</div>'
+            : '<button class="icon-btn" style="width:22px;height:22px;margin-bottom:10px;color:var(--muted);" data-action="toggle-legend" title="What do the dot colors mean?">'+ic('info')+'</button>'
+          ) : '') + cards)
+        : '<button type="button" class="btn" style="width:100%;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-weight:800;background:var(--accent);border-color:var(--accent);color:#fff;" data-action="toggle-patient-list-expanded">'
+          + '<span>'+ic('clipboard')+' Patient List ('+filtered.length+')</span>'
+          + '<span style="font-size:16px;">+</span>'
+          + '</button>')
+    + '</div>'
     + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' Dr. Devarsh Goyal \u2014 OrthoVault, all rights reserved</p>'
     + '</div>';
 }
@@ -4448,6 +4474,34 @@ function reminderMiniCardHtml(p) {
     + '</div>';
 }
 
+function renderUpcomingFollowUpsList() {
+  const today = todayStr();
+  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })();
+  const withDates = PATIENTS.filter(p => p.nextFollowUpDate).sort((a,b) => new Date(a.nextFollowUpDate) - new Date(b.nextFollowUpDate));
+  if (!withDates.length) return '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:24px;">No upcoming follow-ups scheduled.</p>';
+  const dateLabel = (d) => d === today ? 'Today' : d === tomorrow ? 'Tomorrow' : fmtDate(d);
+  let html = '';
+  let lastDate = null;
+  withDates.forEach(p => {
+    if (p.nextFollowUpDate !== lastDate) {
+      lastDate = p.nextFollowUpDate;
+      const overdue = isOverdue(p.nextFollowUpDate);
+      html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:'+(overdue?'#dc2626':'var(--muted)')+';margin:16px 0 6px;">'+(overdue?'Overdue \u2014 ':'')+dateLabel(lastDate)+'</div>';
+    }
+    html += '<div class="card" style="margin-bottom:8px;">'
+      + '<div class="row between" style="align-items:center;">'
+      + '<div style="min-width:0;flex:1;cursor:pointer;" data-action="open-patient" data-id="'+p.id+'">'
+      + '<div style="font-size:13.5px;font-weight:700;">'+escName(p.name)+'</div>'
+      + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+(p.procedure||p.diagnosis||'')+'</div>'
+      + '</div>'
+      + (p.whatsapp ? '<button class="btn btn-sm" style="flex:none;background:#25D366;border-color:#25D366;color:#fff;" data-action="upcoming-send-reminder" data-id="'+p.id+'">'+ic('message')+' Send</button>' : '<span class="badge badge-slate" style="font-size:10px;">No WhatsApp</span>')
+      + '</div>'
+      + '<div id="upcoming-status-'+p.id+'" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>'
+      + '</div>';
+  });
+  return html;
+}
+
 function renderCalendarView() {
   const openCount = REMINDERS.filter(r=>!r.done).length;
   return '<div style="padding-bottom:90px;">'
@@ -4455,12 +4509,13 @@ function renderCalendarView() {
     + '<div class="row gap3" style="margin-bottom:10px;"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Calendar &amp; Reminders</h2></div>'
     + '<div class="seg">'
     + '<button class="seg-btn'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar</button>'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming</button>'
     + '<button class="seg-btn'+(CAL_SUBVIEW==='reminders'?' active':'')+'" data-action="cal-set-subview" data-value="reminders">Reminders'+(openCount?' ('+openCount+')':'')+'</button>'
     + '</div>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
     + (REMINDER_FORM_OPEN && !REMINDER_FORM_PATIENT_ID ? renderReminderForm() : '')
-    + (CAL_SUBVIEW==='calendar' ? (renderCalendarGrid() + renderCalendarDayDetail()) : renderRemindersList())
+    + (CAL_SUBVIEW==='calendar' ? (renderCalendarGrid() + renderCalendarDayDetail()) : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : renderRemindersList())
     + '</div>'
     + '</div>';
 }
@@ -4942,18 +4997,21 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+async function generatePersonalizedReminderMessage(p) {
+  const askClaude = firebaseFunctions.httpsCallable('askClaude');
+  const profile = loadProfile();
+  const sys = 'You write a warm, natural WhatsApp follow-up reminder message in Hindi (Devanagari script) from a doctor to their patient, matching this style exactly:\n\n\u0928\u092e\u0938\u094d\u0924\u0947 [PatientName] \u091c\u0940,\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f [context] [date] \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0907\u090f\u0917\u093e\u0964\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n[DoctorName]\n\nPersonalize the middle part based on the patient\u2019s specific procedure/diagnosis and any relevant concern from their notes, while keeping the same warm tone, structure, and length. Return ONLY the final message text, nothing else.';
+  const context = 'Patient name: ' + p.name + '\nProcedure/Diagnosis: ' + (p.procedure || p.diagnosis || '\u2014') + '\nNext follow-up date: ' + fmtDate(p.nextFollowUpDate) + '\nNotes: ' + (p.notes || '\u2014') + '\nDoctor name: ' + (profile.doctorName || '[doctor name not set in profile]');
+  const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 300 });
+  return (result.data.text || '').trim();
+}
   if (action === 'ai-personalize-reminder') {
     const p = getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Writing\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
-      const profile = loadProfile();
-      const sys = 'You write a warm, natural WhatsApp follow-up reminder message in Hindi (Devanagari script) from a doctor to their patient, matching this style exactly:\n\n\u0928\u092e\u0938\u094d\u0924\u0947 [PatientName] \u091c\u0940,\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f [context] [date] \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0907\u090f\u0917\u093e\u0964\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n[DoctorName]\n\nPersonalize the middle part based on the patient\u2019s specific procedure/diagnosis and any relevant concern from their notes, while keeping the same warm tone, structure, and length. Return ONLY the final message text, nothing else.';
-      const context = 'Patient name: ' + p.name + '\nProcedure/Diagnosis: ' + (p.procedure || p.diagnosis || '\u2014') + '\nNext follow-up date: ' + fmtDate(p.nextFollowUpDate) + '\nNotes: ' + (p.notes || '\u2014') + '\nDoctor name: ' + (profile.doctorName || '[doctor name not set in profile]');
-      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 300 });
-      AI_PERSONALIZED_REMINDER = (result.data.text || '').trim();
+      AI_PERSONALIZED_REMINDER = await generatePersonalizedReminderMessage(p);
       await renderTabBody(getPatient(SELECTED_ID));
     } catch (err) {
       console.error('AI personalized reminder failed:', err);
@@ -4988,12 +5046,39 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'master-voice-start') { startMasterVoice(); return; }
   if (action === 'master-voice-cancel') { MASTER_VOICE_STATE = 'idle'; MASTER_VOICE_TRANSCRIPT = ''; MASTER_VOICE_RESULT = null; updateMasterVoiceUI(); return; }
-  if (action === 'master-voice-confirm') { executeMasterVoiceAction(); return; }
+  if (action === 'master-voice-confirm') { await executeMasterVoiceAction(); return; }
   if (action === 'speak-text') {
     const sourceEl = document.getElementById(el.dataset.source);
     const text = sourceEl ? sourceEl.textContent : '';
     if (!text || !text.trim()) return;
     speakToggle(text, el, el.dataset.lang);
+    return;
+  }
+  if (action === 'upcoming-send-reminder') {
+    const p = getPatient(el.dataset.id);
+    if (!p) return;
+    const statusEl = document.getElementById('upcoming-status-' + p.id);
+    if (CURRENT_USER && CURRENT_USER.uid === MY_UID) {
+      const originalHtml = el.innerHTML;
+      el.innerHTML = '<span class="spinner"></span>';
+      el.disabled = true;
+      if (statusEl) { statusEl.style.color = 'var(--muted)'; statusEl.textContent = 'Personalizing message\u2026'; }
+      try {
+        const message = await generatePersonalizedReminderMessage(p);
+        window.open('https://wa.me/' + toWaNumber(p.whatsapp) + '?text=' + encodeURIComponent(message), '_blank');
+        if (statusEl) statusEl.textContent = '';
+      } catch (err) {
+        console.error('Quick reminder failed:', err);
+        const link = followUpReminderLink(p);
+        if (link) window.open(link, '_blank');
+        if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'AI failed \u2014 sent the standard template instead'; }
+      }
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    } else {
+      const link = followUpReminderLink(p);
+      if (link) window.open(link, '_blank');
+    }
     return;
   }
   if (action === 'insert-op-template') {
@@ -5510,6 +5595,8 @@ document.addEventListener('click', async (e) => {
   if (action === 'toggle-tag-filter-row') { SHOW_TAG_FILTER = !SHOW_TAG_FILTER; render(); return; }
   if (action === 'toggle-insights') { SHOW_INSIGHTS = !SHOW_INSIGHTS; render(); return; }
   if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
+  if (action === 'toggle-attention-expanded') { ATTENTION_EXPANDED = !ATTENTION_EXPANDED; render(); return; }
+  if (action === 'toggle-patient-list-expanded') { PATIENT_LIST_EXPANDED = !PATIENT_LIST_EXPANDED; render(); return; }
   if (action === 'toggle-legend') { SHOW_LEGEND = !SHOW_LEGEND; render(); return; }
   if (action === 'tl-jump') {
     let target = el.dataset.value;
@@ -6261,7 +6348,7 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'open-calendar') {
     const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
-    CAL_SUBVIEW = 'calendar'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    CAL_SUBVIEW = 'upcoming'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
     VIEW = 'calendar'; render(); return;
   }
   if (action === 'close-calendar') { REMINDER_FORM_OPEN = false; VIEW = 'list'; render(); return; }
