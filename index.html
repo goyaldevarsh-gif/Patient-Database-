@@ -713,6 +713,24 @@ function autoDetectRegions(text) {
   const t = (' '+(text||'').toLowerCase()+' ');
   return CASE_REGIONS.filter(r => r.keywords.some(k => t.includes(k))).map(r => r.key);
 }
+/* AI-powered region detection (falls back to the offline keyword matcher above on failure
+   or when AI features aren't available for this account). */
+async function aiAutoDetectRegions(text) {
+  if (!(CURRENT_USER && CURRENT_USER.uid === MY_UID)) return null;
+  if (!text || !text.trim()) return null;
+  try {
+    const askClaude = firebaseFunctions.httpsCallable('askClaude');
+    const validKeys = CASE_REGIONS.map(r => r.key);
+    const sys = 'Classify an orthopaedic case into the relevant region(s)/specialty from this exact list only: ' + validKeys.join(', ') + '. Given the complaints/diagnosis/procedure text, return a JSON array of matching keys from that list (usually 1-2, exact spelling). Return ONLY the JSON array, no other text.';
+    const result = await askClaude({ systemPrompt: sys, userMessage: text, maxTokens: 80 });
+    let raw = (result.data.text || '').trim();
+    raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return null;
+    const filtered = arr.filter(k => validKeys.includes(k));
+    return filtered.length ? filtered : null;
+  } catch (e) { return null; }
+}
 const STATUS_OPTIONS = ['Active follow-up','Completed','Lost to follow-up'];
 
 const ICONS = {
@@ -1832,10 +1850,10 @@ function renderAboutView() {
 function renderSettingsView() {
   const pr = loadProfile();
   return '<div style="padding-bottom:90px;">'
-    + '<div class="sticky-top px row gap3" style="padding:14px 16px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="close-settings">'+ic('back')+'</button>'
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">Doctor / clinic profile</h2>'
-    + '</div>'
+    + '</div></div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
     + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.02em;margin:0 0 -4px;">OrthoVault \u2014 Built for Orthopaedic Surgeons</p>'
     + '<p style="font-size:12px;color:var(--muted);margin:0;">These details print on the prescription letterhead. Fill them in once, edit anytime.</p>'
@@ -2434,6 +2452,12 @@ let AP_SUBTAB = 'details';
 let AP_INVESTIGATIONS = [];
 let AP_INV_CATEGORY = 'xray';
 let AP_INV_XRAY_SUBTYPE = 'General OPD';
+let AP_INV_ACTIVE_GROUP = null;
+const AP_INV_GROUPS = [
+  { key:'imaging', label:'Imaging', categories:['xray','ct','mri','usg'] },
+  { key:'clinical', label:'Clinical Images / Wound', categories:['clinical','wound'] },
+  { key:'labs', label:'Labs / Reports', categories:['investigations'] },
+];
 function initApTemp() {
   // id is allocated right away (not just at final Save) so that any photos taken
   // during this wizard can be written to IndexedDB immediately, instead of sitting
@@ -2445,6 +2469,8 @@ function initApTemp() {
   AP_INVESTIGATIONS = [];
   AP_INV_CATEGORY = 'xray';
   AP_INV_XRAY_SUBTYPE = 'General OPD';
+  AP_INV_ACTIVE_GROUP = null;
+  AP_AI_FILL_TEXT = '';
   AI_SANITY_CHECK_RESULT = null;
 }
 function syncApTempFromDom() {
@@ -2452,7 +2478,9 @@ function syncApTempFromDom() {
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
   const complaintsEl = document.getElementById('ap-complaints'); if (complaintsEl) AP_TEMP.chiefComplaints = complaintsEl.value;
+  const aiFillEl = document.getElementById('ap-ai-fill-input'); if (aiFillEl) AP_AI_FILL_TEXT = aiFillEl.value;
 }
+let AP_AI_FILL_TEXT = '';
 function conditionOptionsHtml(selected, caseType) {
   const excluded = caseType === 'surgical' ? ['ctev','ra','osteoporosis'] : [];
   let html = '<option value=""'+(!selected?' selected':'')+'>\u2014 Select condition \u2014</option>';
@@ -2511,22 +2539,22 @@ function renderAddView() {
   const isSurgical = AP_TEMP.caseType === 'surgical';
   const tab2Label = isSurgical ? 'Diagnosis' : 'Complaints & Diagnosis';
   const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
-  const tabs = [['details','Patient Details'], ['complaints',tab2Label], ['tracking',tab3Label], ['investigations','Investigations']];
+  const tabs = [['details','Patient Details'], ['complaints',tab2Label], ['investigations','Investigations'], ['tracking',tab3Label]];
 
   let tabBody = '';
   if (AP_SUBTAB === 'details') {
     tabBody = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + '<div><label class="field-label">Patient name</label><input class="input" id="ap-name" placeholder="Patient name" value="'+esc(AP_TEMP.name)+'"></div>'
+      + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" placeholder="Patient name" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
-      + '<div><label class="field-label">Age</label><div class="row gap2">'
+      + '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label><div class="row gap2">'
       + '<input class="input" type="number" min="0" id="ap-age" placeholder="Years" value="'+esc(AP_TEMP.age)+'" style="flex:1;">'
       + '<input class="input" type="number" min="0" max="11" id="ap-ageMonths" placeholder="Months" value="'+esc(AP_TEMP.ageMonths)+'" style="flex:1;">'
       + '</div></div>'
       + '<div><label class="field-label">Sex</label><div class="seg">'
       + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
       + '</div>'
-      + '<div><label class="field-label">Occupation (if relevant)</label><input class="input" id="ap-occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(AP_TEMP.occupation)+'"></div>'
-      + '<div><label class="field-label">Hand dominance</label><div class="seg">'
+      + '<div><label class="field-label">Occupation (optional)</label><input class="input" id="ap-occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(AP_TEMP.occupation)+'"></div>'
+      + '<div><label class="field-label">Hand dominance (optional)</label><div class="seg">'
       + ['Left','Right','Ambidextrous'].map(s=>'<button class="seg-btn'+(AP_TEMP.handDominance===s?' active':'')+'" data-action="ap-set-hand" data-value="'+s+'">'+s+'</button>').join('')
       + '</div></div>'
       + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
@@ -2534,15 +2562,15 @@ function renderAddView() {
   } else if (AP_SUBTAB === 'complaints') {
     tabBody = '<div style="display:flex;flex-direction:column;gap:12px;">'
       + (!isSurgical ? '<div><label class="field-label">Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
-      + '<div><label class="field-label">Duration of symptoms</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div>'
-      + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')+'</div>'
+      + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div>'
       + '<div><label class="field-label">Side</label><div class="seg">'
       + ['Left','Right','Bilateral'].map(s=>'<button class="seg-btn'+(AP_TEMP.side===s?' active':'')+'" data-action="ap-set-side" data-value="'+s+'">'+s+'</button>').join('')
       + '</div></div>'
-      + '<div><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ap-auto-region">'+ic('search')+' Auto-detect</button></div>'
+      + '<div><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ap-auto-region">'+ic('sparkle')+' Auto-detect</button></div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
       + CASE_REGIONS.map(r=>'<button type="button" class="tag-chip'+(AP_TEMP.regions.includes(r.key)?' active':'')+'" data-action="ap-toggle-region" data-value="'+esc(r.key)+'">'+esc(r.key)+'</button>').join('')
       + '</div></div>'
+      + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')+'</div>'
       + '</div>';
   } else if (AP_SUBTAB === 'tracking') {
     tabBody = isSurgical ? (
@@ -2568,19 +2596,33 @@ function renderAddView() {
       + '</div>'
     );
   } else {
-    tabBody = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + '<p style="font-size:11.5px;color:var(--muted);margin:0;">Pick a category, then add a photo \u2014 it\u2019ll be filed there automatically.</p>'
-      + '<div><label class="field-label">Category</label><select class="select" id="ap-inv-category">'+IMAGES_RECORDS_SECTIONS.map(([v,l])=>'<option value="'+v+'"'+(AP_INV_CATEGORY===v?' selected':'')+'>'+l+'</option>').join('')+'</select></div>'
-      + (AP_INV_CATEGORY === 'xray' ? '<div><label class="field-label">X-ray type</label><select class="select" id="ap-inv-xray-subtype">'+XRAY_SUBTYPES.map(s=>'<option'+(AP_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>' : '')
-      + '<div id="ap-inv-thumbs">'+apInvThumbsHtml()+'</div>'
+    tabBody = '<div style="display:flex;flex-direction:column;gap:10px;">'
+      + AP_INV_GROUPS.map(g => {
+          const open = AP_INV_ACTIVE_GROUP === g.key;
+          const groupPhotos = AP_INVESTIGATIONS.filter(ph => g.categories.includes(ph.category));
+          return '<div class="card" style="padding:12px;">'
+            + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:0;" data-action="ap-inv-toggle-group" data-value="'+g.key+'">'
+            + '<span style="font-size:13px;font-weight:700;">'+g.label+(groupPhotos.length?' ('+groupPhotos.length+')':'')+'</span>'
+            + '<span style="color:var(--accent);transform:rotate('+(open?90:0)+'deg);display:inline-flex;">'+ic('chevron')+'</span>'
+            + '</button>'
+            + (open ? (
+                '<div style="margin-top:10px;">'
+                + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' + g.categories.map(c => '<button type="button" class="chip'+(AP_INV_CATEGORY===c?' active':'')+'" data-action="ap-inv-set-category" data-value="'+c+'">'+apInvCatLabel(c)+'</button>').join('') + '</div>'
+                + (AP_INV_CATEGORY === 'xray' && g.categories.includes('xray') ? '<div style="margin-bottom:8px;"><select class="select" id="ap-inv-xray-subtype">'+XRAY_SUBTYPES.map(s=>'<option'+(AP_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>' : '')
+                + '<div id="ap-inv-thumbs">'+categorizedThumbsHtml(groupPhotos, 'ap-inv-remove-photo')+'</div>'
+                + '</div>'
+              ) : '')
+            + '</div>';
+        }).join('')
+      + '<p style="font-size:11px;color:var(--muted);margin:0;">Injections aren\u2019t added here \u2014 log them from the patient\u2019s record after the case is saved.</p>'
       + '</div>';
   }
 
   return '<div style="padding-bottom:90px;">'
-    + '<div class="sticky-top px row gap3" style="padding:14px 16px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="cancel-add">'+ic('back')+'</button>'
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">New case</h2>'
-    + '</div>'
+    + '</div></div>'
     + '<div class="px" style="padding-top:16px;display:flex;flex-direction:column;gap:16px;">'
     + (AP_DUPLICATE_FROM ? '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;padding:10px 12px;"><span style="font-size:12px;color:var(--accent-dark);font-weight:600;">'+ic('tag')+' Duplicated from '+esc(AP_DUPLICATE_FROM)+' \u2014 everything else was copied, just check Name, Age and Side below.</span></div>' : '')
 
@@ -2589,15 +2631,21 @@ function renderAddView() {
     + '<button class="seg-btn'+(AP_TEMP.caseType==='surgical'?' active':'')+'" data-action="ap-set-casetype" data-value="surgical">Surgical</button>'
     + '</div></div>'
 
-    + (!isSurgical ? '<div><label class="field-label">Visit date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>' : '')
+    + (!isSurgical ? '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;">Visit date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'" style="width:auto;max-width:150px;"></div>' : '')
 
     + '<div class="seg" style="width:100%;">' + tabs.map(([v,l])=>'<button type="button" class="seg-btn'+(AP_SUBTAB===v?' active':'')+'" style="flex:1;" data-action="ap-switch-tab" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
 
     + '<div class="card" style="padding:14px;">' + tabBody + '</div>'
 
-    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea>'
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<button class="btn btn-sm" style="margin-top:8px;" data-action="ai-fill-from-notes">'+ic('mic')+' AI: Fill all fields from notes</button><div id="ai-fill-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>' : '')
-    + '</div>'
+    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
+    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+        '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
+        + '<label class="field-label">'+ic('sparkle')+' AI Quick-Fill</label>'
+        + '<p style="font-size:11px;color:var(--muted);margin:2px 0 8px;">Dictate or paste anything about the patient \u2014 AI fills the fields above from it. Separate from Notes.</p>'
+        + '<textarea class="textarea" id="ap-ai-fill-input" rows="3" placeholder="e.g. 45 year old female, right knee pain for 6 months, worse on stairs, primary OA...">'+esc(AP_AI_FILL_TEXT)+'</textarea>'
+        + '<button class="btn btn-sm" style="margin-top:8px;" data-action="ai-fill-from-notes">'+ic('sparkle')+' AI: Fill all fields from this</button><div id="ai-fill-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
+        + '</div>'
+      ) : '')
     + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
         '<div>'
         + '<button class="btn btn-sm btn-block" data-action="ai-sanity-check">'+ic('shield')+' AI: Check for mismatches before saving</button>'
@@ -2672,7 +2720,7 @@ function renderOverviewTab(p) {
         ) : '')
       + '</div>'
       + '<div class="card"><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
-      + '<div class="card"><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ov-auto-region">'+ic('search')+' Auto-detect</button></div>'
+      + '<div class="card"><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ov-auto-region">'+ic('sparkle')+' Auto-detect</button></div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
       + CASE_REGIONS.map(r=>'<button type="button" class="tag-chip'+((p.regions||[]).includes(r.key)?' active':'')+'" data-action="ov-toggle-region" data-value="'+esc(r.key)+'">'+esc(r.key)+'</button>').join('')
       + '</div></div>';
@@ -4518,10 +4566,10 @@ async function renderComparePickerView() {
       + '<span class="compare-pick-label">'+esc(imageSourceLabel(im, p))+' \u00b7 '+fmtDate(im.createdAt ? new Date(im.createdAt).toISOString().slice(0,10) : '')+'</span>'
       + '</button>';
   }).join('');
-  return '<div class="sticky-top px row gap3" style="padding:14px 16px;">'
+  return '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="close-compare-picker">'+ic('back')+'</button>'
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">Select 2 photos to compare</h2>'
-    + '</div>'
+    + '</div></div>'
     + '<div class="px" style="padding-top:14px;padding-bottom:20px;">'
     + '<p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Tap the "Before" photo first, then the "After" one. ('+COMPARE_SELECTED.length+'/2 selected)</p>'
     + '<div class="compare-pick-grid">'+items+'</div>'
@@ -4535,10 +4583,10 @@ function renderCompareView() {
   if (!imA || !imB) { VIEW = 'detail'; TAB = 'imagesrecords'; return renderDetailShell(p); }
   const urlA = trackUrl(URL.createObjectURL(imA.blob));
   const urlB = trackUrl(URL.createObjectURL(imB.blob));
-  return '<div class="sticky-top px row gap3" style="padding:14px 16px;">'
+  return '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="close-compare-view">'+ic('back')+'</button>'
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">Before / After</h2>'
-    + '</div>'
+    + '</div></div>'
     + '<div class="compare-split">'
     + '<div class="compare-half"><div class="compare-tag">BEFORE \u00b7 '+esc(imageSourceLabel(imA,p))+'</div><img src="'+urlA+'" data-action="view-image" data-imgid="'+imA.id+'" data-url="'+esc(urlA)+'"></div>'
     + '<div class="compare-half"><div class="compare-tag">AFTER \u00b7 '+esc(imageSourceLabel(imB,p))+'</div><img src="'+urlB+'" data-action="view-image" data-imgid="'+imB.id+'" data-url="'+esc(urlB)+'"></div>'
@@ -5455,9 +5503,9 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'ai-fill-from-notes') {
     syncApTempFromDom();
-    const notesText = (AP_TEMP.notes || '').trim();
+    const notesText = (AP_AI_FILL_TEXT || '').trim();
     const statusEl = document.getElementById('ai-fill-status');
-    if (!notesText) { if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'Write something in Notes first.'; } return; }
+    if (!notesText) { if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'Write something in the AI Quick-Fill box first.'; } return; }
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Reading notes\u2026';
     el.disabled = true;
@@ -5926,6 +5974,17 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'ap-set-hand') { syncApTempFromDom(); AP_TEMP.handDominance = el.dataset.value; render(); return; }
   if (action === 'ap-set-payment') { syncApTempFromDom(); AP_TEMP.paymentMethod = el.dataset.value; render(); return; }
   if (action === 'ap-switch-tab') { syncApTempFromDom(); AP_SUBTAB = el.dataset.value; render(); return; }
+  if (action === 'ap-inv-toggle-group') {
+    const key = el.dataset.value;
+    AP_INV_ACTIVE_GROUP = (AP_INV_ACTIVE_GROUP === key) ? null : key;
+    if (AP_INV_ACTIVE_GROUP) {
+      const g = AP_INV_GROUPS.find(x => x.key === AP_INV_ACTIVE_GROUP);
+      if (g && !g.categories.includes(AP_INV_CATEGORY)) AP_INV_CATEGORY = g.categories[0];
+    }
+    render();
+    return;
+  }
+  if (action === 'ap-inv-set-category') { AP_INV_CATEGORY = el.dataset.value; render(); return; }
   if (action === 'ap-inv-remove-photo') {
     const idx = AP_INVESTIGATIONS.findIndex(x => x.tempId === el.dataset.tempid);
     if (idx >= 0) AP_INVESTIGATIONS.splice(idx, 1);
@@ -5936,7 +5995,11 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'ov-auto-region') {
     const p = getPatient(SELECTED_ID);
-    const detected = autoDetectRegions((p.diagnosis||'') + ' ' + (p.chiefComplaints||'') + ' ' + (p.procedure||'') + ' ' + (p.condition||''));
+    const text = (p.diagnosis||'') + ' ' + (p.chiefComplaints||'') + ' ' + (p.procedure||'') + ' ' + (p.condition||'');
+    const originalHtml = el.innerHTML; el.innerHTML = '<span class="spinner"></span>'; el.disabled = true;
+    let detected = await aiAutoDetectRegions(text);
+    if (!detected) detected = autoDetectRegions(text);
+    el.innerHTML = originalHtml; el.disabled = false;
     p.regions = p.regions || [];
     detected.forEach(r => { if (!p.regions.includes(r)) p.regions.push(r); });
     if (!detected.length) { toast('Couldn\u2019t auto-detect \u2014 pick manually'); return; }
@@ -5980,9 +6043,13 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'ap-auto-region') {
     syncApTempFromDom();
-    const detected = autoDetectRegions(AP_TEMP.diagnosis + ' ' + AP_TEMP.procedure + ' ' + (AP_TEMP.chiefComplaints||'') + ' ' + (AP_TEMP.condition||''));
+    const text = AP_TEMP.diagnosis + ' ' + AP_TEMP.procedure + ' ' + (AP_TEMP.chiefComplaints||'') + ' ' + (AP_TEMP.condition||'');
+    const originalHtml = el.innerHTML; el.innerHTML = '<span class="spinner"></span>'; el.disabled = true;
+    let detected = await aiAutoDetectRegions(text);
+    if (!detected) detected = autoDetectRegions(text);
+    el.innerHTML = originalHtml; el.disabled = false;
     detected.forEach(r => { if (!AP_TEMP.regions.includes(r)) AP_TEMP.regions.push(r); });
-    if (!detected.length) toast('Couldn\u2019t auto-detect from the diagnosis/procedure text \u2014 pick manually');
+    if (!detected.length) toast('Couldn\u2019t auto-detect \u2014 pick manually');
     render();
     return;
   }
