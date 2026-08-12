@@ -819,6 +819,7 @@ function resetPerPatientUiState() {
   OV_EXPANDED = new Set(['snapshot']);
   OV_SHOW_SCHEDULE = false;
   OV_SHOW_PAYMENT = false;
+  OV_EDIT_MODE = false;
   AI_PATIENT_SUMMARY = null;
   ROM_LOG_OPEN = false;
   ADD_FOLLOWUP_OPEN = false;
@@ -2702,6 +2703,11 @@ function renderAddView() {
 
 let OV_SUBTAB = 'details';
 let OV_EXPANDED = new Set(['snapshot']);
+let OV_EDIT_MODE = false;
+function ovRow(label, value) {
+  if (!value) return '';
+  return '<div style="font-size:12.5px;line-height:1.5;"><span style="color:var(--muted);">'+esc(label)+':</span> <span style="color:#1e293b;">'+esc(value)+'</span></div>';
+}
 let OV_SHOW_SCHEDULE = false;
 let OV_SHOW_PAYMENT = false;
 function ovSection(key, title, bodyHtml) {
@@ -2728,19 +2734,13 @@ function renderOverviewTab(p) {
     + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
     + '<div><label class="field-label">Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
     + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
-        '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
-        + (AI_INVESTIGATION_SUGGESTIONS === null
-            ? '<button class="btn btn-sm" data-action="ai-suggest-investigations">'+ic('shield')+' AI: Suggested investigations</button>'
-            : (AI_INVESTIGATION_SUGGESTIONS.length
-                ? '<label class="field-label" style="margin-bottom:4px;">Typically indicated (reference only)</label><ul style="margin:0;padding-left:18px;font-size:12.5px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li style="margin-bottom:3px;">'+esc(s)+'</li>').join('')+'</ul>'
-                : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add a diagnosis first.</p>'))
+        '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
+        + '<div class="row gap2" style="flex-wrap:wrap;">'
+        + (AI_INVESTIGATION_SUGGESTIONS === null ? '<button class="chip" data-action="ai-suggest-investigations">'+ic('sparkle')+' Investigations</button>' : '')
+        + (AI_EXAM_SUGGESTIONS === null ? '<button class="chip" data-action="ai-suggest-exam">'+ic('sparkle')+' What to examine</button>' : '')
         + '</div>'
-        + '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
-        + (AI_EXAM_SUGGESTIONS === null
-            ? '<button class="btn btn-sm" data-action="ai-suggest-exam">'+ic('shield')+' AI: What to examine</button>'
-            : (AI_EXAM_SUGGESTIONS.length
-                ? '<label class="field-label" style="margin-bottom:4px;">Key things to examine (reference only)</label><ul style="margin:0;padding-left:18px;font-size:12.5px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li style="margin-bottom:3px;">'+esc(s)+'</li>').join('')+'</ul>'
-                : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add complaints or diagnosis first.</p>'))
+        + (AI_INVESTIGATION_SUGGESTIONS && AI_INVESTIGATION_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">Investigations (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
+        + (AI_EXAM_SUGGESTIONS && AI_EXAM_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">To examine (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
         + '</div>'
       ) : '')
     + '</div>'
@@ -2815,8 +2815,36 @@ function renderOverviewTab(p) {
 
   let usefulBody = tagsCardHtml(p) + reminderMiniCardHtml(p);
 
+  // ---- Compact read-only summaries (default view) \u2014 only shows what's actually filled ----
+  const regionsSpecLine = (p.regions||[]).length ? (p.regions||[]).join(', ') : '';
+  const snapshotRead = '<div style="display:flex;flex-direction:column;gap:4px;">'
+    + ovRow('Age / Sex', formatAge(p) + (p.sex ? ' \u00b7 '+p.sex : ''))
+    + ovRow('Side', p.side && p.side!=='N/A' ? p.side : '')
+    + ovRow('Region / Specialty', regionsSpecLine)
+    + ovRow('Occupation', p.occupation)
+    + ovRow('Hand dominance', p.handDominance)
+    + (!isSurgical ? ovRow('Chief complaints', p.chiefComplaints) : '')
+    + ovRow('Diagnosis', displayDiagnosis(p.diagnosis))
+    + (isSurgical ? ovRow('Procedure', p.procedure) : '')
+    + (isSurgical ? ovRow('Surgery date', p.surgeryDate ? fmtDate(p.surgeryDate) : '') : '')
+    + '<div style="margin-top:4px;'+(overdue?'color:#dc2626;font-weight:700;':'')+'font-size:12.5px;">'
+    + (overdue ? 'Follow-up OVERDUE' : p.nextFollowUpDate ? 'Next follow-up: '+fmtDate(p.nextFollowUpDate) : 'Follow-up not scheduled')
+    + '</div>'
+    + '</div>';
+  const clinicalRead = '<div style="display:flex;flex-direction:column;gap:4px;">'
+    + ovRow('Co-morbidities', (p.comorbidities||[]).join(', '))
+    + ovRow('Notes', p.notes)
+    + ovRow('Special tracking', p.condition ? p.condition.toUpperCase() : '')
+    + (!(p.comorbidities||[]).length && !p.notes && !p.condition ? '<p style="font-size:12px;color:var(--muted);margin:0;">Nothing added yet.</p>' : '')
+    + '</div>';
+  const communicateRead = '<div style="display:flex;flex-direction:column;gap:8px;">'
+    + ovRow('WhatsApp', p.whatsapp)
+    + (waLink(p) ? '<div class="row gap2"><a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:1;">'+ic('message')+' Message</a><a href="tel:+'+esc(toWaNumber(p.whatsapp))+'" class="btn btn-sm" style="flex:none;text-decoration:none;" title="Call">'+ic('phone')+'</a></div>' : '<p style="font-size:12px;color:var(--muted);margin:0;">No number saved.</p>')
+    + '</div>';
+
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
     + '<div class="row" style="justify-content:flex-end;gap:8px;">'
+    + '<button class="icon-btn'+(OV_EDIT_MODE?' active':'')+'" style="'+(OV_EDIT_MODE?'color:var(--accent);':'')+'" data-action="ov-toggle-edit-mode" title="'+(OV_EDIT_MODE?'Done editing':'Edit')+'">'+ic(OV_EDIT_MODE?'check':'gear')+'</button>'
     + '<button class="icon-btn" data-action="duplicate-case" title="Duplicate Case">'+ic('copy')+'</button>'
     + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
     + '</div>'
@@ -2824,9 +2852,9 @@ function renderOverviewTab(p) {
     + '<button type="button" class="stat-card" style="text-align:left;border:1px solid var(--border);cursor:pointer;" data-action="set-tab" data-value="imagesrecords"><div class="stat-label">Investigation photos</div><div class="stat-value mono">'+p.preOpImageCount+'</div></button>'
     + '<button type="button" class="stat-card" style="text-align:left;border:1px solid var(--border);cursor:pointer;" data-action="set-tab" data-value="followups"><div class="stat-label">Follow-up visits</div><div class="stat-value mono">'+(p.followUps||[]).length+'</div></button>'
     + '</div>'
-    + ovSection('snapshot', 'Patient Snapshot', snapshotBody)
-    + ovSection('clinical', 'Clinical', clinicalBody)
-    + ovSection('communicate', 'Communicate', communicateBody)
+    + ovSection('snapshot', 'Patient Snapshot', OV_EDIT_MODE ? snapshotBody : snapshotRead)
+    + ovSection('clinical', 'Clinical', OV_EDIT_MODE ? clinicalBody : clinicalRead)
+    + ovSection('communicate', 'Communicate', OV_EDIT_MODE ? communicateBody : communicateRead)
     + ovSection('useful', 'Useful', usefulBody)
     + '<div style="text-align:center;padding-top:6px;">'
     + (!isSurgical ? '<button class="btn btn-sm" style="background:transparent;border-color:transparent;color:var(--muted);font-size:11.5px;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical\u2026</button>' : convertToOpdButtonHtml(p))
@@ -6158,6 +6186,7 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'ov-show-schedule') { OV_SHOW_SCHEDULE = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-toggle-payment') { OV_SHOW_PAYMENT = !OV_SHOW_PAYMENT; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ov-toggle-edit-mode') { OV_EDIT_MODE = !OV_EDIT_MODE; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ai-summarize-patient') {
     const p = getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
