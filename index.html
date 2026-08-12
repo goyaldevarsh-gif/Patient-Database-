@@ -358,10 +358,10 @@
   .reminder-check .ic { width:13px; height:13px; }
   .reminder-check.done { background:var(--emerald); border-color:var(--emerald); }
 
-  .usearch-fab { position:absolute; right:16px; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); width:52px; height:52px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 16px rgba(67,56,202,0.4); border:none; }
-  .usearch-fab .ic { width:22px; height:22px; }
-  .side-back-btn { position:absolute; left:10px; top:50%; transform:translateY(-50%); width:44px; height:44px; border-radius:50%; background:rgba(15,23,42,0.85); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,0.25); border:none; }
-  .side-back-btn .ic { width:20px; height:20px; }
+  .usearch-fab { position:absolute; right:16px; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); width:42px; height:42px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(67,56,202,0.3); border:none; opacity:0.82; }
+  .usearch-fab .ic { width:18px; height:18px; }
+  .side-back-btn { position:absolute; left:8px; top:50%; transform:translateY(-50%); width:32px; height:32px; border-radius:50%; background:rgba(15,23,42,0.5); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.15); border:none; }
+  .side-back-btn .ic { width:15px; height:15px; }
   .usearch-overlay { position:fixed; inset:0; background:rgba(255,255,255,0.85); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); z-index:70; display:flex; flex-direction:column; }
   [data-theme="dark"] .usearch-overlay { background:rgba(15,23,42,0.9); }
   .usearch-topbar { display:flex; align-items:center; gap:8px; padding:14px 16px; padding-top:calc(14px + env(safe-area-inset-top, 0px)); border-bottom:1px solid var(--border); }
@@ -375,7 +375,7 @@
   <button id="usearch-fab" class="usearch-fab" data-action="open-universal-search" title="Search everything" style="pointer-events:auto;"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
 </div>
 <div id="master-voice-fab-wrap" style="display:none;position:fixed;inset:0;max-width:520px;margin:0 auto;pointer-events:none;z-index:45;">
-  <button id="master-voice-fab" class="usearch-fab" data-action="master-voice-start" title="Voice command" style="pointer-events:auto;left:16px;right:auto;background:#0f172a;"><svg class="ic" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+  <button id="master-voice-fab" class="usearch-fab" data-action="master-voice-start" title="AI voice command" style="pointer-events:auto;left:16px;right:auto;width:38px;height:38px;background:#0f172a;"><svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M12 3l1.4 4.3L18 9l-4.6 1.7L12 15l-1.4-4.3L6 9l4.6-1.7z"/><path d="M19 13l.6 1.9L21 16l-1.9.7L19 19l-.6-2.3L16 16l2.4-1.1z"/></svg></button>
 </div>
 <div id="master-voice-overlay-wrap"></div>
 <div id="side-back-wrap" style="display:none;position:fixed;inset:0;max-width:520px;margin:0 auto;pointer-events:none;z-index:45;">
@@ -454,6 +454,29 @@ function syncPatientToCloud(p) {
       .catch(function(err) { console.error('Cloud sync (save) failed for patient', p.id, err); addPendingSync('patient', p.id); toast('Cloud sync failed for "' + (p.name||p.id) + '" \u2014 will retry automatically'); });
   } catch (e) {}
 }
+/* ---- Doctor/Clinic Profile cloud sync \u2014 so a reinstall + sign-in restores it, not just
+   patient data. Stored as a single doc rather than a live-synced collection since it's
+   small and changes rarely; pulled once at sign-in, pushed on every save. */
+function syncProfileToCloud(profile) {
+  if (!CURRENT_USER) return;
+  try {
+    firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('profile').set(profile)
+      .then(function() { removePendingSync('profile', 'profile'); })
+      .catch(function(err) { console.error('Profile cloud sync failed', err); addPendingSync('profile', 'profile'); });
+  } catch (e) {}
+}
+async function pullProfileFromCloud(uid) {
+  try {
+    const doc = await firestoreDB.collection('users').doc(uid).collection('meta').doc('profile').get();
+    const local = loadProfile();
+    if (doc.exists) {
+      if (!profileIsComplete(local)) { saveProfile(doc.data(), true); if (VIEW === 'settings') render(); }
+      else { syncProfileToCloud(local); } // keep cloud in step with whichever device was edited most recently
+    } else {
+      syncProfileToCloud(local); // first time signing in on this account \u2014 seed the cloud copy
+    }
+  } catch (e) {}
+}
 function deletePatientFromCloud(id) {
   if (!CURRENT_USER || SYNC_APPLYING_REMOTE) return;
   try {
@@ -486,6 +509,9 @@ async function retryPendingSync() {
         await withTimeout(firebaseStorage.ref('users/' + uidStr + '/images/' + rec.id).put(rec.blob, { contentType: contentType }), 30000, 'Photo sync');
         await withTimeout(firestoreDB.collection('users').doc(uidStr).collection('images').doc(String(rec.id)).set(meta), 20000, 'Sync');
         removePendingSync('image', item.id);
+      } else if (item.type === 'profile') {
+        await withTimeout(firestoreDB.collection('users').doc(uidStr).collection('meta').doc('profile').set(loadProfile()), 15000, 'Sync');
+        removePendingSync('profile', 'profile');
       }
     } catch (err) {
       // Still failing (offline, etc.) \u2014 leave it queued, the next retry pass will try again.
@@ -531,6 +557,26 @@ async function dbDeleteImage(id) { const s = await storeOf('images','readwrite')
 async function dbDeleteImagesByPatient(patientId) {
   const imgs = await dbGetImagesByPatient(patientId);
   for (const img of imgs) await dbDeleteImage(img.id);
+}
+async function dbGetAllImages() { const s = await storeOf('images','readonly'); return reqToPromise(s.getAll()); }
+
+/* An image counts as "unfiled" if it isn't yet visible anywhere in the normal tabs \u2014
+   not linked to a follow-up/investigation/prescription, not an OT photo, and not
+   already tagged with one of the categories that Images & Records shows even before
+   linking (xray/clinical/wound/ct/mri/usg). This is the safety net for the
+   immediate-commit fix in handlePhotoInputChange / handleCategorizedPhotoChange: if a
+   form was ever abandoned before Save, the photo lands here instead of disappearing.
+   Photos are NEVER auto-deleted by this check \u2014 only a person tapping Delete removes
+   one, from the recovery screen itself. */
+const UNFILED_VISIBLE_CATEGORIES = ['xray','clinical','wound','ct','mri','usg'];
+function isUnfiledImage(img) {
+  return !img.followUpId && !img.investigationId && !img.prescriptionId && !img.isIntraOp
+    && !UNFILED_VISIBLE_CATEGORIES.includes(img.imageCategory);
+}
+async function computeUnfiledImages() {
+  const all = await dbGetAllImages();
+  return all.filter(isUnfiledImage).map(img => ({ img, patient: PATIENTS.find(p => p.id === img.patientId) || null }))
+    .sort((a,b) => (b.img.createdAt||0) - (a.img.createdAt||0));
 }
 
 function syncImageToCloud(rec) {
@@ -701,6 +747,7 @@ const ICONS = {
   folder:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
   pin:'<path d="M12 2a6 6 0 0 0-6 6c0 4.5 6 12 6 12s6-7.5 6-12a6 6 0 0 0-6-6z"/><circle cx="12" cy="8" r="2"/>',
   menu:'<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
+  sparkle:'<path d="M12 3l1.4 4.3L18 9l-4.6 1.7L12 15l-1.4-4.3L6 9l4.6-1.7z"/><path d="M19 13l.6 1.9L21 16l-1.9.7L19 19l-.6-2.3L16 16l2.4-1.1z"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
 
@@ -737,6 +784,7 @@ function resetPerPatientUiState() {
   FU_INV_PHOTOS = [];
   AI_TAG_SUGGESTIONS = null;
   AI_INVESTIGATION_SUGGESTIONS = null;
+  AI_EXAM_SUGGESTIONS = null;
   AI_PERSONALIZED_REMINDER = null;
 }
 let ADD_FOLLOWUP_OPEN = false;
@@ -1393,9 +1441,10 @@ function loadProfile() {
     return raw ? JSON.parse(raw) : { ...DEFAULT_PROFILE };
   } catch (e) { return { ...DEFAULT_PROFILE }; }
 }
-function saveProfile(profile) {
-  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); toast('Profile saved'); }
-  catch (e) { toast('Save failed'); }
+function saveProfile(profile, silent) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); if (!silent) toast('Profile saved'); }
+  catch (e) { if (!silent) toast('Save failed'); }
+  syncProfileToCloud(profile);
 }
 function profileIsComplete(p) { return !!(p.doctorName && p.regNumber && p.clinicName); }
 
@@ -1555,7 +1604,8 @@ function renderCashAuditView() {
     + '</div>';
 }
 
-function renderMoreView() {
+async function renderMoreView() {
+  const unfiled = await computeUnfiledImages();
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row gap3"><button class="icon-btn" data-action="close-more">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">More</h2></div>'
@@ -1565,6 +1615,7 @@ function renderMoreView() {
     + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
     + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? moreRowHtml('shield', 'AI Features', 'Everything AI in one place \u2014 patient queries, digest, knowledge engine, clinical assistant, and where the rest live', 'open-ai-hub') : '')
     + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
+    + moreRowHtml('camera', 'Unfiled Photos'+(unfiled.length ? ' ('+unfiled.length+')' : ''), unfiled.length ? 'Photos saved from an interrupted entry \u2014 file them to a patient or delete' : 'Nothing unfiled right now \u2014 everything is safely filed', 'open-unfiled-photos')
     + moreRowHtml('download', 'Export Backup', 'Save a zip of all cases, photos and reminders \u2014 tip: pick your Google Drive folder for an automatic cloud copy', 'export-backup')
     + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 handy for audits, CME records, or research', 'export-case-log')
     + moreRowHtml('printer', 'Cash Collection Audit', 'Monthly totals of cash payments across all surgical cases', 'open-cash-audit')
@@ -1599,6 +1650,49 @@ async function renderRecentlyDeletedView() {
           + '</div>';
       }).join('')
       : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">Nothing here.</div>')
+    + '</div></div>';
+}
+
+/* ================= Unfiled Photos (recovery / safety net) ================= */
+async function renderUnfiledPhotosView() {
+  const unfiled = await computeUnfiledImages();
+  revokeActiveUrls();
+  const patientOptions = PATIENTS.slice().sort((a,b) => (a.name||'').localeCompare(b.name||''))
+    .map(p => '<option value="'+p.id+'">'+esc(p.name||'Unnamed')+(p.patientCode?' ('+esc(p.patientCode)+')':'')+'</option>').join('');
+  const cards = unfiled.map(({img, patient}) => {
+    const url = trackUrl(URL.createObjectURL(img.blob));
+    return '<div class="card" style="margin-bottom:12px;">'
+      + '<div class="row gap3" style="align-items:flex-start;">'
+      + '<img src="'+url+'" style="width:74px;height:74px;object-fit:cover;border-radius:10px;flex:none;">'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-size:12px;color:var(--muted);">'+fmtDate(img.createdAt)+'</div>'
+      + (patient
+          ? '<div style="font-weight:700;font-size:13px;margin-top:2px;">'+escName(patient.name)+'</div>'
+          : '<div style="font-weight:700;font-size:12px;margin-top:2px;color:#b45309;">'+ic('alert')+' No matching patient \u2014 pick one below</div>')
+      + '</div>'
+      + '</div>'
+      + '<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">'
+      + (patient ? '' : '<select class="select" id="unfiled-patient-'+img.id+'"><option value="">\u2014 Select patient \u2014</option>'+patientOptions+'</select>')
+      + '<select class="select" id="unfiled-category-'+img.id+'">'
+        + '<option value="">\u2014 File as \u2014</option>'
+        + UNFILED_VISIBLE_CATEGORIES.map(c => '<option value="'+c+'">'+apInvCatLabel(c)+'</option>').join('')
+      + '</select>'
+      + '<div class="row gap2">'
+      + '<button class="btn btn-sm btn-primary" style="flex:1;" data-action="unfiled-file" data-id="'+img.id+'"'+(patient?'':' data-orphan="1"')+'>'+ic('check')+' File this photo</button>'
+      + confirmBtn('unfiled-delete', img.id)
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-unfiled-photos">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Unfiled Photos</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
+    + (unfiled.length
+        ? '<p style="font-size:11.5px;color:var(--muted);margin:0 0 14px;">Photos saved from a form that was never finished (e.g. the app closed before you tapped Save). Nothing here was ever deleted \u2014 file each one to a patient and category, or delete it if you don\u2019t need it.</p>'
+        : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">Nothing unfiled right now \u2014 everything is safely filed.</div>')
+    + cards
     + '</div></div>';
 }
 
@@ -1912,7 +2006,7 @@ function renderDashboardSection() {
       html += '<button class="chip" style="margin-bottom:12px;" data-action="toggle-insights">'+ic('search')+' This month\u2019s insights ('+s.monthCount+' cases added)</button>';
     } else {
       html += '<div class="card" style="margin-bottom:14px;">'
-        + '<label class="field-label">This month\u2019s insights ('+s.monthCount+' cases added)</label>'
+        + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">This month\u2019s insights ('+s.monthCount+' cases added)</label><button class="icon-btn" style="width:24px;height:24px;color:var(--muted);" data-action="toggle-insights" title="Collapse">'+ic('x')+'</button></div>'
         + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top procedures</span>'
             + s.topProcedures.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
         + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top conditions</span>'
@@ -2019,7 +2113,7 @@ function usearchResultRowHtml(p, q) {
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
-const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','cash-audit','compare-picker','compare-view','print'];
+const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','cash-audit','compare-picker','compare-view','print','settings','about','calendar','more','recently-deleted','unfiled-photos'];
 function updateUsearchFabVisibility() {
   const wrap = document.getElementById('usearch-fab-wrap');
   if (!wrap) return;
@@ -2097,21 +2191,37 @@ function renderListView() {
     cards = '<div style="display:flex;flex-direction:column;gap:8px;">';
     filtered.forEach(p => {
       const dot = caseStatusDot(p);
-      const summaryText = p.caseType === 'surgical'
-        ? (p.procedure ? sideTag(p) + p.procedure : '')
-        : (p.diagnosis ? sideTag(p) + displayDiagnosis(p.diagnosis) : '');
+      const diagnosisText = displayDiagnosis(p.diagnosis || p.chiefComplaints || '');
+      const procedureText = (p.caseType === 'surgical' && p.procedure) ? p.procedure : '';
+      const summaryParts = [];
+      if (diagnosisText) summaryParts.push(diagnosisText);
+      if (procedureText && procedureText !== diagnosisText) summaryParts.push(procedureText);
+      const summaryText = summaryParts.length ? sideTag(p) + summaryParts.join(' \u00b7 ') : '';
+      let followUpLine;
+      if (p.status === 'Lost to follow-up') followUpLine = '<span style="color:#1f2937;font-weight:700;">Lost to follow-up</span>';
+      else if (p.status === 'Completed') followUpLine = '<span style="color:#16a34a;font-weight:700;">Follow-up complete</span>';
+      else if (p.nextFollowUpDate) {
+        const overdue = isOverdue(p.nextFollowUpDate);
+        followUpLine = '<span style="color:'+(overdue?'#dc2626':'var(--muted)')+';font-weight:'+(overdue?'700':'500')+';">'+(overdue?'Overdue \u2014 ':'Next follow-up ')+fmtDateShort(p.nextFollowUpDate)+'</span>';
+      } else {
+        followUpLine = '<span style="color:var(--muted);">Follow-up not scheduled</span>';
+      }
       cards += '<div class="case-card" data-action="open-patient" data-id="'+p.id+'">'
         + '<div style="min-width:0;flex:1;">'
-        + (p.patientCode ? '<div class="mono" style="font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:0.02em;">'+esc(p.patientCode)+'</div>' : '')
-        + '<div class="row gap2" style="margin-top:1px;">'
+        + '<div class="row between" style="align-items:center;">'
+        + '<span class="mono" style="font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:0.02em;">'+(p.patientCode?esc(p.patientCode):'\u2014')+'</span>'
+        + '<span class="badge badge-'+(p.caseType==='surgical'?'indigo':'slate')+'" style="font-size:9px;padding:2px 7px;flex:none;">'+(p.caseType==='surgical'?'Surgical':'OPD')+'</span>'
+        + '</div>'
+        + '<div class="row gap2" style="margin-top:3px;">'
         + (dot ? '<span class="status-dot" style="background:'+dot.color+';" title="'+dot.label+'"></span>' : '')
         + (p.pinned ? '<span style="color:var(--accent);flex:none;">'+ic('pin')+'</span>' : '')
         + '<span class="display" style="font-weight:800;font-size:15px;">'+escName(p.name)+'</span>'
-        + '<span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+'</span>'
+        + '<span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex||'')+'</span>'
         + '</div>'
-        + '<div style="font-size:12.5px;color:#334155;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+        + '<div style="font-size:12.5px;color:#334155;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
         + (summaryText ? '<span style="font-weight:600;">'+esc(summaryText)+'</span>' : '<span style="color:var(--muted);">No diagnosis yet</span>')
         + '</div>'
+        + '<div style="font-size:11px;margin-top:4px;">'+followUpLine+'</div>'
         + '</div>'
         + '<span style="color:#cbd5e1;margin-left:8px;">'+ic('chevron')+'</span>'
         + '</div>';
@@ -2138,7 +2248,8 @@ function renderListView() {
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'+continueLastPatientHtml()+renderDashboardSection()
     + (SEARCH || FILTER_TYPE !== 'all' || TAG_FILTER || PATIENT_LIST_EXPANDED
-        ? ((PATIENTS.length ? (SHOW_LEGEND
+        ? ((PATIENT_LIST_EXPANDED ? '<button type="button" class="chip" style="margin-bottom:10px;" data-action="toggle-patient-list-expanded">\u2212 Show recent only</button>' : '')
+          + (PATIENTS.length ? (SHOW_LEGEND
             ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:var(--muted);cursor:pointer;" data-action="toggle-legend">'
               + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
               + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to follow-up</span>'
@@ -2511,6 +2622,13 @@ function renderOverviewTab(p) {
                   ? '<label class="field-label" style="margin-bottom:4px;">Typically indicated (reference only)</label><ul style="margin:0;padding-left:18px;font-size:12.5px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li style="margin-bottom:3px;">'+esc(s)+'</li>').join('')+'</ul>'
                   : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add a diagnosis first.</p>'))
           + '</div>'
+          + '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
+          + (AI_EXAM_SUGGESTIONS === null
+              ? '<button class="btn btn-sm" data-action="ai-suggest-exam">'+ic('shield')+' AI: What to examine</button>'
+              : (AI_EXAM_SUGGESTIONS.length
+                  ? '<label class="field-label" style="margin-bottom:4px;">Key things to examine (reference only)</label><ul style="margin:0;padding-left:18px;font-size:12.5px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li style="margin-bottom:3px;">'+esc(s)+'</li>').join('')+'</ul>'
+                  : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add complaints or diagnosis first.</p>'))
+          + '</div>'
         ) : '')
       + '</div>'
       + '<div class="card"><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
@@ -2535,7 +2653,6 @@ function renderOverviewTab(p) {
         + '</div></div>')
       + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
       + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '')
-      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? rustTrendCardHtml(p) : '')
       + romTrendCardHtml(p)
       + (shouldShowBmi(p) ? bmiCardHtml(p) : '')
       + (p.surgeryType === 'Arthroplasty' ? pjiCardHtml(p) : '')
@@ -2583,6 +2700,7 @@ let AI_TAG_SUGGESTIONS = null;
 let AI_QUERY_ANSWER = null;
 let AI_QUERY_TEXT = '';
 let AI_INVESTIGATION_SUGGESTIONS = null;
+let AI_EXAM_SUGGESTIONS = null;
 let AI_PERSONALIZED_REMINDER = null;
 let AI_DIGEST_SUMMARY = null;
 let AI_SANITY_CHECK_RESULT = null;
@@ -3261,14 +3379,9 @@ async function renderFollowupsTab(p) {
       + '<label class="field-label">Visit date</label><input class="input" type="date" id="fu-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
       + (p.caseType==='surgical' && p.surgeryDate ? '<p style="font-size:11px;color:var(--muted);margin:-6px 0 10px;">Post-op Day: <b class="mono" id="fu-pod-preview">'+(calcPOD(p, todayStr())??'\u2014')+'</b></p>' : '')
       + '<label class="field-label">Wound / suture status (if applicable)</label><select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'+WOUND_STATUS_OPTIONS.map(s=>'<option'+(s==='N/A'?' selected':'')+'>'+s+'</option>').join('')+'</select>'
-      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? '<label class="field-label">Union status</label><select class="select" id="fu-unionstatus" style="margin-bottom:10px;">'+UNION_STATUS_OPTIONS.map(s=>'<option'+(s==='Not assessed'?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
-      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? (
-          '<div class="row" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">RUST score (optional)</label><button type="button" class="info-help-btn" style="margin-left:6px;" data-action="toggle-rust-help">i</button></div>'
-          + '<div id="rust-help-box">'+(SHOW_RUST_HELP ? RUST_HELP_HTML : '')+'</div>'
-          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-          + [['anterior','Anterior'],['posterior','Posterior'],['medial','Medial'],['lateral','Lateral']].map(([k,l])=>'<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">'+l+'</label><select class="select" id="fu-rust-'+k+'"><option value="">\u2014</option>'+[1,2,3,4].map(n=>'<option value="'+n+'">'+n+'</option>').join('')+'</select></div>').join('')
-          + '</div>'
-        ) : '')
+      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? '<div class="row" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">Union status</label><button type="button" class="info-help-btn" style="margin-left:6px;" data-action="toggle-rust-help" title="RUST scoring reference">i</button></div>' : '')
+      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? '<select class="select" id="fu-unionstatus" style="margin-bottom:4px;">'+UNION_STATUS_OPTIONS.map(s=>'<option'+(s==='Not assessed'?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
+      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? '<div id="rust-help-box" style="margin-bottom:10px;">'+(SHOW_RUST_HELP ? RUST_HELP_HTML : '')+'</div>' : '')
       + (p.romTracking ? (
           '<label class="field-label">'+ROM_JOINT_LABELS[p.romTracking.jointType]+' ROM (degrees, optional)</label>'
           + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
@@ -3990,6 +4103,7 @@ function visibleTabs(p) {
 
 let ADD_CTEV_SESSION_OPEN = false;
 let CTEV_SESSION_TEMP = null;
+let CTEV_SESSION_ACTIVE_FOOT = 'left'; // which foot's scorer is shown when bilateral (one at a time \u2014 side-by-side overflowed the screen)
 let ADD_CTEV_BRACELOG_OPEN = false;
 let SHOW_PIRANI_HELP = false;
 let SHOW_RUST_HELP = false;
@@ -3997,7 +4111,7 @@ let SHOW_RA_HELP = false;
 let SHOW_RA_MGT_HELP = false;
 let SHOW_OSTEO_HELP = false;
 
-function initCtevSessionTemp() { CTEV_SESSION_TEMP = { date: todayStr(), notes:'', left: emptyPiraniComponents(), right: emptyPiraniComponents(), leftAbduction:'', rightAbduction:'' }; }
+function initCtevSessionTemp() { CTEV_SESSION_TEMP = { date: todayStr(), notes:'', left: emptyPiraniComponents(), right: emptyPiraniComponents(), leftAbduction:'', rightAbduction:'' }; CTEV_SESSION_ACTIVE_FOOT = 'left'; }
 function syncCtevSessionFromDom() {
   const d = document.getElementById('ctev-s-date'); if (d) CTEV_SESSION_TEMP.date = d.value;
   const n = document.getElementById('ctev-s-notes'); if (n) CTEV_SESSION_TEMP.notes = n.value;
@@ -4084,14 +4198,24 @@ function renderCtevTab(p) {
     html += '<button class="btn btn-outline-dashed btn-block" data-action="ctev-open-add-session" style="margin-bottom:12px;">'+ic('plus')+' Add casting session #'+(ctev.castingSessions.length+1)+'</button>';
   } else {
     html += '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-      + '<label class="field-label">Date</label><input class="input" type="date" id="ctev-s-date" value="'+esc(CTEV_SESSION_TEMP.date)+'" style="margin-bottom:10px;">'
-      + '<div style="display:'+(feet.length===2?'grid':'block')+';grid-template-columns:'+(feet.length===2?'1fr 1fr':'none')+';gap:12px;margin-bottom:10px;">';
-    feet.forEach(f => { html += '<div><p style="font-weight:800;font-size:11px;color:'+FOOT_COLOR[f]+';margin-bottom:6px;">'+FOOT_LABEL[f].toUpperCase()+'</p>'+renderPiraniScorerHtml('ctevs', f, CTEV_SESSION_TEMP[f])
-      + '<label class="field-label" style="margin-top:8px;">Abduction achieved (\u00b0, optional)</label><input class="input" type="number" min="0" max="90" id="ctev-s-'+f+'-abduction" value="'+esc(CTEV_SESSION_TEMP[f+'Abduction'])+'"></div>'; });
-    html += '</div>'
+      + '<label class="field-label">Date</label><input class="input" type="date" id="ctev-s-date" value="'+esc(CTEV_SESSION_TEMP.date)+'" style="margin-bottom:10px;">';
+    if (feet.length === 2) {
+      html += '<div class="row gap2" style="margin-bottom:10px;">' + feet.map(f => {
+        const total = piraniTotal(CTEV_SESSION_TEMP[f]);
+        const active = CTEV_SESSION_ACTIVE_FOOT === f;
+        return '<button type="button" class="chip'+(active?' active':'')+'" style="flex:1;justify-content:center;color:'+(active?'':FOOT_COLOR[f])+';" data-action="ctev-session-set-foot" data-value="'+f+'">'+FOOT_LABEL[f]+' \u2014 '+total+'/6</button>';
+      }).join('') + '</div>';
+      const f = CTEV_SESSION_ACTIVE_FOOT;
+      html += '<div><p style="font-weight:800;font-size:11px;color:'+FOOT_COLOR[f]+';margin-bottom:6px;">'+FOOT_LABEL[f].toUpperCase()+'</p>'+renderPiraniScorerHtml('ctevs', f, CTEV_SESSION_TEMP[f])
+        + '<label class="field-label" style="margin-top:8px;">Abduction achieved (\u00b0, optional)</label><input class="input" type="number" min="0" max="90" id="ctev-s-'+f+'-abduction" value="'+esc(CTEV_SESSION_TEMP[f+'Abduction'])+'"></div>';
+    } else {
+      feet.forEach(f => { html += '<div><p style="font-weight:800;font-size:11px;color:'+FOOT_COLOR[f]+';margin-bottom:6px;">'+FOOT_LABEL[f].toUpperCase()+'</p>'+renderPiraniScorerHtml('ctevs', f, CTEV_SESSION_TEMP[f])
+        + '<label class="field-label" style="margin-top:8px;">Abduction achieved (\u00b0, optional)</label><input class="input" type="number" min="0" max="90" id="ctev-s-'+f+'-abduction" value="'+esc(CTEV_SESSION_TEMP[f+'Abduction'])+'"></div>'; });
+    }
+    html += '<div style="margin-top:10px;">'
       + '<label class="field-label">Notes</label><textarea class="textarea" id="ctev-s-notes" rows="2" placeholder="Cast tolerance, skin check\u2026">'+esc(CTEV_SESSION_TEMP.notes)+'</textarea>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="ctev-cancel-add-session">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ctev-submit-session">Save session</button></div>'
-      + '</div>';
+      + '</div></div>';
   }
   [...ctev.castingSessions].reverse().forEach(s => {
     html += '<div class="fu-card"><div class="row between" style="margin-bottom:6px;"><span style="font-weight:800;">Session '+s.sessionNo+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+fmtDate(s.date)+'</span></span>'+(s.sessionNo!==1?confirmBtn('ctev-delete-session', s.id):'')+'</div>';
@@ -4657,9 +4781,10 @@ async function renderCurrentView(app) {
   if (VIEW === 'compare-picker') { app.innerHTML = await renderComparePickerView(); return; }
   if (VIEW === 'compare-view') { app.innerHTML = renderCompareView(); return; }
   if (VIEW === 'calendar') { app.innerHTML = renderCalendarView(); return; }
-  if (VIEW === 'more') { app.innerHTML = renderMoreView(); return; }
+  if (VIEW === 'more') { app.innerHTML = await renderMoreView(); return; }
   if (VIEW === 'about') { app.innerHTML = renderAboutView(); return; }
   if (VIEW === 'recently-deleted') { app.innerHTML = await renderRecentlyDeletedView(); return; }
+  if (VIEW === 'unfiled-photos') { app.innerHTML = await renderUnfiledPhotosView(); return; }
   if (VIEW === 'detail') {
     const p = getPatient(SELECTED_ID);
     if (!p) { VIEW='list'; return render(); }
@@ -4860,6 +4985,7 @@ async function exportBackup(auto) {
     const allPatients = await dbGetAllPatients();
     zip.file('cases.json', JSON.stringify(allPatients, null, 2));
     zip.file('reminders.json', JSON.stringify(REMINDERS, null, 2));
+    zip.file('profile.json', JSON.stringify(loadProfile(), null, 2));
     for (const p of allPatients) {
       const images = await dbGetImagesByPatient(p.id);
       for (const im of images) {
@@ -4938,6 +5064,11 @@ async function importBackup(file) {
         saveReminders();
         remCount = importedReminders.length;
       } catch(e) {}
+    }
+
+    const profileEntry = zip.file('profile.json');
+    if (profileEntry) {
+      try { saveProfile(JSON.parse(await profileEntry.async('string')), true); } catch(e) {}
     }
 
     const imagePaths = Object.keys(zip.files).filter(path => IMPORT_IMG_REGEX.test(path) && !zip.files[path].dir);
@@ -5150,6 +5281,29 @@ async function generatePersonalizedReminderMessage(p) {
       await renderTabBody(getPatient(SELECTED_ID));
     } catch (err) {
       console.error('AI investigation suggestion failed:', err);
+      toast('AI suggestion failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
+  if (action === 'ai-suggest-exam') {
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const sys = 'You are a reference assistant for an orthopaedic doctor doing a clinical examination, mainly for OPD cases but usable for surgical cases too where relevant. Given the complaints/diagnosis, list the 3-6 MOST IMPORTANT things to specifically examine for this presentation \u2014 e.g. specific special tests, ROM to check, neurovascular checks, gait, deformity, or red-flag signs to rule out. Be concrete and specific to this presentation, not generic ("inspect, palpate, move" is too generic). Return a JSON array of short strings, e.g. ["Check for effusion and quadriceps wasting","McMurray\u2019s test for meniscal tear","Distal NV status"]. This is a reference/checklist aid only, not a directive. Return ONLY the JSON array, no other text.';
+      const context = 'Chief complaints: ' + (p.chiefComplaints||'\u2014') + '\nDiagnosis: ' + (p.diagnosis||'\u2014') + (p.regions && p.regions.length ? ('\nRegion: ' + p.regions.join(', ')) : '') + (p.side && p.side !== 'N/A' ? ('\nSide: ' + p.side) : '') + '\nAge/Sex: ' + formatAge(p) + ' / ' + (p.sex||'\u2014');
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 220 });
+      let raw = (result.data.text || '').trim();
+      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+      const suggestions = JSON.parse(raw);
+      AI_EXAM_SUGGESTIONS = Array.isArray(suggestions) ? suggestions.filter(s => typeof s === 'string' && s.trim()).slice(0, 6) : [];
+      await renderTabBody(getPatient(SELECTED_ID));
+    } catch (err) {
+      console.error('AI exam suggestion failed:', err);
       toast('AI suggestion failed: ' + (err && err.message ? err.message : 'try again'));
       el.innerHTML = originalHtml;
       el.disabled = false;
@@ -5527,6 +5681,7 @@ async function generatePersonalizedReminderMessage(p) {
 
   if (action === 'ctev-open-add-session') { initCtevSessionTemp(); ADD_CTEV_SESSION_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-cancel-add-session') { ADD_CTEV_SESSION_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ctev-session-set-foot') { syncCtevSessionFromDom(); CTEV_SESSION_ACTIVE_FOOT = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-score') {
     const scope = el.dataset.scope, foot = el.dataset.foot, key = el.dataset.key, value = parseFloat(el.dataset.value), group = el.dataset.group;
     const comp = CTEV_SESSION_TEMP[foot];
@@ -6074,19 +6229,13 @@ async function generatePersonalizedReminderMessage(p) {
     const woundStatus = woundStatusEl ? woundStatusEl.value : 'N/A';
     const unionStatusEl = document.getElementById('fu-unionstatus');
     const unionStatus = unionStatusEl ? unionStatusEl.value : '';
-    let rust = null;
-    const rustAEl = document.getElementById('fu-rust-anterior');
-    if (rustAEl) {
-      const vals = { anterior: rustAEl.value, posterior: document.getElementById('fu-rust-posterior').value, medial: document.getElementById('fu-rust-medial').value, lateral: document.getElementById('fu-rust-lateral').value };
-      if (Object.values(vals).some(v => v)) rust = vals;
-    }
     let rom = null;
     if (p.romTracking) {
       const fields = ROM_JOINT_FIELDS[p.romTracking.jointType] || [];
       const vals = {}; fields.forEach(([k]) => { const el2 = document.getElementById('fu-rom-'+k); if (el2) vals[k] = el2.value; });
       if (Object.values(vals).some(v => v)) rom = vals;
     }
-    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rust, rom, imageCount: FU_INV_PHOTOS.length };
+    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rom, imageCount: FU_INV_PHOTOS.length };
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
     const nextFuEl = document.getElementById('fu-next-followup');
@@ -6478,6 +6627,37 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-about') { VIEW = 'about'; render(); return; }
   if (action === 'close-about') { VIEW = 'more'; render(); return; }
   if (action === 'open-recently-deleted') { VIEW = 'recently-deleted'; await render(); return; }
+  if (action === 'open-unfiled-photos') { VIEW = 'unfiled-photos'; await render(); return; }
+  if (action === 'close-unfiled-photos') { VIEW = 'more'; await render(); return; }
+  if (action === 'unfiled-file') {
+    const imgId = el.dataset.id;
+    const isOrphan = el.dataset.orphan === '1';
+    const categoryEl = document.getElementById('unfiled-category-'+imgId);
+    const category = categoryEl ? categoryEl.value : '';
+    if (!category) { toast('Pick a category first'); return; }
+    let patientId = null;
+    if (isOrphan) {
+      const patientEl = document.getElementById('unfiled-patient-'+imgId);
+      patientId = patientEl ? patientEl.value : '';
+      if (!patientId) { toast('Pick a patient first'); return; }
+    }
+    const rec = await dbGetImage(imgId).catch(function() { return null; });
+    if (!rec) { toast('That photo is no longer there'); await render(); return; }
+    if (patientId) rec.patientId = patientId;
+    rec.imageCategory = category;
+    if (category === 'wound') rec.isWoundPhoto = true;
+    await dbAddImage(rec);
+    toast('Filed');
+    await render();
+    return;
+  }
+  if (action === 'unfiled-delete' && el.dataset.confirm) {
+    await dbDeleteImage(el.dataset.id);
+    ARMED_DELETE = null;
+    toast('Deleted');
+    await render();
+    return;
+  }
   if (action === 'close-recently-deleted') { VIEW = 'more'; render(); return; }
   if (action === 'restore-patient') {
     const all = await dbGetAllPatients();
@@ -7128,7 +7308,7 @@ function syncCardHtml() {
 }
 function onAuthChanged(user) {
   CURRENT_USER = user;
-  if (user) { startCloudSync(user.uid); startImageCloudSync(user.uid); retryPendingSync(); }
+  if (user) { startCloudSync(user.uid); startImageCloudSync(user.uid); retryPendingSync(); pullProfileFromCloud(user.uid); }
   else { stopCloudSync(); stopImageCloudSync(); }
   if (VIEW === 'settings' || VIEW === 'list') render();
 }
