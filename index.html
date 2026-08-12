@@ -422,12 +422,36 @@ function withTimeout(promise, ms, label) {
     new Promise((_, reject) => setTimeout(() => reject(new Error((label||'Request') + ' timed out \u2014 check your internet connection')), ms))
   ]);
 }
+
+/* ---- Pending-sync queue -----------------------------------------------------------
+   A single failed upload used to just show a toast and vanish \u2014 easy to miss, and
+   nothing ever retried it, so a patient/photo saved during a weak-signal moment could
+   silently never reach the cloud. Every failure is now also recorded here (persisted
+   to localStorage, so it survives a reload) and retried automatically \u2014 when the
+   device comes back online, periodically while the app is open, and right after
+   sign-in. A banner on the home screen shows the count so it's never silently missed. */
+const PENDING_SYNC_KEY = 'surgical-case-log-pending-sync-v1';
+function loadPendingSync() { try { return JSON.parse(localStorage.getItem(PENDING_SYNC_KEY) || '[]'); } catch (e) { return []; } }
+function savePendingSync(list) { try { localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(list)); } catch (e) {} refreshPendingSyncBadge(); }
+function addPendingSync(type, id) {
+  const list = loadPendingSync();
+  if (!list.some(x => x.type === type && x.id === String(id))) { list.push({ type, id: String(id) }); savePendingSync(list); }
+}
+function removePendingSync(type, id) {
+  const list = loadPendingSync();
+  const next = list.filter(x => !(x.type === type && x.id === String(id)));
+  if (next.length !== list.length) savePendingSync(next);
+}
+function pendingSyncCount() { return loadPendingSync().length; }
+function refreshPendingSyncBadge() { if (VIEW === 'list') render(); } // avoid disrupting an in-progress form on other screens
+
 function syncPatientToCloud(p) {
   if (!CURRENT_USER || SYNC_APPLYING_REMOTE) return;
   try {
     const clean = JSON.parse(JSON.stringify(p));
     withTimeout(firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('patients').doc(String(p.id)).set(clean), 20000, 'Sync')
-      .catch(function(err) { console.error('Cloud sync (save) failed for patient', p.id, err); toast('Cloud sync failed for "' + (p.name||p.id) + '": ' + (err && err.message ? err.message : 'unknown error')); });
+      .then(function() { removePendingSync('patient', p.id); })
+      .catch(function(err) { console.error('Cloud sync (save) failed for patient', p.id, err); addPendingSync('patient', p.id); toast('Cloud sync failed for "' + (p.name||p.id) + '" \u2014 will retry automatically'); });
   } catch (e) {}
 }
 function deletePatientFromCloud(id) {
@@ -436,6 +460,43 @@ function deletePatientFromCloud(id) {
     firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('patients').doc(String(id)).delete()
       .catch(function(err) { console.error('Cloud sync (delete) failed for patient', id, err); });
   } catch (e) {}
+}
+/* Re-attempts every item currently in the pending queue. Safe to call often \u2014 it's a
+   no-op when signed out or when the queue is empty, and each item is only removed from
+   the queue once it's actually confirmed uploaded. */
+async function retryPendingSync() {
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE) return;
+  const list = loadPendingSync();
+  if (!list.length) return;
+  const uidStr = CURRENT_USER.uid;
+  for (const item of list) {
+    try {
+      if (item.type === 'patient') {
+        const p = getPatient(item.id);
+        if (!p) { removePendingSync('patient', item.id); continue; }
+        const clean = JSON.parse(JSON.stringify(p));
+        await withTimeout(firestoreDB.collection('users').doc(uidStr).collection('patients').doc(String(p.id)).set(clean), 20000, 'Sync');
+        removePendingSync('patient', item.id);
+      } else if (item.type === 'image') {
+        const rec = await dbGetImage(item.id).catch(function() { return null; });
+        if (!rec || !rec.blob) { removePendingSync('image', item.id); continue; }
+        const contentType = rec.blob.type || 'image/jpeg';
+        const meta = JSON.parse(JSON.stringify(Object.assign({}, rec, { contentType: contentType })));
+        delete meta.blob;
+        await withTimeout(firebaseStorage.ref('users/' + uidStr + '/images/' + rec.id).put(rec.blob, { contentType: contentType }), 30000, 'Photo sync');
+        await withTimeout(firestoreDB.collection('users').doc(uidStr).collection('images').doc(String(rec.id)).set(meta), 20000, 'Sync');
+        removePendingSync('image', item.id);
+      }
+    } catch (err) {
+      // Still failing (offline, etc.) \u2014 leave it queued, the next retry pass will try again.
+    }
+  }
+}
+let PENDING_SYNC_INTERVAL = null;
+function startPendingSyncRetryLoop() {
+  if (PENDING_SYNC_INTERVAL) return;
+  PENDING_SYNC_INTERVAL = setInterval(retryPendingSync, 60000); // every 60s while the app is open
+  window.addEventListener('online', retryPendingSync);
 }
 function startCloudSync(uid) {
   stopCloudSync();
@@ -481,7 +542,8 @@ function syncImageToCloud(rec) {
     delete meta.blob;
     firebaseStorage.ref('users/' + uid + '/images/' + rec.id).put(rec.blob, { contentType: contentType })
       .then(function() { return firestoreDB.collection('users').doc(uid).collection('images').doc(String(rec.id)).set(meta); })
-      .catch(function(err) { console.error('Cloud image sync failed for', rec.id, err); toast('Photo cloud sync failed: ' + (err && err.message ? err.message : 'unknown error')); });
+      .then(function() { removePendingSync('image', rec.id); })
+      .catch(function(err) { console.error('Cloud image sync failed for', rec.id, err); addPendingSync('image', rec.id); toast('Photo cloud sync failed \u2014 will retry automatically'); });
   } catch (e) {}
 }
 function deleteImageFromCloud(id) {
@@ -1811,6 +1873,15 @@ function renderDashboardSection() {
       + '</div>';
   }
 
+  const pendingCount = CURRENT_USER ? pendingSyncCount() : 0;
+  if (pendingCount > 0) {
+    html += '<div class="backup-banner">'
+      + ic('shield')
+      + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+pendingCount+' item'+(pendingCount>1?'s':'')+' not yet backed up to cloud (weak/no connection when saved) \u2014 retrying automatically. Keep this device online for a bit, or tap Retry.</span>'
+      + '<button class="btn btn-sm" data-action="retry-pending-sync">Retry</button>'
+      + '</div>';
+  }
+
   html += '<div class="row gap2" style="margin-bottom:12px;">'
     + '<div class="dash-tile" style="'+(s.important.length ? 'border-color:var(--red-border);background:var(--red-bg);' : 'border-color:var(--border);background:#fff;')+'"><div class="dv" style="color:'+(s.important.length?'var(--red)':'var(--ink)')+';">'+s.important.length+'</div><div class="dl" style="color:'+(s.important.length?'var(--red)':'var(--muted)')+';">Important today</div></div>'
     + '<div class="dash-tile" style="border-color:var(--border);"><div class="dv">'+s.surgeriesThisWeek+'</div><div class="dl" style="color:var(--muted);">Surgeries (7 days)</div></div>'
@@ -2132,39 +2203,76 @@ function fuInvControlsHtml() {
 }
 function apInvThumbsHtml() { return categorizedThumbsHtml(AP_INVESTIGATIONS, 'ap-inv-remove-photo'); }
 function fuInvThumbsHtml() { return categorizedThumbsHtml(FU_INV_PHOTOS, 'fu-inv-remove-photo'); }
-async function handleCategorizedPhotoChange(fileInput, targetArray, category, xraySubtype, containerId, thumbsFn) {
+
+/* Photos picked while filling in a not-yet-saved form (new case / new follow-up / new
+   investigation / new prescription) used to live only in a JS array until the parent
+   "Save" button was pressed. If the tab got backgrounded or reloaded before that (very
+   common right after using the camera, especially on iPhone), the photo was gone for
+   good \u2014 it had never touched IndexedDB, so it never reached the cloud either.
+   Now, as soon as a photo is picked, it's written to IndexedDB (and cloud-synced)
+   immediately under the patient it belongs to, tagged but not yet linked to the
+   specific follow-up/investigation record (that record doesn't exist yet). The id used
+   here is reused unchanged when the parent form is finally saved, so the same record
+   just gets its link filled in \u2014 no duplicate is created. If the form is explicitly
+   cancelled, these already-saved photos are deleted again (see the cancel-* actions).
+   If the tab is killed before either Save or Cancel, the photo simply stays saved and
+   unlinked \u2014 it will show up as an unfiled photo under that patient rather than
+   vanish. patientId is required for this safety-net to work; pass it whenever the
+   parent patient record already has an id (which, for the Add Case wizard, is
+   pre-allocated in initApTemp \u2014 see the comment there). */
+async function handleCategorizedPhotoChange(fileInput, targetArray, category, xraySubtype, containerId, thumbsFn, patientId) {
   const files = Array.from(fileInput.files || []);
   if (!files.length) return;
-  toast('Processing '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+  toast('Saving '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
   for (const file of files) {
     const blob = await resizeImageFile(file);
     const previewUrl = trackUrl(URL.createObjectURL(blob));
-    targetArray.push({ tempId: uid(), blob, previewUrl, category, xraySubtype: category === 'xray' ? xraySubtype : null });
+    const id = uid();
+    targetArray.push({ tempId: id, blob, previewUrl, category, xraySubtype: category === 'xray' ? xraySubtype : null });
+    if (patientId) {
+      const imgRec = { id, patientId, followUpId: null, investigationId: null, blob, createdAt: Date.now(), imageCategory: category };
+      if (category === 'xray' && xraySubtype) imgRec.xraySubtype = xraySubtype;
+      if (category === 'wound') imgRec.isWoundPhoto = true;
+      try { await dbAddImage(imgRec); } catch (e) { toast('Could not save that photo to device \u2014 please retry'); }
+    }
   }
   const container = document.getElementById(containerId);
   if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbsFn()+'</div>';
-  toast('Added');
+  toast('Saved');
+}
+/* Deletes any photos that were already committed to IndexedDB while filling in a form
+   that the person then explicitly cancelled (see the discussion above
+   handleCategorizedPhotoChange). Safe to call on an empty array. */
+async function discardStagedPhotos(arr) {
+  for (const ph of (arr || [])) {
+    try { await dbDeleteImage(ph.tempId); } catch (e) {}
+  }
 }
 async function handleApInvPhotoChange(fileInput) {
-  await handleCategorizedPhotoChange(fileInput, AP_INVESTIGATIONS, AP_INV_CATEGORY, AP_INV_XRAY_SUBTYPE, 'ap-inv-thumbs', apInvThumbsHtml);
+  await handleCategorizedPhotoChange(fileInput, AP_INVESTIGATIONS, AP_INV_CATEGORY, AP_INV_XRAY_SUBTYPE, 'ap-inv-thumbs', apInvThumbsHtml, AP_TEMP && AP_TEMP.id);
 }
 async function handleFuInvPhotoChange(fileInput) {
-  await handleCategorizedPhotoChange(fileInput, FU_INV_PHOTOS, FU_INV_CATEGORY, FU_INV_XRAY_SUBTYPE, 'fu-inv-thumbs', fuInvThumbsHtml);
+  await handleCategorizedPhotoChange(fileInput, FU_INV_PHOTOS, FU_INV_CATEGORY, FU_INV_XRAY_SUBTYPE, 'fu-inv-thumbs', fuInvThumbsHtml, SELECTED_ID);
 }
 
-async function handlePhotoInputChange(fileInput, targetArray, containerId) {
+async function handlePhotoInputChange(fileInput, targetArray, containerId, patientId, extraFields) {
   const files = Array.from(fileInput.files || []);
   if (!files.length) return;
-  toast('Processing '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+  toast('Saving '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
   for (const file of files) {
     const blob = await resizeImageFile(file);
     const previewUrl = trackUrl(URL.createObjectURL(blob));
-    targetArray.push({ tempId: uid(), blob, previewUrl, label:'' });
+    const id = uid();
+    targetArray.push({ tempId: id, blob, previewUrl, label:'' });
+    if (patientId) {
+      const imgRec = Object.assign({ id, patientId, followUpId: null, investigationId: null, blob, createdAt: Date.now() }, extraFields || {});
+      try { await dbAddImage(imgRec); } catch (e) { toast('Could not save that photo to device \u2014 please retry'); }
+    }
   }
   const removeAction = containerId==='ap-thumbs' ? 'ap-remove-photo' : containerId==='inv-thumbs' ? 'inv-remove-photo' : containerId==='rx-thumbs' ? 'rx-remove-photo' : containerId==='fu-wound-thumbs' ? 'fu-wound-remove-photo' : containerId==='fu-clinical-thumbs' ? 'fu-clinical-remove-photo' : 'fu-remove-photo';
   const container = document.getElementById(containerId);
   if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbGridHtml(targetArray, removeAction)+'</div>';
-  toast('Added');
+  toast('Saved');
 }
 
 /* ================= Add patient view ================= */
@@ -2176,7 +2284,11 @@ let AP_INVESTIGATIONS = [];
 let AP_INV_CATEGORY = 'xray';
 let AP_INV_XRAY_SUBTYPE = 'General OPD';
 function initApTemp() {
-  AP_TEMP = { name:'', age:'', ageMonths:'', sex:'M', occupation:'', handDominance:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
+  // id is allocated right away (not just at final Save) so that any photos taken
+  // during this wizard can be written to IndexedDB immediately, instead of sitting
+  // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
+  // would lose them for good. See handlePhotoInputChange / handleCategorizedPhotoChange.
+  AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', handDominance:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
   AP_SUBTAB = 'details';
   AP_INVESTIGATIONS = [];
@@ -4790,7 +4902,7 @@ async function exportBackup(auto) {
    button-press needed. This can only run while the app is open; it cannot back up on its own if the
    app stays closed for days, since there is no server behind this app to trigger it. */
 async function maybeAutoBackup() {
-  const AUTO_BACKUP_INTERVAL_DAYS = 3;
+  const AUTO_BACKUP_INTERVAL_DAYS = 1; // was 3 \u2014 tightened so a missed cloud sync has a same-day local safety net too
   try {
     if (!PATIENTS.length) return;
     const daysBack = daysSinceLastBackup();
@@ -5550,7 +5662,10 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'close-compare-picker') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'imagesrecords'; await render(); return; }
   if (action === 'close-compare-view') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'imagesrecords'; await render(); return; }
-  if (action === 'cancel-add') { AP_PHOTOS = []; AP_INVESTIGATIONS = []; AP_DUPLICATE_FROM = null; VIEW='list'; render(); return; }
+  if (action === 'cancel-add') {
+    await discardStagedPhotos(AP_PHOTOS); await discardStagedPhotos(AP_INVESTIGATIONS);
+    AP_PHOTOS = []; AP_INVESTIGATIONS = []; AP_DUPLICATE_FROM = null; VIEW='list'; render(); return;
+  }
   if (action === 'cancel-quick-add') { VIEW='list'; render(); return; }
   if (action === 'qa-set-sex') { syncQuickAddFromDom(); QUICK_ADD_TEMP.sex = el.dataset.value; render(); return; }
   if (action === 'save-quick-add') {
@@ -5620,6 +5735,7 @@ async function generatePersonalizedReminderMessage(p) {
     if (idx >= 0) AP_INVESTIGATIONS.splice(idx, 1);
     const container = document.getElementById('ap-inv-thumbs');
     if (container) container.outerHTML = '<div id="ap-inv-thumbs">'+apInvThumbsHtml()+'</div>';
+    try { await dbDeleteImage(el.dataset.tempid); } catch (e) {}
     return;
   }
   if (action === 'ov-auto-region') {
@@ -5677,15 +5793,36 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'ap-set-laterality') { syncApTempFromDom(); AP_TEMP.laterality = el.dataset.value; render(); return; }
   if (action === 'ap-set-special') { syncApTempFromDom(); AP_TEMP.condition = el.dataset.value; render(); return; }
 
-  if (action === 'ap-remove-photo') { AP_PHOTOS = AP_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('ap-thumbs').innerHTML = thumbGridHtml(AP_PHOTOS,'ap-remove-photo'); return; }
+  /* These photos are already saved to IndexedDB (see handlePhotoInputChange /
+     handleCategorizedPhotoChange) the moment they're picked, so removing one from the
+     staging list here must also delete the underlying record \u2014 otherwise it would
+     stay behind as an orphaned photo. dbDeleteImage is safe to call even if, for some
+     older in-flight session, the record was never actually written. */
+  if (action === 'ap-remove-photo') {
+    AP_PHOTOS = AP_PHOTOS.filter(p => p.tempId !== el.dataset.tempid);
+    document.getElementById('ap-thumbs').innerHTML = thumbGridHtml(AP_PHOTOS,'ap-remove-photo');
+    try { await dbDeleteImage(el.dataset.tempid); } catch (e) {}
+    return;
+  }
   if (action === 'fu-inv-remove-photo') {
     FU_INV_PHOTOS = FU_INV_PHOTOS.filter(p => p.tempId !== el.dataset.tempid);
     const container = document.getElementById('fu-inv-thumbs');
     if (container) container.outerHTML = '<div id="fu-inv-thumbs">'+fuInvThumbsHtml()+'</div>';
+    try { await dbDeleteImage(el.dataset.tempid); } catch (e) {}
     return;
   }
-  if (action === 'inv-remove-photo') { INV_PHOTOS = INV_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('inv-thumbs').innerHTML = thumbGridHtml(INV_PHOTOS,'inv-remove-photo'); return; }
-  if (action === 'rx-remove-photo') { RX_PHOTOS = RX_PHOTOS.filter(p => p.tempId !== el.dataset.tempid); document.getElementById('rx-thumbs').innerHTML = thumbGridHtml(RX_PHOTOS,'rx-remove-photo'); return; }
+  if (action === 'inv-remove-photo') {
+    INV_PHOTOS = INV_PHOTOS.filter(p => p.tempId !== el.dataset.tempid);
+    document.getElementById('inv-thumbs').innerHTML = thumbGridHtml(INV_PHOTOS,'inv-remove-photo');
+    try { await dbDeleteImage(el.dataset.tempid); } catch (e) {}
+    return;
+  }
+  if (action === 'rx-remove-photo') {
+    RX_PHOTOS = RX_PHOTOS.filter(p => p.tempId !== el.dataset.tempid);
+    document.getElementById('rx-thumbs').innerHTML = thumbGridHtml(RX_PHOTOS,'rx-remove-photo');
+    try { await dbDeleteImage(el.dataset.tempid); } catch (e) {}
+    return;
+  }
 
   if (action === 'save-patient') {
     syncApTempFromDom();
@@ -5696,6 +5833,7 @@ async function generatePersonalizedReminderMessage(p) {
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
     const p = newPatientShape();
+    p.id = AP_TEMP.id; // reuse the id allocated when the wizard opened, since any photos already taken were saved under it
     p.name = AP_TEMP.name.trim();
     p.age = AP_TEMP.age;
     p.ageMonths = AP_TEMP.ageMonths;
@@ -5727,12 +5865,16 @@ async function generatePersonalizedReminderMessage(p) {
     if (p.condition === 'osteoporosis') p.osteo = newOsteoShape();
     try {
       await dbPutPatient(p);
+      // These photos are already in IndexedDB (saved the moment they were picked \u2014
+      // see handlePhotoInputChange / handleCategorizedPhotoChange). Reusing ph.tempId as
+      // the id here just updates that same record rather than creating a duplicate.
       for (const ph of AP_PHOTOS) {
-        await dbAddImage({ id: uid(), patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now() });
+        await dbAddImage({ id: ph.tempId, patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now() });
       }
       for (const ph of AP_INVESTIGATIONS) {
-        const imgRec = { id: uid(), patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now(), imageCategory: ph.category };
+        const imgRec = { id: ph.tempId, patientId: p.id, followUpId: null, blob: ph.blob, createdAt: Date.now(), imageCategory: ph.category };
         if (ph.category === 'xray' && ph.xraySubtype) imgRec.xraySubtype = ph.xraySubtype;
+        if (ph.category === 'wound') imgRec.isWoundPhoto = true;
         await dbAddImage(imgRec);
       }
       await refreshPatients();
@@ -5908,7 +6050,10 @@ async function generatePersonalizedReminderMessage(p) {
   }
 
   if (action === 'open-add-fu') { FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
-  if (action === 'cancel-add-fu') { FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'cancel-add-fu') {
+    await discardStagedPhotos(FU_INV_PHOTOS);
+    FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return;
+  }
   if (action === 'fu-set-label') { const inp = document.getElementById('fu-label'); if (inp) inp.value = el.dataset.value; return; }
   if (action === 'fu-set-next-followup') {
     const inp = document.getElementById('fu-next-followup');
@@ -5950,8 +6095,9 @@ async function generatePersonalizedReminderMessage(p) {
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
     await dbPutPatient(p);
+    // Already saved to IndexedDB when picked \u2014 reusing ph.tempId just links them to this follow-up.
     for (const ph of FU_INV_PHOTOS) {
-      const imgRec = { id: uid(), patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: ph.category };
+      const imgRec = { id: ph.tempId, patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: ph.category };
       if (ph.category === 'xray' && ph.xraySubtype) imgRec.xraySubtype = ph.xraySubtype;
       if (ph.category === 'wound') imgRec.isWoundPhoto = true;
       await dbAddImage(imgRec);
@@ -6005,7 +6151,10 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'cancel-add-inv') { ADD_INVESTIGATION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'cancel-add-inv') {
+    await discardStagedPhotos(INV_PHOTOS);
+    INV_PHOTOS = []; ADD_INVESTIGATION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return;
+  }
   if (action === 'submit-inv') {
     const p = getPatient(SELECTED_ID);
     const label = document.getElementById('inv-label').value.trim() || 'Investigation';
@@ -6021,8 +6170,9 @@ async function generatePersonalizedReminderMessage(p) {
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
     await dbPutPatient(p);
+    // Already saved to IndexedDB when picked \u2014 reusing ph.tempId just links them to this investigation.
     for (const ph of INV_PHOTOS) {
-      await dbAddImage({ id: uid(), patientId: p.id, investigationId: inv.id, blob: ph.blob, createdAt: Date.now() });
+      await dbAddImage({ id: ph.tempId, patientId: p.id, investigationId: inv.id, blob: ph.blob, createdAt: Date.now() });
     }
     await refreshPatients();
     INV_PHOTOS = []; ADD_INVESTIGATION_OPEN = false;
@@ -6168,6 +6318,13 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'dismiss-backup-banner') { BACKUP_BANNER_DISMISSED = true; render(); return; }
+  if (action === 'retry-pending-sync') {
+    toast('Retrying cloud sync\u2026');
+    await retryPendingSync();
+    render();
+    toast(pendingSyncCount() > 0 ? (pendingSyncCount()+' item(s) still pending \u2014 check your connection') : 'All caught up \u2014 everything synced');
+    return;
+  }
   if (action === 'set-theme') { applyTheme(el.dataset.value); render(); return; }
   if (action === 'set-accent') { applyAccentTheme(el.dataset.value); render(); return; }
   if (action === 'enable-notifs') {
@@ -6451,7 +6608,10 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'open-add-rx') { const p0 = getPatient(SELECTED_ID); initRxTemp(p0 ? p0.nextFollowUpDate : ''); RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = true; await renderTabBody(p0); return; }
-  if (action === 'cancel-add-rx') { RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'cancel-add-rx') {
+    await discardStagedPhotos(RX_PHOTOS);
+    RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return;
+  }
   if (action === 'toggle-rx') {
     const id = el.dataset.id;
     if (EXPANDED_PRESCRIPTION.has(id)) EXPANDED_PRESCRIPTION.delete(id); else EXPANDED_PRESCRIPTION.add(id);
@@ -6501,8 +6661,9 @@ async function generatePersonalizedReminderMessage(p) {
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
     await dbPutPatient(p);
+    // Already saved to IndexedDB when picked \u2014 reusing ph.tempId just links them to this prescription.
     for (const ph of RX_PHOTOS) {
-      await dbAddImage({ id: uid(), patientId: p.id, prescriptionId: rx.id, blob: ph.blob, createdAt: Date.now() });
+      await dbAddImage({ id: ph.tempId, patientId: p.id, prescriptionId: rx.id, blob: ph.blob, createdAt: Date.now() });
     }
     await refreshPatients();
     RX_PHOTOS = [];
@@ -6612,10 +6773,10 @@ document.addEventListener('change', async (e) => {
 
   if (t.matches && t.matches('[data-photo-input]')) {
     const which = t.dataset.photoInput;
-    if (which === 'ap-remove-photo') await handlePhotoInputChange(t, AP_PHOTOS, 'ap-thumbs');
+    if (which === 'ap-remove-photo') await handlePhotoInputChange(t, AP_PHOTOS, 'ap-thumbs', AP_TEMP && AP_TEMP.id);
     else if (which === 'fu-inv-remove-photo') await handleFuInvPhotoChange(t);
-    else if (which === 'inv-remove-photo') await handlePhotoInputChange(t, INV_PHOTOS, 'inv-thumbs');
-    else if (which === 'rx-remove-photo') await handlePhotoInputChange(t, RX_PHOTOS, 'rx-thumbs');
+    else if (which === 'inv-remove-photo') await handlePhotoInputChange(t, INV_PHOTOS, 'inv-thumbs', SELECTED_ID);
+    else if (which === 'rx-remove-photo') await handlePhotoInputChange(t, RX_PHOTOS, 'rx-thumbs', SELECTED_ID);
     else if (which === 'ap-inv-remove-photo') await handleApInvPhotoChange(t);
     return;
   }
@@ -6967,9 +7128,9 @@ function syncCardHtml() {
 }
 function onAuthChanged(user) {
   CURRENT_USER = user;
-  if (user) { startCloudSync(user.uid); startImageCloudSync(user.uid); }
+  if (user) { startCloudSync(user.uid); startImageCloudSync(user.uid); retryPendingSync(); }
   else { stopCloudSync(); stopImageCloudSync(); }
-  if (VIEW === 'settings') render();
+  if (VIEW === 'settings' || VIEW === 'list') render();
 }
 function onAuthError(err) {
   toast('Sign-in error: ' + (err && err.message ? err.message : 'something went wrong'));
@@ -7017,6 +7178,8 @@ function renderSplashScreen() {
   render();
   maybeAutoBackup();
   maybeNotifyToday();
+  startPendingSyncRetryLoop();
+  if (CURRENT_USER) retryPendingSync();
 })();
 </script>
 </body>
