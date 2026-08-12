@@ -164,6 +164,9 @@
   [data-theme="dark"] .cam-fab { border-color:#0f172a; }
 
   .tabs { display:flex; overflow-x:auto; border-top:1px solid #f1f5f9; }
+  .tabs-wrap { position:relative; }
+  .tabs-wrap::after { content:''; position:absolute; right:0; top:1px; bottom:0; width:22px; background:linear-gradient(to right, transparent, rgba(255,255,255,0.96)); pointer-events:none; }
+  [data-theme="dark"] .tabs-wrap::after { background:linear-gradient(to right, transparent, rgba(15,23,42,0.96)); }
   .tab { flex-shrink:0; display:flex; align-items:center; gap:6px; padding:11px 13px; border-bottom:2px solid transparent; color:var(--muted); font-weight:700; font-size:12px; background:none; border-left:none; border-right:none; border-top:none; }
   .tab.active { border-bottom-color:var(--accent); color:var(--accent-dark); }
 
@@ -731,7 +734,7 @@ async function aiAutoDetectRegions(text) {
     return filtered.length ? filtered : null;
   } catch (e) { return null; }
 }
-const STATUS_OPTIONS = ['Active follow-up','Completed','Lost to follow-up'];
+const STATUS_OPTIONS = ['Active','Completed','Lost to follow-up'];
 
 const ICONS = {
   plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
@@ -763,7 +766,7 @@ const ICONS = {
   heart:'<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>',
   copy:'<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   folder:'<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>',
-  pin:'<path d="M12 2a6 6 0 0 0-6 6c0 4.5 6 12 6 12s6-7.5 6-12a6 6 0 0 0-6-6z"/><circle cx="12" cy="8" r="2"/>',
+  pin:'<line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>',
   menu:'<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
   sparkle:'<path d="M12 3l1.4 4.3L18 9l-4.6 1.7L12 15l-1.4-4.3L6 9l4.6-1.7z"/><path d="M19 13l.6 1.9L21 16l-1.9.7L19 19l-.6-2.3L16 16l2.4-1.1z"/>',
 };
@@ -789,6 +792,8 @@ let EDITING_PATIENT_CODE = false;
 function resetPerPatientUiState() {
   EDITING_PATIENT_CODE = false;
   OV_SUBTAB = 'details';
+  OV_EXPANDED = new Set(['snapshot']);
+  OV_SHOW_SCHEDULE = false;
   ADD_FOLLOWUP_OPEN = false;
   ADD_INVESTIGATION_OPEN = false;
   ADD_INJECTION_OPEN = false;
@@ -2663,124 +2668,123 @@ function renderAddView() {
 /* ================= Detail view: tabs ================= */
 
 let OV_SUBTAB = 'details';
+let OV_EXPANDED = new Set(['snapshot']);
+let OV_SHOW_SCHEDULE = false;
+function ovSection(key, title, bodyHtml) {
+  const open = OV_EXPANDED.has(key);
+  return '<div class="card" style="padding:0;overflow:hidden;">'
+    + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:14px;text-align:left;" data-action="ov-toggle-section" data-value="'+key+'">'
+    + '<span style="font-size:13px;font-weight:800;color:var(--accent-dark);text-transform:uppercase;letter-spacing:0.02em;">'+title+'</span>'
+    + '<span style="color:var(--accent);flex:none;transform:rotate('+(open?90:0)+'deg);display:inline-flex;">'+ic('chevron')+'</span>'
+    + '</button>'
+    + (open ? '<div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:12px;">'+bodyHtml+'</div>' : '')
+    + '</div>';
+}
 function renderOverviewTab(p) {
   const overdue = isOverdue(p.nextFollowUpDate);
   const isSurgical = p.caseType === 'surgical';
-  const tab2Label = isSurgical ? 'Diagnosis' : 'Complaints & Diagnosis';
-  const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
-  const tabs = [['details','Patient Details'], ['complaints',tab2Label], ['tracking',tab3Label]];
 
-  let tabBody = '';
-  if (OV_SUBTAB === 'details') {
-    tabBody = ageFieldHtml(p)
-      + '<div><label class="field-label">Occupation (if relevant)</label><input class="input" data-field="occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(p.occupation||'')+'"></div>'
-      + '<div><label class="field-label">Hand dominance</label><div class="seg">'
-      + ['Left','Right','Ambidextrous'].map(s=>'<button class="seg-btn'+((p.handDominance||'')===s?' active':'')+'" data-action="ov-set-hand" data-value="'+s+'">'+s+'</button>').join('')
-      + '</div></div>'
-      + comorbidityCardHtml(p)
-      + '<div class="card">'
-      + '<label class="field-label">WhatsApp number</label>'
-      + '<input class="input" type="tel" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'" style="margin-bottom:10px;">'
-      + (waLink(p)
-          ? '<div class="row gap2"><a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:2;">'+ic('message')+' Message on WhatsApp</a><a href="tel:+'+esc(toWaNumber(p.whatsapp))+'" class="btn" style="flex:1;text-decoration:none;" title="Call">'+ic('phone')+'</a></div>'
-          : '<p style="font-size:11px;color:var(--muted);">Save a number to send messages.</p>')
-      + (p.whatsapp ? '<div style="margin-top:8px;">'
-          + (followUpReminderLink(p)
-              ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
-              : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
-          + (CURRENT_USER && CURRENT_USER.uid === MY_UID && p.nextFollowUpDate ? (
-              '<div style="margin-top:8px;">'
-              + (AI_PERSONALIZED_REMINDER
-                  ? '<div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PERSONALIZED_REMINDER)+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
-                  : '<button class="btn btn-sm btn-block" data-action="ai-personalize-reminder">'+ic('shield')+' AI: Personalize this reminder</button>')
-              + '</div>'
-            ) : '')
-          + '</div>' : '')
-      + '</div>';
-  } else if (OV_SUBTAB === 'complaints') {
-    tabBody = (!isSurgical ? '<div class="card"><label class="field-label">Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
-      + '<div class="card"><label class="field-label">Duration of symptoms</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
-      + '<div class="card">'
-      + '<label class="field-label">Diagnosis (free text)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
-      + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
-          '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
-          + (AI_INVESTIGATION_SUGGESTIONS === null
-              ? '<button class="btn btn-sm" data-action="ai-suggest-investigations">'+ic('shield')+' AI: Suggested investigations</button>'
-              : (AI_INVESTIGATION_SUGGESTIONS.length
-                  ? '<label class="field-label" style="margin-bottom:4px;">Typically indicated (reference only)</label><ul style="margin:0;padding-left:18px;font-size:12.5px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li style="margin-bottom:3px;">'+esc(s)+'</li>').join('')+'</ul>'
-                  : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add a diagnosis first.</p>'))
-          + '</div>'
-          + '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
-          + (AI_EXAM_SUGGESTIONS === null
-              ? '<button class="btn btn-sm" data-action="ai-suggest-exam">'+ic('shield')+' AI: What to examine</button>'
-              : (AI_EXAM_SUGGESTIONS.length
-                  ? '<label class="field-label" style="margin-bottom:4px;">Key things to examine (reference only)</label><ul style="margin:0;padding-left:18px;font-size:12.5px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li style="margin-bottom:3px;">'+esc(s)+'</li>').join('')+'</ul>'
-                  : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add complaints or diagnosis first.</p>'))
-          + '</div>'
-        ) : '')
-      + '</div>'
-      + '<div class="card"><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
-      + '<div class="card"><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ov-auto-region">'+ic('sparkle')+' Auto-detect</button></div>'
-      + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
-      + CASE_REGIONS.map(r=>'<button type="button" class="tag-chip'+((p.regions||[]).includes(r.key)?' active':'')+'" data-action="ov-toggle-region" data-value="'+esc(r.key)+'">'+esc(r.key)+'</button>').join('')
-      + '</div></div>';
-  } else {
-    tabBody = (isSurgical ? '<div class="card" style="display:flex;flex-direction:column;gap:10px;">'
-      + '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
-      + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('ov-procedure')
-      + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
-      + '<div><label class="field-label">Payment</label><div class="seg">'
-      + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('')
-      + '</div>'
-      + (p.paymentMethod==='Insurance' || p.paymentMethod==='Both' ? '<input class="input" data-field="insuranceType" placeholder="Insurance type / company name" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
-      + (p.paymentMethod==='Cash' || p.paymentMethod==='Both' ? '<input class="input" type="number" inputmode="numeric" data-field="cashAmount" placeholder="Cash amount (\u20b9)" value="'+esc(p.cashAmount||'')+'" style="margin-top:8px;">' : '')
-      + '</div>'
-      + '</div>'
-      : '<div class="card"><label class="field-label">Special tracking (optional)</label><div class="seg">'
-        + [['','None'],['ctev','CTEV'],['ra','RA'],['osteoporosis','Osteoporosis'],['trauma','Trauma']].map(([v,l])=>'<button class="seg-btn'+((p.condition||'')===v?' active':'')+'" data-action="ov-set-special" data-value="'+v+'">'+l+'</button>').join('')
-        + '</div></div>')
-      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
-      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '')
-      + romTrendCardHtml(p)
-      + (shouldShowBmi(p) ? bmiCardHtml(p) : '')
-      + (p.surgeryType === 'Arthroplasty' ? pjiCardHtml(p) : '')
-      + (shouldShowRickets(p) ? ricketsCardHtml(p) : '')
-      + (shouldShowKocher(p) ? kocherCardHtml(p) : '')
-      + (shouldShowPedsDose(p) ? pedsDoseCardHtml(p) : '');
-  }
-
-  return '<div class="px" style="display:flex;flex-direction:column;gap:12px;padding-top:14px;padding-bottom:20px;">'
-    + '<div class="row between" style="padding:2px 2px 0;flex-wrap:wrap;gap:6px;">'
-    + (EDITING_PATIENT_CODE
-        ? '<div class="row gap2" style="flex:1;min-width:180px;"><input class="input" id="patient-code-input" value="'+esc(p.patientCode||'')+'" style="flex:1;" placeholder="e.g. PT0001"><button class="icon-btn" style="color:var(--emerald);" data-action="save-patient-code" title="Save">'+ic('check')+'</button><button class="icon-btn" data-action="cancel-edit-patient-code" title="Cancel">'+ic('x')+'</button></div>'
-        : (p.patientCode ? '<button class="badge badge-indigo mono" style="font-size:12px;" data-action="edit-patient-code">'+ic('clipboard')+esc(p.patientCode)+'</button>' : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>'))
-    + '<span class="badge badge-'+(isSurgical?'indigo':'slate')+'">'+(isSurgical?'Surgical':'OPD')+'</span>'
+  let snapshotBody = '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
+    + ageFieldHtml(p)
+    + '<div><label class="field-label">Sex</label><div class="input" style="background:var(--bg-soft);color:var(--muted);">'+esc(p.sex||'\u2014')+'</div></div>'
     + '</div>'
-    + '<div class="row between" style="align-items:center;">'
-    + (!isSurgical ? '<button class="btn btn-sm" style="background:transparent;color:var(--accent-dark);font-weight:700;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical</button>' : convertToOpdButtonHtml(p))
-    + '<div class="row gap2">'
+    + '<div><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
+    + '<div><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ov-auto-region">'+ic('sparkle')+' Auto-detect</button></div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+    + CASE_REGIONS.map(r=>'<button type="button" class="tag-chip'+((p.regions||[]).includes(r.key)?' active':'')+'" data-action="ov-toggle-region" data-value="'+esc(r.key)+'">'+esc(r.key)+'</button>').join('')
+    + '</div></div>'
+    + (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
+    + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
+    + '<div><label class="field-label">Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
+    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+        '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
+        + (AI_INVESTIGATION_SUGGESTIONS === null
+            ? '<button class="btn btn-sm" data-action="ai-suggest-investigations">'+ic('shield')+' AI: Suggested investigations</button>'
+            : (AI_INVESTIGATION_SUGGESTIONS.length
+                ? '<label class="field-label" style="margin-bottom:4px;">Typically indicated (reference only)</label><ul style="margin:0;padding-left:18px;font-size:12.5px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li style="margin-bottom:3px;">'+esc(s)+'</li>').join('')+'</ul>'
+                : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add a diagnosis first.</p>'))
+        + '</div>'
+        + '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
+        + (AI_EXAM_SUGGESTIONS === null
+            ? '<button class="btn btn-sm" data-action="ai-suggest-exam">'+ic('shield')+' AI: What to examine</button>'
+            : (AI_EXAM_SUGGESTIONS.length
+                ? '<label class="field-label" style="margin-bottom:4px;">Key things to examine (reference only)</label><ul style="margin:0;padding-left:18px;font-size:12.5px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li style="margin-bottom:3px;">'+esc(s)+'</li>').join('')+'</ul>'
+                : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add complaints or diagnosis first.</p>'))
+        + '</div>'
+      ) : '')
+    + '</div>'
+    + (isSurgical ? (
+        '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
+        + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('ov-procedure')
+        + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
+        + '<div><label class="field-label">Payment</label><div class="seg">'
+        + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('')
+        + '</div>'
+        + (p.paymentMethod==='Insurance' || p.paymentMethod==='Both' ? '<input class="input" data-field="insuranceType" placeholder="Insurance type / company name" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
+        + (p.paymentMethod==='Cash' || p.paymentMethod==='Both' ? '<input class="input" type="number" inputmode="numeric" data-field="cashAmount" placeholder="Cash amount (\u20b9)" value="'+esc(p.cashAmount||'')+'" style="margin-top:8px;">' : '')
+      ) : '')
+    + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(p.occupation||'')+'"></div>'
+    + '<div><label class="field-label">Hand dominance (optional)</label><div class="seg">'
+    + ['Left','Right','Ambidextrous'].map(s=>'<button class="seg-btn'+((p.handDominance||'')===s?' active':'')+'" data-action="ov-set-hand" data-value="'+s+'">'+s+'</button>').join('')
+    + '</div></div>'
+    + '<div style="'+(overdue?'padding:10px;border-radius:12px;background:var(--red-bg);':'')+'">'
+    + '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up'+(overdue?' \u2014 OVERDUE':(p.nextFollowUpDate?'':' \u2014 not scheduled'))+'</label>'
+    + (!p.nextFollowUpDate && !OV_SHOW_SCHEDULE ? '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>' : '')
+    + '</div>'
+    + (p.nextFollowUpDate || OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" value="'+esc(p.nextFollowUpDate)+'" style="margin-top:6px;">' : '')
+    + '</div>';
+
+  let clinicalBody = comorbidityCardHtml(p)
+    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
+    + (isSurgical ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'+OP_NOTE_TEMPLATES.map(([n]) => '<button type="button" class="chip" data-action="insert-op-template" data-value="'+esc(n)+'">'+ic('printer')+' '+esc(n)+'</button>').join('')+'</div>' : '')
+    + '<textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
+    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
+    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '')
+    + romTrendCardHtml(p)
+    + (shouldShowBmi(p) ? bmiCardHtml(p) : '')
+    + (p.surgeryType === 'Arthroplasty' ? pjiCardHtml(p) : '')
+    + (shouldShowRickets(p) ? ricketsCardHtml(p) : '')
+    + (shouldShowKocher(p) ? kocherCardHtml(p) : '')
+    + (shouldShowPedsDose(p) ? pedsDoseCardHtml(p) : '');
+
+  let communicateBody = '<div class="card">'
+    + '<label class="field-label">WhatsApp number</label>'
+    + '<input class="input" type="tel" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'" style="margin-bottom:10px;">'
+    + (waLink(p)
+        ? '<div class="row gap2"><a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:2;">'+ic('message')+' Message on WhatsApp</a><a href="tel:+'+esc(toWaNumber(p.whatsapp))+'" class="btn" style="flex:1;text-decoration:none;" title="Call">'+ic('phone')+'</a></div>'
+        : '<p style="font-size:11px;color:var(--muted);">Save a number to send messages.</p>')
+    + (p.whatsapp ? '<div style="margin-top:8px;">'
+        + (followUpReminderLink(p)
+            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
+            : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
+        + (CURRENT_USER && CURRENT_USER.uid === MY_UID && p.nextFollowUpDate ? (
+            '<div style="margin-top:8px;">'
+            + (AI_PERSONALIZED_REMINDER
+                ? '<div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PERSONALIZED_REMINDER)+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
+                : '<button class="btn btn-sm btn-block" data-action="ai-personalize-reminder">'+ic('shield')+' AI: Personalize this reminder</button>')
+            + '</div>'
+          ) : '')
+        + '</div>' : '')
+    + '</div>';
+
+  let usefulBody = tagsCardHtml(p) + reminderMiniCardHtml(p);
+
+  return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
+    + '<div class="row" style="justify-content:flex-end;gap:8px;">'
     + '<button class="icon-btn" data-action="duplicate-case" title="Duplicate Case">'+ic('copy')+'</button>'
     + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
     + '</div>'
-    + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
-    + '<div class="stat-card"><div class="stat-label">Investigation photos</div><div class="stat-value mono">'+p.preOpImageCount+'</div></div>'
-    + '<div class="stat-card"><div class="stat-label">Follow-up visits</div><div class="stat-value mono">'+(p.followUps||[]).length+'</div></div>'
+    + '<button type="button" class="stat-card" style="text-align:left;border:1px solid var(--border);cursor:pointer;" data-action="set-tab" data-value="imagesrecords"><div class="stat-label">Investigation photos</div><div class="stat-value mono">'+p.preOpImageCount+'</div></button>'
+    + '<button type="button" class="stat-card" style="text-align:left;border:1px solid var(--border);cursor:pointer;" data-action="set-tab" data-value="followups"><div class="stat-label">Follow-up visits</div><div class="stat-value mono">'+(p.followUps||[]).length+'</div></button>'
     + '</div>'
-    + '<div class="card" style="'+(overdue?'border-color:var(--red-border);background:var(--red-bg);':'')+'">'
-    + '<label class="field-label" style="'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up due'+(overdue?' \u2014 OVERDUE':'')+'</label>'
-    + '<input class="input" type="date" data-field="nextFollowUpDate" value="'+esc(p.nextFollowUpDate)+'">'
+    + ovSection('snapshot', 'Patient Snapshot', snapshotBody)
+    + ovSection('clinical', 'Clinical', clinicalBody)
+    + ovSection('communicate', 'Communicate', communicateBody)
+    + ovSection('useful', 'Useful', usefulBody)
+    + '<div style="text-align:center;padding-top:6px;">'
+    + (!isSurgical ? '<button class="btn btn-sm" style="background:transparent;border-color:transparent;color:var(--muted);font-size:11.5px;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical\u2026</button>' : convertToOpdButtonHtml(p))
     + '</div>'
-
-    + '<div class="seg" style="width:100%;">' + tabs.map(([v,l])=>'<button type="button" class="seg-btn'+(OV_SUBTAB===v?' active':'')+'" style="flex:1;" data-action="ov-switch-tab" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
-
-    + '<div style="display:flex;flex-direction:column;gap:12px;">' + tabBody + '</div>'
-
-    + '<div class="card"><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
-    + (isSurgical ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'+OP_NOTE_TEMPLATES.map(([n]) => '<button type="button" class="chip" data-action="insert-op-template" data-value="'+esc(n)+'">'+ic('printer')+' '+esc(n)+'</button>').join('')+'</div>' : '')
-    + '<textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="Intra-op findings, complications, plan\u2026">'+esc(p.notes)+'</textarea></div>'
-    + tagsCardHtml(p)
-    + reminderMiniCardHtml(p)
     + '</div>';
 }
 
@@ -3380,7 +3384,7 @@ const IMAGES_RECORDS_SECTIONS = [
   ['investigations','Investigations'], ['injections','Injections'],
 ];
 const XRAY_SUBTYPES = ['General OPD','Pre-Reduction','Post-Reduction','Pre-op','Post-op'];
-const FU_XRAY_SUBTYPES = XRAY_SUBTYPES.filter(s => s !== 'Pre-Reduction' && s !== 'Pre-op');
+const FU_XRAY_SUBTYPES = XRAY_SUBTYPES.filter(s => s !== 'Pre-Reduction' && s !== 'Pre-op').concat('Follow-up');
 
 function imageBucketGridHtml(images, uploadAttrs) {
   let grid = '<div class="thumb-grid">';
@@ -3402,10 +3406,21 @@ function imageBucketCardHtml(title, images, category, subtype, readonly) {
     + '</div>';
 }
 
+const IMGREC_GROUPS = [
+  { key:'imaging', label:'Imaging', categories:['xray','ct','mri','usg'] },
+  { key:'clinical', label:'Clinical / Wound', categories:['clinical','wound'] },
+  { key:'labs', label:'Labs / Reports', categories:['investigations'] },
+];
+function imgrecCatLabel(k) { const f = IMAGES_RECORDS_SECTIONS.find(s=>s[0]===k); return f?f[1]:k; }
 async function renderImagesRecordsTab(p) {
-  const segHtml = '<div class="px" style="padding-top:12px;padding-bottom:0;"><div style="display:flex;flex-wrap:wrap;gap:6px;">'
-    + IMAGES_RECORDS_SECTIONS.map(([k,l]) => '<button class="chip'+(IMAGES_RECORDS_SUBVIEW===k?' active':'')+'" data-action="imgrec-set-subview" data-value="'+k+'">'+l+'</button>').join('')
-    + '</div></div>';
+  const activeGroup = IMGREC_GROUPS.find(g => g.categories.includes(IMAGES_RECORDS_SUBVIEW));
+  const segHtml = '<div class="px" style="padding-top:12px;padding-bottom:0;">'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;">'
+    + IMGREC_GROUPS.map(g => '<button class="chip'+(activeGroup && activeGroup.key===g.key?' active':'')+'" data-action="imgrec-set-subview" data-value="'+g.categories[0]+'">'+g.label+'</button>').join('')
+    + '<button class="chip'+(IMAGES_RECORDS_SUBVIEW==='injections'?' active':'')+'" data-action="imgrec-set-subview" data-value="injections">Injections</button>'
+    + '</div>'
+    + (activeGroup && activeGroup.categories.length > 1 ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + activeGroup.categories.map(c => '<button class="chip'+(IMAGES_RECORDS_SUBVIEW===c?' active':'')+'" style="font-size:11px;padding:5px 10px;" data-action="imgrec-set-subview" data-value="'+c+'">'+imgrecCatLabel(c)+'</button>').join('') + '</div>' : '')
+    + '</div>';
 
   if (IMAGES_RECORDS_SUBVIEW === 'investigations') return segHtml + await renderInvestigationsTab(p);
   if (IMAGES_RECORDS_SUBVIEW === 'injections') return segHtml + renderInjectionsTab(p);
@@ -3483,7 +3498,7 @@ async function renderFollowupsTab(p) {
       + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
       + '<label class="field-label" style="margin-top:10px;">Next follow-up date (optional)</label>'
       + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
-      + [['2w','+2 Weeks'],['1m','+1 Month'],['6w','+6 Weeks'],['3m','+3 Months'],['6m','+6 Months']].map(([v,l])=>'<button type="button" class="chip" data-action="fu-set-next-followup" data-value="'+v+'">'+l+'</button>').join('')
+      + [['3d','+3 Days'],['1w','+1 Week'],['2w','+2 Weeks'],['3w','+3 Weeks'],['1m','+1 Month']].map(([v,l])=>'<button type="button" class="chip" data-action="fu-set-next-followup" data-value="'+v+'">'+l+'</button>').join('')
       + '</div>'
       + '<input class="input" id="fu-next-followup" type="date" value="">'
       + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">This replaces the patient\u2019s \u201cnext follow-up due\u201d date. Starts blank \u2014 pick a preset above or a date if another visit is needed, otherwise it\u2019s cleared (no longer overdue) once you save.</p>'
@@ -4157,9 +4172,9 @@ function renderTimelineTab(p) {
   } else if (p.surgeryDate) {
     events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Registration: ' + (p.diagnosis || p.chiefComplaints ? sideTag(p) + displayDiagnosis(p.diagnosis || p.chiefComplaints) : 'OPD case'), sub: p.side && p.side !== 'N/A' ? p.side : null, jumpTab: 'overview' });
   }
-  (p.followUps||[]).forEach(f => events.push({ date: f.date, icon:'calendar', color:'#0d9488', bg:'#ccfbf1', title: 'Follow-up: ' + f.label, sub: (f.woundStatus && f.woundStatus!=='N/A') ? ('Wound: ' + f.woundStatus) : (f.notes || null), jumpTab: 'followups' }));
-  (p.investigations||[]).forEach(inv => events.push({ date: inv.date, icon:'file', color:'#7c3aed', bg:'#f3e8ff', title: 'Investigation: ' + inv.label, sub: inv.notes || null, jumpTab: 'investigations' }));
-  (p.prescriptions||[]).forEach(rx => events.push({ date: rx.date, icon:'printer', color:'#c2410c', bg:'#ffedd5', title: 'Prescription', sub: (rx.medicines||[]).map(m=>m.name).filter(Boolean).join(', ') || null, jumpTab: 'prescriptions' }));
+  (p.followUps||[]).forEach(f => events.push({ date: f.date, icon:'calendar', color:'#0d9488', bg:'#ccfbf1', title: 'Follow-up: ' + f.label, sub: (f.woundStatus && f.woundStatus!=='N/A') ? ('Wound: ' + f.woundStatus) : (f.notes || null), jumpTab: 'followups', jumpId: f.id }));
+  (p.investigations||[]).forEach(inv => events.push({ date: inv.date, icon:'file', color:'#7c3aed', bg:'#f3e8ff', title: 'Investigation: ' + inv.label, sub: inv.notes || null, jumpTab: 'investigations', jumpId: inv.id }));
+  (p.prescriptions||[]).forEach(rx => events.push({ date: rx.date, icon:'printer', color:'#c2410c', bg:'#ffedd5', title: 'Prescription', sub: (rx.medicines||[]).map(m=>m.name).filter(Boolean).join(', ') || null, jumpTab: 'prescriptions', jumpId: rx.id }));
   events = events.filter(e => e.date).sort((a,b) => new Date(a.date) - new Date(b.date));
 
   if (!events.length) {
@@ -4167,7 +4182,7 @@ function renderTimelineTab(p) {
   }
   const rows = events.map(e => '<div class="tl-row">'
     + '<div class="tl-dot" style="background:'+e.bg+';color:'+e.color+';"><svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:'+e.color+';">'+ICONS[e.icon]+'</svg></div>'
-    + '<div class="tl-content" data-action="tl-jump" data-value="'+e.jumpTab+'">'
+    + '<div class="tl-content" data-action="tl-jump" data-value="'+e.jumpTab+'"'+(e.jumpId?' data-id="'+e.jumpId+'"':'')+'>'
     + '<div class="tl-date">'+fmtDate(e.date)+'</div>'
     + '<div class="tl-title">'+esc(e.title)+'</div>'
     + (e.sub ? '<div class="tl-sub">'+esc(e.sub)+'</div>' : '')
@@ -4657,18 +4672,30 @@ function renderDetailShell(p) {
   const QUICK_ACCESS_TABS = ['photos']; // reachable via a button, not shown in the tab bar itself
   if (!tabs.some(t => t.key === TAB) && !QUICK_ACCESS_TABS.includes(TAB)) TAB = 'overview';
   let tabsHtml = tabs.map(t => '<button class="tab'+(TAB===t.key?' active':'')+'" data-action="set-tab" data-value="'+t.key+'">'+ic(t.icon)+t.label+'</button>').join('');
-  let statusOptions = STATUS_OPTIONS.map(s => '<option'+(p.status===s?' selected':'')+'>'+s+'</option>').join('');
+  // Old records may still have the retired 'Active follow-up' value \u2014 treat that as 'Active' here.
+  const currentStatus = (!p.status || p.status === 'Active follow-up') ? 'Active' : p.status;
+  let statusOptions = STATUS_OPTIONS.map(s => '<option'+(currentStatus===s?' selected':'')+'>'+s+'</option>').join('');
+  const isSurgical = p.caseType === 'surgical';
+  const diagnosisLine = isSurgical ? (p.procedure || displayDiagnosis(p.diagnosis) || '') : (displayDiagnosis(p.diagnosis || p.chiefComplaints) || '');
   return '<div style="padding-bottom:20px;">'
     + '<div class="sticky-top">'
-    + '<div class="row gap3 px" style="padding:14px 16px 10px;">'
-    + '<button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button>'
-    + '<div style="min-width:0;flex:1;"><h2 style="font-size:16px;font-weight:800;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escName(p.name)+' <span style="font-weight:600;color:var(--muted);font-size:13px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>'
-    + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;">'+(p.caseType==='surgical'?p.surgeryType+' \u00b7 '+esc(p.procedure||''):'OPD case')+'</p></div>'
-    + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
+    + '<div class="row gap3 px" style="padding:14px 16px 8px;align-items:flex-start;">'
+    + '<button class="icon-btn" data-action="back-to-list" style="margin-top:2px;">'+ic('back')+'</button>'
+    + '<div style="min-width:0;flex:1;">'
+    + (EDITING_PATIENT_CODE
+        ? '<div class="row gap2"><input class="input" id="patient-code-input" value="'+esc(p.patientCode||'')+'" style="flex:1;" placeholder="e.g. PT0001"><button class="icon-btn" style="color:var(--emerald);" data-action="save-patient-code" title="Save">'+ic('check')+'</button><button class="icon-btn" data-action="cancel-edit-patient-code" title="Cancel">'+ic('x')+'</button></div>'
+        : (p.patientCode
+            ? '<button style="background:none;border:none;padding:0;font-weight:800;font-size:14px;color:var(--accent-dark);font-family:\'JetBrains Mono\',monospace;" data-action="edit-patient-code">'+esc(p.patientCode)+'</button>'
+            : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>'))
+    + '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escName(p.name)+' <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>'
+    + (diagnosisLine ? '<p style="font-size:12px;color:#334155;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(diagnosisLine)+'</p>' : '')
+    + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;">'+(isSurgical?'Surgical case':'OPD case')+'</p>'
+    + '</div>'
+    + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;margin-top:2px;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
     + confirmBtn('delete-patient', p.id)
     + '</div>'
     + '<div class="px" style="padding-bottom:10px;"><select class="select" style="font-weight:700;" data-field="status">'+statusOptions+'</select></div>'
-    + '<div class="tabs px">'+tabsHtml+'</div>'
+    + '<div class="tabs-wrap"><div class="tabs px">'+tabsHtml+'</div></div>'
     + '</div>'
     + '<div id="tab-body"></div>'
     + '</div>';
@@ -5959,8 +5986,10 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'toggle-legend') { SHOW_LEGEND = !SHOW_LEGEND; render(); return; }
   if (action === 'tl-jump') {
     let target = el.dataset.value;
-    if (target === 'investigations') { IMAGES_RECORDS_SUBVIEW = 'investigations'; target = 'imagesrecords'; }
+    const jumpId = el.dataset.id;
+    if (target === 'investigations') { IMAGES_RECORDS_SUBVIEW = 'investigations'; target = 'imagesrecords'; if (jumpId) EXPANDED_INVESTIGATION.add(jumpId); }
     else if (target === 'preop') { IMAGES_RECORDS_SUBVIEW = 'xray'; target = 'imagesrecords'; }
+    else if (target === 'followups' && jumpId) { EXPANDED_FOLLOWUP.add(jumpId); }
     TAB = target; ADD_FOLLOWUP_OPEN = false;
     const p = getPatient(SELECTED_ID);
     await render();
@@ -6022,6 +6051,13 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'ov-switch-tab') { OV_SUBTAB = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ov-toggle-section') {
+    const key = el.dataset.value;
+    if (OV_EXPANDED.has(key)) OV_EXPANDED.delete(key); else OV_EXPANDED.add(key);
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ov-show-schedule') { OV_SHOW_SCHEDULE = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-toggle-region') {
     const p = getPatient(SELECTED_ID);
     p.regions = p.regions || [];
@@ -6321,7 +6357,7 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'fu-set-next-followup') {
     const inp = document.getElementById('fu-next-followup');
     if (!inp) return;
-    const map = { '2w':14, '6w':42, '1m':30, '3m':90, '6m':182 };
+    const map = { '3d':3, '1w':7, '2w':14, '3w':21, '1m':30 };
     const days = map[el.dataset.value] || 0;
     const d = new Date();
     d.setDate(d.getDate() + days);
