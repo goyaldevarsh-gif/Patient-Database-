@@ -711,7 +711,31 @@ const CASE_REGIONS = [
   { key:'Arthroplasty', keywords:['replacement','arthroplasty','tkr','thr','prosthesis','resurfacing','hip replacement','knee replacement','revision arthroplasty','hemiarthroplasty','bipolar'] },
   { key:'Sports Medicine', keywords:['acl','pcl','meniscus','rotator cuff','ligament','sports','arthroscopy','arthroscopic','acl reconstruction','meniscal','labral','labrum','impingement','instability'] },
   { key:'Trauma', keywords:['fracture','#',' fx ','fx.','trauma','dislocation','orif','pop','k-wire','kwire','cl#','close#','comminuted','displaced','undisplaced','compound fracture','open fracture','closed fracture','open reduction','internal fixation','external fixation','nailing','interlocking nail','plating','traction','rta','road traffic accident','fall','injury'] },
+  { key:'Other Specialty', keywords:[] },
 ];
+const REGION_GROUP_KEYS = ['Upper Limb','Hand','Lower Limb','Spine','Pelvis & Acetabulum','Foot & Ankle'];
+const SPECIALTY_GROUP_KEYS = ['Trauma','Arthroplasty','Sports Medicine','Other Specialty'];
+/* Region and Specialty are still stored together in one array (p.regions) to avoid a data
+   migration, but shown as two visually separate groups since they're conceptually different
+   (body part vs. clinical domain). */
+function regionSpecialtyChipsHtml(selected, toggleAction, autoDetectAction) {
+  const chip = (key) => '<button type="button" class="tag-chip'+(selected.includes(key)?' active':'')+'" data-action="'+toggleAction+'" data-value="'+esc(key)+'">'+esc(key)+'</button>';
+  return '<div><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region</label>'+(autoDetectAction?'<button type="button" class="chip" data-action="'+autoDetectAction+'">'+ic('sparkle')+' Auto-detect</button>':'')+'</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + REGION_GROUP_KEYS.map(chip).join('') + '</div></div>'
+    + '<div><label class="field-label">Specialty</label>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + SPECIALTY_GROUP_KEYS.map(chip).join('') + '</div></div>';
+}
+/* Lightweight, offline keyword match \u2014 lets diagnosis/complaints text silently switch on
+   the relevant Special Tracking module instead of the doctor having to pick it manually.
+   Never overrides a choice already made. */
+function autoDetectCondition(text) {
+  const t = (text||'').toLowerCase();
+  if (/\bctev\b|club\s?foot|clubfoot/.test(t)) return 'ctev';
+  if (/rheumatoid arthritis|\brheumatoid\b/.test(t)) return 'ra';
+  if (/osteoporosis|osteopenia|low bone density/.test(t)) return 'osteoporosis';
+  if (/fracture|\bfx\b|#|dislocation|\btrauma\b/.test(t)) return 'trauma';
+  return '';
+}
 function autoDetectRegions(text) {
   const t = (' '+(text||'').toLowerCase()+' ');
   return CASE_REGIONS.filter(r => r.keywords.some(k => t.includes(k))).map(r => r.key);
@@ -794,6 +818,9 @@ function resetPerPatientUiState() {
   OV_SUBTAB = 'details';
   OV_EXPANDED = new Set(['snapshot']);
   OV_SHOW_SCHEDULE = false;
+  OV_SHOW_PAYMENT = false;
+  AI_PATIENT_SUMMARY = null;
+  ROM_LOG_OPEN = false;
   ADD_FOLLOWUP_OPEN = false;
   ADD_INVESTIGATION_OPEN = false;
   ADD_INJECTION_OPEN = false;
@@ -1362,7 +1389,7 @@ function newCtevShape() {
 }
 function newRaShape() {
   return { rf:'unknown', accp:'unknown', cspineFlag:false, cspineNotes:'',
-    treatment:{ dmards:'', biologics:'', steroids:'', nsaids:'' }, visits:[], nextLabsDate:'' };
+    treatment:{ dmards:'', biologics:'', steroids:'', nsaids:'' }, monitoring:{ cbc:'', lft:'', creatinine:'' }, visits:[], nextLabsDate:'' };
 }
 function newOsteoShape() {
   return { riskFactors: { age65:false, postmenopausal:false, priorFracture:false, familyHistoryHipFracture:false, steroidUse:false, smoking:false, lowBMI:false, earlyMenopause:false },
@@ -2458,6 +2485,7 @@ let AP_INVESTIGATIONS = [];
 let AP_INV_CATEGORY = 'xray';
 let AP_INV_XRAY_SUBTYPE = 'General OPD';
 let AP_INV_ACTIVE_GROUP = null;
+let AP_SHOW_PAYMENT = false;
 const AP_INV_GROUPS = [
   { key:'imaging', label:'Imaging', categories:['xray','ct','mri','usg'] },
   { key:'clinical', label:'Clinical Images / Wound', categories:['clinical','wound'] },
@@ -2475,6 +2503,7 @@ function initApTemp() {
   AP_INV_CATEGORY = 'xray';
   AP_INV_XRAY_SUBTYPE = 'General OPD';
   AP_INV_ACTIVE_GROUP = null;
+  AP_SHOW_PAYMENT = false;
   AP_AI_FILL_TEXT = '';
   AI_SANITY_CHECK_RESULT = null;
 }
@@ -2559,9 +2588,9 @@ function renderAddView() {
       + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
       + '</div>'
       + '<div><label class="field-label">Occupation (optional)</label><input class="input" id="ap-occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(AP_TEMP.occupation)+'"></div>'
-      + '<div><label class="field-label">Hand dominance (optional)</label><div class="seg">'
-      + ['Left','Right','Ambidextrous'].map(s=>'<button class="seg-btn'+(AP_TEMP.handDominance===s?' active':'')+'" data-action="ap-set-hand" data-value="'+s+'">'+s+'</button>').join('')
-      + '</div></div>'
+      + (AP_TEMP.regions.includes('Upper Limb') || AP_TEMP.regions.includes('Hand') ? '<div><label class="field-label">Hand dominance (optional)</label><div class="seg">'
+      + [['Left','L'],['Right','R'],['Ambidextrous','Ambi']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.handDominance===v?' active':'')+'" data-action="ap-set-hand" data-value="'+v+'">'+l+'</button>').join('')
+      + '</div></div>' : '')
       + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
       + '</div>';
   } else if (AP_SUBTAB === 'complaints') {
@@ -2571,10 +2600,7 @@ function renderAddView() {
       + '<div><label class="field-label">Side</label><div class="seg">'
       + ['Left','Right','Bilateral'].map(s=>'<button class="seg-btn'+(AP_TEMP.side===s?' active':'')+'" data-action="ap-set-side" data-value="'+s+'">'+s+'</button>').join('')
       + '</div></div>'
-      + '<div><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ap-auto-region">'+ic('sparkle')+' Auto-detect</button></div>'
-      + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
-      + CASE_REGIONS.map(r=>'<button type="button" class="tag-chip'+(AP_TEMP.regions.includes(r.key)?' active':'')+'" data-action="ap-toggle-region" data-value="'+esc(r.key)+'">'+esc(r.key)+'</button>').join('')
-      + '</div></div>'
+      + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
       + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')+'</div>'
       + '</div>';
   } else if (AP_SUBTAB === 'tracking') {
@@ -2583,11 +2609,18 @@ function renderAddView() {
       + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
       + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
-      + '<div><label class="field-label">Payment</label><div class="seg">'
-      + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.paymentMethod===v?' active':'')+'" data-action="ap-set-payment" data-value="'+v+'">'+l+'</button>').join('')
-      + '</div>'
-      + (AP_TEMP.paymentMethod==='Insurance' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-insurance" placeholder="Insurance type / company name" value="'+esc(AP_TEMP.insuranceType||'')+'" style="margin-top:8px;">' : '')
-      + (AP_TEMP.paymentMethod==='Cash' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-cash-amount" type="number" inputmode="numeric" placeholder="Cash amount (\u20b9)" value="'+esc(AP_TEMP.cashAmount||'')+'" style="margin-top:8px;">' : '')
+      + '<div class="card" style="padding:0;overflow:hidden;">'
+      + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:12px;text-align:left;" data-action="ap-toggle-payment">'
+      + '<span style="font-size:13px;font-weight:700;">Payment'+(AP_TEMP.paymentMethod?' \u2014 '+esc(AP_TEMP.paymentMethod):'')+'</span>'
+      + '<span style="color:var(--accent);transform:rotate('+(AP_SHOW_PAYMENT?90:0)+'deg);display:inline-flex;">'+ic('chevron')+'</span>'
+      + '</button>'
+      + (AP_SHOW_PAYMENT ? (
+          '<div style="padding:0 12px 12px;">'
+          + '<div class="seg">' + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.paymentMethod===v?' active':'')+'" data-action="ap-set-payment" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
+          + (AP_TEMP.paymentMethod==='Insurance' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-insurance" placeholder="Insurance type / company name" value="'+esc(AP_TEMP.insuranceType||'')+'" style="margin-top:8px;">' : '')
+          + (AP_TEMP.paymentMethod==='Cash' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-cash-amount" type="number" inputmode="numeric" placeholder="Cash amount (\u20b9)" value="'+esc(AP_TEMP.cashAmount||'')+'" style="margin-top:8px;">' : '')
+          + '</div>'
+        ) : '')
       + '</div>'
       + '</div>'
     ) : (
@@ -2613,7 +2646,7 @@ function renderAddView() {
             + (open ? (
                 '<div style="margin-top:10px;">'
                 + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' + g.categories.map(c => '<button type="button" class="chip'+(AP_INV_CATEGORY===c?' active':'')+'" data-action="ap-inv-set-category" data-value="'+c+'">'+apInvCatLabel(c)+'</button>').join('') + '</div>'
-                + (AP_INV_CATEGORY === 'xray' && g.categories.includes('xray') ? '<div style="margin-bottom:8px;"><select class="select" id="ap-inv-xray-subtype">'+XRAY_SUBTYPES.map(s=>'<option'+(AP_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>' : '')
+                + (AP_INV_CATEGORY === 'xray' && g.categories.includes('xray') ? '<div style="margin-bottom:8px;"><select class="select" id="ap-inv-xray-subtype">'+XRAY_SUBTYPES.filter(s => !isSurgical || s !== 'General OPD').map(s=>'<option'+(AP_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>' : '')
                 + '<div id="ap-inv-thumbs">'+categorizedThumbsHtml(groupPhotos, 'ap-inv-remove-photo')+'</div>'
                 + '</div>'
               ) : '')
@@ -2670,6 +2703,7 @@ function renderAddView() {
 let OV_SUBTAB = 'details';
 let OV_EXPANDED = new Set(['snapshot']);
 let OV_SHOW_SCHEDULE = false;
+let OV_SHOW_PAYMENT = false;
 function ovSection(key, title, bodyHtml) {
   const open = OV_EXPANDED.has(key);
   return '<div class="card" style="padding:0;overflow:hidden;">'
@@ -2689,10 +2723,7 @@ function renderOverviewTab(p) {
     + '<div><label class="field-label">Sex</label><div class="input" style="background:var(--bg-soft);color:var(--muted);">'+esc(p.sex||'\u2014')+'</div></div>'
     + '</div>'
     + '<div><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
-    + '<div><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region / Specialty</label><button type="button" class="chip" data-action="ov-auto-region">'+ic('sparkle')+' Auto-detect</button></div>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
-    + CASE_REGIONS.map(r=>'<button type="button" class="tag-chip'+((p.regions||[]).includes(r.key)?' active':'')+'" data-action="ov-toggle-region" data-value="'+esc(r.key)+'">'+esc(r.key)+'</button>').join('')
-    + '</div></div>'
+    + regionSpecialtyChipsHtml(p.regions||[], 'ov-toggle-region', 'ov-auto-region')
     + (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
     + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
     + '<div><label class="field-label">Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
@@ -2717,22 +2748,37 @@ function renderOverviewTab(p) {
         '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
         + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('ov-procedure')
         + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
-        + '<div><label class="field-label">Payment</label><div class="seg">'
-        + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('')
+        + '<div class="card" style="padding:0;overflow:hidden;">'
+        + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:12px;text-align:left;" data-action="ov-toggle-payment">'
+        + '<span style="font-size:13px;font-weight:700;">Payment'+(p.paymentMethod?' \u2014 '+esc(p.paymentMethod):'')+'</span>'
+        + '<span style="color:var(--accent);transform:rotate('+(OV_SHOW_PAYMENT?90:0)+'deg);display:inline-flex;">'+ic('chevron')+'</span>'
+        + '</button>'
+        + (OV_SHOW_PAYMENT ? (
+            '<div style="padding:0 12px 12px;">'
+            + '<div class="seg">' + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
+            + (p.paymentMethod==='Insurance' || p.paymentMethod==='Both' ? '<input class="input" data-field="insuranceType" placeholder="Insurance type / company name" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
+            + (p.paymentMethod==='Cash' || p.paymentMethod==='Both' ? '<input class="input" type="number" inputmode="numeric" data-field="cashAmount" placeholder="Cash amount (\u20b9)" value="'+esc(p.cashAmount||'')+'" style="margin-top:8px;">' : '')
+            + '</div>'
+          ) : '')
         + '</div>'
-        + (p.paymentMethod==='Insurance' || p.paymentMethod==='Both' ? '<input class="input" data-field="insuranceType" placeholder="Insurance type / company name" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
-        + (p.paymentMethod==='Cash' || p.paymentMethod==='Both' ? '<input class="input" type="number" inputmode="numeric" data-field="cashAmount" placeholder="Cash amount (\u20b9)" value="'+esc(p.cashAmount||'')+'" style="margin-top:8px;">' : '')
       ) : '')
     + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(p.occupation||'')+'"></div>'
-    + '<div><label class="field-label">Hand dominance (optional)</label><div class="seg">'
-    + ['Left','Right','Ambidextrous'].map(s=>'<button class="seg-btn'+((p.handDominance||'')===s?' active':'')+'" data-action="ov-set-hand" data-value="'+s+'">'+s+'</button>').join('')
-    + '</div></div>'
+    + ((p.regions||[]).includes('Upper Limb') || (p.regions||[]).includes('Hand') ? '<div><label class="field-label">Hand dominance (optional)</label><div class="seg">'
+    + [['Left','L'],['Right','R'],['Ambidextrous','Ambi']].map(([v,l])=>'<button class="seg-btn'+((p.handDominance||'')===v?' active':'')+'" data-action="ov-set-hand" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div></div>' : '')
     + '<div style="'+(overdue?'padding:10px;border-radius:12px;background:var(--red-bg);':'')+'">'
     + '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up'+(overdue?' \u2014 OVERDUE':(p.nextFollowUpDate?'':' \u2014 not scheduled'))+'</label>'
     + (!p.nextFollowUpDate && !OV_SHOW_SCHEDULE ? '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>' : '')
     + '</div>'
     + (p.nextFollowUpDate || OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" value="'+esc(p.nextFollowUpDate)+'" style="margin-top:6px;">' : '')
-    + '</div>';
+    + '</div>'
+    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+        '<div style="padding-top:6px;border-top:1px dashed var(--border);">'
+        + (AI_PATIENT_SUMMARY
+            ? '<div class="card" id="ai-patient-summary-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_SUMMARY)+speakButtonHtml('ai-patient-summary-text')+'</div>'
+            : '<button class="btn btn-sm btn-block" data-action="ai-summarize-patient">'+ic('sparkle')+' AI: Summarize this patient</button>')
+        + '</div>'
+      ) : '');
 
   let clinicalBody = comorbidityCardHtml(p)
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
@@ -2793,6 +2839,7 @@ let AI_QUERY_ANSWER = null;
 let AI_QUERY_TEXT = '';
 let AI_INVESTIGATION_SUGGESTIONS = null;
 let AI_EXAM_SUGGESTIONS = null;
+let AI_PATIENT_SUMMARY = null;
 let AI_PERSONALIZED_REMINDER = null;
 let AI_DIGEST_SUMMARY = null;
 let AI_SANITY_CHECK_RESULT = null;
@@ -2886,11 +2933,24 @@ function isCalcanealCase(p) {
   const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
   return /calcane/.test(text);
 }
+/* Only surface classification systems actually relevant to this case, instead of all 10 \u2014
+   falls back to showing everything if nothing matches (e.g. diagnosis not detailed yet). */
+function relevantClassificationSystems(p) {
+  const checks = [
+    ['Garden', isFemoralNeckCase(p)], ['Pauwels', isFemoralNeckCase(p)],
+    ['Weber', isAnkleFractureCase(p)], ['Lauge-Hansen', isAnkleFractureCase(p)],
+    ['Neer', isProximalHumerusCase(p)], ['Schatzker', isTibialPlateauCase(p)],
+    ['Salter-Harris', isPediatricPhysealCase(p)], ['Gustilo-Anderson', !!p.isOpenFracture],
+    ['Sanders', isCalcanealCase(p)],
+  ];
+  const relevant = ['AO/OTA'].concat(checks.filter(([,cond]) => cond).map(([s]) => s));
+  return relevant.length > 1 ? relevant : CLASSIFICATION_SYSTEMS;
+}
 function classificationCardHtml(p) {
   return '<div class="card">'
     + '<label class="field-label">'+ic('tag')+' Fracture Classification <span style="color:var(--muted);font-weight:500;">(optional)</span></label>'
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
-    + CLASSIFICATION_SYSTEMS.map(s => '<button type="button" class="tag-chip" data-action="classification-insert-system" data-value="'+esc(s)+'">'+esc(s)+'</button>').join('')
+    + relevantClassificationSystems(p).map(s => '<button type="button" class="tag-chip" data-action="classification-insert-system" data-value="'+esc(s)+'">'+esc(s)+'</button>').join('')
     + '</div>'
     + '<input class="input" data-field="classification" placeholder="e.g. AO 31-A1, Garden III, Weber B" value="'+esc(p.classification||'')+'">'
     + '<div class="row between" style="margin-top:12px;"><span style="font-size:12px;font-weight:700;">Open fracture?</span><div class="seg" style="width:auto;">'
@@ -3333,6 +3393,8 @@ function bmiCardHtml(p) {
     + '</div>';
 }
 
+let ROM_LOG_OPEN = false;
+let ROM_LOG_TEMP = null;
 function romTrendCardHtml(p) {
   if (!p.romTracking) {
     return '<div class="card"><label class="field-label">'+ic('clock')+' ROM tracking</label>'
@@ -3343,7 +3405,9 @@ function romTrendCardHtml(p) {
   }
   const joint = p.romTracking.jointType;
   const fields = ROM_JOINT_FIELDS[joint] || ROM_JOINT_FIELDS.knee;
-  const tracked = [...(p.followUps||[])].filter(f => f.rom && fields.some(([k])=>f.rom[k]!=null && f.rom[k]!=='')).sort((a,b) => new Date(a.date) - new Date(b.date));
+  const readings = (p.romTracking.readings || []).slice();
+  const fromFollowUps = (p.followUps||[]).filter(f => f.rom && fields.some(([k])=>f.rom[k]!=null && f.rom[k]!=='')).map(f => ({ id:'fu-'+f.id, date: f.date, values: f.rom, fromFollowUp: true }));
+  const tracked = readings.concat(fromFollowUps).sort((a,b) => new Date(a.date) - new Date(b.date));
   let html = '<div class="card">'
     + '<div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">'+ic('clock')+' '+ROM_JOINT_LABELS[joint]+' ROM trend</label>'
     + '<button class="icon-btn" style="width:26px;height:26px;" title="Stop ROM tracking" data-action="disable-rom">'+ic('x')+'</button></div>';
@@ -3355,16 +3419,32 @@ function romTrendCardHtml(p) {
     [0,50,100,150].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+v+'</text>'; });
     let lines = '';
     fields.forEach(([key,,color]) => {
-      const pts = []; tracked.forEach((f,i) => { const v = f.rom && f.rom[key]; if (v!=null && v!=='') pts.push(xFor(i)+','+yFor(Number(v))); });
+      const pts = []; tracked.forEach((r,i) => { const v = r.values && r.values[key]; if (v!=null && v!=='') pts.push(xFor(i)+','+yFor(Number(v))); });
       if (pts.length) { lines += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+color+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
-        tracked.forEach((f,i) => { const v = f.rom && f.rom[key]; if (v!=null && v!=='') lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(Number(v))+'" r="3" fill="'+color+'"/>'; }); }
+        tracked.forEach((r,i) => { const v = r.values && r.values[key]; if (v!=null && v!=='') lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(Number(v))+'" r="3" fill="'+color+'"/>'; }); }
     });
     html += '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:150px;">'+grid+lines+'</svg>'
       + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">'
       + fields.map(([,label,color]) => '<span style="font-size:10px;color:#64748b;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+color+';margin-right:3px;"></span>'+label+'</span>').join('')
       + '</div>';
   } else {
-    html += '<p style="font-size:11px;color:var(--muted);">Log ROM at another visit to see the trend.</p>';
+    html += '<p style="font-size:11px;color:var(--muted);margin:0 0 8px;">Log a reading to start the trend.</p>';
+  }
+  if (!ROM_LOG_OPEN) {
+    html += '<button class="btn btn-sm btn-block" style="margin-top:10px;" data-action="rom-open-log">'+ic('plus')+' Log ROM for today</button>';
+  } else {
+    html += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
+      + '<label class="field-label">Date</label><input class="input" type="date" id="rom-log-date" value="'+esc(ROM_LOG_TEMP.date)+'" style="margin-bottom:8px;">'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      + fields.map(([k,l])=>'<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">'+l+'</label><input class="input" type="number" min="0" max="150" id="rom-log-'+k+'" placeholder="\u00b0"></div>').join('')
+      + '</div>'
+      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="rom-cancel-log">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="rom-submit-log">Save reading</button></div>'
+      + '</div>';
+  }
+  if (readings.length) {
+    html += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:6px;">'
+      + [...readings].reverse().map(r => '<div class="row between" style="font-size:11.5px;"><span>'+fmtDateShort(r.date)+' \u2014 '+fields.map(([k,l])=>(r.values[k]!=null&&r.values[k]!==''?l+' '+r.values[k]+'\u00b0':null)).filter(Boolean).join(', ')+'</span>'+confirmBtn('rom-delete-reading', r.id)+'</div>').join('')
+      + '</div>';
   }
   html += '</div>';
   return html;
@@ -4417,15 +4497,11 @@ const RA_MGT_HELP_HTML = '<div class="help-box">'
 
 function renderRaTab(p) {
   const ra = p.ra;
+  const mon = ra.monitoring || { cbc:'', lft:'', creatinine:'' };
   const overdueLabs = isOverdue(ra.nextLabsDate);
   let html = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
 
-  html += '<div class="row" style="margin-bottom:10px;"><button class="info-help-btn" data-action="toggle-ra-help">i</button><span style="font-size:12px;color:#64748b;margin-left:6px;">DAS28 / CDAI / SDAI scoring guide</span></div>';
-  if (SHOW_RA_HELP) html += RA_HELP_HTML;
-
-  html += '<div class="row" style="margin-bottom:10px;"><button class="info-help-btn" data-action="toggle-ra-mgt-help">i</button><span style="font-size:12px;color:#64748b;margin-left:6px;">RA management reference</span></div>';
-  if (SHOW_RA_MGT_HELP) html += RA_MGT_HELP_HTML;
-
+  html += '<div class="section-title" style="margin-top:0;">Snapshot</div>';
   html += '<div class="card" style="margin-bottom:12px;">'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">'
     + '<div><label class="field-label">RF</label><select class="select" data-ra-field="rf">'+['positive','negative','unknown'].map(s=>'<option'+(ra.rf===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
@@ -4433,23 +4509,16 @@ function renderRaTab(p) {
     + '</div>'
     + '<button class="badge badge-'+(ra.cspineFlag?'red':'slate')+'" data-action="ra-toggle-cspine">'+ic('alert')+(ra.cspineFlag?'C-spine flagged':'No C-spine flag')+'</button>'
     + (ra.cspineFlag ? '<div class="cspine-alert" style="margin-top:8px;">'+ic('alert')+' Intubation/positioning precautions \u2014 inform anaesthesia before any surgery.</div>' : '')
+    + (ra.treatment.dmards || ra.treatment.biologics ? '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);font-size:12px;color:#334155;">'
+        + (ra.treatment.dmards ? '<div><b>Current DMARD:</b> '+esc(ra.treatment.dmards)+'</div>' : '')
+        + (ra.treatment.biologics ? '<div style="margin-top:2px;"><b>Biologic:</b> '+esc(ra.treatment.biologics)+'</div>' : '')
+        + '</div>' : '')
     + '</div>';
 
-  html += '<div class="card" style="margin-bottom:12px;'+(overdueLabs?'border-color:var(--red-border);background:var(--red-bg);':'')+'">'
-    + '<label class="field-label" style="'+(overdueLabs?'color:#7f1d1d;':'')+'">Next monitoring labs due'+(overdueLabs?' \u2014 OVERDUE':'')+'</label>'
-    + '<input class="input" type="date" data-ra-field="nextLabsDate" value="'+esc(ra.nextLabsDate)+'"></div>';
-
-  html += '<div class="section-title" style="margin-top:0;">Treatment</div>';
-  html += '<div class="card" style="margin-bottom:12px;display:flex;flex-direction:column;gap:8px;">'
-    + '<div><label class="field-label">csDMARDs</label><textarea class="textarea" rows="2" data-ra-field="treatment.dmards">'+esc(ra.treatment.dmards)+'</textarea></div>'
-    + '<div><label class="field-label">Biologics</label><textarea class="textarea" rows="2" data-ra-field="treatment.biologics">'+esc(ra.treatment.biologics)+'</textarea></div>'
-    + '<div><label class="field-label">Steroids</label><textarea class="textarea" rows="2" data-ra-field="treatment.steroids">'+esc(ra.treatment.steroids)+'</textarea></div>'
-    + '<div><label class="field-label">NSAIDs</label><textarea class="textarea" rows="2" data-ra-field="treatment.nsaids">'+esc(ra.treatment.nsaids)+'</textarea></div>'
-    + '</div>';
-
-  html += '<div class="section-title" style="margin-top:0;">Visits</div>';
+  html += '<div class="row" style="margin-bottom:10px;"><span class="section-title" style="margin:0;">Disease Activity</span><button class="info-help-btn" style="margin-left:6px;" data-action="toggle-ra-help">i</button></div>';
+  if (SHOW_RA_HELP) html += RA_HELP_HTML;
   if (!ADD_RA_VISIT_OPEN) {
-    html += '<button class="btn btn-outline-dashed btn-block" data-action="ra-open-add-visit" style="margin-bottom:12px;">'+ic('plus')+' Add visit</button>';
+    html += '<button class="btn btn-outline-dashed btn-block" data-action="ra-open-add-visit" style="margin-bottom:12px;">'+ic('plus')+' Add visit (DAS28 / CDAI / SDAI)</button>';
   } else {
     html += '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + '<label class="field-label">Date</label><input class="input" type="date" id="ra-v-date" value="'+esc(RA_VISIT_TEMP.date)+'" style="margin-bottom:10px;">'
@@ -4461,6 +4530,7 @@ function renderRaTab(p) {
       + '<div><label class="field-label">Patient global (0\u2013100)</label><input class="input" type="number" min="0" max="100" id="ra-v-ptGlobal" value="'+esc(RA_VISIT_TEMP.ptGlobal)+'"></div>'
       + '<div><label class="field-label">Physician global (0\u201310)</label><input class="input" type="number" min="0" max="10" id="ra-v-phGlobal" value="'+esc(RA_VISIT_TEMP.phGlobal)+'"></div>'
       + '</div>'
+      + '<label class="field-label" style="margin-bottom:4px;">Live score (from the values above)</label>'
       + '<div id="ra-live-scores" style="margin-bottom:10px;">'+raLiveScoresHtml()+'</div>'
       + '<label class="field-label">Treatment change</label><input class="input" id="ra-v-treatmentNote" value="'+esc(RA_VISIT_TEMP.treatmentNote)+'" style="margin-bottom:10px;">'
       + '<label class="field-label">Notes</label><textarea class="textarea" rows="2" id="ra-v-notes">'+esc(RA_VISIT_TEMP.notes)+'</textarea>'
@@ -4478,6 +4548,27 @@ function renderRaTab(p) {
       + (v.notes?'<p style="font-size:12px;color:#64748b;margin-top:4px;">'+esc(v.notes)+'</p>':'')
       + '</div>';
   });
+
+  html += '<div class="section-title">Monitoring</div>';
+  html += '<div class="card" style="margin-bottom:12px;'+(overdueLabs?'border-color:var(--red-border);background:var(--red-bg);':'')+'">'
+    + '<label class="field-label" style="'+(overdueLabs?'color:#7f1d1d;':'')+'">Next monitoring labs due'+(overdueLabs?' \u2014 OVERDUE':'')+'</label>'
+    + '<input class="input" type="date" data-ra-field="nextLabsDate" value="'+esc(ra.nextLabsDate)+'" style="margin-bottom:10px;">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+    + '<div><label class="field-label">CBC</label><input class="input" data-ra-field="monitoring.cbc" placeholder="e.g. Hb 12.5, TLC normal" value="'+esc(mon.cbc)+'"></div>'
+    + '<div><label class="field-label">LFT</label><input class="input" data-ra-field="monitoring.lft" placeholder="e.g. Normal" value="'+esc(mon.lft)+'"></div>'
+    + '</div>'
+    + '<div style="margin-top:10px;"><label class="field-label">Creatinine</label><input class="input" data-ra-field="monitoring.creatinine" placeholder="e.g. 0.8 mg/dL" value="'+esc(mon.creatinine)+'"></div>'
+    + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0;">Latest values only \u2014 not a dated history. DMARD/biologic monitoring per standard protocols.</p>'
+    + '</div>';
+
+  html += '<div class="row" style="margin-bottom:10px;"><span class="section-title" style="margin:0;">Treatment</span><button class="info-help-btn" style="margin-left:6px;" data-action="toggle-ra-mgt-help">i</button></div>';
+  if (SHOW_RA_MGT_HELP) html += RA_MGT_HELP_HTML;
+  html += '<div class="card" style="margin-bottom:12px;display:flex;flex-direction:column;gap:8px;">'
+    + '<div><label class="field-label">csDMARDs</label><textarea class="textarea" rows="2" data-ra-field="treatment.dmards">'+esc(ra.treatment.dmards)+'</textarea></div>'
+    + '<div><label class="field-label">Biologics</label><textarea class="textarea" rows="2" data-ra-field="treatment.biologics">'+esc(ra.treatment.biologics)+'</textarea></div>'
+    + '<div><label class="field-label">Steroids</label><textarea class="textarea" rows="2" data-ra-field="treatment.steroids">'+esc(ra.treatment.steroids)+'</textarea></div>'
+    + '<div><label class="field-label">NSAIDs</label><textarea class="textarea" rows="2" data-ra-field="treatment.nsaids">'+esc(ra.treatment.nsaids)+'</textarea></div>'
+    + '</div>';
 
   html += '</div>';
   return html;
@@ -6002,7 +6093,15 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
   if (action === 'ap-set-hand') { syncApTempFromDom(); AP_TEMP.handDominance = el.dataset.value; render(); return; }
   if (action === 'ap-set-payment') { syncApTempFromDom(); AP_TEMP.paymentMethod = el.dataset.value; render(); return; }
-  if (action === 'ap-switch-tab') { syncApTempFromDom(); AP_SUBTAB = el.dataset.value; render(); return; }
+  if (action === 'ap-toggle-payment') { AP_SHOW_PAYMENT = !AP_SHOW_PAYMENT; render(); return; }
+  if (action === 'ap-switch-tab') {
+    syncApTempFromDom();
+    if (AP_TEMP.caseType === 'opd' && !AP_TEMP.condition) {
+      const guess = autoDetectCondition(AP_TEMP.diagnosis + ' ' + (AP_TEMP.chiefComplaints||''));
+      if (guess) AP_TEMP.condition = guess;
+    }
+    AP_SUBTAB = el.dataset.value; render(); return;
+  }
   if (action === 'ap-inv-toggle-group') {
     const key = el.dataset.value;
     AP_INV_ACTIVE_GROUP = (AP_INV_ACTIVE_GROUP === key) ? null : key;
@@ -6058,6 +6157,33 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'ov-show-schedule') { OV_SHOW_SCHEDULE = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ov-toggle-payment') { OV_SHOW_PAYMENT = !OV_SHOW_PAYMENT; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ai-summarize-patient') {
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const sys = 'You write a crisp 2-3 sentence clinical summary of an orthopaedic patient for the treating doctor\u2019s own quick reference \u2014 not for another audience. Cover: who they are, what\u2019s going on, and current status/what\u2019s next. Plain text only, no markdown, no headers.';
+      const context = 'Name: ' + p.name + '\nAge/Sex: ' + formatAge(p) + ' / ' + (p.sex||'') + '\nCase type: ' + (p.caseType==='surgical'?'Surgical':'OPD')
+        + '\nDiagnosis: ' + (p.diagnosis || p.chiefComplaints || '\u2014')
+        + (p.caseType==='surgical' ? ('\nProcedure: ' + (p.procedure||'\u2014') + '\nSurgery date: ' + fmtDate(p.surgeryDate)) : '')
+        + '\nStatus: ' + (p.status||'Active') + '\nNext follow-up: ' + (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'not scheduled')
+        + '\nFollow-up visits so far: ' + (p.followUps||[]).length
+        + (p.comorbidities && p.comorbidities.length ? ('\nCo-morbidities: ' + p.comorbidities.join(', ')) : '')
+        + (p.notes ? ('\nClinical notes: ' + p.notes) : '');
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 220 });
+      AI_PATIENT_SUMMARY = (result.data.text || '').trim();
+      await renderTabBody(getPatient(SELECTED_ID));
+    } catch (err) {
+      console.error('AI patient summary failed:', err);
+      toast('AI summary failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
   if (action === 'ov-toggle-region') {
     const p = getPatient(SELECTED_ID);
     p.regions = p.regions || [];
@@ -6127,6 +6253,10 @@ async function generatePersonalizedReminderMessage(p) {
     syncApTempFromDom();
     const conditionEl = document.getElementById('ap-condition');
     if (conditionEl) AP_TEMP.condition = conditionEl.value;
+    if (AP_TEMP.caseType === 'opd' && !AP_TEMP.condition) {
+      const guess = autoDetectCondition(AP_TEMP.diagnosis + ' ' + (AP_TEMP.chiefComplaints||''));
+      if (guess) AP_TEMP.condition = guess;
+    }
     if (!AP_TEMP.name.trim()) { toast('Name is required'); return; }
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
@@ -6290,7 +6420,7 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'enable-rom') {
     const p = getPatient(SELECTED_ID);
-    p.romTracking = { jointType: el.dataset.value };
+    p.romTracking = { jointType: el.dataset.value, readings: [] };
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
@@ -6298,6 +6428,32 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'disable-rom') {
     const p = getPatient(SELECTED_ID);
     p.romTracking = null;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'rom-open-log') { ROM_LOG_TEMP = { date: todayStr() }; ROM_LOG_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'rom-cancel-log') { ROM_LOG_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'rom-submit-log') {
+    const p = getPatient(SELECTED_ID);
+    const joint = p.romTracking.jointType;
+    const fields = ROM_JOINT_FIELDS[joint] || ROM_JOINT_FIELDS.knee;
+    const dateEl = document.getElementById('rom-log-date');
+    const date = dateEl ? dateEl.value : todayStr();
+    const vals = {};
+    fields.forEach(([k]) => { const fEl = document.getElementById('rom-log-'+k); if (fEl && fEl.value !== '') vals[k] = fEl.value; });
+    if (!Object.keys(vals).length) { toast('Enter at least one value'); return; }
+    p.romTracking.readings = p.romTracking.readings || [];
+    p.romTracking.readings.push({ id: uid(), date, values: vals });
+    ROM_LOG_OPEN = false;
+    await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'rom-delete-reading' && el.dataset.confirm) {
+    const p = getPatient(SELECTED_ID);
+    p.romTracking.readings = (p.romTracking.readings||[]).filter(r => r.id !== el.dataset.id);
+    ARMED_DELETE = null;
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
@@ -7066,7 +7222,7 @@ document.addEventListener('change', async (e) => {
   if (t.dataset && t.dataset.raField) {
     const p = getPatient(SELECTED_ID);
     const parts = t.dataset.raField.split('.');
-    if (parts.length === 2) p.ra[parts[0]][parts[1]] = t.value;
+    if (parts.length === 2) { if (!p.ra[parts[0]]) p.ra[parts[0]] = {}; p.ra[parts[0]][parts[1]] = t.value; }
     else p.ra[parts[0]] = t.value;
     await dbPutPatient(p); await refreshPatients();
     if (t.dataset.raField === 'nextLabsDate') await renderTabBody(getPatient(SELECTED_ID));
@@ -7141,7 +7297,22 @@ document.addEventListener('change', async (e) => {
   if (t.dataset && t.dataset.field) {
     await patchField(t.dataset.field, t.value);
     if (t.dataset.field === 'procedure') recordTextUsed(PROCEDURE_LIB_KEY, t.value);
-    if (t.dataset.field === 'diagnosis') recordTextUsed(DIAGNOSIS_LIB_KEY, t.value);
+    if (t.dataset.field === 'diagnosis') {
+      recordTextUsed(DIAGNOSIS_LIB_KEY, t.value);
+      const p = getPatient(SELECTED_ID);
+      if (p && p.caseType === 'opd' && !p.condition) {
+        const guess = autoDetectCondition(t.value + ' ' + (p.chiefComplaints||''));
+        if (guess) {
+          p.condition = guess;
+          if (guess === 'ctev' && !p.ctev) p.ctev = newCtevShape();
+          if (guess === 'ra' && !p.ra) p.ra = newRaShape();
+          if (guess === 'osteoporosis' && !p.osteo) p.osteo = newOsteoShape();
+          await dbPutPatient(p); await refreshPatients();
+          toast(guess.toUpperCase()+' tracking enabled based on diagnosis');
+          await render();
+        }
+      }
+    }
     if (t.dataset.field === 'chiefComplaints') recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, t.value);
     if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality' || t.dataset.field === 'heightCm' || t.dataset.field === 'weightKg' || t.dataset.field === 'surgeryType') { await render(); }
     return;
