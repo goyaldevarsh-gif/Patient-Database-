@@ -91,7 +91,7 @@
   .between { justify-content:space-between; }
   .gap1 { gap:4px; } .gap2 { gap:8px; } .gap3 { gap:12px; }
 
-  .icon-btn { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; flex:none; border-radius:10px; border:none; background:transparent; color:var(--muted); }
+  .icon-btn { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; flex:none; border-radius:10px; border:none; background:transparent; color:var(--accent); }
   svg.ic { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; display:block; }
 
   .btn { border-radius:11px; font-weight:700; padding:10px 14px; border:1px solid var(--border); background:#fff; color:var(--ink); font-size:13px; }
@@ -315,7 +315,7 @@
   [data-theme="dark"] .cspine-alert { background:#450a0a; border-color:#7f1d1d; }
   [data-theme="dark"] .search-input, [data-theme="dark"] .search-wrap { background:#1e293b; color:var(--ink); }
   [data-theme="dark"] .tab { color:var(--muted); }
-  [data-theme="dark"] .icon-btn { color:var(--muted); }
+  [data-theme="dark"] .icon-btn { color:var(--accent); }
 
   .lock-screen { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; background:#0f172a; color:#fff; }
   .lock-icon { width:56px; height:56px; border-radius:50%; background:#1e293b; display:flex; align-items:center; justify-content:center; color:#818cf8; }
@@ -1095,7 +1095,7 @@ function notifCardHtml() {
   const supported = typeof Notification !== 'undefined';
   return '<div class="card">'
     + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Daily reminders</label><span class="badge badge-'+(enabled?'emerald':'slate')+'">'+(enabled?'ON':'OFF')+'</span></div>'
-    + '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Shows a notification when you open the app if anything needs attention today \u2014 follow-ups, RA labs, or DEXA scans, due or overdue. This can only fire while you have the app open; it cannot notify you if the app stays closed, since there is no server behind this app to trigger it.</p>'
+    + '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Shows due follow-ups, lab scans, etc. when you open OrthoVault.</p>'
     + (!supported ? '<p style="font-size:12px;color:var(--red);">Notifications aren\u2019t supported in this browser.</p>'
         : enabled ? '<button class="btn btn-sm" data-action="disable-notifs">Turn off</button>'
         : '<button class="btn btn-primary btn-sm" data-action="enable-notifs">Turn on</button>')
@@ -1434,6 +1434,7 @@ const DEFAULT_PROFILE = {
   clinicPhone: ''
 };
 
+const ONBOARDING_DONE_KEY = 'surgical-case-log-onboarding-done-v1';
 const PROFILE_KEY = 'surgical-case-log-doctor-profile-v1';
 function loadProfile() {
   try {
@@ -1604,22 +1605,42 @@ function renderCashAuditView() {
     + '</div>';
 }
 
+let MORE_EXPANDED = new Set(['settings']);
 async function renderMoreView() {
   const unfiled = await computeUnfiledImages();
+  const groups = [
+    { key:'settings', title:'Settings', icon:'gear', rows:
+        moreRowHtml('gear', 'Doctor / Clinic Profile', 'Profile, Cloud Sync, App Lock, dark mode, reminders', 'open-settings')
+        + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? moreRowHtml('shield', 'AI Features', 'Patient queries, digest, knowledge engine, clinical assistant', 'open-ai-hub') : '')
+        + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
+    },
+    { key:'data', title:'Data & Backup', icon:'download', rows:
+        moreRowHtml('download', 'Export Backup', 'Zip of all cases, photos, reminders \u2014 pick your Drive folder for an off-device copy', 'export-backup')
+        + moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import')
+        + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
+        + moreRowHtml('camera', 'Unfiled Photos'+(unfiled.length ? ' ('+unfiled.length+')' : ''), unfiled.length ? 'From an interrupted entry \u2014 file to a patient or delete' : 'Nothing unfiled right now', 'open-unfiled-photos')
+    },
+    { key:'reports', title:'Reports', icon:'file', rows:
+        moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
+        + moreRowHtml('printer', 'Cash Collection Audit', 'Monthly totals of cash payments across all surgical cases', 'open-cash-audit')
+    },
+  ];
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row gap3"><button class="icon-btn" data-action="close-more">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">More</h2></div>'
     + '</div>'
     + '<div class="px" style="padding-top:10px;display:flex;flex-direction:column;gap:10px;">'
-    + moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead, App Lock, dark mode, reminders', 'open-settings')
-    + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? moreRowHtml('shield', 'AI Features', 'Everything AI in one place \u2014 patient queries, digest, knowledge engine, clinical assistant, and where the rest live', 'open-ai-hub') : '')
-    + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
-    + moreRowHtml('camera', 'Unfiled Photos'+(unfiled.length ? ' ('+unfiled.length+')' : ''), unfiled.length ? 'Photos saved from an interrupted entry \u2014 file them to a patient or delete' : 'Nothing unfiled right now \u2014 everything is safely filed', 'open-unfiled-photos')
-    + moreRowHtml('download', 'Export Backup', 'Save a zip of all cases, photos and reminders \u2014 tip: pick your Google Drive folder for an automatic cloud copy', 'export-backup')
-    + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 handy for audits, CME records, or research', 'export-case-log')
-    + moreRowHtml('printer', 'Cash Collection Audit', 'Monthly totals of cash payments across all surgical cases', 'open-cash-audit')
-    + moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import')
+    + groups.map(g => {
+        const open = MORE_EXPANDED.has(g.key);
+        return '<div>'
+          + '<button class="card" style="text-align:left;display:flex;align-items:center;gap:10px;width:100%;background:var(--bg-soft);" data-action="toggle-more-section" data-value="'+g.key+'">'
+          + '<span style="flex:none;color:var(--accent);">'+ic(g.icon)+'</span>'
+          + '<span style="flex:1;font-size:13px;font-weight:800;color:var(--accent-dark);text-transform:uppercase;letter-spacing:0.02em;">'+g.title+'</span>'
+          + '<span style="flex:none;color:var(--accent);transform:rotate('+(open?90:0)+'deg);">'+ic('chevron')+'</span>'
+          + '</button>'
+          + (open ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">'+g.rows+'</div>' : '')
+          + '</div>';
+      }).join('')
     + '<input type="file" accept=".zip,application/zip" id="import-file-input" style="display:none;">'
     + '</div>'
     + '</div>';
@@ -1817,8 +1838,16 @@ function renderSettingsView() {
     + '</div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
     + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.02em;margin:0 0 -4px;">OrthoVault \u2014 Built for Orthopaedic Surgeons</p>'
-    + appLockCardHtml()
+    + '<p style="font-size:12px;color:var(--muted);margin:0;">These details print on the prescription letterhead. Fill them in once, edit anytime.</p>'
+    + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="e.g. Dr. Jane Smith"></div>'
+    + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
+    + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder="e.g. RMC-12345"></div>'
+    + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
+    + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="Full address">'+esc(pr.clinicAddress)+'</textarea></div>'
+    + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder="+91 ..."></div>'
     + syncCardHtml()
+    + '<div style="font-size:12px;font-weight:800;color:var(--accent-dark);text-transform:uppercase;letter-spacing:0.02em;margin-top:6px;">App Settings</div>'
+    + appLockCardHtml()
     + notifCardHtml()
     + '<div class="card"><label class="field-label">Display</label><div class="row between"><span style="font-size:13px;font-weight:600;">Appearance</span><div class="seg" style="width:auto;">'
     + [['auto','Auto'],['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
@@ -1829,24 +1858,35 @@ function renderSettingsView() {
     + '</div></div>'
     + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
     + '</div>'
-    + '<p style="font-size:12px;color:var(--muted);">These details print on the prescription letterhead. Fill them in once, edit anytime from here.</p>'
+    + '<div class="card" style="border-color:var(--amber-border);background:var(--amber-bg);padding:10px 14px;">'
+    + '<div class="row between"><span style="font-size:12px;font-weight:700;color:#7c4a03;">Next Patient ID: <b class="mono">'+peekNextPatientCode()+'</b></span>'
+    + (ARMED_DELETE === 'reset-patient-counter:x'
+        ? '<button class="btn btn-sm btn-danger-confirm" data-action="reset-patient-counter" data-confirm="1">'+ic('check')+' Confirm reset</button>'
+        : '<button class="btn btn-sm" data-action="arm-delete" data-arm="reset-patient-counter:x">Reset</button>')
+    + '</div></div>'
+    + '</div>'
+    + '<div class="bottom-bar"><button class="btn btn-primary btn-block" data-action="save-settings">Save profile</button></div>'
+    + '</div>';
+}
+/* First screen on a fresh install: doctor sets up their profile + cloud sign-in before
+   entering the app, so a reinstall doesn't mean starting from scratch. Skippable \u2014
+   everything here stays editable later from More \u2192 Doctor / Clinic Profile. */
+function renderOnboardingView() {
+  const pr = loadProfile();
+  return '<div style="padding-bottom:90px;min-height:100vh;">'
+    + '<div class="px" style="padding-top:calc(24px + env(safe-area-inset-top, 0px));display:flex;flex-direction:column;gap:14px;">'
+    + '<div style="text-align:center;margin-bottom:4px;"><img src="icons/icon-192.png" style="width:56px;height:56px;border-radius:14px;box-shadow:0 4px 14px rgba(67,56,202,0.3);"><h1 style="font-size:20px;font-weight:800;margin:10px 0 2px;">Welcome to Ortho<span style="color:var(--accent);">Vault</span></h1><p style="font-size:12px;color:var(--muted);margin:0;">Quick one-time setup \u2014 takes a minute</p></div>'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="e.g. Dr. Jane Smith"></div>'
     + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
     + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder="e.g. RMC-12345"></div>'
     + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
     + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="Full address">'+esc(pr.clinicAddress)+'</textarea></div>'
     + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder="+91 ..."></div>'
+    + syncCardHtml()
+    + '<p style="font-size:11px;color:var(--muted);margin:0;">Signing in now means your data (and this profile) survive a reinstall or new device. You can always do this later from More.</p>'
+    + '<button class="btn btn-primary btn-block" data-action="onboarding-continue">Continue to OrthoVault</button>'
+    + '<button class="btn btn-block" style="background:transparent;border-color:transparent;color:var(--muted);font-size:12px;" data-action="onboarding-skip">Skip for now</button>'
     + '</div>'
-    + '<div class="px" style="padding-top:4px;">'
-    + '<div class="card" style="border-color:var(--amber-border);background:var(--amber-bg);">'
-    + '<label class="field-label" style="color:#7c4a03;">Patient ID counter</label>'
-    + '<p style="font-size:12px;color:#7c4a03;margin:2px 0 10px;">Next new patient ID will be: <b class="mono">'+peekNextPatientCode()+'</b>. If you\u2019ve been entering test/fake data, reset this before starting real patients (after deleting the test patients).</p>'
-    + (ARMED_DELETE === 'reset-patient-counter:x'
-        ? '<button class="btn btn-sm btn-danger-confirm" data-action="reset-patient-counter" data-confirm="1">'+ic('check')+' Yes, reset it</button>'
-        : '<button class="btn btn-sm" data-action="arm-delete" data-arm="reset-patient-counter:x">Reset Patient ID counter</button>')
-    + '</div>'
-    + '</div>'
-    + '<div class="bottom-bar"><button class="btn btn-primary btn-block" data-action="save-settings">Save profile</button></div>'
     + '</div>';
 }
 
@@ -2113,7 +2153,7 @@ function usearchResultRowHtml(p, q) {
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
-const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','cash-audit','compare-picker','compare-view','print','settings','about','calendar','more','recently-deleted','unfiled-photos'];
+const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','cash-audit','compare-picker','compare-view','print','settings','about','calendar','more','recently-deleted','unfiled-photos','onboarding'];
 function updateUsearchFabVisibility() {
   const wrap = document.getElementById('usearch-fab-wrap');
   if (!wrap) return;
@@ -2183,7 +2223,7 @@ function renderListView() {
           : noneRecent
             ? '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No recent patients</p><p style="font-size:12px;margin:2px 0 0;">You have '+olderCount+' older patient'+(olderCount===1?'':'s')+' \u2014 search by name or ID to find them.</p>'
             : '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No matches</p><p style="font-size:12px;margin:2px 0 0;">Try a different search term or clear the filters.</p>')
-      + (noCasesAtAll ? '<button class="btn btn-primary" style="width:auto;padding:9px 18px;margin-top:4px;" data-action="go-add">'+ic('plus')+' Add your first case</button>'
+      + (noCasesAtAll ? '<p style="font-size:11px;color:var(--muted);margin-top:2px;">Tap "+ Add" above to get started.</p>'
           : noneRecent ? ''
           : '<button class="btn" style="width:auto;padding:9px 18px;margin-top:4px;" data-action="clear-list-filters">Clear search &amp; filters</button>')
       + '</div>';
@@ -4777,6 +4817,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'ai-hub') { app.innerHTML = renderAiHubView(); return; }
   if (VIEW === 'cash-audit') { app.innerHTML = renderCashAuditView(); return; }
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
+  if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
   if (VIEW === 'compare-picker') { app.innerHTML = await renderComparePickerView(); return; }
   if (VIEW === 'compare-view') { app.innerHTML = renderCompareView(); return; }
@@ -6627,6 +6668,12 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-about') { VIEW = 'about'; render(); return; }
   if (action === 'close-about') { VIEW = 'more'; render(); return; }
   if (action === 'open-recently-deleted') { VIEW = 'recently-deleted'; await render(); return; }
+  if (action === 'toggle-more-section') {
+    const key = el.dataset.value;
+    if (MORE_EXPANDED.has(key)) MORE_EXPANDED.delete(key); else MORE_EXPANDED.add(key);
+    await render();
+    return;
+  }
   if (action === 'open-unfiled-photos') { VIEW = 'unfiled-photos'; await render(); return; }
   if (action === 'close-unfiled-photos') { VIEW = 'more'; await render(); return; }
   if (action === 'unfiled-file') {
@@ -6746,17 +6793,26 @@ async function generatePersonalizedReminderMessage(p) {
     render();
     return;
   }
+function readProfileFromDom() {
+  return {
+    doctorName: document.getElementById('pr-doctorName').value,
+    qualifications: document.getElementById('pr-qualifications').value,
+    regNumber: document.getElementById('pr-regNumber').value,
+    clinicName: document.getElementById('pr-clinicName').value,
+    clinicAddress: document.getElementById('pr-clinicAddress').value,
+    clinicPhone: document.getElementById('pr-clinicPhone').value,
+  };
+}
   if (action === 'save-settings') {
-    const profile = {
-      doctorName: document.getElementById('pr-doctorName').value,
-      qualifications: document.getElementById('pr-qualifications').value,
-      regNumber: document.getElementById('pr-regNumber').value,
-      clinicName: document.getElementById('pr-clinicName').value,
-      clinicAddress: document.getElementById('pr-clinicAddress').value,
-      clinicPhone: document.getElementById('pr-clinicPhone').value,
-    };
-    saveProfile(profile);
+    saveProfile(readProfileFromDom());
     VIEW = 'more'; render();
+    return;
+  }
+  if (action === 'onboarding-continue' || action === 'onboarding-skip') {
+    if (action === 'onboarding-continue') saveProfile(readProfileFromDom(), true);
+    try { localStorage.setItem(ONBOARDING_DONE_KEY, '1'); } catch(e) {}
+    VIEW = 'list';
+    await refreshPatients(); loadReminders(); render();
     return;
   }
 
@@ -7181,7 +7237,7 @@ let LOCK_PIN_INPUT = '';
 let LOCK_ERROR = false;
 let LOCK_SETUP_MODE = null; // null | 'set-new' | 'confirm-new' | 'change-verify' | 'disable-verify'
 let LOCK_SETUP_FIRST_PIN = '';
-const PIN_LENGTH = 4;
+const PIN_LENGTH = 6;
 
 async function hashPin(pin) {
   const enc = new TextEncoder().encode('bonelogpro-salt-' + pin);
@@ -7247,7 +7303,7 @@ async function handlePinSetupComplete() {
 function appLockCardHtml() {
   if (LOCK_SETUP_MODE) {
     const dots = Array.from({length:PIN_LENGTH}, (_,i) => '<span class="lock-dot'+(i<LOCK_PIN_INPUT.length?' filled':'')+'"></span>').join('');
-    const labels = { 'set-new':'Enter a new 4-digit PIN', 'confirm-new':'Confirm the PIN again', 'change-verify':'Enter your current PIN first', 'disable-verify':'Enter your current PIN to turn off the lock' };
+    const labels = { 'set-new':'Enter a new 6-digit PIN', 'confirm-new':'Confirm the PIN again', 'change-verify':'Enter your current PIN first', 'disable-verify':'Enter your current PIN to turn off the lock' };
     return '<div class="card">'
       + '<label class="field-label">App Lock</label>'
       + '<p style="font-size:12px;color:var(--muted);text-align:center;margin:6px 0;">'+labels[LOCK_SETUP_MODE]+'</p>'
@@ -7261,8 +7317,8 @@ function appLockCardHtml() {
   }
   const enabled = isLockEnabled();
   return '<div class="card">'
-    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">App Lock</label><span class="badge badge-'+(enabled?'emerald':'slate')+'">'+(enabled?'ON':'OFF')+'</span></div>'
-    + '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Asks for a 4-digit PIN every time you open the app, so only you can see the data.</p>'
+    + (enabled ? '<div class="row between"><label class="field-label" style="margin-bottom:0;">App Lock</label><span class="badge badge-emerald">ON</span></div>' : '<label class="field-label">App Lock</label>')
+    + '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Asks for a 6-digit PIN every time you open the app, so only you can see the data.</p>'
     + (enabled
         ? '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="lock-start-change">Change PIN</button><button class="btn btn-sm" style="flex:1;" data-action="lock-start-disable">Disable</button></div>'
         : '<button class="btn btn-primary btn-block" data-action="lock-start-enable">Enable App Lock</button>')
@@ -7353,6 +7409,9 @@ function renderSplashScreen() {
     document.getElementById('app').innerHTML = renderLockScreen();
     return;
   }
+  let onboardingDone = true;
+  try { onboardingDone = !!localStorage.getItem(ONBOARDING_DONE_KEY); } catch(e) {}
+  if (!onboardingDone) { VIEW = 'onboarding'; }
   await refreshPatients();
   loadReminders();
   render();
