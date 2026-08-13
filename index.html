@@ -112,6 +112,18 @@
 
   .chips { display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; }
   .chip { flex-shrink:0; border-radius:999px; border:1px solid var(--border); background:#fff; color:var(--muted); padding:6px 10px; font-size:12px; font-weight:600; white-space:nowrap; }
+  .ai-btn { display:inline-flex; align-items:center; gap:5px; border-radius:999px; padding:7px 13px; font-size:12.5px; font-weight:700; white-space:nowrap;
+    background:linear-gradient(135deg, rgba(99,102,241,0.14), rgba(168,85,247,0.14)); border:1px solid rgba(99,102,241,0.4); color:var(--accent-dark);
+    box-shadow:0 0 0 1px rgba(99,102,241,0.06), 0 2px 10px rgba(99,102,241,0.18); }
+  .ai-btn .ic { stroke:var(--accent); }
+  .ai-btn-block { width:100%; justify-content:center; }
+  [data-theme="dark"] .ai-btn { background:linear-gradient(135deg, rgba(129,140,248,0.28), rgba(192,132,252,0.22)) !important; border-color:rgba(129,140,248,0.55) !important; color:#e0e7ff; box-shadow:0 0 0 1px rgba(129,140,248,0.12), 0 2px 12px rgba(129,140,248,0.3); }
+  [data-theme="dark"] .ai-btn .ic { stroke:#c7d2fe; }
+  .ai-btn-gemini { background:linear-gradient(135deg, rgba(37,99,235,0.12), rgba(6,182,212,0.14)); border-color:rgba(37,99,235,0.4); color:#1d4ed8;
+    box-shadow:0 0 0 1px rgba(37,99,235,0.06), 0 2px 10px rgba(37,99,235,0.16); }
+  .ai-btn-gemini .ic { stroke:#2563eb; }
+  [data-theme="dark"] .ai-btn-gemini { background:linear-gradient(135deg, rgba(96,165,250,0.28), rgba(34,211,238,0.2)) !important; border-color:rgba(96,165,250,0.5) !important; color:#dbeafe; }
+  [data-theme="dark"] .ai-btn-gemini .ic { stroke:#93c5fd; }
   .chip.active { background:var(--ink); border-color:var(--ink); color:#fff; }
 
   .card { border:1px solid var(--border); border-radius:20px; background:#fff; padding:16px; box-shadow:0 1px 3px rgba(0,0,0,0.04); }
@@ -725,7 +737,7 @@ const SPECIALTY_GROUP_KEYS = ['Trauma','Arthroplasty','Sports Medicine','Other S
    (body part vs. clinical domain). */
 function regionSpecialtyChipsHtml(selected, toggleAction, autoDetectAction) {
   const chip = (key) => '<button type="button" class="tag-chip'+(selected.includes(key)?' active':'')+'" data-action="'+toggleAction+'" data-value="'+esc(key)+'">'+esc(key)+'</button>';
-  return '<div><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region</label>'+(autoDetectAction?'<button type="button" class="chip" data-action="'+autoDetectAction+'">'+ic('sparkle')+' Auto-detect</button>':'')+'</div>'
+  return '<div><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region</label>'+(autoDetectAction?aiButtonHtml(autoDetectAction,'Auto-detect',false,null,'gemini'):'')+'</div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + REGION_GROUP_KEYS.map(chip).join('') + '</div></div>'
     + '<div><label class="field-label">Specialty</label>'
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + SPECIALTY_GROUP_KEYS.map(chip).join('') + '</div></div>';
@@ -751,7 +763,7 @@ async function aiAutoDetectRegions(text) {
   if (!(CURRENT_USER && CURRENT_USER.uid === MY_UID)) return null;
   if (!text || !text.trim()) return null;
   try {
-    const askClaude = firebaseFunctions.httpsCallable('askClaude');
+    const askClaude = firebaseFunctions.httpsCallable('askGemini');
     const validKeys = CASE_REGIONS.map(r => r.key);
     const sys = 'Classify an orthopaedic case into the relevant region(s)/specialty from this exact list only: ' + validKeys.join(', ') + '. Given the complaints/diagnosis/procedure text, return a JSON array of matching keys from that list (usually 1-2, exact spelling). Return ONLY the JSON array, no other text.';
     const result = await askClaude({ systemPrompt: sys, userMessage: text, maxTokens: 80 });
@@ -798,11 +810,24 @@ const ICONS = {
   pin:'<line x1="12" x2="12" y1="17" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>',
   menu:'<line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>',
   sparkle:'<path d="M12 3l1.4 4.3L18 9l-4.6 1.7L12 15l-1.4-4.3L6 9l4.6-1.7z"/><path d="M19 13l.6 1.9L21 16l-1.9.7L19 19l-.6-2.3L16 16l2.4-1.1z"/>',
+  gemini:'<path d="M12 2c0 5.52 4.48 10 10 10-5.52 0-10 4.48-10 10 0-5.52-4.48-10-10-10 5.52 0 10-4.48 10-10z"/>',
   pencil:'<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>',
   userPlus:'<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/>',
   video:'<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
+function aiButtonHtml(action, label, block, dataValue, provider) {
+  const gem = provider === 'gemini';
+  return '<button type="button" class="ai-btn'+(gem?' ai-btn-gemini':'')+(block?' ai-btn-block':'')+'" data-action="'+action+'"'+(dataValue?' data-value="'+esc(dataValue)+'"':'')+'>'+ic(gem?'gemini':'sparkle')+' '+esc(label)+'</button>';
+}
+/* Routes an AI call to Gemini (fast/cheap, for suggestion-type/organizational tasks) or Claude
+   (higher-trust clinical reasoning \u2014 investigations, exam findings, summaries, prescriptions,
+   sanity checks). Same call signature/response shape as calling askClaude directly. */
+async function callAI(provider, systemPrompt, userMessage, maxTokens) {
+  const fnName = provider === 'gemini' ? 'askGemini' : 'askClaude';
+  const fn = firebaseFunctions.httpsCallable(fnName);
+  return fn({ systemPrompt, userMessage, maxTokens });
+}
 
 /* ================= State ================= */
 
@@ -1299,7 +1324,7 @@ function startMasterVoice() {
 }
 async function classifyMasterVoiceIntent(transcript) {
   try {
-    const askClaude = firebaseFunctions.httpsCallable('askClaude');
+    const askClaude = firebaseFunctions.httpsCallable('askGemini');
     const sys = 'You interpret a spoken command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "quick_add" | "set_followup" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-knowledge","ai-assistant","cash-audit","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "patientAge": number or null, "patientSex": "M" or "F" or null, "diagnosis": string or null, "chiefComplaints": string or null, "side": "Left" or "Right" or "Bilateral" or null, "followUpDate": "YYYY-MM-DD" or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the spoken command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen \u2014 if any clinical details were captured (age/sex/diagnosis/side), mention that they\u2019ve been filled in and just need a quick check, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: any generic "patient add karna hai" / "naya case banao" / "add a new patient" \u2014 \u2192 new_case. Extract EVERY clinical detail mentioned in the same breath \u2014 age, sex, diagnosis, side, chief complaints \u2014 into the matching fields above, even if a lot was said at once; don\u2019t discard anything just because the command is long. Only use quick_add when they explicitly say "quick add" or "reception/front-desk mein daalo" (a fast bare-minimum entry, not the full case form) \u2014 in that case only patientName/chiefComplaints apply, ignore other clinical fields. "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "cash audit dikhao" \u2192 open_view view=cash-audit. "calendar/reminders dikhao" \u2192 open_view view=calendar. "AI features dikhao" \u2192 open_view view=ai-hub. "X ko [date/relative-date] follow-up ke liye bulao" / "X ka follow-up [date] rakho" \u2192 set_followup with patientQuery=X and followUpDate computed from today\u2019s date given above (resolve "kal"/"tomorrow", "N din baad", "agle hafte", explicit dates, etc. into an actual YYYY-MM-DD). If genuinely ambiguous or unsupported (e.g. asking to edit/delete a specific field other than follow-up date, or anything not covered above), use "unclear".';
     const result = await askClaude({ systemPrompt: sys, userMessage: transcript, maxTokens: 300 });
     let raw = (result.data.text || '').trim();
@@ -1585,7 +1610,7 @@ function renderAiDigestView() {
     + '</div>'
     + (AI_DIGEST_SUMMARY
         ? '<div><div class="row between" style="margin-bottom:4px;"><span></span>'+speakButtonHtml('ai-digest-answer-text')+'</div><div class="card" id="ai-digest-answer-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_DIGEST_SUMMARY)+'</div></div>'
-        : '<button class="btn btn-primary btn-block" data-action="ai-write-digest">'+ic('shield')+' AI: Write a summary</button>')
+        : aiButtonHtml('ai-write-digest','AI: Write a summary',true,null,'gemini'))
     + '</div>';
 }
 
@@ -2766,12 +2791,12 @@ function renderAddView() {
         + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">'+ic('sparkle')+' AI Quick-Fill</label>'+micButtonHtml('ap-ai-fill-input')+'</div>'
         + '<p style="font-size:11px;color:var(--muted);margin:2px 0 8px;">Dictate or paste anything about the patient \u2014 AI fills the fields above from it. Separate from Notes.</p>'
         + '<textarea class="textarea" id="ap-ai-fill-input" rows="3" placeholder="e.g. 45 year old female, right knee pain for 6 months, worse on stairs, primary OA...">'+esc(AP_AI_FILL_TEXT)+'</textarea>'
-        + '<button class="btn btn-sm" style="margin-top:8px;" data-action="ai-fill-from-notes">'+ic('sparkle')+' AI: Fill all fields from this</button><div id="ai-fill-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
+        + '<div style="margin-top:8px;">'+aiButtonHtml('ai-fill-from-notes','AI: Fill all fields from this',false,null,'gemini')+'</div><div id="ai-fill-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
         + '</div>'
       ) : '')
     + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
         '<div>'
-        + '<button class="btn btn-sm btn-block" data-action="ai-sanity-check">'+ic('shield')+' AI: Check for mismatches before saving</button>'
+        + aiButtonHtml('ai-sanity-check','AI: Check for mismatches before saving',true,null,'claude')
         + (AI_SANITY_CHECK_RESULT ? '<div class="card" id="ai-sanity-answer-text" style="margin-top:8px;font-size:12.5px;white-space:pre-wrap;">'+esc(AI_SANITY_CHECK_RESULT)+speakButtonHtml('ai-sanity-answer-text')+'</div>' : '')
         + '</div>'
       ) : '')
@@ -2835,8 +2860,8 @@ function renderOverviewTab(p) {
     + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
         '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
         + '<div class="row gap2" style="flex-wrap:wrap;">'
-        + (AI_INVESTIGATION_SUGGESTIONS === null ? '<button class="chip" data-action="ai-suggest-investigations">'+ic('sparkle')+' Investigations</button>' : '')
-        + (AI_EXAM_SUGGESTIONS === null ? '<button class="chip" data-action="ai-suggest-exam">'+ic('sparkle')+' What to examine</button>' : '')
+        + (AI_INVESTIGATION_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-investigations','Investigations',false,null,'claude') : '')
+        + (AI_EXAM_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-exam','What to examine',false,null,'claude') : '')
         + '</div>'
         + (AI_INVESTIGATION_SUGGESTIONS && AI_INVESTIGATION_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">Investigations (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
         + (AI_EXAM_SUGGESTIONS && AI_EXAM_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">To examine (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
@@ -2875,7 +2900,7 @@ function renderOverviewTab(p) {
         '<div style="padding-top:6px;border-top:1px dashed var(--border);">'
         + (AI_PATIENT_SUMMARY
             ? '<div class="card" id="ai-patient-summary-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_SUMMARY)+speakButtonHtml('ai-patient-summary-text')+'</div>'
-            : '<button class="btn btn-sm btn-block" data-action="ai-summarize-patient">'+ic('sparkle')+' AI: Summarize this patient</button>')
+            : aiButtonHtml('ai-summarize-patient','AI: Summarize this patient',true,null,'claude'))
         + '</div>'
       ) : '');
 
@@ -2906,7 +2931,7 @@ function renderOverviewTab(p) {
             '<div style="margin-top:8px;">'
             + (AI_PERSONALIZED_REMINDER
                 ? '<div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PERSONALIZED_REMINDER)+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
-                : '<button class="btn btn-sm btn-block" data-action="ai-personalize-reminder">'+ic('shield')+' AI: Personalize this reminder</button>')
+                : aiButtonHtml('ai-personalize-reminder','AI: Personalize this reminder',true,null,'gemini'))
             + '</div>'
           ) : '')
         + '</div>' : '')
@@ -2939,7 +2964,7 @@ function renderOverviewTab(p) {
         '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
         + (AI_PATIENT_SUMMARY
             ? '<div style="white-space:pre-wrap;font-size:12px;color:#334155;">'+esc(AI_PATIENT_SUMMARY)+speakButtonHtml('ai-patient-summary-text')+'</div>'
-            : '<button class="chip" data-action="ai-summarize-patient">'+ic('sparkle')+' AI: Summarize this patient</button>')
+            : aiButtonHtml('ai-summarize-patient','AI: Summarize this patient',false,null,'claude'))
         + '</div>'
       ) : '')
     + '</div>';
@@ -3050,7 +3075,7 @@ function tagsCardHtml(p) {
     + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
         '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
         + (AI_TAG_SUGGESTIONS === null
-            ? '<button class="btn btn-sm" data-action="ai-suggest-tags">'+ic('search')+' AI: Suggest tags</button>'
+            ? aiButtonHtml('ai-suggest-tags','AI: Suggest tags',false,null,'gemini')
             : (AI_TAG_SUGGESTIONS.length
                 ? '<label class="field-label" style="margin-bottom:4px;">Suggested</label><div style="display:flex;flex-wrap:wrap;gap:6px;">'
                   + AI_TAG_SUGGESTIONS.filter(t => !tags.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
@@ -3767,7 +3792,7 @@ async function renderFollowupsTab(p) {
       + '<div id="fu-inv-thumbs">'+fuInvThumbsHtml()+'</div>'
       + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
       + '<div class="row between" style="margin-top:10px;"><label class="field-label" style="margin-bottom:0;">Next follow-up date (optional)</label>'
-      + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<button type="button" class="chip" style="font-size:10.5px;padding:3px 9px;" data-action="ai-suggest-followup">'+ic('sparkle')+' AI suggest</button>' : '')
+      + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<span style="display:inline-block;transform:scale(0.85);transform-origin:left center;">'+aiButtonHtml('ai-suggest-followup','AI suggest',false,null,'gemini')+'</span>' : '')
       + '</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
       + [['3d','+3 Days'],['1w','+1 Week'],['2w','+2 Weeks'],['3w','+3 Weeks'],['1m','+1 Month']].map(([v,l])=>'<button type="button" class="chip" data-action="fu-set-next-followup" data-value="'+v+'">'+l+'</button>').join('')
@@ -3989,7 +4014,7 @@ async function renderPrescriptionsTab(p) {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
       + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
-      + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<button class="btn btn-sm btn-block" style="margin-bottom:12px;" data-action="ai-draft-rx">'+ic('shield')+' AI: Draft from diagnosis/notes</button>' : '')
+      + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<div style="margin-bottom:12px;">'+aiButtonHtml('ai-draft-rx','AI: Draft from diagnosis/notes',true,null,'claude')+'</div>' : '')
       + renderRxTemplatesRow()
       + renderQuickAddChips()
       + '<div id="rx-med-rows">'+renderRxMedRows()+'</div>'
@@ -5654,7 +5679,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 async function generatePersonalizedReminderMessage(p) {
-  const askClaude = firebaseFunctions.httpsCallable('askClaude');
+  const askClaude = firebaseFunctions.httpsCallable('askGemini');
   const profile = loadProfile();
   const sys = 'You write a warm, natural WhatsApp follow-up reminder message in Hindi (Devanagari script) from a doctor to their patient, matching this style exactly:\n\n\u0928\u092e\u0938\u094d\u0924\u0947 [PatientName] \u091c\u0940,\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f [context] [date] \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0907\u090f\u0917\u093e\u0964\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n[DoctorName]\n\nPersonalize the middle part based on the patient\u2019s specific procedure/diagnosis and any relevant concern from their notes, while keeping the same warm tone, structure, and length. Return ONLY the final message text, nothing else.';
   const context = 'Patient name: ' + p.name + '\nProcedure/Diagnosis: ' + (p.procedure || p.diagnosis || '\u2014') + '\nNext follow-up date: ' + fmtDate(p.nextFollowUpDate) + '\nNotes: ' + (p.notes || '\u2014') + '\nDoctor name: ' + (profile.doctorName || '[doctor name not set in profile]');
@@ -5778,7 +5803,7 @@ async function generatePersonalizedReminderMessage(p) {
     el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = firebaseFunctions.httpsCallable('askGemini');
       const context = ['Diagnosis: ' + (p.diagnosis||'\u2014'), 'Procedure: ' + (p.procedure||'\u2014'), 'Notes: ' + (p.notes||'\u2014')].join('\n');
       const sys = 'You suggest short organizational tags for a doctor\u2019s patient case log. Existing tag vocabulary this doctor uses: ' + PRESET_TAGS.join(', ') + '. Given the case details, suggest 2-4 relevant tags as a JSON array of short strings only, e.g. ["Interesting","Revision"]. Prefer the existing vocabulary when it fits; only propose a new short tag (2-3 words max) if genuinely warranted (e.g. a specific named complication). Return ONLY the JSON array, no other text.';
       const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 150 });
@@ -5835,7 +5860,7 @@ async function generatePersonalizedReminderMessage(p) {
     el.disabled = true;
     if (statusEl) statusEl.textContent = '';
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = firebaseFunctions.httpsCallable('askGemini');
       const isSurgical = AP_TEMP.caseType === 'surgical';
       const sys = 'You are a clinical data extraction assistant for an orthopaedic practice app. Given free-text dictated notes from a doctor during patient intake, extract fields and return ONLY a JSON object, no markdown fences, no explanation. Fields: {"name": string, "age": string (years, digits only), "ageMonths": string (months, digits only, usually empty unless a young child), "sex": one of "M","F", or "", "occupation": string, "handDominance": one of "Left","Right","Ambidextrous", or "", "diagnosis": string, "symptomDuration": string, "side": one of "Left","Right","Bilateral", or "", "chiefComplaints": string}. Leave a field as an empty string if it is not mentioned. symptomDuration should be short, like "3 months" or "2 weeks". chiefComplaints is the patient-reported presenting complaint' + (isSurgical ? ' (usually not applicable for a surgical case, leave empty unless clearly stated)' : '') + '.';
       const result = await askClaude({ systemPrompt: sys, userMessage: notesText, maxTokens: 300 });
@@ -5952,7 +5977,7 @@ async function generatePersonalizedReminderMessage(p) {
     el.innerHTML = '<span class="spinner"></span> Writing\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = firebaseFunctions.httpsCallable('askGemini');
       const stats = computeWeeklyDigestStats();
       const sys = 'You write a short, friendly 2-3 sentence practice summary for a doctor, based on these exact pre-computed numbers (do not recalculate or guess, just phrase them naturally). Mention anything that needs attention (like overdue follow-ups) supportively, not alarmingly. Return plain text only, no markdown.';
       const context = 'Surgeries in the last 7 days: ' + stats.surgeriesThisWeek + '\nNew OPD cases in the last 7 days: ' + stats.newOpdThisWeek + '\nOverdue follow-ups: ' + stats.overdueFollowUps + '\nFollow-ups due in the next 7 days: ' + stats.dueNext7Days + '\nTotal patients in the log: ' + stats.totalPatients;
@@ -6727,7 +6752,7 @@ async function generatePersonalizedReminderMessage(p) {
     el.disabled = true;
     const statusEl = document.getElementById('ai-followup-suggestion');
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = firebaseFunctions.httpsCallable('askGemini');
       const sys = 'You suggest a follow-up interval for an orthopaedic patient\u2019s next visit, based on their diagnosis/procedure and how far along they are. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON: {"date":"YYYY-MM-DD","reason":"a short 4-8 word reason"}. Be clinically reasonable (e.g. early post-op check sooner, stable chronic follow-up further out, suture removal ~2 weeks, implant/union check longer).';
       const pod = calcPOD(p, todayStr());
       const context = 'Case type: ' + (p.caseType==='surgical'?'Surgical':'OPD') + '\nDiagnosis: ' + (p.diagnosis||p.chiefComplaints||'\u2014')
