@@ -763,7 +763,7 @@ async function aiAutoDetectRegions(text) {
   if (!(CURRENT_USER && CURRENT_USER.uid === MY_UID)) return null;
   if (!text || !text.trim()) return null;
   try {
-    const askClaude = firebaseFunctions.httpsCallable('askGemini');
+    const askClaude = callGeminiDirect;
     const validKeys = CASE_REGIONS.map(r => r.key);
     const sys = 'Classify an orthopaedic case into the relevant region(s)/specialty from this exact list only: ' + validKeys.join(', ') + '. Given the complaints/diagnosis/procedure text, return a JSON array of matching keys from that list (usually 1-2, exact spelling). Return ONLY the JSON array, no other text.';
     const result = await askClaude({ systemPrompt: sys, userMessage: text, maxTokens: 80 });
@@ -819,6 +819,28 @@ function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'<
 function aiButtonHtml(action, label, block, dataValue, provider) {
   const gem = provider === 'gemini';
   return '<button type="button" class="ai-btn'+(gem?' ai-btn-gemini':'')+(block?' ai-btn-block':'')+'" data-action="'+action+'"'+(dataValue?' data-value="'+esc(dataValue)+'"':'')+'>'+ic(gem?'gemini':'sparkle')+' '+esc(label)+'</button>';
+}
+/* askGemini isn't reachable via the standard {region}-{project}.cloudfunctions.net address
+   (it was deployed straight to Cloud Run, which only gets a run.app URL) \u2014 so instead of
+   firebaseFunctions.httpsCallable, this replicates the callable-functions HTTPS protocol by
+   hand: POST {data:...} with the user's Firebase ID token, matching the shape callable
+   clients expect back ({result:...} on success). Drop-in replacement for httpsCallable('askGemini')
+   \u2014 call sites can keep doing askGemini({...}) and reading result.data.text unchanged. */
+const ASK_GEMINI_URL = 'https://askgemini-251974181391.asia-south2.run.app';
+async function callGeminiDirect(payload) {
+  const user = firebase.auth().currentUser;
+  if (!user) throw new Error('Sign in first.');
+  const idToken = await user.getIdToken();
+  const res = await fetch(ASK_GEMINI_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
+    body: JSON.stringify({ data: payload }),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json || json.error) {
+    throw new Error((json && json.error && json.error.message) || ('Gemini request failed (' + res.status + ')'));
+  }
+  return { data: json.result };
 }
 /* Routes an AI call to Gemini (fast/cheap, for suggestion-type/organizational tasks) or Claude
    (higher-trust clinical reasoning \u2014 investigations, exam findings, summaries, prescriptions,
@@ -1324,7 +1346,7 @@ function startMasterVoice() {
 }
 async function classifyMasterVoiceIntent(transcript) {
   try {
-    const askClaude = firebaseFunctions.httpsCallable('askGemini');
+    const askClaude = callGeminiDirect;
     const sys = 'You interpret a spoken command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "quick_add" | "set_followup" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-knowledge","ai-assistant","cash-audit","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "patientAge": number or null, "patientSex": "M" or "F" or null, "diagnosis": string or null, "chiefComplaints": string or null, "side": "Left" or "Right" or "Bilateral" or null, "followUpDate": "YYYY-MM-DD" or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the spoken command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen \u2014 if any clinical details were captured (age/sex/diagnosis/side), mention that they\u2019ve been filled in and just need a quick check, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: any generic "patient add karna hai" / "naya case banao" / "add a new patient" \u2014 \u2192 new_case. Extract EVERY clinical detail mentioned in the same breath \u2014 age, sex, diagnosis, side, chief complaints \u2014 into the matching fields above, even if a lot was said at once; don\u2019t discard anything just because the command is long. Only use quick_add when they explicitly say "quick add" or "reception/front-desk mein daalo" (a fast bare-minimum entry, not the full case form) \u2014 in that case only patientName/chiefComplaints apply, ignore other clinical fields. "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "cash audit dikhao" \u2192 open_view view=cash-audit. "calendar/reminders dikhao" \u2192 open_view view=calendar. "AI features dikhao" \u2192 open_view view=ai-hub. "X ko [date/relative-date] follow-up ke liye bulao" / "X ka follow-up [date] rakho" \u2192 set_followup with patientQuery=X and followUpDate computed from today\u2019s date given above (resolve "kal"/"tomorrow", "N din baad", "agle hafte", explicit dates, etc. into an actual YYYY-MM-DD). If genuinely ambiguous or unsupported (e.g. asking to edit/delete a specific field other than follow-up date, or anything not covered above), use "unclear".';
     const result = await askClaude({ systemPrompt: sys, userMessage: transcript, maxTokens: 300 });
     let raw = (result.data.text || '').trim();
@@ -5679,7 +5701,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 async function generatePersonalizedReminderMessage(p) {
-  const askClaude = firebaseFunctions.httpsCallable('askGemini');
+  const askClaude = callGeminiDirect;
   const profile = loadProfile();
   const sys = 'You write a warm, natural WhatsApp follow-up reminder message in Hindi (Devanagari script) from a doctor to their patient, matching this style exactly:\n\n\u0928\u092e\u0938\u094d\u0924\u0947 [PatientName] \u091c\u0940,\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f [context] [date] \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0907\u090f\u0917\u093e\u0964\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n[DoctorName]\n\nPersonalize the middle part based on the patient\u2019s specific procedure/diagnosis and any relevant concern from their notes, while keeping the same warm tone, structure, and length. Return ONLY the final message text, nothing else.';
   const context = 'Patient name: ' + p.name + '\nProcedure/Diagnosis: ' + (p.procedure || p.diagnosis || '\u2014') + '\nNext follow-up date: ' + fmtDate(p.nextFollowUpDate) + '\nNotes: ' + (p.notes || '\u2014') + '\nDoctor name: ' + (profile.doctorName || '[doctor name not set in profile]');
@@ -5803,7 +5825,7 @@ async function generatePersonalizedReminderMessage(p) {
     el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askGemini');
+      const askClaude = callGeminiDirect;
       const context = ['Diagnosis: ' + (p.diagnosis||'\u2014'), 'Procedure: ' + (p.procedure||'\u2014'), 'Notes: ' + (p.notes||'\u2014')].join('\n');
       const sys = 'You suggest short organizational tags for a doctor\u2019s patient case log. Existing tag vocabulary this doctor uses: ' + PRESET_TAGS.join(', ') + '. Given the case details, suggest 2-4 relevant tags as a JSON array of short strings only, e.g. ["Interesting","Revision"]. Prefer the existing vocabulary when it fits; only propose a new short tag (2-3 words max) if genuinely warranted (e.g. a specific named complication). Return ONLY the JSON array, no other text.';
       const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 150 });
@@ -5860,7 +5882,7 @@ async function generatePersonalizedReminderMessage(p) {
     el.disabled = true;
     if (statusEl) statusEl.textContent = '';
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askGemini');
+      const askClaude = callGeminiDirect;
       const isSurgical = AP_TEMP.caseType === 'surgical';
       const sys = 'You are a clinical data extraction assistant for an orthopaedic practice app. Given free-text dictated notes from a doctor during patient intake, extract fields and return ONLY a JSON object, no markdown fences, no explanation. Fields: {"name": string, "age": string (years, digits only), "ageMonths": string (months, digits only, usually empty unless a young child), "sex": one of "M","F", or "", "occupation": string, "handDominance": one of "Left","Right","Ambidextrous", or "", "diagnosis": string, "symptomDuration": string, "side": one of "Left","Right","Bilateral", or "", "chiefComplaints": string}. Leave a field as an empty string if it is not mentioned. symptomDuration should be short, like "3 months" or "2 weeks". chiefComplaints is the patient-reported presenting complaint' + (isSurgical ? ' (usually not applicable for a surgical case, leave empty unless clearly stated)' : '') + '.';
       const result = await askClaude({ systemPrompt: sys, userMessage: notesText, maxTokens: 300 });
@@ -5977,7 +5999,7 @@ async function generatePersonalizedReminderMessage(p) {
     el.innerHTML = '<span class="spinner"></span> Writing\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askGemini');
+      const askClaude = callGeminiDirect;
       const stats = computeWeeklyDigestStats();
       const sys = 'You write a short, friendly 2-3 sentence practice summary for a doctor, based on these exact pre-computed numbers (do not recalculate or guess, just phrase them naturally). Mention anything that needs attention (like overdue follow-ups) supportively, not alarmingly. Return plain text only, no markdown.';
       const context = 'Surgeries in the last 7 days: ' + stats.surgeriesThisWeek + '\nNew OPD cases in the last 7 days: ' + stats.newOpdThisWeek + '\nOverdue follow-ups: ' + stats.overdueFollowUps + '\nFollow-ups due in the next 7 days: ' + stats.dueNext7Days + '\nTotal patients in the log: ' + stats.totalPatients;
@@ -6752,7 +6774,7 @@ async function generatePersonalizedReminderMessage(p) {
     el.disabled = true;
     const statusEl = document.getElementById('ai-followup-suggestion');
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askGemini');
+      const askClaude = callGeminiDirect;
       const sys = 'You suggest a follow-up interval for an orthopaedic patient\u2019s next visit, based on their diagnosis/procedure and how far along they are. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON: {"date":"YYYY-MM-DD","reason":"a short 4-8 word reason"}. Be clinically reasonable (e.g. early post-op check sooner, stable chronic follow-up further out, suture removal ~2 weeks, implant/union check longer).';
       const pod = calcPOD(p, todayStr());
       const context = 'Case type: ' + (p.caseType==='surgical'?'Surgical':'OPD') + '\nDiagnosis: ' + (p.diagnosis||p.chiefComplaints||'\u2014')
