@@ -298,6 +298,7 @@
     --red:#f87171; --red-bg:#450a0a; --red-border:#7f1d1d;
     --slate:#94a3b8; --slate-bg:#1e293b; --slate-border:#334155;
   }
+  [data-theme="dark"] .badge-indigo { color:#c7d2fe; background:#312e81; border-color:#4338ca; }
   [data-theme="dark"] html, [data-theme="dark"] body { background:#0f172a; color:var(--ink); }
   [data-theme="dark"] #app { background:#0f172a; }
   [data-theme="dark"] .card, [data-theme="dark"] .case-card, [data-theme="dark"] .stat-card,
@@ -1622,16 +1623,21 @@ function renderAiHubView() {
     ['heart', 'Ask OrthoVault', 'Case vignette or surgical approach \u2014 considerations, technique reference', 'open-ai-assistant'],
   ];
   const elsewhere = [
-    ['Fill fields from notes (or voice)', 'Add Case \u2192 below the Notes field'],
+    ['Fill fields from notes (or voice)', 'Add Case \u2192 AI Quick-Fill box, below Global Notes'],
+    ['Auto-detect Region / Specialty', 'Add Case & Overview \u2192 next to Region/Specialty chips'],
     ['Suggest tags', 'Overview \u2192 Tags card'],
-    ['Suggested investigations', 'Overview \u2192 Complaints & Diagnosis tab, below Diagnosis'],
-    ['Personalize WhatsApp reminder', 'Overview \u2192 Patient Details tab, below Follow-up Reminder'],
+    ['Suggested investigations', 'Overview \u2192 Snapshot, below Diagnosis'],
+    ['What to examine', 'Overview \u2192 Snapshot, below Diagnosis'],
+    ['Diagnosis auto-triggers tracking', 'Add Case / Overview \u2192 typing a diagnosis like CTEV/RA silently switches on the matching Special Tracking module'],
+    ['Suggest next follow-up interval', 'Follow-Up \u2192 Add visit form'],
+    ['Personalize WhatsApp reminder', 'Overview \u2192 Communicate section'],
+    ['Summarize this patient', 'Overview \u2192 Snapshot section'],
     ['Draft a prescription', 'Prescriptions tab \u2192 New prescription form'],
     ['Check for data-entry mismatches', 'Add Case \u2192 above Save, before you save a new case'],
   ];
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
-    + '<div class="row gap3"><button class="icon-btn" data-action="close-ai-hub">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">AI Features</h2></div>'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-ai-hub">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">OrthoVault AI</h2></div>'
     + '</div>'
     + '<div class="px" style="padding-top:10px;display:flex;flex-direction:column;gap:10px;">'
     + directAccess.map(([icon,title,sub,action]) => moreRowHtml(icon,title,sub,action)).join('')
@@ -1687,7 +1693,7 @@ async function renderMoreView() {
     { key:'settings', title:'Settings', icon:'gear', rows:
         moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead', 'open-settings')
         + moreRowHtml('gear', 'App Settings', 'App Lock, dark mode, accent color, reminders, Patient ID', 'open-app-settings')
-        + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? moreRowHtml('sparkle', 'AI Features', 'Patient queries, digest, knowledge engine, clinical assistant', 'open-ai-hub', true) : '')
+        + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? moreRowHtml('sparkle', 'OrthoVault AI', 'Everywhere AI helps in the app \u2014 patient queries, digest, knowledge engine, clinical assistant', 'open-ai-hub', true) : '')
         + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
     },
     { key:'data', title:'Data & Backup', icon:'download', rows:
@@ -1811,7 +1817,7 @@ const ABOUT_SECTIONS = [
     ['AI follow-up date suggestion', 'When adding a Follow-Up, "AI suggest" proposes a clinically reasonable next-visit date based on the diagnosis/procedure and how far along the patient is.'],
     ['AI: Summarize this patient', 'Overview \u2192 Snapshot \u2014 a 2-3 line summary of who they are and what\u2019s going on, for your own quick reference.'],
     ['Master Voice (bottom-left \u2726 button)', 'Speak a command \u2014 "naya case banao", "X ka case kholo", "X ka follow-up kal rakho", "digest dikhao" \u2014 it\u2019s parsed and confirmed before anything happens.'],
-    ['AI Hub', 'More \u2192 AI Features (highlighted) \u2014 Clinical Assistant (Q&A), Knowledge Engine (reference lookups), Patient Query (search across your cases), and Digest (activity summary).'],
+    ['AI Hub', 'More \u2192 OrthoVault AI (highlighted) \u2014 Clinical Assistant (Q&A), Knowledge Engine (reference lookups), Patient Query (search across your cases), and Digest (activity summary).'],
   ]},
   { key:'opd-process', title:'Full Process \u2014 Adding an OPD Case', icon:'calendar', items:[
     ['1. Patient Details tab', 'Tap "+ Add", choose OPD, and fill in Name, Age, Sex, Occupation, Hand dominance (only shown for Upper Limb/Hand cases), WhatsApp.'],
@@ -2289,7 +2295,7 @@ function renderListView() {
       if (!hit) return false;
       p._searchMatchField = hit.field;
     } else {
-      if (!isRecentOrPinned(p)) return false;
+      if (!PATIENT_LIST_EXPANDED && !isRecentOrPinned(p)) return false;
     }
     return true;
   }).sort((a,b) => {
