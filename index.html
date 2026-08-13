@@ -2701,6 +2701,27 @@ function renderQuickAddView() {
     + '</div></div>';
 }
 
+function renderAddTypePickerView() {
+  return '<div style="min-height:100vh;display:flex;flex-direction:column;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
+    + '<button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">New case</h2>'
+    + '</div></div></div>'
+    + '<div class="px" style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;padding-bottom:60px;">'
+    + '<p style="text-align:center;font-size:12px;color:var(--muted);margin:0 0 4px;">What kind of case is this?</p>'
+    + '<button type="button" class="card" style="text-align:left;display:flex;align-items:center;gap:14px;padding:18px;" data-action="go-add-with-type" data-value="surgical">'
+    + '<span style="flex:none;width:46px;height:46px;border-radius:12px;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic('clipboard')+'</span>'
+    + '<span style="flex:1;"><span style="display:block;font-weight:800;font-size:15px;">Surgical Case</span><span style="display:block;font-size:12px;color:var(--muted);margin-top:2px;">Procedure, surgery date, payment, intra-op tracking</span></span>'
+    + '<span style="color:var(--muted);">'+ic('chevron')+'</span>'
+    + '</button>'
+    + '<button type="button" class="card" style="text-align:left;display:flex;align-items:center;gap:14px;padding:18px;" data-action="go-add-with-type" data-value="opd">'
+    + '<span style="flex:none;width:46px;height:46px;border-radius:12px;background:var(--emerald-bg);color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('userPlus')+'</span>'
+    + '<span style="flex:1;"><span style="display:block;font-weight:800;font-size:15px;">OPD Case</span><span style="display:block;font-size:12px;color:var(--muted);margin-top:2px;">Complaints, diagnosis, follow-up-based tracking</span></span>'
+    + '<span style="color:var(--muted);">'+ic('chevron')+'</span>'
+    + '</button>'
+    + '</div>'
+    + '</div>';
+}
 function renderAddView() {
   const isSurgical = AP_TEMP.caseType === 'surgical';
   const tab2Label = isSurgical ? 'Diagnosis' : 'Complaints & Diagnosis';
@@ -3019,17 +3040,28 @@ function renderOverviewTab(p) {
     + '</div>';
 
   const communicateRead = '<div class="card">'
-    + '<div class="row between" style="align-items:center;">'
+    + '<div class="row between" style="align-items:center;margin-bottom:'+(p.whatsapp?'10px':'0')+';">'
     + '<div><div class="row gap2" style="margin-bottom:2px;"><span style="color:var(--accent);">'+ic('message')+'</span><span style="font-weight:800;font-size:14px;">Communication</span></div>'
     + '<div style="font-size:11px;color:var(--muted);">WhatsApp</div><div style="font-size:13px;font-weight:700;">'+esc(p.whatsapp||'Not saved')+'</div></div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:none;">'+ic('message')+' Message Patient</a>' : '<button class="btn btn-sm" data-action="ov-toggle-edit-mode">'+ic('plus')+' Add number</button>')
-    + '</div></div>';
+    + '</div>'
+    + (p.whatsapp ? (
+        (followUpReminderLink(p)
+            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;margin-bottom:8px;">'+ic('calendar')+' Follow-up Reminder</a>'
+            : '<button class="btn btn-block" disabled title="Set the next follow-up date first" style="margin-bottom:8px;">'+ic('calendar')+' Follow-up Reminder</button>')
+        + (CURRENT_USER && CURRENT_USER.uid === MY_UID && p.nextFollowUpDate ? (
+            AI_PERSONALIZED_REMINDER
+              ? '<div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PERSONALIZED_REMINDER)+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
+              : aiButtonHtml('ai-personalize-reminder','AI: Personalize this reminder',true,null,'gemini')
+          ) : '')
+      ) : '')
+    + '</div>';
 
   const notesReadCard = '<div class="card" style="cursor:pointer;" data-action="ov-toggle-edit-mode">'
     + '<div class="row gap2" style="margin-bottom:6px;"><span style="color:var(--accent);">'+ic('file')+'</span><span style="font-weight:800;font-size:13px;">Clinical Notes</span></div>'
     + '<div style="font-size:12px;color:#334155;white-space:pre-wrap;">'+(p.notes ? esc(p.notes) : '<span style="color:var(--muted);">No notes yet.</span>')+'</div>'
     + '</div>';
-  const tagsReadCard = '<div class="card" style="cursor:pointer;" data-action="ov-toggle-edit-mode">'
+  const tagsReadCard = '<div class="card" id="tags-card-anchor" style="cursor:pointer;" data-action="ov-toggle-edit-mode">'
     + '<div class="row between" style="margin-bottom:6px;"><div class="row gap2"><span style="color:var(--accent);">'+ic('tag')+'</span><span style="font-weight:800;font-size:13px;">Tags</span></div><span style="color:var(--muted);">'+ic('chevron')+'</span></div>'
     + ((p.tags||[]).length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.tags.map(t=>'<span class="badge badge-indigo">'+esc(t)+'</span>').join('')+'</div>' : '<p style="font-size:11.5px;color:var(--muted);margin:0;">No tags</p>')
     + '</div>';
@@ -5224,6 +5256,7 @@ async function render() {
 async function renderCurrentView(app) {
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
+  if (VIEW === 'add-type-picker') { app.innerHTML = renderAddTypePickerView(); return; }
   if (VIEW === 'quick-add') { app.innerHTML = renderQuickAddView(); return; }
   if (VIEW === 'ai-query') { app.innerHTML = renderAiQueryView(); return; }
   if (VIEW === 'ai-digest') { app.innerHTML = renderAiDigestView(); return; }
@@ -5931,7 +5964,8 @@ async function generatePersonalizedReminderMessage(p) {
     el.disabled = false;
     return;
   }
-  if (action === 'go-add') { initApTemp(); AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
+  if (action === 'go-add') { VIEW = 'add-type-picker'; render(); return; }
+  if (action === 'go-add-with-type') { initApTemp(); AP_TEMP.caseType = el.dataset.value; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
   if (action === 'go-quick-add') { initQuickAddTemp(); VIEW='quick-add'; render(); return; }
   if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
   if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; VIEW = 'ai-digest'; render(); return; }
@@ -6311,7 +6345,17 @@ async function generatePersonalizedReminderMessage(p) {
     }
     return;
   }
-  if (action === 'open-patient') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
+  if (action === 'open-patient') {
+    const cameFromTagFilter = !!TAG_FILTER;
+    SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
+    await render();
+    if (cameFromTagFilter) {
+      const tagsEl = document.getElementById('tags-card-anchor');
+      if (tagsEl) { tagsEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    }
+    window.scrollTo(0,0);
+    return;
+  }
   if (action === 'open-patient-followup') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='followups'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
   if (action === 'open-universal-search') { openUniversalSearch(); return; }
   if (action === 'close-usearch') { closeUniversalSearch(); return; }
@@ -6321,7 +6365,7 @@ async function generatePersonalizedReminderMessage(p) {
     await render();
     return;
   }
-  if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); return; }
+  if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); window.scrollTo(0,0); return; }
   if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
   if (action === 'set-tag-filter') { TAG_FILTER = el.dataset.value; render(); return; }
   if (action === 'toggle-tag-filter-row') { SHOW_TAG_FILTER = !SHOW_TAG_FILTER; render(); return; }
@@ -6341,7 +6385,7 @@ async function generatePersonalizedReminderMessage(p) {
     await render();
     return;
   }
-  if (action === 'set-tab') { TAB = el.dataset.value; ADD_FOLLOWUP_OPEN=false; const p = getPatient(SELECTED_ID); document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); await renderTabBody(p); return; }
+  if (action === 'set-tab') { TAB = el.dataset.value; ADD_FOLLOWUP_OPEN=false; const p = getPatient(SELECTED_ID); document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); await renderTabBody(p); window.scrollTo(0,0); return; }
   if (action === 'imgrec-set-subview') { IMAGES_RECORDS_SUBVIEW = el.dataset.value; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') AP_TEMP.condition = ''; render(); return; }
@@ -7963,7 +8007,7 @@ function onAuthError(err) {
 /* ================= Init ================= */
 
 function renderSplashScreen() {
-  return '<div id="splash-screen" class="lock-screen" style="transition:opacity 380ms ease;">'
+  return '<div id="splash-screen" class="lock-screen" style="transition:opacity 420ms ease;">'
     + '<img src="icons/logo-full.png" style="width:300px;max-width:88vw;border-radius:30px;box-shadow:0 16px 40px rgba(0,0,0,0.45);">'
     + '</div>';
 }
@@ -7983,30 +8027,36 @@ function renderSplashScreen() {
     }
   } catch(e) {}
 
-  const minSplashMs = 1900;
+  const minSplashMs = 2400;
   const remaining = minSplashMs - (Date.now() - splashStart);
   if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
   const splashEl = document.getElementById('splash-screen');
   if (splashEl) {
     splashEl.style.opacity = '0';
-    await new Promise(r => setTimeout(r, 380));
+    await new Promise(r => setTimeout(r, 420));
   }
+
+  // Cross-fade into whatever renders next (lock screen, onboarding, or the dashboard)
+  // instead of the splash abruptly vanishing into a hard-cut screen.
+  app.style.opacity = '0';
+  app.style.transition = 'opacity 340ms ease';
 
   if (isLockEnabled()) {
     APP_LOCKED = true;
-    document.getElementById('app').innerHTML = renderLockScreen();
-    return;
+    app.innerHTML = renderLockScreen();
+  } else {
+    let onboardingDone = true;
+    try { onboardingDone = !!localStorage.getItem(ONBOARDING_DONE_KEY); } catch(e) {}
+    if (!onboardingDone) { VIEW = 'onboarding'; }
+    await refreshPatients();
+    loadReminders();
+    render();
+    maybeAutoBackup();
+    maybeNotifyToday();
+    startPendingSyncRetryLoop();
+    if (CURRENT_USER) retryPendingSync();
   }
-  let onboardingDone = true;
-  try { onboardingDone = !!localStorage.getItem(ONBOARDING_DONE_KEY); } catch(e) {}
-  if (!onboardingDone) { VIEW = 'onboarding'; }
-  await refreshPatients();
-  loadReminders();
-  render();
-  maybeAutoBackup();
-  maybeNotifyToday();
-  startPendingSyncRetryLoop();
-  if (CURRENT_USER) retryPendingSync();
+  requestAnimationFrame(() => requestAnimationFrame(() => { app.style.opacity = '1'; }));
 })();
 </script>
 </body>
