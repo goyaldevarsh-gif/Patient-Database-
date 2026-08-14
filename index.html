@@ -816,6 +816,24 @@ const ICONS = {
   video:'<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
+/* After opening a patient from a search/filter result, jump straight to the matched field
+   instead of leaving the person to hunt for it \u2014 same idea for tag-filtered opens. */
+const SEARCH_FIELD_ANCHORS = {
+  'Diagnosis':'snapshot-card-anchor', 'Chief complaints':'snapshot-card-anchor', 'Procedure':'snapshot-card-anchor',
+  'Condition':'snapshot-card-anchor', 'Surgery type':'snapshot-card-anchor', 'Region':'snapshot-card-anchor', 'Side':'snapshot-card-anchor',
+  'Classification':'clinical-card-anchor', 'Co-morbidities':'clinical-card-anchor',
+  'Clinical notes':'notes-card-anchor', 'Tags':'tags-card-anchor',
+  'WhatsApp number':'communicate-card-anchor',
+};
+async function jumpToSearchMatch(p, field) {
+  if (field && field.indexOf('Follow-up') === 0) { TAB = 'followups'; await renderTabBody(p); window.scrollTo(0,0); return; }
+  if (field === 'Investigation') { TAB = 'imagesrecords'; IMAGES_RECORDS_SUBVIEW = 'investigations'; await renderTabBody(p); window.scrollTo(0,0); return; }
+  if (field === 'Prescription') { TAB = 'prescriptions'; await renderTabBody(p); window.scrollTo(0,0); return; }
+  const anchorId = SEARCH_FIELD_ANCHORS[field];
+  const anchorEl = anchorId ? document.getElementById(anchorId) : null;
+  if (anchorEl) { anchorEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+  window.scrollTo(0,0);
+}
 function aiButtonHtml(action, label, block, dataValue, provider) {
   const gem = provider === 'gemini';
   return '<button type="button" class="ai-btn'+(gem?' ai-btn-gemini':'')+(block?' ai-btn-block':'')+'" data-action="'+action+'"'+(dataValue?' data-value="'+esc(dataValue)+'"':'')+'>'+ic(gem?'gemini':'sparkle')+' '+esc(label)+'</button>';
@@ -2309,7 +2327,7 @@ function usearchResultsHtml() {
 }
 function usearchResultRowHtml(p, q) {
   const hit = q ? matchCase(p, q) : null;
-  return '<button class="case-card" style="width:100%;" data-action="usearch-open-patient" data-id="'+p.id+'">'
+  return '<button class="case-card" style="width:100%;" data-action="usearch-open-patient" data-id="'+p.id+'" data-field="'+esc(hit ? hit.field : '')+'">'
     + '<div style="min-width:0;flex:1;">'
     + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+escName(p.name)+'</span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+(p.side && p.side!=='N/A' ? ' \u00b7 '+esc(p.side) : '')+'</span></div>'
     + '<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+((p.diagnosis||p.chiefComplaints)?esc(sideTag(p)):'')+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||''))+'</div>'
@@ -2985,7 +3003,7 @@ function renderOverviewTab(p) {
   // ---- Compact read-only summary (default view), redesigned to match a multi-column dashboard card layout ----
   const regionsSpecLine = (p.regions||[]).length ? (p.regions||[]).join(', ') : '';
   const fuColor = overdue ? '#dc2626' : (p.nextFollowUpDate ? 'var(--emerald)' : 'var(--muted)');
-  const snapshotRead = '<div class="card">'
+  const snapshotRead = '<div class="card" id="snapshot-card-anchor">'
     + '<div class="row between" style="margin-bottom:10px;"><div class="row gap2"><span style="color:var(--accent);">'+ic('userPlus')+'</span><span style="font-weight:800;font-size:14px;">Patient Snapshot</span></div>'
     + '<button class="icon-btn" style="width:28px;height:28px;color:var(--accent);" data-action="ov-toggle-edit-mode" title="Edit">'+ic('pencil')+'</button></div>'
     + '<div class="row" style="gap:10px;">'
@@ -3025,7 +3043,7 @@ function renderOverviewTab(p) {
     + '</button>'
     + '</div>';
 
-  const clinicalRead = '<div class="card">'
+  const clinicalRead = '<div class="card" id="clinical-card-anchor">'
     + '<div class="row gap2" style="margin-bottom:10px;"><span style="color:var(--accent);">'+ic('file')+'</span><span style="font-weight:800;font-size:14px;">Clinical Summary</span></div>'
     + (!isSurgical ? '<div class="row" style="gap:10px;margin-bottom:8px;">'
         + '<div style="flex:1;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Chief Complaint</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.chiefComplaints||'\u2014')+'</div></div>'
@@ -3039,7 +3057,7 @@ function renderOverviewTab(p) {
             : '<button class="chip" style="margin-top:8px;" data-action="ov-show-tracking-pick">'+ic('plus')+' Track a condition</button>') : ''))
     + '</div>';
 
-  const communicateRead = '<div class="card">'
+  const communicateRead = '<div class="card" id="communicate-card-anchor">'
     + '<div class="row between" style="align-items:center;margin-bottom:'+(p.whatsapp?'10px':'0')+';">'
     + '<div><div class="row gap2" style="margin-bottom:2px;"><span style="color:var(--accent);">'+ic('message')+'</span><span style="font-weight:800;font-size:14px;">Communication</span></div>'
     + '<div style="font-size:11px;color:var(--muted);">WhatsApp</div><div style="font-size:13px;font-weight:700;">'+esc(p.whatsapp||'Not saved')+'</div></div>'
@@ -3057,7 +3075,7 @@ function renderOverviewTab(p) {
       ) : '')
     + '</div>';
 
-  const notesReadCard = '<div class="card" style="cursor:pointer;" data-action="ov-toggle-edit-mode">'
+  const notesReadCard = '<div class="card" id="notes-card-anchor" style="cursor:pointer;" data-action="ov-toggle-edit-mode">'
     + '<div class="row gap2" style="margin-bottom:6px;"><span style="color:var(--accent);">'+ic('file')+'</span><span style="font-weight:800;font-size:13px;">Clinical Notes</span></div>'
     + '<div style="font-size:12px;color:#334155;white-space:pre-wrap;">'+(p.notes ? esc(p.notes) : '<span style="color:var(--muted);">No notes yet.</span>')+'</div>'
     + '</div>';
@@ -6346,13 +6364,11 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'open-patient') {
-    const cameFromTagFilter = !!TAG_FILTER;
+    const p2 = getPatient(el.dataset.id);
+    const matchField = (TAG_FILTER ? 'Tags' : (p2 && p2._searchMatchField)) || null;
     SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
     await render();
-    if (cameFromTagFilter) {
-      const tagsEl = document.getElementById('tags-card-anchor');
-      if (tagsEl) { tagsEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-    }
+    if (matchField) { await jumpToSearchMatch(getPatient(SELECTED_ID), matchField); return; }
     window.scrollTo(0,0);
     return;
   }
@@ -6360,9 +6376,12 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-universal-search') { openUniversalSearch(); return; }
   if (action === 'close-usearch') { closeUniversalSearch(); return; }
   if (action === 'usearch-open-patient') {
+    const matchField = el.dataset.field || null;
     closeUniversalSearch();
     SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); recordRecentSearchPatient(el.dataset.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
     await render();
+    if (matchField) { await jumpToSearchMatch(getPatient(SELECTED_ID), matchField); return; }
+    window.scrollTo(0,0);
     return;
   }
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); window.scrollTo(0,0); return; }
