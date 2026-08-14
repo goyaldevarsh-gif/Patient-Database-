@@ -2506,10 +2506,14 @@ const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today
         followUpLine = '<span style="color:var(--muted);">Follow-up not scheduled</span>';
       }
       cards += '<div class="case-card" data-action="open-patient" data-id="'+p.id+'">'
+        + '<div style="flex:none;width:40px;height:40px;border-radius:50%;background:'+avatarColorFor(p.id)+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;margin-right:10px;">'+esc(nameInitials(p.name))+'</div>'
         + '<div style="min-width:0;flex:1;">'
         + '<div class="row between" style="align-items:center;">'
         + '<span class="mono" style="font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:0.02em;">'+(p.patientCode?esc(p.patientCode):'\u2014')+'</span>'
-        + '<span class="badge badge-'+(p.caseType==='surgical'?'indigo':'slate')+'" style="font-size:9px;padding:2px 7px;flex:none;">'+(p.caseType==='surgical'?'Surgical':'OPD')+'</span>'
+        + '<div class="row gap1" style="flex:none;">'
+        + (p.surgeryDate ? '<span style="font-size:9.5px;color:var(--muted);">'+esc(fmtDateShort(p.surgeryDate))+'</span>' : '')
+        + '<span class="badge badge-'+(p.caseType==='surgical'?'indigo':'slate')+'" style="font-size:9px;padding:2px 7px;">'+(p.caseType==='surgical'?'Surgical':'OPD')+'</span>'
+        + '</div>'
         + '</div>'
         + '<div class="row gap2" style="margin-top:3px;">'
         + (dot ? '<span class="status-dot" style="background:'+dot.color+';" title="'+dot.label+'"></span>' : '')
@@ -2959,6 +2963,18 @@ function ovSectionV2(key, title, icon, readHtml, editHtml) {
     + '</div></div>'
     + (open ? '<div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:12px;">'+((editing && editHtml) ? editHtml : readHtml)+'</div>' : '')
     + '</div>';
+}
+function nameInitials(name) {
+  const parts = (name||'').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  if (parts.length === 1) return parts[0].slice(0,2).toUpperCase();
+  return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+}
+const AVATAR_PALETTE = ['#4338ca','#0d9488','#c2410c','#7e22ce','#0369a1','#b45309','#be123c','#166534'];
+function avatarColorFor(id) {
+  let hash = 0;
+  for (let i = 0; i < (id||'').length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
 }
 function relativeDaysUntil(dateStr) {
   if (!dateStr) return '';
