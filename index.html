@@ -3792,6 +3792,7 @@ const IMAGES_RECORDS_SECTIONS = [
 ];
 const XRAY_SUBTYPES = ['General OPD','Pre-Reduction','Post-Reduction','Pre-op','Post-op'];
 const FU_XRAY_SUBTYPES = XRAY_SUBTYPES.filter(s => s !== 'Pre-Reduction' && s !== 'Pre-op').concat('Follow-up');
+const ALL_XRAY_SUBTYPES = XRAY_SUBTYPES.concat('Follow-up'); // for manually relabeling any x-ray in the viewer
 
 function imageBucketGridHtml(images, uploadAttrs, isVideo) {
   let grid = '<div class="thumb-grid">';
@@ -5451,7 +5452,7 @@ async function renderImageViewerFrame(url, imgId) {
     + (hasGallery && IMG_GALLERY_IDX < IMG_GALLERY.length-1 ? '<button class="modal-nav modal-nav-next" data-action="viewer-next" style="transform:translateY(-50%) rotate(180deg);">'+ic('back')+'</button>' : '')
     + (isVid ? '<video src="'+url+'" controls playsinline style="max-width:100%;max-height:78vh;margin:auto;display:block;"></video>' : '<img src="'+url+'" style="touch-action:none;transform-origin:center center;">')
     + '<div class="modal-note-bar">'
-    + (rec && rec.imageCategory === 'xray' ? '<select class="select" id="viewer-xray-subtype-select" data-imgid="'+imgId+'" style="margin-bottom:6px;font-size:12px;">'+XRAY_SUBTYPES.map(s=>'<option'+(rec.xraySubtype===s?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
+    + (rec && rec.imageCategory === 'xray' ? '<select class="select" id="viewer-xray-subtype-select" data-imgid="'+imgId+'" style="margin-bottom:6px;font-size:12px;">'+ALL_XRAY_SUBTYPES.map(s=>'<option'+(rec.xraySubtype===s?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
     + '<input class="input" id="img-note-input" data-img-note="'+imgId+'" placeholder="Add a note for this image \u2014 what to remember\u2026" value="'+esc(note)+'"></div>';
 }
 function viewerNav(dir) {
