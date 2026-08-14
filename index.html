@@ -1527,7 +1527,7 @@ function startMasterVoice() {
 async function classifyMasterVoiceIntent(transcript) {
   try {
     const askClaude = callGeminiDirect;
-    const sys = 'You interpret a spoken command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "quick_add" | "set_followup" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-knowledge","ai-assistant","cash-audit","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "patientAge": number or null, "patientSex": "M" or "F" or null, "diagnosis": string or null, "chiefComplaints": string or null, "side": "Left" or "Right" or "Bilateral" or null, "followUpDate": "YYYY-MM-DD" or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the spoken command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen \u2014 if any clinical details were captured (age/sex/diagnosis/side), mention that they\u2019ve been filled in and just need a quick check, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: any generic "patient add karna hai" / "naya case banao" / "add a new patient" \u2014 \u2192 new_case. Extract EVERY clinical detail mentioned in the same breath \u2014 age, sex, diagnosis, side, chief complaints \u2014 into the matching fields above, even if a lot was said at once; don\u2019t discard anything just because the command is long. Only use quick_add when they explicitly say "quick add" or "reception/front-desk mein daalo" (a fast bare-minimum entry, not the full case form) \u2014 in that case only patientName/chiefComplaints apply, ignore other clinical fields. "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "cash audit dikhao" \u2192 open_view view=cash-audit. "calendar/reminders dikhao" \u2192 open_view view=calendar. "AI features dikhao" \u2192 open_view view=ai-hub. "X ko [date/relative-date] follow-up ke liye bulao" / "X ka follow-up [date] rakho" \u2192 set_followup with patientQuery=X and followUpDate computed from today\u2019s date given above (resolve "kal"/"tomorrow", "N din baad", "agle hafte", explicit dates, etc. into an actual YYYY-MM-DD). If genuinely ambiguous or unsupported (e.g. asking to edit/delete a specific field other than follow-up date, or anything not covered above), use "unclear".';
+    const sys = 'You interpret a spoken command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "set_followup" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-knowledge","ai-assistant","cash-audit","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "patientAge": number or null, "patientSex": "M" or "F" or null, "diagnosis": string or null, "chiefComplaints": string or null, "side": "Left" or "Right" or "Bilateral" or null, "followUpDate": "YYYY-MM-DD" or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the spoken command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen \u2014 if any clinical details were captured (age/sex/diagnosis/side), mention that they\u2019ve been filled in and just need a quick check, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: any generic "patient add karna hai" / "naya case banao" / "add a new patient" \u2014 \u2192 new_case. Extract EVERY clinical detail mentioned in the same breath \u2014 age, sex, diagnosis, side, chief complaints \u2014 into the matching fields above, even if a lot was said at once; don\u2019t discard anything just because the command is long. "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "cash audit dikhao" \u2192 open_view view=cash-audit. "calendar/reminders dikhao" \u2192 open_view view=calendar. "AI features dikhao" \u2192 open_view view=ai-hub. "X ko [date/relative-date] follow-up ke liye bulao" / "X ka follow-up [date] rakho" \u2192 set_followup with patientQuery=X and followUpDate computed from today\u2019s date given above (resolve "kal"/"tomorrow", "N din baad", "agle hafte", explicit dates, etc. into an actual YYYY-MM-DD). If genuinely ambiguous or unsupported (e.g. asking to edit/delete a specific field other than follow-up date, or anything not covered above), use "unclear".';
     const result = await askClaude({ systemPrompt: sys, userMessage: transcript, maxTokens: 300 });
     let raw = (result.data.text || '').trim();
     raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
@@ -1563,10 +1563,6 @@ async function executeMasterVoiceAction() {
         if (regionGuess.length) AP_TEMP.regions = regionGuess;
       }
       VIEW = 'add';
-    } else if (r.action === 'quick_add') {
-      initQuickAddTemp();
-      if (r.patientName) QUICK_ADD_TEMP.name = r.patientName;
-      VIEW = 'quick-add';
     } else if (r.action === 'set_followup' && r.patientQuery && r.followUpDate) {
       const q = r.patientQuery.toLowerCase();
       const matches = PATIENTS.filter(p => p.name && p.name.toLowerCase().includes(q));
@@ -2037,7 +2033,6 @@ let ABOUT_EXPANDED = new Set(['getting-started']);
 const ABOUT_SECTIONS = [
   { key:'getting-started', title:'Getting Started', icon:'clipboard', items:[
     ['Adding a case', 'Tap "+ Add" on the home screen. Choose OPD or Surgical, then work through the 4 tabs (Patient Details, Complaints & Diagnosis, Investigations, Special Tracking/Surgery Details) and save \u2014 it appears at the top of your list.'],
-    ['Quick Add (Front Desk)', 'The small person-plus icon next to "+ Add" opens a stripped-down form (Name, Age, Sex, Chief Complaints only) \u2014 meant for reception/an assistant to fill while the patient waits. It syncs immediately; open the patient later to complete diagnosis and the rest.'],
     ['Opening a patient', 'Tap anywhere on a patient card to open their full record.'],
     ['Editing anything later', 'Overview shows a compact read-only summary by default \u2014 tap the pencil icon (top-right) any time to edit any field.'],
   ]},
@@ -2528,7 +2523,7 @@ function usearchResultRowHtml(p, q) {
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
-const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','quick-add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','cash-audit','compare-picker','compare-view','print','settings','app-settings','cloud-sync','about','calendar','more','recently-deleted','unfiled-photos','onboarding'];
+const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','cash-audit','compare-picker','compare-view','print','settings','app-settings','cloud-sync','about','calendar','more','recently-deleted','unfiled-photos','onboarding'];
 function updateUsearchFabVisibility() {
   const wrap = document.getElementById('usearch-fab-wrap');
   if (!wrap) return;
@@ -2675,7 +2670,6 @@ const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today
     + '<div class="row gap2" style="position:relative;">'
     + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
     + '<button class="icon-btn" data-action="open-more" title="More">'+ic('menu')+'</button>'
-    + '<button class="icon-btn" data-action="go-quick-add" title="Quick Add (Front Desk) \u2014 name + complaints only, fill rest later">'+ic('userPlus')+'</button>'
     + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:4px;padding:9px 12px;" data-action="toggle-add-menu">'+ic(SHOW_ADD_MENU?'x':'plus')+' Add</button>'
     + (SHOW_ADD_MENU ? addMenuDropdownHtml() : '')
     + '</div></div>'
@@ -2888,11 +2882,6 @@ function conditionOptionsHtml(selected, caseType) {
   return html;
 }
 
-let QUICK_ADD_TEMP = { name:'', age:'', ageMonths:'', sex:'M', chiefComplaints:'' };
-function initQuickAddTemp() { QUICK_ADD_TEMP = { name:'', age:'', ageMonths:'', sex:'M', chiefComplaints:'' }; }
-function syncQuickAddFromDom() {
-  ['name','age','ageMonths','chiefComplaints'].forEach(f => { const el = document.getElementById('qa-'+(f==='chiefComplaints'?'complaints':f==='ageMonths'?'agemonths':f)); if (el) QUICK_ADD_TEMP[f] = el.value; });
-}
 function buildPatientDataSummaryForAi() {
   return PATIENTS.map(p => {
     const parts = [
@@ -2916,22 +2905,6 @@ function renderAiQueryView() {
     + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-query">'+ic('shield')+' Ask</button>'
     + (AI_QUERY_ANSWER ? '<div style="margin-top:16px;"><div class="row between" style="margin-bottom:4px;"><span></span>'+speakButtonHtml('ai-query-answer-text')+'</div><div class="card" id="ai-query-answer-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_QUERY_ANSWER)+'</div></div>' : '')
     + '</div>';
-}
-
-function renderQuickAddView() {
-  return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
-    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="cancel-quick-add">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Quick Add (Front Desk)</h2><span style="width:36px;"></span></div>'
-    + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;">For reception/assistant use while the patient waits \u2014 just the basics. This syncs automatically; the doctor fills in diagnosis and the rest during the consult.</p>'
-    + '<div style="display:flex;flex-direction:column;gap:12px;">'
-    + '<div><label class="field-label">Patient name</label><input class="input" id="qa-name" placeholder="Patient name" value="'+esc(QUICK_ADD_TEMP.name)+'"></div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">'
-    + '<div><label class="field-label">Years</label><input class="input" id="qa-age" type="number" inputmode="numeric" value="'+esc(QUICK_ADD_TEMP.age)+'"></div>'
-    + '<div><label class="field-label">Months</label><input class="input" id="qa-agemonths" type="number" inputmode="numeric" value="'+esc(QUICK_ADD_TEMP.ageMonths)+'"></div>'
-    + '<div><label class="field-label">Sex</label><div class="seg">'+['M','F'].map(s=>'<button type="button" class="seg-btn'+(QUICK_ADD_TEMP.sex===s?' active':'')+'" data-action="qa-set-sex" data-value="'+s+'">'+s+'</button>').join('')+'</div></div>'
-    + '</div>'
-    + '<div><label class="field-label">Chief complaints (presenting symptoms)</label><textarea class="textarea" id="qa-complaints" rows="3" placeholder="e.g. Pain right knee for 3 days">'+esc(QUICK_ADD_TEMP.chiefComplaints)+'</textarea></div>'
-    + '<button class="btn btn-primary btn-block" data-action="save-quick-add" style="margin-top:8px;">'+ic('check')+' Save \u2014 doctor completes the rest later</button>'
-    + '</div></div>';
 }
 
 function renderAddTypePickerView() {
@@ -5624,7 +5597,6 @@ async function renderCurrentView(app) {
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
   if (VIEW === 'add-type-picker') { app.innerHTML = renderAddTypePickerView(); return; }
-  if (VIEW === 'quick-add') { app.innerHTML = renderQuickAddView(); return; }
   if (VIEW === 'ai-query') { app.innerHTML = renderAiQueryView(); return; }
   if (VIEW === 'ai-digest') { app.innerHTML = renderAiDigestView(); return; }
   if (VIEW === 'ai-knowledge') { app.innerHTML = renderAiKnowledgeView(); return; }
@@ -5966,7 +5938,7 @@ async function importBackup(file) {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -6364,7 +6336,6 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'go-add-with-type') { initApTemp(); AP_TEMP.caseType = el.dataset.value; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
-  if (action === 'go-quick-add') { initQuickAddTemp(); VIEW='quick-add'; render(); return; }
   if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
   if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; VIEW = 'ai-digest'; render(); return; }
   if (action === 'open-ai-knowledge') { AI_KNOWLEDGE_ANSWER = null; VIEW = 'ai-knowledge'; render(); return; }
@@ -6714,34 +6685,6 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'cancel-add') {
     await discardStagedPhotos(AP_PHOTOS); await discardStagedPhotos(AP_INVESTIGATIONS);
     AP_PHOTOS = []; AP_INVESTIGATIONS = []; AP_DUPLICATE_FROM = null; VIEW='list'; render(); return;
-  }
-  if (action === 'cancel-quick-add') { VIEW='list'; render(); return; }
-  if (action === 'qa-set-sex') { syncQuickAddFromDom(); QUICK_ADD_TEMP.sex = el.dataset.value; render(); return; }
-  if (action === 'save-quick-add') {
-    syncQuickAddFromDom();
-    if (!QUICK_ADD_TEMP.name.trim()) { toast('Enter the patient\u2019s name'); return; }
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span> Saving\u2026';
-    el.disabled = true;
-    const p = newPatientShape();
-    p.caseType = 'opd';
-    p.name = QUICK_ADD_TEMP.name.trim();
-    p.age = QUICK_ADD_TEMP.age;
-    p.ageMonths = QUICK_ADD_TEMP.ageMonths;
-    p.sex = QUICK_ADD_TEMP.sex;
-    p.chiefComplaints = QUICK_ADD_TEMP.chiefComplaints;
-    p.side = 'N/A';
-    if (p.chiefComplaints) recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, p.chiefComplaints);
-    try {
-      await dbPutPatient(p);
-      await refreshPatients();
-      toast('Saved \u2014 ready for the doctor to complete');
-      VIEW = 'list'; render();
-    } catch (err) {
-      el.innerHTML = originalHtml; el.disabled = false;
-      toast('Could not save \u2014 try again');
-    }
-    return;
   }
   if (action === 'open-patient') {
     const p2 = getPatient(el.dataset.id);
