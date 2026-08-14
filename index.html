@@ -1037,6 +1037,106 @@ function getLastPatient() {
     return { patient: p, at };
   } catch(e) { return null; }
 }
+const NOTIF_LAST_SEEN_KEY = 'surgical-case-log-notif-last-seen-v1';
+function notifLastSeen() { try { return Number(localStorage.getItem(NOTIF_LAST_SEEN_KEY)) || 0; } catch(e) { return 0; } }
+function markNotifsSeen() { try { localStorage.setItem(NOTIF_LAST_SEEN_KEY, String(Date.now())); } catch(e) {} }
+/* Not a persisted event log \u2014 computed on the fly from data that already exists
+   (reminders due, recently added images/follow-ups/prescriptions). Keeps this accurate
+   without needing to hook a logging call into every action handler in the app. */
+async function computeActivityFeed() {
+  const events = [];
+  const today = todayStr();
+  const sevenDaysAgo = Date.now() - 7*24*60*60*1000;
+  REMINDERS.filter(r => !r.done && r.dueDate && r.dueDate <= today).forEach(r => {
+    const p = PATIENTS.find(x => x.id === r.patientId);
+    events.push({ icon:'clock', color: r.dueDate < today ? '#dc2626' : '#eab308', ts: new Date(r.dueDate).getTime(), title: (r.dueDate < today ? 'Overdue: ' : 'Reminder due today: ') + r.text, sub: p ? escName(p.name)+(p.patientCode?' ('+p.patientCode+')':'') : '', jumpPatientId: r.patientId });
+  });
+  const allImages = await dbGetAllImages().catch(() => []);
+  allImages.filter(im => im.createdAt && im.createdAt >= sevenDaysAgo).forEach(im => {
+    const p = PATIENTS.find(x => x.id === im.patientId);
+    events.push({ icon:'camera', color:'var(--accent)', ts: im.createdAt, title: 'New image added', sub: p ? escName(p.name)+(p.patientCode?' ('+p.patientCode+')':'') : 'Unfiled photo', jumpPatientId: im.patientId });
+  });
+  PATIENTS.forEach(p => (p.followUps||[]).forEach(f => {
+    const ts = f.createdAt || new Date(f.date).getTime();
+    if (ts >= sevenDaysAgo) events.push({ icon:'calendar', color:'#0d9488', ts, title: 'Follow-up logged: ' + f.label, sub: escName(p.name)+(p.patientCode?' ('+p.patientCode+')':''), jumpPatientId: p.id });
+  }));
+  PATIENTS.forEach(p => (p.prescriptions||[]).forEach(rx => {
+    const ts = rx.createdAt || new Date(rx.date).getTime();
+    if (ts >= sevenDaysAgo) events.push({ icon:'printer', color:'#c2410c', ts, title: 'Prescription added', sub: escName(p.name)+(p.patientCode?' ('+p.patientCode+')':''), jumpPatientId: p.id });
+  }));
+  events.sort((a,b) => b.ts - a.ts);
+  return events;
+}
+function activityGroupLabel(ts) {
+  const d = new Date(ts), today = new Date(todayStr()), yesterday = new Date(today); yesterday.setDate(yesterday.getDate()-1);
+  const dDay = new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  if (dDay.getTime() === today.getTime()) return 'Today';
+  if (dDay.getTime() === yesterday.getTime()) return 'Yesterday';
+  if (dDay > new Date(today.getTime() - 6*24*60*60*1000)) return 'This Week';
+  return 'Earlier';
+}
+async function renderNotificationsView() {
+  const events = await computeActivityFeed();
+  const lastSeen = notifLastSeen();
+  markNotifsSeen();
+  let html = '<div style="padding-bottom:20px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row between">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-notifications">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Notifications</h2></div>'
+    + '</div></div>'
+    + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:8px;">';
+  if (!events.length) {
+    html += '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">Nothing to show \u2014 due reminders and recent activity (last 7 days) will appear here.</div>';
+  } else {
+    let lastGroup = null;
+    events.forEach(e => {
+      const group = activityGroupLabel(e.ts);
+      if (group !== lastGroup) { html += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.03em;margin-top:'+(lastGroup?'8px':'0')+';">'+group.toUpperCase()+'</div>'; lastGroup = group; }
+      html += '<button type="button" class="card" style="text-align:left;display:flex;align-items:flex-start;gap:10px;width:100%;'+(e.jumpPatientId?'cursor:pointer;':'')+'" '+(e.jumpPatientId?'data-action="notif-jump-patient" data-id="'+e.jumpPatientId+'"':'')+'>'
+        + '<span style="flex:none;width:32px;height:32px;border-radius:50%;background:'+e.color+'22;color:'+e.color+';display:flex;align-items:center;justify-content:center;">'+ic(e.icon)+'</span>'
+        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:13px;font-weight:700;">'+esc(e.title)+(e.ts > lastSeen ? ' <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red,#dc2626);margin-left:4px;"></span>' : '')+'</span>'
+        + (e.sub ? '<span style="display:block;font-size:11.5px;color:var(--muted);">'+esc(e.sub)+'</span>' : '')+'</span>'
+        + '<span style="flex:none;font-size:10.5px;color:var(--muted);">'+esc(relativeTimeAgo(e.ts))+'</span>'
+        + '</button>';
+    });
+  }
+  html += '</div></div>';
+  return html;
+}
+const CHANGELOG = [
+  { version:'1.1.0', date:'2026-08-13', features: [
+      'AI Case Summary \u2014 generate a 2\u20133 sentence summary of any patient instantly',
+      'Gemini + Claude split \u2014 lighter AI tasks now run on Gemini, clinical reasoning stays on Claude',
+      'Unfiled Photos recovery, cloud sync auto-retry, and other data-safety fixes',
+      'Overview redesigned as a compact, collapsible clinical dashboard',
+      'Notifications feed, granular Cloud Sync status, Export Case Summary',
+    ], improvements: [
+      'Photos now saved to device the moment they\u2019re taken, not just on Save',
+      'Patient list, tabs, and headers fixed for iOS safe-area issues',
+      'Dark mode contrast fixed for primary buttons and highlighted cards',
+    ] },
+];
+function renderWhatsNewView() {
+  return '<div style="padding-bottom:20px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
+    + '<button class="icon-btn" data-action="close-whats-new">'+ic('back')+'</button>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">What\u2019s New</h2>'
+    + '</div></div></div>'
+    + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:16px;">'
+    + CHANGELOG.map(c => '<div>'
+        + '<div class="card" style="background:linear-gradient(135deg, var(--accent), var(--accent-dark));color:#fff;">'
+        + '<div style="font-size:16px;font-weight:800;">Version '+esc(c.version)+'</div>'
+        + '<div style="font-size:11px;opacity:0.85;">'+esc(fmtDate(c.date))+'</div>'
+        + '</div>'
+        + '<div style="margin-top:12px;"><label class="field-label">New Features</label>'
+        + c.features.map(f => '<div class="row gap2" style="align-items:flex-start;margin-bottom:8px;"><span style="color:var(--emerald);flex:none;margin-top:1px;">'+ic('check')+'</span><span style="font-size:12.5px;">'+esc(f)+'</span></div>').join('')
+        + '</div>'
+        + (c.improvements ? '<div style="margin-top:10px;"><label class="field-label">Improvements</label>'
+            + c.improvements.map(f => '<div class="row gap2" style="align-items:flex-start;margin-bottom:8px;"><span style="color:var(--accent);flex:none;margin-top:1px;">'+ic('check')+'</span><span style="font-size:12.5px;">'+esc(f)+'</span></div>').join('')
+            + '</div>' : '')
+        + '</div>').join('<div style="border-top:1px solid var(--border);margin:4px 0;"></div>')
+    + '</div>'
+    + '</div>';
+}
 function relativeTimeAgo(ts) {
   const mins = Math.max(0, Math.round((Date.now() - ts) / 60000));
   if (mins < 1) return 'just now';
@@ -1818,12 +1918,15 @@ function renderCashAuditView() {
 let MORE_EXPANDED = new Set(['settings']);
 async function renderMoreView() {
   const unfiled = await computeUnfiledImages();
+  const notifCount = (await computeActivityFeed()).filter(e => e.ts > notifLastSeen()).length;
   const groups = [
     { key:'settings', title:'Settings', icon:'gear', rows:
-        moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead', 'open-settings')
+        moreRowHtml('clock', 'Notifications'+(notifCount?' ('+notifCount+')':''), 'Due reminders and recent activity', 'open-notifications')
+        + moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead', 'open-settings')
         + moreRowHtml('gear', 'App Settings', 'App Lock, dark mode, accent color, reminders, Patient ID', 'open-app-settings')
         + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? moreRowHtml('sparkle', 'OrthoVault AI', 'Everywhere AI helps in the app \u2014 patient queries, digest, knowledge engine, clinical assistant', 'open-ai-hub', true) : '')
         + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
+        + moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new')
     },
     { key:'data', title:'Data & Backup', icon:'download', rows:
         moreRowHtml('shield', 'Cloud Sync', CURRENT_USER ? 'Signed in \u2014 backing up automatically' : 'Not signed in \u2014 tap to set up', 'open-cloud-sync')
@@ -5531,6 +5634,8 @@ async function renderCurrentView(app) {
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
   if (VIEW === 'app-settings') { app.innerHTML = renderAppSettingsView(); return; }
   if (VIEW === 'cloud-sync') { app.innerHTML = await renderCloudSyncView(); return; }
+  if (VIEW === 'notifications') { app.innerHTML = await renderNotificationsView(); return; }
+  if (VIEW === 'whats-new') { app.innerHTML = renderWhatsNewView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
   if (VIEW === 'print-summary') { app.innerHTML = renderCaseSummaryPrintView(); return; }
@@ -5861,7 +5966,7 @@ async function importBackup(file) {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -7174,7 +7279,7 @@ async function generatePersonalizedReminderMessage(p) {
       const vals = {}; fields.forEach(([k]) => { const el2 = document.getElementById('fu-rom-'+k); if (el2) vals[k] = el2.value; });
       if (Object.values(vals).some(v => v)) rom = vals;
     }
-    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rom, imageCount: FU_INV_PHOTOS.length };
+    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rom, imageCount: FU_INV_PHOTOS.length, createdAt: Date.now() };
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
     const nextFuEl = document.getElementById('fu-next-followup');
@@ -7570,6 +7675,16 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'close-cloud-sync') { VIEW = 'more'; render(); return; }
   if (action === 'open-app-settings') { VIEW = 'app-settings'; render(); return; }
   if (action === 'open-cloud-sync') { VIEW = 'cloud-sync'; render(); return; }
+  if (action === 'open-notifications') { VIEW = 'notifications'; render(); return; }
+  if (action === 'open-whats-new') { VIEW = 'whats-new'; render(); return; }
+  if (action === 'close-notifications') { VIEW = 'more'; render(); return; }
+  if (action === 'close-whats-new') { VIEW = 'more'; render(); return; }
+  if (action === 'notif-jump-patient') {
+    SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
+    await render();
+    window.scrollTo(0,0);
+    return;
+  }
   if (action === 'open-more') { VIEW = 'more'; render(); return; }
   if (action === 'open-ai-hub') { VIEW = 'ai-hub'; render(); return; }
   if (action === 'open-cash-audit') { VIEW = 'cash-audit'; render(); return; }
