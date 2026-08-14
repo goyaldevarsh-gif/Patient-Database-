@@ -821,14 +821,23 @@ function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'<
 const SEARCH_FIELD_ANCHORS = {
   'Diagnosis':'snapshot-card-anchor', 'Chief complaints':'snapshot-card-anchor', 'Procedure':'snapshot-card-anchor',
   'Condition':'snapshot-card-anchor', 'Surgery type':'snapshot-card-anchor', 'Region':'snapshot-card-anchor', 'Side':'snapshot-card-anchor',
-  'Classification':'clinical-card-anchor', 'Co-morbidities':'clinical-card-anchor',
-  'Clinical notes':'notes-card-anchor', 'Tags':'tags-card-anchor',
+  'Classification':'tracking-card-anchor', 'Co-morbidities':'clinical-card-anchor',
+  'Clinical notes':'clinical-card-anchor', 'Tags':'useful-card-anchor',
   'WhatsApp number':'communicate-card-anchor',
+};
+const SEARCH_FIELD_SECTION_KEY = {
+  'Diagnosis':'snapshot', 'Chief complaints':'snapshot', 'Procedure':'snapshot',
+  'Condition':'snapshot', 'Surgery type':'snapshot', 'Region':'snapshot', 'Side':'snapshot',
+  'Classification':'tracking', 'Co-morbidities':'clinical',
+  'Clinical notes':'clinical', 'Tags':'useful',
+  'WhatsApp number':'communicate',
 };
 async function jumpToSearchMatch(p, field) {
   if (field && field.indexOf('Follow-up') === 0) { TAB = 'followups'; await renderTabBody(p); window.scrollTo(0,0); return; }
   if (field === 'Investigation') { TAB = 'imagesrecords'; IMAGES_RECORDS_SUBVIEW = 'investigations'; await renderTabBody(p); window.scrollTo(0,0); return; }
   if (field === 'Prescription') { TAB = 'prescriptions'; await renderTabBody(p); window.scrollTo(0,0); return; }
+  const sectionKey = SEARCH_FIELD_SECTION_KEY[field];
+  if (sectionKey) { OV_EXPANDED.add(sectionKey); await renderTabBody(p); }
   const anchorId = SEARCH_FIELD_ANCHORS[field];
   const anchorEl = anchorId ? document.getElementById(anchorId) : null;
   if (anchorEl) { anchorEl.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
@@ -884,16 +893,66 @@ let SHOW_INSIGHTS = false;
 let SHOW_ALL_ATTENTION = false;
 let ATTENTION_EXPANDED = false;
 let PATIENT_LIST_EXPANDED = false;
+let SHOW_ADD_MENU = false;
+let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
+let QUICK_PICKER_QUERY = '';
+function addMenuDropdownHtml() {
+  const items = [
+    ['userPlus', 'New OPD Case', 'add-menu-new-opd'],
+    ['clipboard', 'New Surgical Case', 'add-menu-new-surgical'],
+    ['calendar', 'Add Follow-up Visit', 'add-menu-pick-patient', 'followup'],
+    ['clock', 'Add Reminder', 'add-menu-pick-patient', 'reminder'],
+    ['camera', 'Add Investigation', 'add-menu-pick-patient', 'investigation'],
+  ];
+  return '<div style="position:absolute;top:44px;right:0;z-index:30;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.15);padding:6px;display:flex;flex-direction:column;gap:2px;min-width:200px;">'
+    + items.map(([icon,label,action,value]) => '<button type="button" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="'+action+'"'+(value?' data-value="'+value+'"':'')+'>'
+      + '<span style="flex:none;width:28px;height:28px;border-radius:50%;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic(icon)+'</span>'
+      + label + '</button>').join('')
+    + '</div>'
+    + '<div style="position:fixed;inset:0;z-index:29;" data-action="toggle-add-menu"></div>';
+}
+function openQuickPicker(purpose) {
+  QUICK_PICKER_PURPOSE = purpose;
+  QUICK_PICKER_QUERY = '';
+  const overlay = document.createElement('div');
+  overlay.id = 'quick-picker-overlay';
+  overlay.className = 'usearch-overlay';
+  overlay.innerHTML = quickPickerHtml();
+  document.body.appendChild(overlay);
+  const input = document.getElementById('quick-picker-input');
+  if (input) input.focus();
+}
+function closeQuickPicker() {
+  const el = document.getElementById('quick-picker-overlay');
+  if (el) el.remove();
+  QUICK_PICKER_PURPOSE = null;
+}
+function quickPickerHtml() {
+  const purposeLabel = { followup:'Add Follow-up Visit', reminder:'Add Reminder', investigation:'Add Investigation' }[QUICK_PICKER_PURPOSE] || 'Pick a patient';
+  return '<div class="usearch-topbar">'
+    + '<button class="icon-btn" data-action="close-quick-picker">'+ic('back')+'</button>'
+    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="quick-picker-input" placeholder="'+purposeLabel+' \u2014 pick a patient" value="'+esc(QUICK_PICKER_QUERY)+'"></div>'
+    + '</div>'
+    + '<div class="usearch-results" id="quick-picker-results">'+quickPickerResultsHtml()+'</div>';
+}
+function quickPickerResultsHtml() {
+  const q = QUICK_PICKER_QUERY.trim().toLowerCase();
+  const results = (q ? PATIENTS.filter(p => matchCase(p, q)) : PATIENTS.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))).slice(0, 30);
+  if (!results.length) return '<p style="text-align:center;color:var(--muted);font-size:12px;padding:36px 20px;">No matches.</p>';
+  return '<div style="display:flex;flex-direction:column;gap:8px;">' + results.map(p => '<button class="case-card" style="width:100%;" data-action="quick-pick-patient" data-id="'+p.id+'">'
+      + '<div style="min-width:0;flex:1;"><div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+escName(p.name)+'</span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
+      + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(sideTag(p))+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||'\u2014'))+'</div></div></button>').join('') + '</div>';
+}
 let SHOW_LEGEND = false;
 let EDITING_PATIENT_CODE = false;
 function resetPerPatientUiState() {
   EDITING_PATIENT_CODE = false;
   OV_SUBTAB = 'details';
-  OV_EXPANDED = new Set(['snapshot','clinical','communicate','useful']);
+  OV_EXPANDED = new Set(['snapshot']);
   OV_SHOW_SCHEDULE = false;
   OV_SHOW_PAYMENT = false;
   OV_SHOW_TRACKING_PICK = false;
-  OV_EDIT_MODE = false;
+  OV_EDIT_SECTIONS = new Set();
   AI_PATIENT_SUMMARY = null;
   ROM_LOG_OPEN = false;
   ADD_FOLLOWUP_OPEN = false;
@@ -2475,11 +2534,12 @@ const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today
     + '<div class="row gap2"><img src="icons/icon-192.png" style="width:38px;height:38px;border-radius:10px;flex:none;box-shadow:0 2px 8px rgba(67,56,202,0.25);"><div><h1 style="font-size:21px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1>'
     + (ownerProfile.doctorName ? '<p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:3px 0 0;">'+esc(ownerProfile.doctorName)+'</p>' : '')
     + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;"><span style="font-weight:800;color:var(--accent);font-size:13px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p></div></div>'
-    + '<div class="row gap2">'
+    + '<div class="row gap2" style="position:relative;">'
     + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
     + '<button class="icon-btn" data-action="open-more" title="More">'+ic('menu')+'</button>'
     + '<button class="icon-btn" data-action="go-quick-add" title="Quick Add (Front Desk) \u2014 name + complaints only, fill rest later">'+ic('userPlus')+'</button>'
-    + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:4px;padding:9px 12px;" data-action="go-add">'+ic('plus')+' Add</button>'
+    + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:4px;padding:9px 12px;" data-action="toggle-add-menu">'+ic(SHOW_ADD_MENU?'x':'plus')+' Add</button>'
+    + (SHOW_ADD_MENU ? addMenuDropdownHtml() : '')
     + '</div></div>'
     + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
@@ -2872,8 +2932,8 @@ function renderAddView() {
 /* ================= Detail view: tabs ================= */
 
 let OV_SUBTAB = 'details';
-let OV_EXPANDED = new Set(['snapshot','clinical','communicate','useful']);
-let OV_EDIT_MODE = false;
+let OV_EXPANDED = new Set(['snapshot']);
+let OV_EDIT_SECTIONS = new Set();
 function ovRow(label, value) {
   if (!value) return '';
   return '<div style="font-size:12.5px;line-height:1.6;"><span style="color:var(--muted);">'+esc(label)+':</span> <b style="color:#1e293b;font-weight:700;">'+esc(value)+'</b></div>';
@@ -2881,14 +2941,23 @@ function ovRow(label, value) {
 let OV_SHOW_SCHEDULE = false;
 let OV_SHOW_PAYMENT = false;
 let OV_SHOW_TRACKING_PICK = false;
-function ovSection(key, title, bodyHtml) {
+/* Each Overview section is independently collapsible AND independently editable \u2014 no
+   single global "edit mode" for the whole tab. Sections default collapsed (except
+   Snapshot) so the tab reads as a glance-able summary, not a wall of open forms. */
+function ovSectionV2(key, title, icon, readHtml, editHtml) {
   const open = OV_EXPANDED.has(key);
-  return '<div class="card" style="padding:0;overflow:hidden;">'
-    + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:14px;text-align:left;" data-action="ov-toggle-section" data-value="'+key+'">'
+  const editing = OV_EDIT_SECTIONS.has(key);
+  return '<div class="card" id="'+key+'-card-anchor" style="padding:0;overflow:hidden;">'
+    + '<div class="row between" style="padding:14px;gap:8px;">'
+    + '<button type="button" class="row gap2" style="background:none;border:none;padding:0;flex:1;min-width:0;text-align:left;" data-action="ov-toggle-section" data-value="'+key+'">'
+    + '<span style="color:var(--accent);flex:none;">'+ic(icon)+'</span>'
     + '<span style="font-size:13px;font-weight:800;color:var(--accent-dark);text-transform:uppercase;letter-spacing:0.02em;">'+title+'</span>'
-    + '<span style="color:var(--accent);flex:none;transform:rotate('+(open?90:0)+'deg);display:inline-flex;">'+ic('chevron')+'</span>'
     + '</button>'
-    + (open ? '<div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:12px;">'+bodyHtml+'</div>' : '')
+    + '<div class="row gap1" style="flex:none;">'
+    + (editHtml ? '<button type="button" class="icon-btn" style="width:28px;height:28px;color:var(--accent);" data-action="ov-toggle-section-edit" data-value="'+key+'" title="'+(editing?'Done':'Edit')+'">'+ic(editing?'check':'pencil')+'</button>' : '')
+    + '<button type="button" class="icon-btn" style="width:28px;height:28px;color:var(--muted);transform:rotate('+(open?90:0)+'deg);" data-action="ov-toggle-section" data-value="'+key+'">'+ic('chevron')+'</button>'
+    + '</div></div>'
+    + (open ? '<div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:12px;">'+((editing && editHtml) ? editHtml : readHtml)+'</div>' : '')
     + '</div>';
 }
 function relativeDaysUntil(dateStr) {
@@ -2969,7 +3038,12 @@ function renderOverviewTab(p) {
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
     + (isSurgical ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'+OP_NOTE_TEMPLATES.map(([n]) => '<button type="button" class="chip" data-action="insert-op-template" data-value="'+esc(n)+'">'+ic('printer')+' '+esc(n)+'</button>').join('')+'</div>' : '')
     + '<textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
-    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
+    + (p.condition ? '<div style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></div>'
+        : (!isSurgical ? (OV_SHOW_TRACKING_PICK
+            ? '<select class="select" id="ov-tracking-select"><option value="">\u2014 Pick \u2014</option><option value="ctev">CTEV</option><option value="ra">RA</option><option value="osteoporosis">Osteoporosis</option><option value="trauma">Trauma</option></select>'
+            : '<button class="chip" data-action="ov-show-tracking-pick">'+ic('plus')+' Track a condition</button>') : ''));
+
+  let trackingBody = ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
     + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '')
     + romTrendCardHtml(p)
     + (shouldShowBmi(p) ? bmiCardHtml(p) : '')
@@ -2977,6 +3051,7 @@ function renderOverviewTab(p) {
     + (shouldShowRickets(p) ? ricketsCardHtml(p) : '')
     + (shouldShowKocher(p) ? kocherCardHtml(p) : '')
     + (shouldShowPedsDose(p) ? pedsDoseCardHtml(p) : '');
+  const hasTracking = !!(((p.surgeryType === 'Trauma' || p.condition === 'trauma')) || p.romTracking || shouldShowBmi(p) || p.surgeryType === 'Arthroplasty' || shouldShowRickets(p) || shouldShowKocher(p) || shouldShowPedsDose(p));
 
   let communicateBody = '<div class="card">'
     + '<label class="field-label">WhatsApp number</label>'
@@ -3003,32 +3078,28 @@ function renderOverviewTab(p) {
   // ---- Compact read-only summary (default view), redesigned to match a multi-column dashboard card layout ----
   const regionsSpecLine = (p.regions||[]).length ? (p.regions||[]).join(', ') : '';
   const fuColor = overdue ? '#dc2626' : (p.nextFollowUpDate ? 'var(--emerald)' : 'var(--muted)');
-  const snapshotRead = '<div class="card" id="snapshot-card-anchor">'
-    + '<div class="row between" style="margin-bottom:10px;"><div class="row gap2"><span style="color:var(--accent);">'+ic('userPlus')+'</span><span style="font-weight:800;font-size:14px;">Patient Snapshot</span></div>'
-    + '<button class="icon-btn" style="width:28px;height:28px;color:var(--accent);" data-action="ov-toggle-edit-mode" title="Edit">'+ic('pencil')+'</button></div>'
-    + '<div class="row" style="gap:10px;">'
+  const snapshotRead = '<div class="row" style="gap:10px;">'
     + ovSnapCell('userPlus', 'Age / Sex', formatAge(p) + (p.sex ? ' \u00b7 '+p.sex : ''))
     + ovSnapCell('shield', 'Side', p.side && p.side!=='N/A' ? p.side : '')
     + ovSnapCell('tag', isSurgical?'Specialty':'Region', regionsSpecLine)
     + '</div>'
-    + '<div style="border-top:1px solid var(--border);margin:10px 0;"></div>'
+    + '<div style="border-top:1px solid var(--border);"></div>'
     + '<div class="row" style="gap:10px;">'
     + ovSnapCell('clipboard', 'Diagnosis', displayDiagnosis(p.diagnosis) || (isSurgical?'':p.chiefComplaints))
     + (isSurgical ? ovSnapCell('calendar', 'Surgery Date', p.surgeryDate ? fmtDate(p.surgeryDate) : '') : ovSnapCell('calendar', 'Visit Date', p.surgeryDate ? fmtDate(p.surgeryDate) : ''))
     + ovSnapCell('clock', 'Next Follow-up', overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'Not scheduled'), fuColor)
     + '</div>'
-    + (p.nextFollowUpDate ? '<div style="text-align:right;font-size:11px;color:'+fuColor+';font-style:italic;margin-top:2px;">('+relativeDaysUntil(p.nextFollowUpDate)+')</div>'
-        : '<div style="text-align:right;margin-top:4px;">'+(OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" style="max-width:160px;display:inline-block;">' : '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>')+'</div>')
-    + (isSurgical && p.procedure ? '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">'+ovSnapCell('clipboard','Procedure', p.procedure)+'</div>' : '')
-    + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" style="margin-top:8px;" data-action="ov-toggle-edit-mode">'+ic('plus')+' Fill in missing details</button>' : '')
+    + (p.nextFollowUpDate ? '<div style="text-align:right;font-size:11px;color:'+fuColor+';font-style:italic;">('+relativeDaysUntil(p.nextFollowUpDate)+')</div>'
+        : '<div style="text-align:right;">'+(OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" style="max-width:160px;display:inline-block;">' : '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>')+'</div>')
+    + (isSurgical && p.procedure ? '<div style="padding-top:8px;border-top:1px solid var(--border);">'+ovSnapCell('clipboard','Procedure', p.procedure)+'</div>' : '')
+    + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '')
     + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
-        '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
+        '<div style="padding-top:10px;border-top:1px dashed var(--border);">'
         + (AI_PATIENT_SUMMARY
             ? '<div style="white-space:pre-wrap;font-size:12px;color:#334155;">'+esc(AI_PATIENT_SUMMARY)+speakButtonHtml('ai-patient-summary-text')+'</div>'
             : aiButtonHtml('ai-summarize-patient','AI: Summarize this patient',false,null,'claude'))
         + '</div>'
-      ) : '')
-    + '</div>';
+      ) : '');
 
   const statCards = '<div style="display:flex;gap:10px;">'
     + '<button type="button" class="card" style="flex:1;text-align:left;display:flex;align-items:center;gap:10px;cursor:pointer;" data-action="set-tab" data-value="imagesrecords">'
@@ -3043,70 +3114,47 @@ function renderOverviewTab(p) {
     + '</button>'
     + '</div>';
 
-  const clinicalRead = '<div class="card" id="clinical-card-anchor">'
-    + '<div class="row gap2" style="margin-bottom:10px;"><span style="color:var(--accent);">'+ic('file')+'</span><span style="font-weight:800;font-size:14px;">Clinical Summary</span></div>'
-    + (!isSurgical ? '<div class="row" style="gap:10px;margin-bottom:8px;">'
-        + '<div style="flex:1;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Chief Complaint</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.chiefComplaints||'\u2014')+'</div></div>'
-        + '<div style="flex:none;max-width:35%;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Duration</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.symptomDuration||'\u2014')+'</div></div>'
-        + '</div>' : '')
-    + ((p.comorbidities||[]).length ? '<div style="margin-top:4px;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:5px;">Co-morbidities</div><div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.comorbidities.map(c=>'<span class="badge badge-indigo" style="font-weight:600;">+ '+esc(c)+'</span>').join('')+'</div></div>' : '')
-    + (!p.chiefComplaints && !(p.comorbidities||[]).length ? '<p style="font-size:12px;color:var(--muted);margin:0;">Nothing added yet.</p>' : '')
-    + (p.condition ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></div>'
+  const clinicalRead = (!isSurgical ? '<div class="row" style="gap:10px;">'
+      + '<div style="flex:1;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Chief Complaint</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.chiefComplaints||'\u2014')+'</div></div>'
+      + '<div style="flex:none;max-width:35%;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Duration</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.symptomDuration||'\u2014')+'</div></div>'
+      + '</div>' : '')
+    + ((p.comorbidities||[]).length ? '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:5px;">Co-morbidities</div><div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.comorbidities.map(c=>'<span class="badge badge-indigo" style="font-weight:600;">+ '+esc(c)+'</span>').join('')+'</div></div>' : '')
+    + '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Clinical Notes</div><div style="font-size:12.5px;color:#334155;white-space:pre-wrap;">'+(p.notes ? esc(p.notes) : '<span style="color:var(--muted);">No notes yet.</span>')+'</div></div>'
+    + (!p.chiefComplaints && !(p.comorbidities||[]).length && !p.notes ? '<p style="font-size:12px;color:var(--muted);margin:0;">Nothing added yet.</p>' : '')
+    + (p.condition ? '<div style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></div>'
         : (!isSurgical ? (OV_SHOW_TRACKING_PICK
-            ? '<select class="select" id="ov-tracking-select" style="margin-top:8px;"><option value="">\u2014 Pick \u2014</option><option value="ctev">CTEV</option><option value="ra">RA</option><option value="osteoporosis">Osteoporosis</option><option value="trauma">Trauma</option></select>'
-            : '<button class="chip" style="margin-top:8px;" data-action="ov-show-tracking-pick">'+ic('plus')+' Track a condition</button>') : ''))
-    + '</div>';
+            ? '<select class="select" id="ov-tracking-select"><option value="">\u2014 Pick \u2014</option><option value="ctev">CTEV</option><option value="ra">RA</option><option value="osteoporosis">Osteoporosis</option><option value="trauma">Trauma</option></select>'
+            : '<button class="chip" data-action="ov-show-tracking-pick">'+ic('plus')+' Track a condition</button>') : ''));
 
-  const communicateRead = '<div class="card" id="communicate-card-anchor">'
-    + '<div class="row between" style="align-items:center;margin-bottom:'+(p.whatsapp?'10px':'0')+';">'
-    + '<div><div class="row gap2" style="margin-bottom:2px;"><span style="color:var(--accent);">'+ic('message')+'</span><span style="font-weight:800;font-size:14px;">Communication</span></div>'
-    + '<div style="font-size:11px;color:var(--muted);">WhatsApp</div><div style="font-size:13px;font-weight:700;">'+esc(p.whatsapp||'Not saved')+'</div></div>'
-    + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:none;">'+ic('message')+' Message Patient</a>' : '<button class="btn btn-sm" data-action="ov-toggle-edit-mode">'+ic('plus')+' Add number</button>')
+  const communicateRead = '<div class="row between" style="align-items:center;margin-bottom:'+(p.whatsapp?'10px':'0')+';">'
+    + '<div><div style="font-size:11px;color:var(--muted);">WhatsApp</div><div style="font-size:13px;font-weight:700;">'+esc(p.whatsapp||'Not saved')+'</div></div>'
+    + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:none;">'+ic('message')+' Message Patient</a>' : '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="communicate">'+ic('plus')+' Add number</button>')
     + '</div>'
     + (p.whatsapp ? (
         (followUpReminderLink(p)
-            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;margin-bottom:8px;">'+ic('calendar')+' Follow-up Reminder</a>'
-            : '<button class="btn btn-block" disabled title="Set the next follow-up date first" style="margin-bottom:8px;">'+ic('calendar')+' Follow-up Reminder</button>')
+            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
+            : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
         + (CURRENT_USER && CURRENT_USER.uid === MY_UID && p.nextFollowUpDate ? (
             AI_PERSONALIZED_REMINDER
-              ? '<div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PERSONALIZED_REMINDER)+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
+              ? '<div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PERSONALIZED_REMINDER)+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
               : aiButtonHtml('ai-personalize-reminder','AI: Personalize this reminder',true,null,'gemini')
           ) : '')
-      ) : '')
-    + '</div>';
+      ) : '');
 
-  const notesReadCard = '<div class="card" id="notes-card-anchor" style="cursor:pointer;" data-action="ov-toggle-edit-mode">'
-    + '<div class="row gap2" style="margin-bottom:6px;"><span style="color:var(--accent);">'+ic('file')+'</span><span style="font-weight:800;font-size:13px;">Clinical Notes</span></div>'
-    + '<div style="font-size:12px;color:#334155;white-space:pre-wrap;">'+(p.notes ? esc(p.notes) : '<span style="color:var(--muted);">No notes yet.</span>')+'</div>'
-    + '</div>';
-  const tagsReadCard = '<div class="card" id="tags-card-anchor" style="cursor:pointer;" data-action="ov-toggle-edit-mode">'
-    + '<div class="row between" style="margin-bottom:6px;"><div class="row gap2"><span style="color:var(--accent);">'+ic('tag')+'</span><span style="font-weight:800;font-size:13px;">Tags</span></div><span style="color:var(--muted);">'+ic('chevron')+'</span></div>'
-    + ((p.tags||[]).length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.tags.map(t=>'<span class="badge badge-indigo">'+esc(t)+'</span>').join('')+'</div>' : '<p style="font-size:11.5px;color:var(--muted);margin:0;">No tags</p>')
-    + '</div>';
+  const usefulRead = ((p.tags||[]).length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.tags.map(t=>'<span class="badge badge-indigo">'+esc(t)+'</span>').join('')+'</div>' : '<p style="font-size:11.5px;color:var(--muted);margin:0;">No tags</p>')
+    + reminderMiniCardHtml(p);
 
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
     + '<div class="row" style="justify-content:flex-end;gap:8px;">'
-    + (OV_EDIT_MODE ? '<button class="icon-btn active" style="color:var(--accent);" data-action="ov-toggle-edit-mode" title="Done editing">'+ic('check')+'</button>' : '')
     + '<button class="icon-btn" data-action="duplicate-case" title="Duplicate Case">'+ic('copy')+'</button>'
     + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
     + '</div>'
-    + (OV_EDIT_MODE
-        ? (ovSection('snapshot', 'Patient Snapshot', snapshotBody)
-          + ovSection('clinical', 'Clinical', clinicalBody)
-          + ovSection('communicate', 'Communicate', communicateBody)
-          + ovSection('useful', 'Useful', usefulBody))
-        : (snapshotRead + statCards + clinicalRead + communicateRead
-          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' + notesReadCard + tagsReadCard + '</div>'
-          + reminderMiniCardHtml(p)
-          + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
-          + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '')
-          + romTrendCardHtml(p)
-          + (shouldShowBmi(p) ? bmiCardHtml(p) : '')
-          + (p.surgeryType === 'Arthroplasty' ? pjiCardHtml(p) : '')
-          + (shouldShowRickets(p) ? ricketsCardHtml(p) : '')
-          + (shouldShowKocher(p) ? kocherCardHtml(p) : '')
-          + (shouldShowPedsDose(p) ? pedsDoseCardHtml(p) : ''))
-      )
+    + statCards
+    + ovSectionV2('snapshot', 'Patient Snapshot', 'userPlus', snapshotRead, snapshotBody)
+    + ovSectionV2('clinical', 'Clinical', 'file', clinicalRead, clinicalBody)
+    + ovSectionV2('communicate', 'Communicate', 'message', communicateRead, communicateBody)
+    + ovSectionV2('useful', 'Useful', 'tag', usefulRead, usefulBody)
+    + (hasTracking ? ovSectionV2('tracking', 'Special Tracking', 'clock', trackingBody, null) : '')
     + '<div style="text-align:center;padding-top:6px;">'
     + (!isSurgical ? '<button class="btn btn-sm" style="background:transparent;border-color:transparent;color:var(--muted);font-size:11.5px;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical\u2026</button>' : convertToOpdButtonHtml(p))
     + '</div>'
@@ -5983,6 +6031,22 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'go-add') { VIEW = 'add-type-picker'; render(); return; }
+  if (action === 'toggle-add-menu') { SHOW_ADD_MENU = !SHOW_ADD_MENU; render(); return; }
+  if (action === 'add-menu-new-opd') { SHOW_ADD_MENU = false; initApTemp(); AP_TEMP.caseType = 'opd'; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW = 'add'; render(); return; }
+  if (action === 'add-menu-new-surgical') { SHOW_ADD_MENU = false; initApTemp(); AP_TEMP.caseType = 'surgical'; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW = 'add'; render(); return; }
+  if (action === 'add-menu-pick-patient') { SHOW_ADD_MENU = false; render(); openQuickPicker(el.dataset.value); return; }
+  if (action === 'close-quick-picker') { closeQuickPicker(); return; }
+  if (action === 'quick-pick-patient') {
+    const purpose = QUICK_PICKER_PURPOSE;
+    closeQuickPicker();
+    SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW = 'detail'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH = null;
+    if (purpose === 'followup') { TAB = 'followups'; FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = true; }
+    else if (purpose === 'investigation') { TAB = 'imagesrecords'; IMAGES_RECORDS_SUBVIEW = 'investigations'; ADD_INVESTIGATION_OPEN = true; INV_PHOTOS = []; }
+    else { TAB = 'overview'; REMINDER_FORM_OPEN = true; REMINDER_FORM_PATIENT_ID = el.dataset.id; REMINDER_FORM_CATEGORY = 'General'; REMINDER_FORM_DATE = ''; }
+    await render();
+    window.scrollTo(0,0);
+    return;
+  }
   if (action === 'go-add-with-type') { initApTemp(); AP_TEMP.caseType = el.dataset.value; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
   if (action === 'go-quick-add') { initQuickAddTemp(); VIEW='quick-add'; render(); return; }
   if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
@@ -6477,7 +6541,12 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'ov-show-schedule') { OV_SHOW_SCHEDULE = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-toggle-payment') { OV_SHOW_PAYMENT = !OV_SHOW_PAYMENT; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-show-tracking-pick') { OV_SHOW_TRACKING_PICK = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'ov-toggle-edit-mode') { OV_EDIT_MODE = !OV_EDIT_MODE; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ov-toggle-section-edit') {
+    const key = el.dataset.value;
+    if (OV_EDIT_SECTIONS.has(key)) OV_EDIT_SECTIONS.delete(key); else { OV_EDIT_SECTIONS.add(key); OV_EXPANDED.add(key); }
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'ai-summarize-patient') {
     const p = getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
@@ -7800,6 +7869,11 @@ document.addEventListener('input', (e) => {
     USEARCH_QUERY = e.target.value;
     const resEl = document.getElementById('usearch-results');
     if (resEl) resEl.innerHTML = usearchResultsHtml();
+  }
+  if (e.target.id === 'quick-picker-input') {
+    QUICK_PICKER_QUERY = e.target.value;
+    const resEl = document.getElementById('quick-picker-results');
+    if (resEl) resEl.innerHTML = quickPickerResultsHtml();
   }
   if (e.target.id && e.target.id.startsWith('ra-v-') && ADD_RA_VISIT_OPEN) {
     syncRaVisitFromDom();
