@@ -995,6 +995,9 @@ let RX_TEMP = null; // { date, medicines:[{id,name,dose,frequency,duration,instr
 let RX_PHOTOS = [];
 let EXPANDED_PRESCRIPTION = new Set();
 let PRINT_RX = null; // {patient, prescription} when viewing a prescription in print mode
+let PRINT_CASE_SUMMARY = null; // patient object when viewing a case summary in print mode
+let EXPORT_SUMMARY_SECTIONS = new Set(['details','diagnosis','followups','investigations','prescriptions','notes']);
+let EXPORT_SUMMARY_LAYOUT = 'standard'; // 'standard' | 'detailed'
 let EDU_SEARCH = null; // null = use patient's diagnosis as default query
 let EDU_MULTISELECT = false;
 let EDU_SELECTED_IDS = [];
@@ -1123,7 +1126,7 @@ function newPatientShape() {
   return {
     id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', handDominance:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [],
     caseType:'surgical', condition:'', laterality:'bilateral',
-    surgeryType:'Arthroplasty', procedure:'',
+    surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
     nextFollowUpDate:'',
     preOpImageCount:0, followUps:[], investigations:[], prescriptions:[],
@@ -2700,6 +2703,17 @@ let AP_INV_CATEGORY = 'xray';
 let AP_INV_XRAY_SUBTYPE = 'General OPD';
 let AP_INV_ACTIVE_GROUP = null;
 let AP_SHOW_PAYMENT = false;
+let AP_SCHEDULE = [];
+const FOLLOWUP_SCHEDULE_TEMPLATE = [
+  ['Day 1 (Dressing)', 1], ['2 Weeks', 14], ['6 Weeks', 42], ['3 Months', 90], ['6 Months', 182],
+];
+function defaultFollowUpSchedule(surgeryDateStr) {
+  const base = new Date(surgeryDateStr || todayStr());
+  return FOLLOWUP_SCHEDULE_TEMPLATE.map(([label, days]) => {
+    const d = new Date(base); d.setDate(d.getDate() + days);
+    return { id: uid(), label, date: d.toISOString().slice(0,10) };
+  });
+}
 const AP_INV_GROUPS = [
   { key:'imaging', label:'Imaging', categories:['xray','ct','mri','usg'] },
   { key:'clinical', label:'Clinical Images / Wound', categories:['clinical','wound'] },
@@ -2711,7 +2725,8 @@ function initApTemp() {
   // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
   // would lose them for good. See handlePhotoInputChange / handleCategorizedPhotoChange.
   AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', handDominance:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
-    surgeryType:'Arthroplasty', procedure:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
+    surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
+  AP_SCHEDULE = defaultFollowUpSchedule(AP_TEMP.surgeryDate);
   AP_SUBTAB = 'details';
   AP_INVESTIGATIONS = [];
   AP_INV_CATEGORY = 'xray';
@@ -2722,11 +2737,16 @@ function initApTemp() {
   AI_SANITY_CHECK_RESULT = null;
 }
 function syncApTempFromDom() {
-  ['name','age','ageMonths','occupation','handDominance','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
+  ['name','age','ageMonths','occupation','handDominance','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
+  const anaesEl = document.getElementById('ap-anaesthesia'); if (anaesEl) AP_TEMP.anaesthesiaType = anaesEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
   const complaintsEl = document.getElementById('ap-complaints'); if (complaintsEl) AP_TEMP.chiefComplaints = complaintsEl.value;
   const aiFillEl = document.getElementById('ap-ai-fill-input'); if (aiFillEl) AP_AI_FILL_TEXT = aiFillEl.value;
+  document.querySelectorAll('[data-schedule-id]').forEach(el => {
+    const v = AP_SCHEDULE.find(x => x.id === el.dataset.scheduleId);
+    if (v) v[el.dataset.scheduleField] = el.value;
+  });
 }
 let AP_AI_FILL_TEXT = '';
 function conditionOptionsHtml(selected, caseType) {
@@ -2844,6 +2864,10 @@ function renderAddView() {
       + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
       + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+      + '<div><label class="field-label">Hospital (optional)</label><input class="input" id="ap-hospital" value="'+esc(AP_TEMP.hospital||'')+'"></div>'
+      + '<div><label class="field-label">Anaesthesia (optional)</label><select class="select" id="ap-anaesthesia"><option value=""'+(!AP_TEMP.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(AP_TEMP.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
+      + '</div>'
       + '<div class="card" style="padding:0;overflow:hidden;">'
       + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:12px;text-align:left;" data-action="ap-toggle-payment">'
       + '<span style="font-size:13px;font-weight:700;">Payment'+(AP_TEMP.paymentMethod?' \u2014 '+esc(AP_TEMP.paymentMethod):'')+'</span>'
@@ -2856,6 +2880,16 @@ function renderAddView() {
           + (AP_TEMP.paymentMethod==='Cash' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-cash-amount" type="number" inputmode="numeric" placeholder="Cash amount (\u20b9)" value="'+esc(AP_TEMP.cashAmount||'')+'" style="margin-top:8px;">' : '')
           + '</div>'
         ) : '')
+      + '</div>'
+      + '<div class="card">'
+      + '<label class="field-label">'+ic('calendar')+' Follow-up Schedule</label>'
+      + '<p style="font-size:11px;color:var(--muted);margin:2px 0 10px;">Reminders will be created automatically for each visit below \u2014 edit dates, remove any, or add your own.</p>'
+      + AP_SCHEDULE.map(v => '<div class="row gap2" style="margin-bottom:8px;align-items:center;">'
+          + '<input class="input" data-schedule-id="'+v.id+'" data-schedule-field="label" value="'+esc(v.label)+'" style="flex:1;">'
+          + '<input class="input" type="date" data-schedule-id="'+v.id+'" data-schedule-field="date" value="'+esc(v.date)+'" style="flex:none;width:140px;">'
+          + '<button class="icon-btn" style="color:var(--red);" data-action="ap-schedule-remove" data-value="'+v.id+'">'+ic('trash')+'</button>'
+          + '</div>').join('')
+      + '<button class="btn btn-sm" data-action="ap-schedule-add">'+ic('plus')+' Add Custom Visit</button>'
       + '</div>'
       + '</div>'
     ) : (
@@ -3018,6 +3052,10 @@ function renderOverviewTab(p) {
         '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
         + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('ov-procedure')
         + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+        + '<div><label class="field-label">Hospital (optional)</label><input class="input" data-field="hospital" value="'+esc(p.hospital||'')+'"></div>'
+        + '<div><label class="field-label">Anaesthesia (optional)</label><select class="select" data-field="anaesthesiaType"><option value=""'+(!p.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(p.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
+        + '</div>'
         + '<div class="card" style="padding:0;overflow:hidden;">'
         + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:12px;text-align:left;" data-action="ov-toggle-payment">'
         + '<span style="font-size:13px;font-weight:700;">Payment'+(p.paymentMethod?' \u2014 '+esc(p.paymentMethod):'')+'</span>'
@@ -3108,6 +3146,7 @@ function renderOverviewTab(p) {
     + (p.nextFollowUpDate ? '<div style="text-align:right;font-size:11px;color:'+fuColor+';font-style:italic;">('+relativeDaysUntil(p.nextFollowUpDate)+')</div>'
         : '<div style="text-align:right;">'+(OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" style="max-width:160px;display:inline-block;">' : '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>')+'</div>')
     + (isSurgical && p.procedure ? '<div style="padding-top:8px;border-top:1px solid var(--border);">'+ovSnapCell('clipboard','Procedure', p.procedure)+'</div>' : '')
+    + (isSurgical && (p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+ovSnapCell('clipboard','Hospital', p.hospital)+ovSnapCell('shield','Anaesthesia', p.anaesthesiaType)+'</div>' : '')
     + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '')
     + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
         '<div style="padding-top:10px;border-top:1px dashed var(--border);">'
@@ -3162,6 +3201,7 @@ function renderOverviewTab(p) {
 
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
     + '<div class="row" style="justify-content:flex-end;gap:8px;">'
+    + '<button class="icon-btn" data-action="open-export-summary" title="Export / Share Case Summary">'+ic('printer')+'</button>'
     + '<button class="icon-btn" data-action="duplicate-case" title="Duplicate Case">'+ic('copy')+'</button>'
     + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
     + '</div>'
@@ -4196,6 +4236,102 @@ async function renderPrescriptionsTab(p) {
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
 }
 
+function renderExportSummaryView(p) {
+  const isSurgical = p.caseType === 'surgical';
+  const sections = [
+    ['details', 'Patient Details', 'Name, age, contact, etc.'],
+    ['diagnosis', 'Complaints & Diagnosis', displayDiagnosis(p.diagnosis || p.chiefComplaints || '') || '\u2014'],
+    ['followups', 'Follow-up Visits', (p.followUps||[]).length + ' visits'],
+    ['investigations', 'Investigations & Photos', p.preOpImageCount + ' items'],
+    ['prescriptions', 'Prescriptions', (p.prescriptions||[]).length + ' prescriptions'],
+    ['notes', 'Clinical Notes', p.notes ? 'Included' : 'None yet'],
+  ];
+  return '<div style="padding-bottom:100px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
+    + '<button class="icon-btn" data-action="close-export-summary">'+ic('back')+'</button>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">Export Case Summary</h2>'
+    + '</div></div></div>'
+    + '<div class="px" style="padding-top:14px;display:flex;flex-direction:column;gap:14px;">'
+    + '<p style="font-size:12px;color:var(--muted);margin:0;">'+escName(p.name)+(p.patientCode?' \u00b7 '+esc(p.patientCode):'')+'</p>'
+    + '<div><label class="field-label">Include in Export</label>'
+    + sections.map(([key,label,sub]) => '<label class="row between card" style="align-items:center;margin-bottom:8px;cursor:pointer;">'
+        + '<span><span style="display:block;font-size:13px;font-weight:700;">'+esc(label)+'</span><span style="display:block;font-size:11px;color:var(--muted);">'+esc(sub)+'</span></span>'
+        + '<input type="checkbox" data-action="export-summary-toggle" data-value="'+key+'"'+(EXPORT_SUMMARY_SECTIONS.has(key)?' checked':'')+' style="width:20px;height:20px;flex:none;">'
+        + '</label>').join('')
+    + '</div>'
+    + '<div><label class="field-label">Page Layout</label><div class="seg">'
+    + [['standard','Standard'],['detailed','Detailed']].map(([v,l])=>'<button class="seg-btn'+(EXPORT_SUMMARY_LAYOUT===v?' active':'')+'" data-action="export-summary-set-layout" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div></div>'
+    + '<button class="btn btn-primary btn-block" data-action="do-export-summary">'+ic('printer')+' Export PDF</button>'
+    + (p.whatsapp || true ? '<div class="row gap2">'
+        + (waLink(p) ? '<a href="'+esc(caseSummaryWaLink(p))+'" target="_blank" rel="noopener" class="btn" style="flex:1;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' WhatsApp</a>' : '<button class="btn" style="flex:1;" disabled title="No WhatsApp number saved">'+ic('message')+' WhatsApp</button>')
+        + '<a href="'+esc(caseSummaryEmailLink(p))+'" class="btn" style="flex:1;text-decoration:none;">'+ic('message')+' Email</a>'
+        + '</div>' : '')
+    + '</div>'
+    + '</div>';
+}
+function caseSummaryText(p) {
+  const s = EXPORT_SUMMARY_SECTIONS;
+  const lines = [];
+  lines.push('Case Summary \u2014 ' + p.name + (p.patientCode ? ' (' + p.patientCode + ')' : ''));
+  if (s.has('details')) lines.push('\n' + formatAge(p) + ' / ' + p.sex + (p.side && p.side!=='N/A' ? ' \u00b7 ' + p.side : '') + (p.whatsapp ? '\nContact: ' + p.whatsapp : ''));
+  if (s.has('diagnosis')) {
+    if (p.chiefComplaints) lines.push('\nComplaints: ' + p.chiefComplaints);
+    if (p.diagnosis) lines.push('Diagnosis: ' + displayDiagnosis(p.diagnosis));
+    if (p.caseType === 'surgical' && p.procedure) lines.push('Procedure: ' + p.procedure + (p.surgeryDate ? ' (' + fmtDate(p.surgeryDate) + ')' : ''));
+  }
+  if (s.has('followups') && (p.followUps||[]).length) {
+    lines.push('\nFollow-up Visits:');
+    [...p.followUps].sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(f => lines.push('\u2022 ' + fmtDate(f.date) + ' \u2014 ' + f.label + (f.notes ? ': ' + f.notes : '')));
+  }
+  if (s.has('investigations') && p.preOpImageCount) lines.push('\nInvestigations: ' + p.preOpImageCount + ' item(s) on file');
+  if (s.has('prescriptions') && (p.prescriptions||[]).length) {
+    lines.push('\nPrescriptions:');
+    p.prescriptions.forEach(rx => lines.push('\u2022 ' + fmtDate(rx.date) + ' \u2014 ' + (rx.medicines||[]).map(m=>m.name).filter(Boolean).join(', ')));
+  }
+  if (s.has('notes') && p.notes) lines.push('\nClinical Notes:\n' + p.notes);
+  return lines.join('\n');
+}
+function caseSummaryWaLink(p) { return 'https://wa.me/' + toWaNumber(p.whatsapp) + '?text=' + encodeURIComponent(caseSummaryText(p)); }
+function caseSummaryEmailLink(p) { return 'mailto:?subject=' + encodeURIComponent('Case Summary \u2014 ' + p.name) + '&body=' + encodeURIComponent(caseSummaryText(p)); }
+function renderCaseSummaryPrintView() {
+  if (!PRINT_CASE_SUMMARY) { VIEW='list'; return renderListView(); }
+  const p = PRINT_CASE_SUMMARY;
+  const profile = loadProfile();
+  const s = EXPORT_SUMMARY_SECTIONS;
+  const detailed = EXPORT_SUMMARY_LAYOUT === 'detailed';
+  let body = '';
+  if (s.has('details')) body += '<div class="rx-patient-row"><span><b>Patient:</b> ' + escName(p.name) + ' &nbsp; (' + formatAge(p) + ' / ' + esc(p.sex) + ')' + (p.side && p.side!=='N/A' ? ' &nbsp; <b>Side:</b> ' + esc(p.side) : '') + (p.patientCode ? ' &nbsp; <span style="color:var(--muted);">' + esc(p.patientCode) + '</span>' : '') + '</span><span><b>Date:</b> ' + fmtDate(todayStr()) + '</span></div>';
+  if (s.has('diagnosis')) {
+    if (p.chiefComplaints) body += '<div class="rx-diagnosis"><b>C/O:</b> ' + esc(p.chiefComplaints) + '</div>';
+    if (p.diagnosis) body += '<div class="rx-diagnosis"><b>Diagnosis:</b> ' + esc(displayDiagnosis(p.diagnosis)) + '</div>';
+    if (p.caseType === 'surgical' && p.procedure) body += '<div class="rx-diagnosis"><b>Procedure:</b> ' + esc(p.procedure) + (p.surgeryDate ? ' (' + fmtDate(p.surgeryDate) + ')' : '') + '</div>';
+  }
+  if (s.has('followups') && (p.followUps||[]).length) {
+    body += '<div class="rx-advice"><b>Follow-up Visits</b><br>' + [...p.followUps].sort((a,b)=>new Date(a.date)-new Date(b.date)).map(f => fmtDate(f.date) + ' \u2014 ' + esc(f.label) + (detailed && f.notes ? ': ' + esc(f.notes) : '')).join('<br>') + '</div>';
+  }
+  if (s.has('investigations') && p.preOpImageCount) body += '<div class="rx-advice"><b>Investigations:</b> ' + p.preOpImageCount + ' item(s) on file</div>';
+  if (s.has('prescriptions') && (p.prescriptions||[]).length) {
+    body += '<div class="rx-advice"><b>Prescriptions</b><br>' + p.prescriptions.map(rx => fmtDate(rx.date) + ' \u2014 ' + esc((rx.medicines||[]).map(m=>m.name).filter(Boolean).join(', '))).join('<br>') + '</div>';
+  }
+  if (s.has('notes') && p.notes) body += '<div class="rx-advice"><b>Clinical Notes</b><br>' + esc(p.notes).replace(/\n/g,'<br>') + '</div>';
+
+  return '<div class="no-print sticky-top row between px" style="padding:14px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
+    + '<button class="icon-btn" data-action="close-print-summary">'+ic('back')+'</button>'
+    + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
+    + '</div>'
+    + '<div class="rx-sheet">'
+    + '<div class="rx-letterhead">'
+    + '<div><div class="rx-clinic-name">'+esc(profile.clinicName||'\u2014')+'</div>'
+    + '<div class="rx-clinic-addr">'+esc(profile.clinicAddress||'').replace(/\n/g,'<br>')+'</div>'
+    + (profile.clinicPhone?'<div class="rx-clinic-addr" style="margin-top:4px;"><b>Contact Details:</b> '+esc(profile.clinicPhone)+'</div>':'')+'</div>'
+    + '<div style="text-align:right;"><div class="rx-doc-name">'+esc(profile.doctorName||'\u2014')+'</div>'
+    + '<div class="rx-clinic-addr">'+esc(profile.qualifications||'')+'</div>'
+    + '<div class="rx-clinic-addr">Reg. No: '+esc(profile.regNumber||'\u2014')+'</div></div>'
+    + '</div>'
+    + body
+    + '</div>';
+}
 function renderPrintView() {
   if (!PRINT_RX) { VIEW='list'; return renderListView(); }
   const { patient, rx } = PRINT_RX;
@@ -5122,6 +5258,23 @@ function renderOsteoTab(p) {
   return html;
 }
 
+function renderConfirmDeletePatientView(p) {
+  return '<div style="min-height:100vh;display:flex;flex-direction:column;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
+    + '<button class="icon-btn" data-action="close-confirm-delete">'+ic('back')+'</button>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">Delete Case</h2>'
+    + '</div></div></div>'
+    + '<div class="px" style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:6px;padding-bottom:60px;">'
+    + '<div style="width:72px;height:72px;border-radius:50%;background:var(--red-bg);color:var(--red);display:flex;align-items:center;justify-content:center;margin-bottom:8px;">'+ic('trash')+'</div>'
+    + '<h2 style="font-size:19px;font-weight:800;margin:0;">Delete this case?</h2>'
+    + '<p style="font-size:13px;color:var(--muted);max-width:300px;line-height:1.6;margin:4px 0 4px;"><b>'+escName(p.name)+'</b>'+(p.patientCode?' \u2014 '+esc(p.patientCode):'')+' will move to <b>Recently Deleted</b>. You can restore it any time within <b>30 days</b> \u2014 after that it\u2019s removed permanently, including all photos and records.</p>'
+    + '<div class="row gap2" style="width:100%;max-width:320px;margin-top:18px;">'
+    + '<button class="btn" style="flex:1;" data-action="close-confirm-delete">Cancel</button>'
+    + '<button class="btn" style="flex:1;background:var(--red);border-color:var(--red);color:#fff;" data-action="confirm-delete-patient" data-id="'+p.id+'">'+ic('trash')+' Delete Case</button>'
+    + '</div>'
+    + '</div>'
+    + '</div>';
+}
 function renderDetailShell(p) {
   const tabs = visibleTabs(p);
   const QUICK_ACCESS_TABS = ['photos']; // reachable via a button, not shown in the tab bar itself
@@ -5147,7 +5300,7 @@ function renderDetailShell(p) {
     + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;">'+(isSurgical?'Surgical case':'OPD case')+'</p>'
     + '</div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;margin-top:2px;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
-    + confirmBtn('delete-patient', p.id)
+    + '<button class="icon-btn" style="color:var(--red);margin-top:2px;" data-action="open-confirm-delete" title="Delete Case">'+ic('trash')+'</button>'
     + '</div>'
     + '<div class="px" style="padding-bottom:10px;"><select class="select" style="font-weight:700;" data-field="status">'+statusOptions+'</select></div>'
     + '<div class="tabs-wrap"><div class="tabs px">'+tabsHtml+'</div></div>'
@@ -5352,6 +5505,13 @@ async function renderCurrentView(app) {
   if (VIEW === 'cloud-sync') { app.innerHTML = renderCloudSyncView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
   if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
+  if (VIEW === 'print-summary') { app.innerHTML = renderCaseSummaryPrintView(); return; }
+  if (VIEW === 'export-summary') {
+    const p = getPatient(SELECTED_ID);
+    if (!p) { VIEW='list'; return render(); }
+    app.innerHTML = renderExportSummaryView(p);
+    return;
+  }
   if (VIEW === 'compare-picker') { app.innerHTML = await renderComparePickerView(); return; }
   if (VIEW === 'compare-view') { app.innerHTML = renderCompareView(); return; }
   if (VIEW === 'calendar') { app.innerHTML = renderCalendarView(); return; }
@@ -5364,6 +5524,12 @@ async function renderCurrentView(app) {
     if (!p) { VIEW='list'; return render(); }
     app.innerHTML = renderDetailShell(p);
     await renderTabBody(p);
+    return;
+  }
+  if (VIEW === 'confirm-delete-patient') {
+    const p = getPatient(SELECTED_ID);
+    if (!p) { VIEW='list'; return render(); }
+    app.innerHTML = renderConfirmDeletePatientView(p);
     return;
   }
 }
@@ -5667,7 +5833,7 @@ async function importBackup(file) {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','cancel-quick-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -6493,6 +6659,8 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'ap-set-hand') { syncApTempFromDom(); AP_TEMP.handDominance = el.dataset.value; render(); return; }
   if (action === 'ap-set-payment') { syncApTempFromDom(); AP_TEMP.paymentMethod = el.dataset.value; render(); return; }
   if (action === 'ap-toggle-payment') { AP_SHOW_PAYMENT = !AP_SHOW_PAYMENT; render(); return; }
+  if (action === 'ap-schedule-remove') { syncApTempFromDom(); AP_SCHEDULE = AP_SCHEDULE.filter(v => v.id !== el.dataset.value); render(); return; }
+  if (action === 'ap-schedule-add') { syncApTempFromDom(); AP_SCHEDULE.push({ id: uid(), label: 'Custom Visit', date: AP_TEMP.surgeryDate || todayStr() }); render(); return; }
   if (action === 'ap-switch-tab') {
     syncApTempFromDom();
     if (AP_TEMP.caseType === 'opd' && !AP_TEMP.condition) {
@@ -6689,6 +6857,8 @@ async function generatePersonalizedReminderMessage(p) {
     p.paymentMethod = AP_TEMP.caseType === 'surgical' ? AP_TEMP.paymentMethod : '';
     p.insuranceType = (AP_TEMP.paymentMethod === 'Insurance' || AP_TEMP.paymentMethod === 'Both') ? AP_TEMP.insuranceType : '';
     p.cashAmount = (AP_TEMP.paymentMethod === 'Cash' || AP_TEMP.paymentMethod === 'Both') ? AP_TEMP.cashAmount : '';
+    p.hospital = AP_TEMP.caseType === 'surgical' ? (AP_TEMP.hospital||'') : '';
+    p.anaesthesiaType = AP_TEMP.caseType === 'surgical' ? (AP_TEMP.anaesthesiaType||'') : '';
     p.whatsapp = AP_TEMP.whatsapp;
     p.notes = AP_TEMP.notes;
     p.preOpImageCount = AP_INVESTIGATIONS.length;
@@ -6700,6 +6870,12 @@ async function generatePersonalizedReminderMessage(p) {
     if (p.condition === 'osteoporosis') p.osteo = newOsteoShape();
     try {
       await dbPutPatient(p);
+      if (p.caseType === 'surgical' && AP_SCHEDULE.length) {
+        AP_SCHEDULE.forEach(v => {
+          if (v.date) REMINDERS.push(newReminder({ text: v.label + ' follow-up', category: 'Patient', patientId: p.id, dueDate: v.date }));
+        });
+        saveReminders();
+      }
       // These photos are already in IndexedDB (saved the moment they were picked \u2014
       // see handlePhotoInputChange / handleCategorizedPhotoChange). Reusing ph.tempId as
       // the id here just updates that same record rather than creating a duplicate.
@@ -7108,11 +7284,13 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
 
-  if (action === 'delete-patient' && el.dataset.confirm) {
+  if (action === 'open-confirm-delete') { VIEW = 'confirm-delete-patient'; render(); return; }
+  if (action === 'close-confirm-delete') { VIEW = 'detail'; render(); return; }
+  if (action === 'confirm-delete-patient') {
     const p = getPatient(el.dataset.id);
     if (p) { p.deletedAt = Date.now(); await dbPutPatient(p); }
     await refreshPatients();
-    ARMED_DELETE = null; VIEW='list'; render();
+    VIEW='list'; render();
     toast('Moved to Recently Deleted \u2014 restore any time within 30 days');
     return;
   }
@@ -7623,6 +7801,16 @@ function readProfileFromDom() {
     return;
   }
   if (action === 'close-print') { PRINT_RX = null; VIEW = 'detail'; TAB = 'prescriptions'; render(); return; }
+  if (action === 'open-export-summary') { VIEW = 'export-summary'; render(); return; }
+  if (action === 'close-export-summary') { VIEW = 'detail'; render(); return; }
+  if (action === 'export-summary-toggle') {
+    const key = el.dataset.value;
+    if (EXPORT_SUMMARY_SECTIONS.has(key)) EXPORT_SUMMARY_SECTIONS.delete(key); else EXPORT_SUMMARY_SECTIONS.add(key);
+    return;
+  }
+  if (action === 'export-summary-set-layout') { EXPORT_SUMMARY_LAYOUT = el.dataset.value; render(); return; }
+  if (action === 'do-export-summary') { PRINT_CASE_SUMMARY = getPatient(SELECTED_ID); VIEW = 'print-summary'; render(); return; }
+  if (action === 'close-print-summary') { PRINT_CASE_SUMMARY = null; VIEW = 'export-summary'; render(); return; }
   if (action === 'do-print') {
     const originalTitle = document.title;
     if (PRINT_RX) document.title = PRINT_RX.patient.name + ' - ' + formatAge(PRINT_RX.patient);
