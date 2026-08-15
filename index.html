@@ -43,6 +43,26 @@
     if (typeof onAuthChanged === 'function') onAuthChanged(user);
   });
 
+  /* ================= Subscription / Entitlement (client-side UX gate; source of
+     truth is the Firestore doc, server-verified once Play Billing is wired up) ================= */
+  let CURRENT_PLAN = 'free'; // 'free' | 'pro' | 'ai' \u2014 default until the Firestore doc is fetched
+  function isAiTier() { return !!(CURRENT_USER && (CURRENT_USER.uid === MY_UID || CURRENT_PLAN === 'ai')); }
+  function isProOrAbove() { return !!(CURRENT_USER && (CURRENT_USER.uid === MY_UID || CURRENT_PLAN === 'pro' || CURRENT_PLAN === 'ai')); }
+  async function loadSubscriptionPlan(uid) {
+    try {
+      const doc = await firestoreDB.collection('users').doc(uid).collection('meta').doc('subscription').get();
+      if (doc.exists && doc.data().plan) { CURRENT_PLAN = doc.data().plan; return; }
+      // No subscription doc yet: bootstrap one. The owner account gets 'ai' by
+      // default (matches the old MY_UID-only behaviour); everyone else starts 'free'.
+      const defaultPlan = (uid === MY_UID) ? 'ai' : 'free';
+      await firestoreDB.collection('users').doc(uid).collection('meta').doc('subscription').set({ plan: defaultPlan, updatedAt: Date.now() });
+      CURRENT_PLAN = defaultPlan;
+    } catch (e) {
+      console.error('Could not load subscription plan:', e);
+      CURRENT_PLAN = 'free';
+    }
+  }
+
   /* ================= Google Drive OAuth ================= */
   const GOOGLE_OAUTH_CLIENT_ID = '251974181391-v1jhmhqu5m77cjrrh2i45aj4l2bgm5oj.apps.googleusercontent.com';
   const GOOGLE_OAUTH_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
@@ -512,7 +532,7 @@ function pendingSyncCount() { return loadPendingSync().length; }
 function refreshPendingSyncBadge() { if (VIEW === 'list') render(); } // avoid disrupting an in-progress form on other screens
 
 function syncPatientToCloud(p) {
-  if (!CURRENT_USER || SYNC_APPLYING_REMOTE) return;
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE || !isAiTier()) return;
   try {
     const clean = JSON.parse(JSON.stringify(p));
     withTimeout(firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('patients').doc(String(p.id)).set(clean), 20000, 'Sync')
@@ -522,9 +542,10 @@ function syncPatientToCloud(p) {
 }
 /* ---- Doctor/Clinic Profile cloud sync \u2014 so a reinstall + sign-in restores it, not just
    patient data. Stored as a single doc rather than a live-synced collection since it's
-   small and changes rarely; pulled once at sign-in, pushed on every save. */
+   small and changes rarely; pulled once at sign-in, pushed on every save. AI tier only,
+   same as everything else that touches Firestore. */
 function syncProfileToCloud(profile) {
-  if (!CURRENT_USER) return;
+  if (!CURRENT_USER || !isAiTier()) return;
   try {
     firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('profile').set(profile)
       .then(function() { removePendingSync('profile', 'profile'); })
@@ -532,6 +553,7 @@ function syncProfileToCloud(profile) {
   } catch (e) {}
 }
 async function pullProfileFromCloud(uid) {
+  if (!isAiTier()) return;
   try {
     const doc = await firestoreDB.collection('users').doc(uid).collection('meta').doc('profile').get();
     const local = loadProfile();
@@ -544,7 +566,7 @@ async function pullProfileFromCloud(uid) {
   } catch (e) {}
 }
 function deletePatientFromCloud(id) {
-  if (!CURRENT_USER || SYNC_APPLYING_REMOTE) return;
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE || !isAiTier()) return;
   try {
     firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('patients').doc(String(id)).delete()
       .catch(function(err) { console.error('Cloud sync (delete) failed for patient', id, err); });
@@ -662,7 +684,7 @@ async function computeUnfiledImages() {
 }
 
 function syncImageToCloud(rec) {
-  if (!CURRENT_USER || SYNC_APPLYING_REMOTE || !rec.blob) return;
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE || !rec.blob || !isAiTier()) return;
   try {
     const uid = CURRENT_USER.uid;
     const contentType = rec.blob.type || 'image/jpeg';
@@ -675,7 +697,7 @@ function syncImageToCloud(rec) {
   } catch (e) {}
 }
 function deleteImageFromCloud(id) {
-  if (!CURRENT_USER || SYNC_APPLYING_REMOTE) return;
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE || !isAiTier()) return;
   try {
     const uid = CURRENT_USER.uid;
     firebaseStorage.ref('users/' + uid + '/images/' + id).delete().catch(function() {});
@@ -822,7 +844,7 @@ function autoDetectRegions(text) {
 /* AI-powered region detection (falls back to the offline keyword matcher above on failure
    or when AI features aren't available for this account). */
 async function aiAutoDetectRegions(text) {
-  if (!(CURRENT_USER && CURRENT_USER.uid === MY_UID)) return null;
+  if (!(isAiTier())) return null;
   if (!text || !text.trim()) return null;
   try {
     const askClaude = callGeminiDirect;
@@ -1982,13 +2004,13 @@ async function renderMoreView() {
         moreRowHtml('clock', 'Notifications'+(notifCount?' ('+notifCount+')':''), 'Due reminders and recent activity', 'open-notifications')
         + moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead', 'open-settings')
         + moreRowHtml('gear', 'App Settings', 'App Lock, dark mode, accent color, reminders, Patient ID', 'open-app-settings')
-        + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? moreRowHtml('sparkle', 'OrthoVault AI', 'Everywhere AI helps in the app \u2014 patient queries, digest, knowledge engine, clinical assistant', 'open-ai-hub', true) : '')
+        + (isAiTier() ? moreRowHtml('sparkle', 'OrthoVault AI', 'Everywhere AI helps in the app \u2014 patient queries, digest, knowledge engine, clinical assistant', 'open-ai-hub', true) : '')
         + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
         + moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new')
     },
     { key:'data', title:'Data & Backup', icon:'download', rows:
-        moreRowHtml('shield', 'Cloud Sync', CURRENT_USER ? 'Signed in \u2014 backing up automatically' : 'Not signed in \u2014 tap to set up', 'open-cloud-sync')
-        + moreRowHtml('download', 'Google Drive Backup', GOOGLE_DRIVE_ACCESS_TOKEN ? 'Connected \u2014 auto-backing up daily' : 'Connect to auto-backup to your Drive', 'open-drive-backup')
+        moreRowHtml('shield', 'Cloud Sync (AI tier)', !CURRENT_USER ? 'Not signed in \u2014 tap to set up' : (isAiTier() ? 'Signed in \u2014 backing up automatically' : 'Signed in \u2014 upgrade to AI tier to enable'), 'open-cloud-sync')
+        + moreRowHtml('download', 'Google Drive Backup'+(isProOrAbove()?'':' (Pro)'), !isProOrAbove() ? 'Upgrade to Pro to enable' : (GOOGLE_DRIVE_ACCESS_TOKEN ? 'Connected \u2014 auto-backing up daily' : 'Connect to auto-backup to your Drive'), 'open-drive-backup')
         + moreRowHtml('download', 'Export Backup', 'Zip of all cases, photos, reminders \u2014 pick your Drive folder for an off-device copy', 'export-backup')
         + moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import')
         + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
@@ -3112,7 +3134,7 @@ function renderAddView() {
     + '<div class="card" style="padding:14px;">' + tabBody + '</div>'
 
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+    + (isAiTier() ? (
         '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
         + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">'+ic('sparkle')+' AI Quick-Fill</label>'+micButtonHtml('ap-ai-fill-input')+'</div>'
         + '<p style="font-size:11px;color:var(--muted);margin:2px 0 8px;">Dictate or paste anything about the patient \u2014 AI fills the fields above from it. Separate from Notes.</p>'
@@ -3120,7 +3142,7 @@ function renderAddView() {
         + '<div style="margin-top:8px;">'+aiButtonHtml('ai-fill-from-notes','AI: Fill all fields from this',false,null,'gemini')+'</div><div id="ai-fill-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
         + '</div>'
       ) : '')
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+    + (isAiTier() ? (
         '<div>'
         + aiButtonHtml('ai-sanity-check','AI: Check for mismatches before saving',true,null,'claude')
         + (AI_SANITY_CHECK_RESULT ? '<div class="card" id="ai-sanity-answer-text" style="margin-top:8px;font-size:12.5px;white-space:pre-wrap;">'+esc(AI_SANITY_CHECK_RESULT)+speakButtonHtml('ai-sanity-answer-text')+'</div>' : '')
@@ -3204,7 +3226,7 @@ function renderOverviewTab(p) {
     + (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
     + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
     + '<div><label class="field-label">Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+    + (isAiTier() ? (
         '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
         + '<div class="row gap2" style="flex-wrap:wrap;">'
         + (AI_INVESTIGATION_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-investigations','Investigations',false,null,'claude') : '')
@@ -3247,7 +3269,7 @@ function renderOverviewTab(p) {
     + '</div>'
     + (p.nextFollowUpDate || OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" value="'+esc(p.nextFollowUpDate)+'" style="margin-top:6px;">' : '')
     + '</div>'
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+    + (isAiTier() ? (
         '<div style="padding-top:6px;border-top:1px dashed var(--border);">'
         + (AI_PATIENT_SUMMARY
             ? '<div class="card" id="ai-patient-summary-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_SUMMARY)+speakButtonHtml('ai-patient-summary-text')+'</div>'
@@ -3284,7 +3306,7 @@ function renderOverviewTab(p) {
         + (followUpReminderLink(p)
             ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
             : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
-        + (CURRENT_USER && CURRENT_USER.uid === MY_UID && p.nextFollowUpDate ? (
+        + (isAiTier() && p.nextFollowUpDate ? (
             '<div style="margin-top:8px;">'
             + (AI_PERSONALIZED_REMINDER
                 ? '<div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PERSONALIZED_REMINDER)+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
@@ -3315,7 +3337,7 @@ function renderOverviewTab(p) {
     + (isSurgical && p.procedure ? '<div style="padding-top:8px;border-top:1px solid var(--border);">'+ovSnapCell('clipboard','Procedure', p.procedure)+'</div>' : '')
     + (isSurgical && (p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+ovSnapCell('clipboard','Hospital', p.hospital)+ovSnapCell('shield','Anaesthesia', p.anaesthesiaType)+'</div>' : '')
     + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '')
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+    + (isAiTier() ? (
         '<div style="padding-top:10px;border-top:1px dashed var(--border);">'
         + (AI_PATIENT_SUMMARY
             ? '<div style="white-space:pre-wrap;font-size:12px;color:#334155;">'+esc(AI_PATIENT_SUMMARY)+speakButtonHtml('ai-patient-summary-text')+'</div>'
@@ -3356,7 +3378,7 @@ function renderOverviewTab(p) {
         (followUpReminderLink(p)
             ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
             : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
-        + (CURRENT_USER && CURRENT_USER.uid === MY_UID && p.nextFollowUpDate ? (
+        + (isAiTier() && p.nextFollowUpDate ? (
             AI_PERSONALIZED_REMINDER
               ? '<div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PERSONALIZED_REMINDER)+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
               : aiButtonHtml('ai-personalize-reminder','AI: Personalize this reminder',true,null,'gemini')
@@ -3415,7 +3437,7 @@ function tagsCardHtml(p) {
     + '</div>'
     + '<div class="row gap2"><input class="input" id="custom-tag-input" placeholder="Type a custom tag\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-tag">Add</button></div>'
     + autocompleteBoxHtml('custom-tag-input')
-    + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? (
+    + (isAiTier() ? (
         '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
         + (AI_TAG_SUGGESTIONS === null
             ? aiButtonHtml('ai-suggest-tags','AI: Suggest tags',false,null,'gemini')
@@ -4136,7 +4158,7 @@ async function renderFollowupsTab(p) {
       + '<div id="fu-inv-thumbs">'+fuInvThumbsHtml()+'</div>'
       + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
       + '<div class="row between" style="margin-top:10px;"><label class="field-label" style="margin-bottom:0;">Next follow-up date (optional)</label>'
-      + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<span style="display:inline-block;transform:scale(0.85);transform-origin:left center;">'+aiButtonHtml('ai-suggest-followup','AI suggest',false,null,'gemini')+'</span>' : '')
+      + (isAiTier() ? '<span style="display:inline-block;transform:scale(0.85);transform-origin:left center;">'+aiButtonHtml('ai-suggest-followup','AI suggest',false,null,'gemini')+'</span>' : '')
       + '</div>'
       + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
       + [['3d','+3 Days'],['1w','+1 Week'],['2w','+2 Weeks'],['3w','+3 Weeks'],['1m','+1 Month']].map(([v,l])=>'<button type="button" class="chip" data-action="fu-set-next-followup" data-value="'+v+'">'+l+'</button>').join('')
@@ -4358,7 +4380,7 @@ async function renderPrescriptionsTab(p) {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
       + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
-      + (CURRENT_USER && CURRENT_USER.uid === MY_UID ? '<div style="margin-bottom:12px;">'+aiButtonHtml('ai-draft-rx','AI: Draft from diagnosis/notes',true,null,'claude')+'</div>' : '')
+      + (isAiTier() ? '<div style="margin-bottom:12px;">'+aiButtonHtml('ai-draft-rx','AI: Draft from diagnosis/notes',true,null,'claude')+'</div>' : '')
       + renderRxTemplatesRow()
       + renderQuickAddChips()
       + '<div id="rx-med-rows">'+renderRxMedRows()+'</div>'
@@ -6104,7 +6126,7 @@ async function downloadDriveBackup(fileId) {
 }
 
 async function maybeAutoBackupToDrive(force) {
-  if (!GOOGLE_DRIVE_ACCESS_TOKEN) return false;
+  if (!GOOGLE_DRIVE_ACCESS_TOKEN || !isProOrAbove()) return false;
   
   const AUTO_BACKUP_INTERVAL_DAYS = 1;
   const LAST_DRIVE_BACKUP_KEY = 'last-drive-backup-time';
@@ -6151,6 +6173,18 @@ async function maybeAutoBackupToDrive(force) {
 async function renderGoogleDriveConnectView() {
   const lastBackup = parseInt(localStorage.getItem('last-drive-backup-time') || '0', 10);
   const lastBackupStr = lastBackup ? new Date(lastBackup).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : null;
+  if (!isProOrAbove()) {
+    return '<div style="padding-bottom:40px;">'
+      + '<div class="sticky-top px" style="padding:14px 16px;">'
+      + '<div class="row gap3"><button class="icon-btn" data-action="close-drive-backup">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Google Drive Backup</h2></div>'
+      + '</div>'
+      + '<div class="px" style="padding-top:16px;">'
+      + '<div class="card" style="text-align:center;">'
+      + '<div style="font-size:14px;color:var(--muted);line-height:1.6;">Google Drive Backup is a <b>Pro</b> feature. Upgrade to automatically back up all your patient data, photos and records to your own Google Drive, daily.</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row gap3"><button class="icon-btn" data-action="close-drive-backup">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Google Drive Backup</h2></div>'
@@ -6252,7 +6286,7 @@ function renderMasterVoiceOverlay() {
 }
 function updateMasterVoiceUI() {
   const fabWrap = document.getElementById('master-voice-fab-wrap');
-  if (fabWrap) fabWrap.style.display = (CURRENT_USER && CURRENT_USER.uid === MY_UID && !APP_LOCKED) ? 'block' : 'none';
+  if (fabWrap) fabWrap.style.display = (isAiTier() && !APP_LOCKED) ? 'block' : 'none';
   const overlayWrap = document.getElementById('master-voice-overlay-wrap');
   if (overlayWrap) overlayWrap.innerHTML = renderMasterVoiceOverlay();
 }
@@ -6448,7 +6482,7 @@ async function generatePersonalizedReminderMessage(p) {
     const p = getPatient(el.dataset.id);
     if (!p) return;
     const statusEl = document.getElementById('upcoming-status-' + p.id);
-    if (CURRENT_USER && CURRENT_USER.uid === MY_UID) {
+    if (isAiTier()) {
       const originalHtml = el.innerHTML;
       el.innerHTML = '<span class="spinner"></span>';
       el.disabled = true;
@@ -8723,11 +8757,20 @@ function syncCardHtml() {
     + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0;">First time on this app? Tap "Create Account" once. On your other devices, use "Sign In" with the same email/password.</p>'
     + '</div>';
 }
-function onAuthChanged(user) {
+async function onAuthChanged(user) {
   CURRENT_USER = user;
-  if (user) { startCloudSync(user.uid); startImageCloudSync(user.uid); retryPendingSync(); pullProfileFromCloud(user.uid); }
-  else { stopCloudSync(); stopImageCloudSync(); }
-  if (VIEW === 'settings' || VIEW === 'list') render();
+  if (user) {
+    await loadSubscriptionPlan(user.uid);
+    // Firebase Cloud Sync (Firestore + Storage) costs money to run, so it's gated to the
+    // AI tier only. Free/Pro accounts still sign in (for the subscription doc + Drive
+    // backup) but their case data never touches Firestore.
+    if (isAiTier()) { startCloudSync(user.uid); startImageCloudSync(user.uid); retryPendingSync(); pullProfileFromCloud(user.uid); }
+    else { stopCloudSync(); stopImageCloudSync(); }
+  } else {
+    stopCloudSync(); stopImageCloudSync();
+    CURRENT_PLAN = 'free';
+  }
+  if (['settings','list','cloud-sync','drive-backup','more'].includes(VIEW)) render();
 }
 function onAuthError(err) {
   toast('Sign-in error: ' + (err && err.message ? err.message : 'something went wrong'));
