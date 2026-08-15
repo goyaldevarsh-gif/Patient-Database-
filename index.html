@@ -2297,7 +2297,7 @@ function renderAboutView() {
     + '<div style="text-align:center;margin-bottom:20px;">'
     + '<h1 style="font-size:19px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1>'
     + '<p style="font-size:11px;color:var(--muted);font-weight:600;margin:2px 0 10px;">Built for Orthopaedic Surgeons</p>'
-    + '<p style="font-size:12.5px;color:var(--muted);line-height:1.5;max-width:340px;margin:0 auto;">A personal, private patient record-keeping app for orthopaedic practice \u2014 OPD and surgical cases, photos, prescriptions and follow-ups, all in one place. Works fully offline, and can privately sync across your own devices when you sign in.</p>'
+    + '<p style="font-size:12.5px;color:var(--muted);line-height:1.5;max-width:340px;margin:0 auto;">A personal, private patient record-keeping app for orthopaedic practice — OPD and surgical cases, photos, prescriptions and follow-ups, all in one place. Works fully offline, and can privately sync across your own devices when you sign in.</p>'
     + '</div>'
     + ABOUT_SECTIONS.map(sec => {
         const open = ABOUT_EXPANDED.has(sec.key);
@@ -2311,7 +2311,75 @@ function renderAboutView() {
               + '</div>' : '')
           + '</div>';
       }).join('')
-    + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' Dr. Devarsh Goyal \u2014 OrthoVault, all rights reserved</p>'
+    + '<div style="margin-top:24px;display:flex;flex-direction:column;gap:8px;">'
+    + '<button class="btn btn-outline btn-block" data-action="open-privacy-policy">'+ic('shield')+' Privacy Policy</button>'
+    + '<button class="btn btn-outline btn-block" data-action="open-terms">'+ic('file')+' Terms of Service</button>'
+    + '</div>'
+    + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">© '+new Date().getFullYear()+' Dr. Devarsh Goyal — OrthoVault, all rights reserved</p>'
+    + '</div></div>';
+}
+
+function renderPrivacyPolicyView() {
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-privacy-policy">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Privacy Policy</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:16px;font-size:13px;line-height:1.6;color:var(--ink);">'
+    + '<p style="color:var(--muted);font-size:11px;margin-bottom:16px;">Last updated: August 2026</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">1. Overview</h3>'
+    + '<p style="color:var(--muted);">OrthoVault is a personal patient record-keeping app for orthopaedic surgeons. We are committed to protecting your privacy and the privacy of your patient data.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">2. Data We Collect</h3>'
+    + '<p style="color:var(--muted);"><strong>Patient Data:</strong> Case information, diagnosis, investigations, photos, prescriptions, and follow-ups — all stored locally on your device.</p>'
+    + '<p style="color:var(--muted);"><strong>Account Data:</strong> Email and name (for sign-in and profile only).</p>'
+    + '<p style="color:var(--muted);"><strong>Cloud Sync Data (AI tier only):</strong> Encrypted patient records synced to Firebase Firestore for multi-device access.</p>'
+    + '<p style="color:var(--muted);"><strong>Google Drive Backup (Pro+ tier):</strong> Backup files uploaded to your Google Drive account.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">3. Data Storage & Security</h3>'
+    + '<p style="color:var(--muted);"><strong>Local Storage:</strong> All patient data stored on your device by default. No data leaves your device unless you explicitly enable cloud sync.</p>'
+    + '<p style="color:var(--muted);"><strong>Cloud Storage (Firebase):</strong> When enabled, data is encrypted in transit and at rest.</p>'
+    + '<p style="color:var(--muted);"><strong>Google Drive:</strong> Backups stored in your own Google Drive account; only you can access them.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">4. Third-Party Services</h3>'
+    + '<p style="color:var(--muted);"><strong>Firebase (Google):</strong> Authentication, database, and storage (AI tier only).</p>'
+    + '<p style="color:var(--muted);"><strong>Google Drive:</strong> Backup service (Pro+ tier).</p>'
+    + '<p style="color:var(--muted);"><strong>Claude API (Anthropic):</strong> AI clinical assistant (AI tier only) — queries sent securely, not stored.</p>'
+    + '<p style="color:var(--muted);"><strong>Gemini API (Google):</strong> AI suggestions (AI tier only) — queries sent securely, not stored.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">5. No Tracking or Ads</h3>'
+    + '<p style="color:var(--muted);">OrthoVault does not track users, display advertisements, or sell data to third parties.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">6. Your Rights</h3>'
+    + '<p style="color:var(--muted);">You own all your data. You can export, backup, or delete your data at any time from within the app.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">7. Contact</h3>'
+    + '<p style="color:var(--muted);">Questions? Email: support@orthovault.app</p>'
+    + '</div></div>';
+}
+
+function renderTermsView() {
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-terms">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Terms of Service</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:16px;font-size:13px;line-height:1.6;color:var(--ink);">'
+    + '<p style="color:var(--muted);font-size:11px;margin-bottom:16px;">Last updated: August 2026</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">1. Acceptance of Terms</h3>'
+    + '<p style="color:var(--muted);">By using OrthoVault, you agree to these terms. If you do not agree, do not use the app.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">2. License & Use</h3>'
+    + '<p style="color:var(--muted);">OrthoVault is licensed to you for personal, non-commercial use only. You may not reproduce, sell, or distribute the app without permission.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">3. Subscription & Billing</h3>'
+    + '<p style="color:var(--muted);"><strong>Free Tier:</strong> Complimentary, local storage only.</p>'
+    + '<p style="color:var(--muted);"><strong>Pro Tier (₹99/month):</strong> Google Drive backup, Advanced Special Tracking, Case Export, Print features.</p>'
+    + '<p style="color:var(--muted);"><strong>AI Tier (₹299/month):</strong> Everything in Pro + Cloud Sync + AI clinical assistant.</p>'
+    + '<p style="color:var(--muted);"><strong>Billing:</strong> Recurring monthly via Google Play Billing. Cancel anytime from Play Store.</p>'
+    + '<p style="color:var(--muted);"><strong>Refunds:</strong> Subject to Google Play policy.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">4. Intellectual Property</h3>'
+    + '<p style="color:var(--muted);">All content, design, and code in OrthoVault are owned by Dr. Devarsh Goyal. You are granted a limited license to use the app only.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">5. User Responsibilities</h3>'
+    + '<p style="color:var(--muted);">You are responsible for maintaining patient privacy and complying with medical regulations (HIPAA, GDPR, etc.) in your jurisdiction.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">6. Limitations of Liability</h3>'
+    + '<p style="color:var(--muted);">OrthoVault is provided "as is" without warranty. We are not liable for data loss, app malfunction, or any indirect damages.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">7. Termination</h3>'
+    + '<p style="color:var(--muted);">We reserve the right to terminate access for violation of these terms.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">8. Changes to Terms</h3>'
+    + '<p style="color:var(--muted);">We may update these terms anytime. Continued use means acceptance.</p>'
+    + '<h3 style="font-size:14px;font-weight:700;margin-top:16px;margin-bottom:8px;">9. Contact</h3>'
+    + '<p style="color:var(--muted);">Questions? Email: support@orthovault.app</p>'
     + '</div></div>';
 }
 
@@ -5857,6 +5925,8 @@ async function renderCurrentView(app) {
   if (VIEW === 'calendar') { app.innerHTML = renderCalendarView(); return; }
   if (VIEW === 'more') { app.innerHTML = await renderMoreView(); return; }
   if (VIEW === 'about') { app.innerHTML = renderAboutView(); return; }
+  if (VIEW === 'privacy-policy') { app.innerHTML = renderPrivacyPolicyView(); return; }
+  if (VIEW === 'terms') { app.innerHTML = renderTermsView(); return; }
   if (VIEW === 'recently-deleted') { app.innerHTML = await renderRecentlyDeletedView(); return; }
   if (VIEW === 'unfiled-photos') { app.innerHTML = await renderUnfiledPhotosView(); return; }
   if (VIEW === 'detail') {
@@ -8180,6 +8250,10 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'close-more') { VIEW = 'list'; render(); return; }
   if (action === 'open-about') { VIEW = 'about'; render(); return; }
   if (action === 'close-about') { VIEW = 'more'; render(); return; }
+  if (action === 'open-privacy-policy') { VIEW = 'privacy-policy'; render(); return; }
+  if (action === 'close-privacy-policy') { VIEW = 'about'; render(); return; }
+  if (action === 'open-terms') { VIEW = 'terms'; render(); return; }
+  if (action === 'close-terms') { VIEW = 'about'; render(); return; }
   if (action === 'open-recently-deleted') { VIEW = 'recently-deleted'; await render(); return; }
   if (action === 'toggle-more-section') {
     const key = el.dataset.value;
