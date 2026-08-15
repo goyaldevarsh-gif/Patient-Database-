@@ -5670,6 +5670,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'app-settings') { app.innerHTML = renderAppSettingsView(); return; }
   if (VIEW === 'cloud-sync') { app.innerHTML = await renderCloudSyncView(); return; }
   if (VIEW === 'drive-backup') { app.innerHTML = await renderGoogleDriveConnectView(); return; }
+  if (VIEW === 'drive-restore-list') { app.innerHTML = await renderDriveRestoreListView(); return; }
   if (VIEW === 'notifications') { app.innerHTML = await renderNotificationsView(); return; }
   if (VIEW === 'whats-new') { app.innerHTML = renderWhatsNewView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
@@ -6069,6 +6070,39 @@ async function uploadBackupToDrive(blob, filename) {
   }
 }
 
+/* ---- Restore from Drive ---- */
+let DRIVE_BACKUP_LIST = null; // cached list of {id,name,createdTime,size} once fetched
+let DRIVE_RESTORE_BUSY = false;
+
+async function listDriveBackups() {
+  if (!GOOGLE_DRIVE_ACCESS_TOKEN) return [];
+  const q = encodeURIComponent("name contains 'OrthoVault-backup-' and trashed = false");
+  const fields = encodeURIComponent('files(id,name,createdTime,size)');
+  const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&orderBy=createdTime desc&pageSize=30`;
+  const response = await fetch(url, { headers: { 'Authorization': 'Bearer ' + GOOGLE_DRIVE_ACCESS_TOKEN } });
+  if (!response.ok) {
+    if (response.status === 401) {
+      await dbClearGoogleDriveToken();
+      GOOGLE_DRIVE_ACCESS_TOKEN = null;
+      GOOGLE_DRIVE_FOLDER_ID = null;
+      toast('Google Drive access expired. Please reconnect.');
+      return [];
+    }
+    let detail = '';
+    try { const errJson = await response.json(); detail = errJson.error && errJson.error.message ? errJson.error.message : ''; } catch(e) {}
+    throw new Error(detail || ('HTTP ' + response.status));
+  }
+  const data = await response.json();
+  return data.files || [];
+}
+
+async function downloadDriveBackup(fileId) {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+  const response = await fetch(url, { headers: { 'Authorization': 'Bearer ' + GOOGLE_DRIVE_ACCESS_TOKEN } });
+  if (!response.ok) throw new Error('Download failed: HTTP ' + response.status);
+  return response.blob();
+}
+
 async function maybeAutoBackupToDrive(force) {
   if (!GOOGLE_DRIVE_ACCESS_TOKEN) return false;
   
@@ -6129,9 +6163,43 @@ async function renderGoogleDriveConnectView() {
       : 'Connect your Google Drive to automatically back up all your patient data, photos and records daily.')
     + '</div>'
     + (GOOGLE_DRIVE_ACCESS_TOKEN 
-      ? '<button class="btn btn-primary" data-action="drive-backup-now" style="margin-bottom:8px;width:100%;">Backup Now</button><button class="btn" data-action="drive-disconnect" style="width:100%;">Disconnect</button>'
+      ? '<button class="btn btn-primary" data-action="drive-backup-now" style="margin-bottom:8px;width:100%;">Backup Now</button>'
+        + '<button class="btn" data-action="open-drive-restore" style="margin-bottom:8px;width:100%;">Restore from Drive</button>'
+        + '<button class="btn" data-action="drive-disconnect" style="width:100%;">Disconnect</button>'
       : '<button class="btn btn-primary" data-action="drive-connect">Connect Google Drive</button>')
     + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function driveFileSizeLabel(bytes) {
+  if (!bytes) return '';
+  const mb = parseInt(bytes, 10) / (1024*1024);
+  return mb < 0.1 ? '<0.1 MB' : mb.toFixed(1) + ' MB';
+}
+
+async function renderDriveRestoreListView() {
+  let listHtml;
+  if (DRIVE_BACKUP_LIST === null) {
+    listHtml = '<div style="text-align:center;padding:24px;color:var(--muted);"><span class="spinner"></span> Loading backups\u2026</div>';
+  } else if (DRIVE_BACKUP_LIST.length === 0) {
+    listHtml = '<p style="font-size:13px;color:var(--muted);text-align:center;margin-top:24px;">No backups found on Google Drive yet.</p>';
+  } else {
+    listHtml = DRIVE_BACKUP_LIST.map(f => {
+      const dateStr = f.createdTime ? new Date(f.createdTime).toLocaleString('en-IN', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+      return '<button class="card" style="text-align:left;width:100%;margin-bottom:8px;" data-action="drive-restore-select" data-id="'+esc(f.id)+'" data-name="'+esc(f.name)+'">'
+        + '<div style="font-size:13px;font-weight:700;">'+esc(f.name)+'</div>'
+        + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">'+dateStr+(f.size ? ' \u2014 '+driveFileSizeLabel(f.size) : '')+'</div>'
+        + '</button>';
+    }).join('');
+  }
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-drive-restore">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Restore from Drive</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:16px;">'
+    + '<p style="font-size:12px;color:var(--muted);margin-bottom:14px;">Tap a backup to restore it. Existing cases are kept \u2014 restored data merges in, same as Import Backup.</p>'
+    + listHtml
     + '</div>'
     + '</div>';
 }
@@ -6147,7 +6215,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -7657,6 +7725,41 @@ async function generatePersonalizedReminderMessage(p) {
       const ok = await maybeAutoBackupToDrive(true);
       if (ok) toast('Backup saved to Google Drive');
     } finally {
+      render();
+    }
+    return;
+  }
+  if (action === 'open-drive-restore') {
+    DRIVE_BACKUP_LIST = null;
+    VIEW = 'drive-restore-list';
+    render();
+    try {
+      DRIVE_BACKUP_LIST = await listDriveBackups();
+    } catch (err) {
+      toast('Could not load backups: ' + err.message);
+      DRIVE_BACKUP_LIST = [];
+    }
+    if (VIEW === 'drive-restore-list') render();
+    return;
+  }
+  if (action === 'close-drive-restore') { VIEW = 'drive-backup'; render(); return; }
+  if (action === 'drive-restore-select') {
+    if (DRIVE_RESTORE_BUSY) return;
+    const fileId = el.dataset.id;
+    const fileName = el.dataset.name || 'this backup';
+    if (!confirm('Restore "' + fileName + '"? Your existing cases will be kept \u2014 this merges in the restored data, same as Import Backup.')) return;
+    DRIVE_RESTORE_BUSY = true;
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Restoring\u2026';
+    el.disabled = true;
+    try {
+      const blob = await downloadDriveBackup(fileId);
+      await importBackup(blob);
+    } catch (err) {
+      toast('Restore failed: ' + err.message);
+    } finally {
+      DRIVE_RESTORE_BUSY = false;
+      VIEW = 'more';
       render();
     }
     return;
