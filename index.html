@@ -63,6 +63,59 @@
     }
   }
 
+  async function loadTokenUsage(uid) {
+    if (!isAiTier()) return; // Only AI tier has token limits
+    try {
+      const doc = await firestoreDB.collection('users').doc(uid).collection('meta').doc('tokenUsage').get();
+      const today = new Date().toISOString().split('T')[0];
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+      
+      if (doc.exists) {
+        const data = doc.data();
+        // Reset daily if new day
+        if (data.date !== today) {
+          TOKEN_USAGE = { dailyCount: 0, monthlyCount: data.monthlyCount || 0, date: today, monthStart };
+        }
+        // Reset monthly if new month
+        else if (data.monthStart !== monthStart) {
+          TOKEN_USAGE = { dailyCount: data.dailyCount || 0, monthlyCount: 0, date: today, monthStart };
+        } else {
+          TOKEN_USAGE = data;
+        }
+      } else {
+        TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: today, monthStart };
+      }
+    } catch (e) {
+      console.error('Could not load token usage:', e);
+      TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
+    }
+  }
+
+  async function canUseAI() {
+    if (!isAiTier()) { toast('AI features are for AI tier. Upgrade to enable.'); return false; }
+    if (TOKEN_USAGE.dailyCount >= DAILY_LIMIT) { toast('Daily token limit (5000) reached. Resets tomorrow.'); return false; }
+    if (TOKEN_USAGE.monthlyCount >= MONTHLY_LIMIT) { toast('Monthly token limit (50000) reached. Resets next month.'); return false; }
+    return true;
+  }
+
+  async function logTokenUsage(uid, inputTokens, outputTokens) {
+    if (!isAiTier()) return;
+    try {
+      const totalTokens = (inputTokens || 0) + (outputTokens || 0);
+      const today = new Date().toISOString().split('T')[0];
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+      
+      TOKEN_USAGE.dailyCount = (TOKEN_USAGE.dailyCount || 0) + totalTokens;
+      TOKEN_USAGE.monthlyCount = (TOKEN_USAGE.monthlyCount || 0) + totalTokens;
+      TOKEN_USAGE.date = today;
+      TOKEN_USAGE.monthStart = monthStart;
+      
+      await firestoreDB.collection('users').doc(uid).collection('meta').doc('tokenUsage').set(TOKEN_USAGE);
+    } catch (e) {
+      console.error('Could not log token usage:', e);
+    }
+  }
+
   /* ================= Google Drive OAuth ================= */
   const GOOGLE_OAUTH_CLIENT_ID = '251974181391-v1jhmhqu5m77cjrrh2i45aj4l2bgm5oj.apps.googleusercontent.com';
   const GOOGLE_OAUTH_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
@@ -941,6 +994,10 @@ const ASK_GEMINI_URL = 'https://askgemini-251974181391.asia-south2.run.app';
 async function callGeminiDirect(payload) {
   const user = firebase.auth().currentUser;
   if (!user) throw new Error('Sign in first.');
+  
+  // Check token limit before calling
+  if (!await canUseAI()) throw new Error('Token limit reached');
+  
   const idToken = await user.getIdToken();
   const res = await fetch(ASK_GEMINI_URL, {
     method: 'POST',
@@ -951,15 +1008,34 @@ async function callGeminiDirect(payload) {
   if (!res.ok || !json || json.error) {
     throw new Error((json && json.error && json.error.message) || ('Gemini request failed (' + res.status + ')'));
   }
+  
+  // Log token usage if response includes it
+  if (json.result && (json.result.inputTokens || json.result.outputTokens)) {
+    await logTokenUsage(user.uid, json.result.inputTokens, json.result.outputTokens);
+  }
+  
   return { data: json.result };
 }
 /* Routes an AI call to Gemini (fast/cheap, for suggestion-type/organizational tasks) or Claude
-   (higher-trust clinical reasoning \u2014 investigations, exam findings, summaries, prescriptions,
+   (higher-trust clinical reasoning — investigations, exam findings, summaries, prescriptions,
    sanity checks). Same call signature/response shape as calling askClaude directly. */
 async function callAI(provider, systemPrompt, userMessage, maxTokens) {
+  const user = firebase.auth().currentUser;
+  if (!user) throw new Error('Sign in first.');
+  
+  // Check token limit before calling
+  if (!await canUseAI()) throw new Error('Token limit reached');
+  
   const fnName = provider === 'gemini' ? 'askGemini' : 'askClaude';
   const fn = firebaseFunctions.httpsCallable(fnName);
-  return fn({ systemPrompt, userMessage, maxTokens });
+  const result = await fn({ systemPrompt, userMessage, maxTokens });
+  
+  // Log token usage if response includes it
+  if (result.data && (result.data.inputTokens || result.data.outputTokens)) {
+    await logTokenUsage(user.uid, result.data.inputTokens, result.data.outputTokens);
+  }
+  
+  return result;
 }
 
 /* ================= State ================= */
@@ -973,6 +1049,11 @@ let TAG_FILTER = '';
 let TAB = 'overview';
 let ARMED_DELETE = null;
 let SHOW_TAG_FILTER = false;
+
+// Token usage tracking (AI tier only)
+let TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
+const DAILY_LIMIT = 5000;
+const MONTHLY_LIMIT = 50000;
 let SHOW_INSIGHTS = false;
 let SHOW_ALL_ATTENTION = false;
 let ATTENTION_EXPANDED = false;
@@ -2273,6 +2354,23 @@ function renderAppSettingsView() {
     + '</div>'
     + notifCardHtml()
     + moreRowHtml('shield', 'Backup & Cloud Sync', 'Auto backup, cloud sync status', 'open-cloud-sync')
+    + (isAiTier() ? (
+        '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">AI USAGE</div>'
+        + '<div class="card">'
+        + '<label class="field-label">Token Usage</label>'
+        + '<div class="row between" style="font-size:13px;margin-bottom:8px;">'
+        + '<span>Today</span>'
+        + '<span class="mono">'+TOKEN_USAGE.dailyCount+' / '+DAILY_LIMIT+'</span>'
+        + '</div>'
+        + '<div style="width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--blue);width:'+(Math.min(TOKEN_USAGE.dailyCount, DAILY_LIMIT)/DAILY_LIMIT*100)+'%;"></div></div>'
+        + '<div class="row between" style="font-size:13px;margin-top:12px;margin-bottom:8px;">'
+        + '<span>This month</span>'
+        + '<span class="mono">'+TOKEN_USAGE.monthlyCount+' / '+MONTHLY_LIMIT+'</span>'
+        + '</div>'
+        + '<div style="width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--blue);width:'+(Math.min(TOKEN_USAGE.monthlyCount, MONTHLY_LIMIT)/MONTHLY_LIMIT*100)+'%;"></div></div>'
+        + '<p style="font-size:10.5px;color:var(--muted);margin:10px 0 0;">Used for AI clinical assistant, suggestions, and analysis.</p>'
+        + '</div>'
+      ) : '')
     + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">SECURITY</div>'
     + appLockCardHtml()
     + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">ABOUT</div>'
@@ -8853,6 +8951,7 @@ async function onAuthChanged(user) {
   CURRENT_USER = user;
   if (user) {
     await loadSubscriptionPlan(user.uid);
+    await loadTokenUsage(user.uid); // Load token usage for AI tier
     // Firebase Cloud Sync (Firestore + Storage) costs money to run, so it's gated to the
     // AI tier only. Free/Pro accounts still sign in (for the subscription doc + Drive
     // backup) but their case data never touches Firestore.
@@ -8861,6 +8960,7 @@ async function onAuthChanged(user) {
   } else {
     stopCloudSync(); stopImageCloudSync();
     CURRENT_PLAN = 'free';
+    TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
   }
   // Always render to ensure UI reflects latest plan/auth state
   render();
