@@ -6399,7 +6399,7 @@ document.addEventListener('click', async (e) => {
     try {
       await firebase.auth().createUserWithEmailAndPassword(email.trim(), password);
       toast('Account created \u2014 signed in');
-      render();
+      // Don't render here; onAuthChanged will handle it after loadSubscriptionPlan completes
     } catch (err) {
       toast('Could not create account: ' + (err && err.message ? err.message : 'unknown error'));
     }
@@ -6412,7 +6412,7 @@ document.addEventListener('click', async (e) => {
     try {
       await firebase.auth().signInWithEmailAndPassword(email.trim(), password);
       toast('Signed in');
-      render();
+      // Don't render here; onAuthChanged will handle it after loadSubscriptionPlan completes
     } catch (err) {
       toast('Sign-in failed: ' + (err && err.message ? err.message : 'unknown error'));
     }
@@ -8800,7 +8800,8 @@ async function onAuthChanged(user) {
     stopCloudSync(); stopImageCloudSync();
     CURRENT_PLAN = 'free';
   }
-  if (['settings','list','cloud-sync','drive-backup','more'].includes(VIEW)) render();
+  // Always render to ensure UI reflects latest plan/auth state
+  render();
 }
 function onAuthError(err) {
   toast('Sign-in error: ' + (err && err.message ? err.message : 'something went wrong'));
