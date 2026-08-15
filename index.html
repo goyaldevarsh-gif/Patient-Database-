@@ -59,12 +59,14 @@
         await dbSaveGoogleDriveToken(accessToken);
         window.location.hash = '';
         toast('Google Drive connected!');
-        render();
+        return true;
       } catch (e) {
         console.error('Error saving token:', e);
         toast('Connection failed. Please try again.');
+        return false;
       }
     }
+    return false;
   }
 
   // Load stored Google Drive credentials on app start
@@ -6052,7 +6054,9 @@ async function uploadBackupToDrive(blob, filename) {
         toast('Google Drive access expired. Please reconnect.');
         return false;
       }
-      throw new Error('Upload failed: ' + response.status);
+      let detail = '';
+      try { const errJson = await response.json(); detail = errJson.error && errJson.error.message ? errJson.error.message : ''; } catch(e) {}
+      throw new Error((detail || ('HTTP ' + response.status)));
     }
     
     const result = await response.json();
@@ -6065,18 +6069,18 @@ async function uploadBackupToDrive(blob, filename) {
   }
 }
 
-async function maybeAutoBackupToDrive() {
-  if (!GOOGLE_DRIVE_ACCESS_TOKEN) return;
+async function maybeAutoBackupToDrive(force) {
+  if (!GOOGLE_DRIVE_ACCESS_TOKEN) return false;
   
   const AUTO_BACKUP_INTERVAL_DAYS = 1;
   const LAST_DRIVE_BACKUP_KEY = 'last-drive-backup-time';
   
   try {
-    if (!PATIENTS.length) return;
+    if (!PATIENTS.length) return false;
     const lastBackup = parseInt(localStorage.getItem(LAST_DRIVE_BACKUP_KEY) || '0', 10);
     const daysSince = Math.floor((Date.now() - lastBackup) / (1000 * 60 * 60 * 24));
     
-    if (lastBackup === 0 || daysSince >= AUTO_BACKUP_INTERVAL_DAYS) {
+    if (force || lastBackup === 0 || daysSince >= AUTO_BACKUP_INTERVAL_DAYS) {
       const zip = new JSZip();
       const allPatients = await dbGetAllPatients();
       zip.file('cases.json', JSON.stringify(allPatients, null, 2));
@@ -6099,14 +6103,20 @@ async function maybeAutoBackupToDrive() {
       
       if (await uploadBackupToDrive(blob, filename)) {
         localStorage.setItem(LAST_DRIVE_BACKUP_KEY, String(Date.now()));
+        return true;
       }
     }
+    return false;
   } catch (e) {
     console.error('Auto Drive backup failed:', e);
+    toast('Drive backup failed: ' + (e.message || 'unknown error'));
+    return false;
   }
 }
 
 async function renderGoogleDriveConnectView() {
+  const lastBackup = parseInt(localStorage.getItem('last-drive-backup-time') || '0', 10);
+  const lastBackupStr = lastBackup ? new Date(lastBackup).toLocaleString('en-IN', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' }) : null;
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row gap3"><button class="icon-btn" data-action="close-drive-backup">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Google Drive Backup</h2></div>'
@@ -6115,11 +6125,11 @@ async function renderGoogleDriveConnectView() {
     + '<div class="card" style="text-align:center;margin-bottom:16px;">'
     + '<div style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:16px;">'
     + (GOOGLE_DRIVE_ACCESS_TOKEN 
-      ? '✓ Connected. Your data is backed up daily to your Google Drive.' 
+      ? '✓ Connected. Your data is backed up daily to your Google Drive.' + (lastBackupStr ? '<br><span style="font-size:12px;">Last backup: '+lastBackupStr+'</span>' : '<br><span style="font-size:12px;">No backup yet \u2014 tap below to run one now</span>')
       : 'Connect your Google Drive to automatically back up all your patient data, photos and records daily.')
     + '</div>'
     + (GOOGLE_DRIVE_ACCESS_TOKEN 
-      ? '<button class="btn" data-action="drive-disconnect" style="margin-bottom:8px;">Disconnect</button>'
+      ? '<button class="btn btn-primary" data-action="drive-backup-now" style="margin-bottom:8px;width:100%;">Backup Now</button><button class="btn" data-action="drive-disconnect" style="width:100%;">Disconnect</button>'
       : '<button class="btn btn-primary" data-action="drive-connect">Connect Google Drive</button>')
     + '</div>'
     + '</div>'
@@ -7639,6 +7649,18 @@ async function generatePersonalizedReminderMessage(p) {
     await disconnectGoogleDrive();
     return;
   }
+  if (action === 'drive-backup-now') {
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Backing up\u2026';
+    el.disabled = true;
+    try {
+      const ok = await maybeAutoBackupToDrive(true);
+      if (ok) toast('Backup saved to Google Drive');
+    } finally {
+      render();
+    }
+    return;
+  }
   if (action === 'export-case-log') { exportCaseLogCsv(); return; }
   if (action === 'rx-save-template') {
     syncRxMedsFromDom();
@@ -8655,7 +8677,8 @@ function renderSplashScreen() {
     await refreshPatients();
     loadReminders();
     await loadGoogleDriveCredentials();
-    handleOAuthCallback();
+    const justConnectedDrive = await handleOAuthCallback();
+    if (justConnectedDrive) { VIEW = 'drive-backup'; }
     render();
     maybeAutoBackup();
     maybeNotifyToday();
