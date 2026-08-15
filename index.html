@@ -4951,7 +4951,13 @@ async function renderTabBody(p) {
     + '</div>';
   if (TAB === 'imagesrecords') el.innerHTML = await renderImagesRecordsTab(p);
   else if (TAB === 'followups') el.innerHTML = await renderFollowupsTab(p);
-  else if (TAB === 'prescriptions') el.innerHTML = await renderPrescriptionsTab(p);
+  else if (TAB === 'prescriptions') {
+    if (!isProOrAbove()) {
+      el.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:14px;color:var(--muted);line-height:1.6;">Prescriptions are a <b>Pro</b> feature. Upgrade to write, save, and share prescriptions with your patients.</div></div>';
+    } else {
+      el.innerHTML = await renderPrescriptionsTab(p);
+    }
+  }
   else if (TAB === 'photos') el.innerHTML = await renderPhotoOrganiserTab(p);
 }
 
@@ -5726,8 +5732,22 @@ async function renderCurrentView(app) {
   if (VIEW === 'notifications') { app.innerHTML = await renderNotificationsView(); return; }
   if (VIEW === 'whats-new') { app.innerHTML = renderWhatsNewView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
-  if (VIEW === 'print') { app.innerHTML = renderPrintView(); return; }
-  if (VIEW === 'print-summary') { app.innerHTML = renderCaseSummaryPrintView(); return; }
+  if (VIEW === 'print') { 
+    if (!isProOrAbove()) { 
+      app.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:14px;color:var(--muted);">Prescription printing is a Pro feature.</div></div>'; 
+    } else { 
+      app.innerHTML = renderPrintView(); 
+    }
+    return; 
+  }
+  if (VIEW === 'print-summary') { 
+    if (!isProOrAbove()) { 
+      app.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:14px;color:var(--muted);">Case Summary printing is a Pro feature.</div></div>'; 
+    } else { 
+      app.innerHTML = renderCaseSummaryPrintView(); 
+    }
+    return; 
+  }
   if (VIEW === 'export-summary') {
     const p = getPatient(SELECTED_ID);
     if (!p) { VIEW='list'; return render(); }
@@ -6885,7 +6905,11 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'toggle-tscore-help') { SHOW_TSCORE_HELP = !SHOW_TSCORE_HELP; await renderTabBody(getPatient(SELECTED_ID)); return; }
 
-  if (action === 'ctev-open-add-session') { initCtevSessionTemp(); ADD_CTEV_SESSION_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ctev-open-add-session') { 
+    if (!isProOrAbove()) { toast('CTEV Tracking is a Pro feature. Upgrade to enable.'); return; }
+    initCtevSessionTemp(); ADD_CTEV_SESSION_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); 
+    return; 
+  }
   if (action === 'ctev-cancel-add-session') { ADD_CTEV_SESSION_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-session-set-foot') { syncCtevSessionFromDom(); CTEV_SESSION_ACTIVE_FOOT = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-score') {
@@ -6955,7 +6979,11 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'ra-open-add-visit') { initRaVisitTemp(); ADD_RA_VISIT_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'ra-open-add-visit') { 
+    if (!isProOrAbove()) { toast('RA Tracking is a Pro feature. Upgrade to enable.'); return; }
+    initRaVisitTemp(); ADD_RA_VISIT_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); 
+    return; 
+  }
   if (action === 'ra-cancel-add-visit') { ADD_RA_VISIT_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ra-submit-visit') {
     syncRaVisitFromDom();
@@ -6985,7 +7013,11 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'osteo-open-add-dexa') { initDexaTemp(); ADD_DEXA_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'osteo-open-add-dexa') { 
+    if (!isProOrAbove()) { toast('DEXA Tracking is a Pro feature. Upgrade to enable.'); return; }
+    initDexaTemp(); ADD_DEXA_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); 
+    return; 
+  }
   if (action === 'osteo-cancel-add-dexa') { ADD_DEXA_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'osteo-submit-dexa') {
     const p = getPatient(SELECTED_ID);
@@ -7828,7 +7860,11 @@ async function generatePersonalizedReminderMessage(p) {
     }
     return;
   }
-  if (action === 'export-case-log') { exportCaseLogCsv(); return; }
+  if (action === 'export-case-log') { 
+    if (!isProOrAbove()) { toast('Export Case Log is a Pro feature. Upgrade to enable.'); return; }
+    exportCaseLogCsv(); 
+    return; 
+  }
   if (action === 'rx-save-template') {
     syncRxMedsFromDom();
     const meds = RX_TEMP.medicines.filter(m => m.name.trim());
@@ -8279,6 +8315,7 @@ function readProfileFromDom() {
     return;
   }
   if (action === 'view-rx') {
+    if (!isProOrAbove()) { toast('Prescription printing is a Pro feature. Upgrade to enable.'); return; }
     const p = getPatient(SELECTED_ID);
     const rx = (p.prescriptions||[]).find(r => r.id === el.dataset.id);
     if (!rx) return;
@@ -8304,7 +8341,11 @@ function readProfileFromDom() {
     return;
   }
   if (action === 'export-summary-set-layout') { EXPORT_SUMMARY_LAYOUT = el.dataset.value; render(); return; }
-  if (action === 'do-export-summary') { PRINT_CASE_SUMMARY = getPatient(SELECTED_ID); VIEW = 'print-summary'; render(); return; }
+  if (action === 'do-export-summary') { 
+    if (!isProOrAbove()) { toast('Case Summary printing is a Pro feature. Upgrade to enable.'); return; }
+    PRINT_CASE_SUMMARY = getPatient(SELECTED_ID); VIEW = 'print-summary'; render(); 
+    return; 
+  }
   if (action === 'close-print-summary') { PRINT_CASE_SUMMARY = null; VIEW = 'export-summary'; render(); return; }
   if (action === 'do-print') {
     const originalTitle = document.title;
