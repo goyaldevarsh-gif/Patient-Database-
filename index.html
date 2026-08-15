@@ -4989,9 +4989,9 @@ function renderTimelineTab(p) {
 function visibleTabs(p) {
   const tabs = [{key:'overview', label:'Overview', icon:'info'}];
   tabs.push({key:'timeline', label:'Timeline', icon:'clock'});
-  if (p.condition === 'ctev') tabs.push({key:'ctev', label:'CTEV', icon:'foot'});
-  if (p.condition === 'ra') tabs.push({key:'ra', label:'RA', icon:'pill'});
-  if (p.condition === 'osteoporosis') tabs.push({key:'osteo', label:'Bone Health', icon:'shield'});
+  if (p.condition === 'ctev' && isProOrAbove()) tabs.push({key:'ctev', label:'CTEV', icon:'foot'});
+  if (p.condition === 'ra' && isProOrAbove()) tabs.push({key:'ra', label:'RA', icon:'pill'});
+  if (p.condition === 'osteoporosis' && isProOrAbove()) tabs.push({key:'osteo', label:'Bone Health', icon:'shield'});
   tabs.push({key:'followups', label:'Follow-Up', icon:'calendar'});
   tabs.push({key:'imagesrecords', label:'Images & Records', icon:'camera'});
   tabs.push({key:'prescriptions', label:'Prescriptions', icon:'printer'});
