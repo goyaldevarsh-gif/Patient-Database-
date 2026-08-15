@@ -6003,7 +6003,14 @@ async function importBackup(file) {
 
 /* ================= Google Drive Backup Integration ================= */
 function initiateGoogleDriveAuth() {
-  const redirectUri = window.location.origin + window.location.pathname + 'oauth-callback';
+  // Redirect back to the app's own root/index page (not a separate "oauth-callback"
+  // route, which doesn't exist as a real file on GitHub Pages and would 404).
+  // handleOAuthCallback() reads the token from the URL hash on every app load.
+  let basePath = window.location.pathname;
+  if (!basePath.endsWith('/')) {
+    basePath = basePath.substring(0, basePath.lastIndexOf('/') + 1);
+  }
+  const redirectUri = window.location.origin + basePath;
   const scopes = GOOGLE_OAUTH_SCOPES.join(' ');
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
     `client_id=${GOOGLE_OAUTH_CLIENT_ID}` +
