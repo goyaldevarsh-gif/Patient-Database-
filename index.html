@@ -4940,31 +4940,10 @@ async function renderTabBody(p) {
   const el = document.getElementById('tab-body');
   if (!el) return;
   if (TAB === 'overview') { el.innerHTML = renderOverviewTab(p); return; }
-  if (TAB === 'ctev') { 
-    if (!isProOrAbove()) { 
-      el.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:14px;color:var(--muted);line-height:1.6;">CTEV Tracking is a <b>Pro</b> feature. Upgrade to track Pirani scores and casting progress.</div></div>';
-    } else {
-      el.innerHTML = renderCtevTab(p);
-    }
-    return; 
-  }
+  if (TAB === 'ctev') { el.innerHTML = renderCtevTab(p); return; }
   if (TAB === 'timeline') { el.innerHTML = renderTimelineTab(p); return; }
-  if (TAB === 'ra') { 
-    if (!isProOrAbove()) { 
-      el.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:14px;color:var(--muted);line-height:1.6;">RA Tracking is a <b>Pro</b> feature. Upgrade to track DAS28/CDAI/SDAI scores and lab values.</div></div>';
-    } else {
-      el.innerHTML = renderRaTab(p);
-    }
-    return; 
-  }
-  if (TAB === 'osteo') { 
-    if (!isProOrAbove()) { 
-      el.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:14px;color:var(--muted);line-height:1.6;">Bone Health Tracking is a <b>Pro</b> feature. Upgrade to track DEXA T-scores and fracture risk.</div></div>';
-    } else {
-      el.innerHTML = renderOsteoTab(p);
-    }
-    return; 
-  }
+  if (TAB === 'ra') { el.innerHTML = renderRaTab(p); return; }
+  if (TAB === 'osteo') { el.innerHTML = renderOsteoTab(p); return; }
   el.innerHTML = '<div class="px" style="padding-top:14px;">'
     + '<div class="skeleton-line" style="width:60%;height:14px;margin-bottom:14px;"></div>'
     + '<div class="skeleton-block"></div>'
@@ -7260,7 +7239,15 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'ap-set-laterality') { syncApTempFromDom(); AP_TEMP.laterality = el.dataset.value; render(); return; }
-  if (action === 'ap-set-special') { syncApTempFromDom(); AP_TEMP.condition = el.dataset.value; render(); return; }
+  if (action === 'ap-set-special') { 
+    const value = el.dataset.value;
+    if (['ctev','ra','osteoporosis'].includes(value) && !isProOrAbove()) {
+      toast('Special Tracking is a Pro feature. Upgrade to use this.');
+      return;
+    }
+    syncApTempFromDom(); AP_TEMP.condition = value; render(); 
+    return; 
+  }
 
   /* These photos are already saved to IndexedDB (see handlePhotoInputChange /
      handleCategorizedPhotoChange) the moment they're picked, so removing one from the
@@ -8384,7 +8371,15 @@ async function render_only_current_view() {
 document.addEventListener('change', async (e) => {
   const t = e.target;
 
-  if (t.id === 'ap-condition') { syncApTempFromDom(); AP_TEMP.condition = t.value; render(); return; }
+  if (t.id === 'ap-condition') { 
+    if (['ctev','ra','osteoporosis'].includes(t.value) && !isProOrAbove()) {
+      toast('Special Tracking is a Pro feature. Upgrade to use this.');
+      t.value = AP_TEMP.condition; // reset dropdown
+      return;
+    }
+    syncApTempFromDom(); AP_TEMP.condition = t.value; render(); 
+    return; 
+  }
   if (t.id === 'ap-inv-category') { syncApTempFromDom(); AP_INV_CATEGORY = t.value; render(); return; }
   if (t.id === 'ap-inv-xray-subtype') { AP_INV_XRAY_SUBTYPE = t.value; return; }
   if (t.id === 'fu-inv-category') {
@@ -8487,6 +8482,11 @@ document.addEventListener('change', async (e) => {
     const p = getPatient(SELECTED_ID);
     const guess = t.value;
     if (guess) {
+      if (['ctev','ra','osteoporosis'].includes(guess) && !isProOrAbove()) {
+        toast('Special Tracking is a Pro feature. Upgrade to use this.');
+        t.value = ''; // reset
+        return;
+      }
       p.condition = guess;
       if (guess === 'ctev' && !p.ctev) p.ctev = newCtevShape();
       if (guess === 'ra' && !p.ra) p.ra = newRaShape();
