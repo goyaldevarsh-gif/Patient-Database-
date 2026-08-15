@@ -6010,7 +6010,6 @@ function initiateGoogleDriveAuth() {
     `&redirect_uri=${encodeURIComponent(redirectUri)}` +
     `&response_type=token` +
     `&scope=${encodeURIComponent(scopes)}` +
-    `&access_type=offline` +
     `&prompt=consent`;
   window.location.href = authUrl;
 }
