@@ -42,6 +42,50 @@
     CURRENT_USER = user;
     if (typeof onAuthChanged === 'function') onAuthChanged(user);
   });
+
+  /* ================= Google Drive OAuth ================= */
+  const GOOGLE_OAUTH_CLIENT_ID = '251974181391-v1jhmhqu5m77cjrrh2i45aj4l2bgm5oj.apps.googleusercontent.com';
+  const GOOGLE_OAUTH_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
+  let GOOGLE_DRIVE_ACCESS_TOKEN = null;
+  let GOOGLE_DRIVE_FOLDER_ID = null;
+
+  /* Check for OAuth callback on app load */
+  async function handleOAuthCallback() {
+    const params = new URLSearchParams(window.location.hash.substring(1));
+    const accessToken = params.get('access_token');
+    if (accessToken) {
+      GOOGLE_DRIVE_ACCESS_TOKEN = accessToken;
+      try {
+        await dbSaveGoogleDriveToken(accessToken);
+        window.location.hash = '';
+        toast('Google Drive connected!');
+        render();
+      } catch (e) {
+        console.error('Error saving token:', e);
+        toast('Connection failed. Please try again.');
+      }
+    }
+  }
+
+  // Load stored Google Drive credentials on app start
+  async function loadGoogleDriveCredentials() {
+    try {
+      const db = await openIndexedDB();
+      const tx = db.transaction('settings', 'readonly');
+      const store = tx.objectStore('settings');
+      const result = await new Promise((resolve, reject) => {
+        const req = store.get('google_drive');
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      if (result) {
+        GOOGLE_DRIVE_ACCESS_TOKEN = result.accessToken;
+        GOOGLE_DRIVE_FOLDER_ID = result.folderId;
+      }
+    } catch (e) {
+      console.error('Error loading Google Drive credentials:', e);
+    }
+  }
 </script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&display=swap');
@@ -579,6 +623,22 @@ async function dbDeleteImagesByPatient(patientId) {
   for (const img of imgs) await dbDeleteImage(img.id);
 }
 async function dbGetAllImages() { const s = await storeOf('images','readonly'); return reqToPromise(s.getAll()); }
+
+/* ================= Google Drive Backup Storage ================= */
+async function dbSaveGoogleDriveToken(accessToken, folderId = null) {
+  const s = await storeOf('settings','readwrite');
+  return reqToPromise(s.put({ id: 'google_drive', accessToken, folderId, savedAt: Date.now() }));
+}
+
+async function dbGetGoogleDriveToken() {
+  const s = await storeOf('settings','readonly');
+  return reqToPromise(s.get('google_drive'));
+}
+
+async function dbClearGoogleDriveToken() {
+  const s = await storeOf('settings','readwrite');
+  return reqToPromise(s.delete('google_drive'));
+}
 
 /* An image counts as "unfiled" if it isn't yet visible anywhere in the normal tabs \u2014
    not linked to a follow-up/investigation/prescription, not an OT photo, and not
@@ -1926,6 +1986,7 @@ async function renderMoreView() {
     },
     { key:'data', title:'Data & Backup', icon:'download', rows:
         moreRowHtml('shield', 'Cloud Sync', CURRENT_USER ? 'Signed in \u2014 backing up automatically' : 'Not signed in \u2014 tap to set up', 'open-cloud-sync')
+        + moreRowHtml('download', 'Google Drive Backup', GOOGLE_DRIVE_ACCESS_TOKEN ? 'Connected \u2014 auto-backing up daily' : 'Connect to auto-backup to your Drive', 'open-drive-backup')
         + moreRowHtml('download', 'Export Backup', 'Zip of all cases, photos, reminders \u2014 pick your Drive folder for an off-device copy', 'export-backup')
         + moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import')
         + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
@@ -5606,6 +5667,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
   if (VIEW === 'app-settings') { app.innerHTML = renderAppSettingsView(); return; }
   if (VIEW === 'cloud-sync') { app.innerHTML = await renderCloudSyncView(); return; }
+  if (VIEW === 'drive-backup') { app.innerHTML = await renderGoogleDriveConnectView(); return; }
   if (VIEW === 'notifications') { app.innerHTML = await renderNotificationsView(); return; }
   if (VIEW === 'whats-new') { app.innerHTML = renderWhatsNewView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
@@ -5883,6 +5945,10 @@ async function maybeAutoBackup() {
       await exportBackup(true);
       await render();
     }
+    // Also backup to Google Drive if connected
+    if (GOOGLE_DRIVE_ACCESS_TOKEN) {
+      await maybeAutoBackupToDrive();
+    }
   } catch (e) {}
 }
 
@@ -5935,10 +6001,137 @@ async function importBackup(file) {
   }
 }
 
+/* ================= Google Drive Backup Integration ================= */
+function initiateGoogleDriveAuth() {
+  const redirectUri = window.location.origin + window.location.pathname + 'oauth-callback';
+  const scopes = GOOGLE_OAUTH_SCOPES.join(' ');
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+    `client_id=${GOOGLE_OAUTH_CLIENT_ID}` +
+    `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+    `&response_type=token` +
+    `&scope=${encodeURIComponent(scopes)}` +
+    `&access_type=offline` +
+    `&prompt=consent`;
+  window.location.href = authUrl;
+}
+
+async function uploadBackupToDrive(blob, filename) {
+  if (!GOOGLE_DRIVE_ACCESS_TOKEN) {
+    toast('Google Drive not connected');
+    return false;
+  }
+  
+  try {
+    const metadata = {
+      name: filename,
+      mimeType: 'application/zip',
+      parents: GOOGLE_DRIVE_FOLDER_ID ? [GOOGLE_DRIVE_FOLDER_ID] : []
+    };
+    
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', blob);
+    
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + GOOGLE_DRIVE_ACCESS_TOKEN },
+      body: form
+    });
+    
+    if (!response.ok) {
+      if (response.status === 401) {
+        await dbClearGoogleDriveToken();
+        GOOGLE_DRIVE_ACCESS_TOKEN = null;
+        GOOGLE_DRIVE_FOLDER_ID = null;
+        toast('Google Drive access expired. Please reconnect.');
+        return false;
+      }
+      throw new Error('Upload failed: ' + response.status);
+    }
+    
+    const result = await response.json();
+    toast('Backup saved to Google Drive');
+    return true;
+  } catch (err) {
+    console.error('Google Drive upload failed:', err);
+    toast('Drive backup failed: ' + err.message);
+    return false;
+  }
+}
+
+async function maybeAutoBackupToDrive() {
+  if (!GOOGLE_DRIVE_ACCESS_TOKEN) return;
+  
+  const AUTO_BACKUP_INTERVAL_DAYS = 1;
+  const LAST_DRIVE_BACKUP_KEY = 'last-drive-backup-time';
+  
+  try {
+    if (!PATIENTS.length) return;
+    const lastBackup = parseInt(localStorage.getItem(LAST_DRIVE_BACKUP_KEY) || '0', 10);
+    const daysSince = Math.floor((Date.now() - lastBackup) / (1000 * 60 * 60 * 24));
+    
+    if (lastBackup === 0 || daysSince >= AUTO_BACKUP_INTERVAL_DAYS) {
+      const zip = new JSZip();
+      const allPatients = await dbGetAllPatients();
+      zip.file('cases.json', JSON.stringify(allPatients, null, 2));
+      zip.file('reminders.json', JSON.stringify(REMINDERS, null, 2));
+      zip.file('profile.json', JSON.stringify(loadProfile(), null, 2));
+      
+      for (const p of allPatients) {
+        const images = await dbGetImagesByPatient(p.id);
+        for (const im of images) {
+          const folder = im.followUpId ? ('images/'+p.id+'/followup_'+im.followUpId)
+            : im.investigationId ? ('images/'+p.id+'/investigation_'+im.investigationId)
+            : im.isIntraOp ? ('images/'+p.id+'/ot')
+            : ('images/'+p.id+'/preop');
+          zip.file(folder+'/'+im.id+'.jpg', im.blob);
+        }
+      }
+      
+      const blob = await zip.generateAsync({type:'blob'});
+      const filename = 'OrthoVault-backup-'+todayStr()+'.zip';
+      
+      if (await uploadBackupToDrive(blob, filename)) {
+        localStorage.setItem(LAST_DRIVE_BACKUP_KEY, String(Date.now()));
+      }
+    }
+  } catch (e) {
+    console.error('Auto Drive backup failed:', e);
+  }
+}
+
+async function renderGoogleDriveConnectView() {
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-drive-backup">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Google Drive Backup</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:16px;">'
+    + '<div class="card" style="text-align:center;margin-bottom:16px;">'
+    + '<div style="font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:16px;">'
+    + (GOOGLE_DRIVE_ACCESS_TOKEN 
+      ? '✓ Connected. Your data is backed up daily to your Google Drive.' 
+      : 'Connect your Google Drive to automatically back up all your patient data, photos and records daily.')
+    + '</div>'
+    + (GOOGLE_DRIVE_ACCESS_TOKEN 
+      ? '<button class="btn" data-action="drive-disconnect" style="margin-bottom:8px;">Disconnect</button>'
+      : '<button class="btn btn-primary" data-action="drive-connect">Connect Google Drive</button>')
+    + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+async function disconnectGoogleDrive() {
+  await dbClearGoogleDriveToken();
+  GOOGLE_DRIVE_ACCESS_TOKEN = null;
+  GOOGLE_DRIVE_FOLDER_ID = null;
+  toast('Disconnected from Google Drive');
+  render();
+}
+
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -7427,6 +7620,19 @@ async function generatePersonalizedReminderMessage(p) {
     try { await exportBackup(); } finally { el.innerHTML = originalHtml; el.disabled = false; }
     return;
   }
+  if (action === 'open-drive-backup') {
+    VIEW = 'drive-backup';
+    render();
+    return;
+  }
+  if (action === 'drive-connect') {
+    initiateGoogleDriveAuth();
+    return;
+  }
+  if (action === 'drive-disconnect') {
+    await disconnectGoogleDrive();
+    return;
+  }
   if (action === 'export-case-log') { exportCaseLogCsv(); return; }
   if (action === 'rx-save-template') {
     syncRxMedsFromDom();
@@ -7616,6 +7822,7 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'close-settings') { VIEW = 'more'; render(); return; }
   if (action === 'close-app-settings') { VIEW = 'more'; render(); return; }
   if (action === 'close-cloud-sync') { VIEW = 'more'; render(); return; }
+  if (action === 'close-drive-backup') { VIEW = 'more'; render(); return; }
   if (action === 'open-app-settings') { VIEW = 'app-settings'; render(); return; }
   if (action === 'open-cloud-sync') { VIEW = 'cloud-sync'; render(); return; }
   if (action === 'open-notifications') { VIEW = 'notifications'; render(); return; }
@@ -8441,6 +8648,8 @@ function renderSplashScreen() {
     if (!onboardingDone) { VIEW = 'onboarding'; }
     await refreshPatients();
     loadReminders();
+    await loadGoogleDriveCredentials();
+    handleOAuthCallback();
     render();
     maybeAutoBackup();
     maybeNotifyToday();
