@@ -2297,6 +2297,36 @@ async function renderCloudSyncView() {
     ['Photos & Files', totalImages, totalImages - pendingCount('image')],
     ['Doctor Profile', 1, pendingCount('profile') ? 0 : 1],
   ];
+  
+  // Not signed in: show sign-in prompt
+  if (!CURRENT_USER) {
+    return '<div style="padding-bottom:20px;">'
+      + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
+      + '<button class="icon-btn" data-action="close-cloud-sync">'+ic('back')+'</button>'
+      + '<h2 style="font-size:16px;font-weight:800;margin:0;">Cloud Sync (AI tier)</h2>'
+      + '</div></div>'
+      + '<div class="px" style="padding-top:12px;">'
+      + syncCardHtml()
+      + '</div>'
+      + '</div>';
+  }
+  
+  // Signed in but not AI tier: show upgrade message
+  if (!isAiTier()) {
+    return '<div style="padding-bottom:20px;">'
+      + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
+      + '<button class="icon-btn" data-action="close-cloud-sync">'+ic('back')+'</button>'
+      + '<h2 style="font-size:16px;font-weight:800;margin:0;">Cloud Sync (AI tier)</h2>'
+      + '</div></div>'
+      + '<div class="px" style="padding-top:12px;">'
+      + '<div class="card" style="text-align:center;">'
+      + '<div style="font-size:14px;color:var(--muted);line-height:1.6;">Cloud Sync is an <b>AI tier</b> feature. Real-time multi-device sync of all your patient data, powered by Firebase. Upgrade to enable.</div>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }
+  
+  // Signed in AND AI tier: show sync status
   return '<div style="padding-bottom:20px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="close-cloud-sync">'+ic('back')+'</button>'
