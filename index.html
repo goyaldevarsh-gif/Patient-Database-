@@ -4940,10 +4940,31 @@ async function renderTabBody(p) {
   const el = document.getElementById('tab-body');
   if (!el) return;
   if (TAB === 'overview') { el.innerHTML = renderOverviewTab(p); return; }
-  if (TAB === 'ctev') { el.innerHTML = renderCtevTab(p); return; }
+  if (TAB === 'ctev') { 
+    if (!isProOrAbove()) { 
+      el.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:14px;color:var(--muted);line-height:1.6;">CTEV Tracking is a <b>Pro</b> feature. Upgrade to track Pirani scores and casting progress.</div></div>';
+    } else {
+      el.innerHTML = renderCtevTab(p);
+    }
+    return; 
+  }
   if (TAB === 'timeline') { el.innerHTML = renderTimelineTab(p); return; }
-  if (TAB === 'ra') { el.innerHTML = renderRaTab(p); return; }
-  if (TAB === 'osteo') { el.innerHTML = renderOsteoTab(p); return; }
+  if (TAB === 'ra') { 
+    if (!isProOrAbove()) { 
+      el.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:14px;color:var(--muted);line-height:1.6;">RA Tracking is a <b>Pro</b> feature. Upgrade to track DAS28/CDAI/SDAI scores and lab values.</div></div>';
+    } else {
+      el.innerHTML = renderRaTab(p);
+    }
+    return; 
+  }
+  if (TAB === 'osteo') { 
+    if (!isProOrAbove()) { 
+      el.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:14px;color:var(--muted);line-height:1.6;">Bone Health Tracking is a <b>Pro</b> feature. Upgrade to track DEXA T-scores and fracture risk.</div></div>';
+    } else {
+      el.innerHTML = renderOsteoTab(p);
+    }
+    return; 
+  }
   el.innerHTML = '<div class="px" style="padding-top:14px;">'
     + '<div class="skeleton-line" style="width:60%;height:14px;margin-bottom:14px;"></div>'
     + '<div class="skeleton-block"></div>'
@@ -4989,9 +5010,9 @@ function renderTimelineTab(p) {
 function visibleTabs(p) {
   const tabs = [{key:'overview', label:'Overview', icon:'info'}];
   tabs.push({key:'timeline', label:'Timeline', icon:'clock'});
-  if (p.condition === 'ctev' && isProOrAbove()) tabs.push({key:'ctev', label:'CTEV', icon:'foot'});
-  if (p.condition === 'ra' && isProOrAbove()) tabs.push({key:'ra', label:'RA', icon:'pill'});
-  if (p.condition === 'osteoporosis' && isProOrAbove()) tabs.push({key:'osteo', label:'Bone Health', icon:'shield'});
+  if (p.condition === 'ctev') tabs.push({key:'ctev', label:'CTEV', icon:'foot'});
+  if (p.condition === 'ra') tabs.push({key:'ra', label:'RA', icon:'pill'});
+  if (p.condition === 'osteoporosis') tabs.push({key:'osteo', label:'Bone Health', icon:'shield'});
   tabs.push({key:'followups', label:'Follow-Up', icon:'calendar'});
   tabs.push({key:'imagesrecords', label:'Images & Records', icon:'camera'});
   tabs.push({key:'prescriptions', label:'Prescriptions', icon:'printer'});
