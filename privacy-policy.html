@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - OrthoVault</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 { font-size: 28px; margin-bottom: 10px; color: #000; }
+        h2 { font-size: 20px; margin-top: 30px; margin-bottom: 15px; color: #222; border-bottom: 2px solid #007AFF; padding-bottom: 8px; }
+        h3 { font-size: 16px; margin-top: 20px; margin-bottom: 10px; color: #333; font-weight: 600; }
+        p { margin-bottom: 12px; text-align: justify; }
+        strong { color: #000; font-weight: 600; }
+        ul { margin-left: 20px; margin-bottom: 12px; }
+        li { margin-bottom: 8px; }
+        .meta { color: #666; font-size: 14px; margin-bottom: 30px; }
+        a { color: #007AFF; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Privacy Policy - OrthoVault</h1>
+        <p class="meta"><strong>Last Updated:</strong> August 2026</p>
+
+        <h2>1. Overview</h2>
+        <p>OrthoVault is a personal patient record-keeping app for orthopaedic surgeons. We are committed to protecting your privacy and the privacy of your patient data. This Privacy Policy explains how we collect, use, and protect your information.</p>
+
+        <h2>2. Data We Collect</h2>
+        <h3>Patient Data</h3>
+        <ul>
+            <li>Case information (diagnosis, findings, investigations, procedures)</li>
+            <li>Medical photos and documents</li>
+            <li>Prescriptions and treatment history</li>
+            <li>Follow-up dates and outcomes</li>
+            <li>All stored locally on your device by default</li>
+        </ul>
+
+        <h3>Account Data</h3>
+        <ul>
+            <li>Email address (for authentication)</li>
+            <li>Name and clinic details (for profile and prescriptions)</li>
+        </ul>
+
+        <h3>Cloud Sync Data (AI Tier Only)</h3>
+        <ul>
+            <li>Encrypted patient records synced to Firebase Firestore</li>
+            <li>Only when explicitly enabled by the user</li>
+            <li>Multi-device synchronization only</li>
+        </ul>
+
+        <h3>Google Drive Backup (Pro+ Tier)</h3>
+        <ul>
+            <li>Backup files uploaded to your personal Google Drive account</li>
+            <li>Only accessible by you</li>
+        </ul>
+
+        <h2>3. Data Storage & Security</h2>
+        <h3>Local Storage</h3>
+        <p>All patient data is stored on your device by default. No data leaves your device unless you enable cloud sync. Data is stored in app's local database (IndexedDB).</p>
+
+        <h3>Cloud Storage (Firebase)</h3>
+        <p>When cloud sync is enabled (AI tier only), data is encrypted in transit and at rest. Stored in Firebase Firestore (Google Cloud). Subject to Google's data protection policies.</p>
+
+        <h3>Google Drive Storage</h3>
+        <p>Backups stored in your own Google Drive account. Only you have access to your backups. Subject to Google's data protection policies.</p>
+
+        <h2>4. Third-Party Services</h2>
+        <p>We use the following third-party services:</p>
+
+        <h3>Firebase (Google Cloud)</h3>
+        <ul>
+            <li><strong>Purpose:</strong> Authentication, cloud database, cloud storage</li>
+            <li><strong>Data:</strong> Patient records, user profile (AI tier only)</li>
+            <li><strong>Privacy:</strong> <a href="https://firebase.google.com/support/privacy">firebase.google.com/support/privacy</a></li>
+        </ul>
+
+        <h3>Google Drive API (Google)</h3>
+        <ul>
+            <li><strong>Purpose:</strong> Backup and restore functionality</li>
+            <li><strong>Data:</strong> Backup files</li>
+            <li><strong>Privacy:</strong> <a href="https://www.google.com/policies/privacy/">google.com/policies/privacy</a></li>
+        </ul>
+
+        <h3>Claude API (Anthropic)</h3>
+        <ul>
+            <li><strong>Purpose:</strong> AI clinical assistant and suggestions</li>
+            <li><strong>Data:</strong> Case information, patient queries (sent for analysis, not stored)</li>
+            <li><strong>Privacy:</strong> <a href="https://www.anthropic.com/privacy">anthropic.com/privacy</a></li>
+        </ul>
+
+        <h3>Gemini API (Google)</h3>
+        <ul>
+            <li><strong>Purpose:</strong> AI suggestions and quick-fill</li>
+            <li><strong>Data:</strong> Case information, patient queries (sent for analysis, not stored)</li>
+            <li><strong>Privacy:</strong> <a href="https://ai.google.dev/privacy">ai.google.dev/privacy</a></li>
+        </ul>
+
+        <h2>5. No Tracking or Ads</h2>
+        <ul>
+            <li>OrthoVault does not use analytics or tracking cookies</li>
+            <li>We do not display advertisements</li>
+            <li>We do not sell, trade, or share your data with third parties</li>
+            <li>We do not use your data for marketing purposes</li>
+        </ul>
+
+        <h2>6. Data Retention</h2>
+        <ul>
+            <li><strong>Local Data:</strong> Stored until you delete it</li>
+            <li><strong>Cloud Data:</strong> Stored as long as your account is active (AI tier)</li>
+            <li><strong>Backup Data:</strong> Stored in your Google Drive (you control deletion)</li>
+            <li><strong>AI Queries:</strong> Claude/Gemini responses are not stored; queries are discarded after processing</li>
+        </ul>
+
+        <h2>7. Your Rights</h2>
+        <p>You own all your data. You have the right to:</p>
+        <ul>
+            <li><strong>Access:</strong> Export all your data anytime from within the app</li>
+            <li><strong>Delete:</strong> Delete cases and data permanently</li>
+            <li><strong>Backup:</strong> Create backups to Google Drive or export locally</li>
+            <li><strong>Portability:</strong> Export your data in standard formats (CSV, ZIP)</li>
+        </ul>
+
+        <h2>8. Patient Privacy & Compliance</h2>
+        <p><strong>Important:</strong> As a healthcare provider, you are responsible for:</p>
+        <ul>
+            <li>Maintaining patient confidentiality and privacy</li>
+            <li>Complying with local medical regulations (HIPAA in the US, GDPR in EU, etc.)</li>
+            <li>Obtaining appropriate patient consent for data collection and storage</li>
+            <li>Securing your device and access credentials</li>
+            <li>Reporting data breaches to appropriate authorities if required</li>
+        </ul>
+
+        <h2>9. Contact Us</h2>
+        <p>If you have questions about this Privacy Policy or our privacy practices:</p>
+        <p><strong>Email:</strong> <a href="mailto:support@orthovault.app">support@orthovault.app</a></p>
+
+        <div class="footer">
+            <p>© 2026 Dr. Devarsh Goyal - OrthoVault. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
