@@ -2168,7 +2168,7 @@ async function purchaseSubscription(sku) {
     // Verify server-side and update CURRENT_PLAN
     const uid = CURRENT_USER && CURRENT_USER.uid;
     if (!uid) { toast('Please sign in first.'); return; }
-    const verifyRes = await fetch('https://asia-south2-orthovault02.cloudfunctions.net/verifyPurchase', {
+    const verifyRes = await fetch('https://verify-purchase-251974181391.asia-south2.run.app', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid, sku, purchaseToken })
