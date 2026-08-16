@@ -1436,6 +1436,11 @@ function resetPerPatientUiState() {
   OV_SOAP_DICTATE_TEXT = '';
   AI_HOME_CARE_INSTRUCTIONS = null;
   AI_PATIENT_WHATSAPP_MESSAGE = null;
+  PATIENT_AI_TOOL_OPEN = null;
+  AI_FITNESS_CERT = null;
+  AI_REFERRAL_LETTER = null;
+  AI_REFERRAL_SPECIALIST = '';
+  AI_REFERRAL_REASON = '';
   ROM_LOG_OPEN = false;
   ADD_FOLLOWUP_OPEN = false;
   ADD_INVESTIGATION_OPEN = false;
@@ -1478,6 +1483,12 @@ let RX_PHOTOS = [];
 let EXPANDED_PRESCRIPTION = new Set();
 let PRINT_RX = null; // {patient, prescription} when viewing a prescription in print mode
 let PRINT_CASE_SUMMARY = null; // patient object when viewing a case summary in print mode
+let PRINT_FITNESS_CERT = null; // {patient, text} when printing a fitness certificate
+let PRINT_REFERRAL = null; // {patient, text, specialist} when printing a referral letter
+let PLANNED_SURGERIES = [];
+let PS_ADD_OPEN = false;
+let PS_TEMP = { name:'', age:'', sex:'', diagnosis:'', plan:'', mobile:'', date:'' };
+let PS_EDIT_ID = null;
 let EXPORT_SUMMARY_SECTIONS = new Set(['details','diagnosis','followups','investigations','prescriptions','notes']);
 let EXPORT_SUMMARY_LAYOUT = 'standard'; // 'standard' | 'detailed'
 let EDU_SEARCH = null; // null = use patient's diagnosis as default query
@@ -2219,6 +2230,17 @@ const DEFAULT_PROFILE = {
 
 const ONBOARDING_DONE_KEY = 'surgical-case-log-onboarding-done-v1';
 const PROFILE_KEY = 'surgical-case-log-doctor-profile-v1';
+const PLANNED_SURGERY_KEY = 'orthovault-planned-surgeries-v1';
+function loadPlannedSurgeries() {
+  try {
+    const raw = localStorage.getItem(PLANNED_SURGERY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
+}
+function savePlannedSurgeries(list) {
+  try { localStorage.setItem(PLANNED_SURGERY_KEY, JSON.stringify(list)); } catch (e) {}
+}
+PLANNED_SURGERIES = loadPlannedSurgeries();
 function loadProfile() {
   try {
     const raw = localStorage.getItem(PROFILE_KEY);
@@ -2335,12 +2357,13 @@ function renderAiHubView() {
     ['Suggest tags', 'Overview \u2192 Tags card'],
     ['Suggested investigations', 'Add Case \u2192 below Diagnosis, once it\u2019s filled'],
     ['What to examine', 'Add Case \u2192 below Diagnosis, once it\u2019s filled'],
+    ['Similar past cases', 'Add Case \u2192 below Diagnosis, once it\u2019s filled (free, no AI cost)'],
     ['Diagnosis auto-triggers tracking', 'Add Case / Overview \u2192 typing a diagnosis like CTEV/RA silently switches on the matching Special Tracking module'],
+    ['Fill follow-up fields from notes (or voice)', 'Follow-Up \u2192 Add visit form, AI Quick-Fill box'],
     ['Suggest next follow-up interval', 'Follow-Up \u2192 Add visit form'],
-    ['Personalize WhatsApp reminder', 'Overview \u2192 Communicate section'],
-    ['Summarize this patient', 'Overview \u2192 Snapshot section'],
-    ['Draft a prescription', 'Prescriptions tab \u2192 New prescription form'],
     ['Check for data-entry mismatches', 'Add Case \u2192 above Save, before you save a new case'],
+    ['Draft a prescription', 'Prescriptions tab \u2192 New prescription form'],
+    ['Patient AI Tools (Summarize, Explain, SOAP note, WhatsApp message, Fitness certificate, Referral letter)', 'Overview \u2192 tap the \u2726 sparkle icon at the top of the screen'],
   ];
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
@@ -2419,6 +2442,142 @@ function schemeResultsHtml(forCase) {
       + '</div>'
       + '</div></div>';
   }).join('') : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:30px 0;">No matches. Try different keywords.</div>';
+}
+
+function aiToolAccordionHtml(key, icon, title, contentHtml) {
+  const open = PATIENT_AI_TOOL_OPEN === key;
+  return '<div class="card" style="padding:0;overflow:hidden;margin-bottom:10px;">'
+    + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:14px;text-align:left;" data-action="toggle-ai-tool" data-value="'+key+'">'
+    + '<span class="row gap2" style="align-items:center;"><span style="color:var(--accent);">'+ic(icon)+'</span><span style="font-size:13.5px;font-weight:700;">'+esc(title)+'</span></span>'
+    + '<span style="color:var(--accent);transform:rotate('+(open?90:0)+'deg);display:inline-flex;">'+ic('chevron')+'</span>'
+    + '</button>'
+    + (open ? '<div style="padding:0 14px 14px;">'+contentHtml+'</div>' : '')
+    + '</div>';
+}
+
+function psReminderLink(entry) {
+  const digits = toWaNumber(entry.mobile);
+  if (!digits) return null;
+  const profile = loadProfile();
+  const msg = '\u0928\u092e\u0938\u094d\u0924\u0947 ' + entry.name + ' \u091c\u0940,'
+    + '\n\u0906\u092a\u0915\u0940 \u0938\u0930\u094d\u091c\u0930\u0940/\u0905\u0938\u094d\u092a\u0924\u093e\u0932 \u092e\u0947\u0902 \u092d\u0930\u094d\u0924\u0940 (admission) \u0915\u0940 \u0924\u093e\u0930\u0940\u0916 ' + fmtDate(entry.date) + ' \u0939\u0948\u0964'
+    + '\n\u0915\u0943\u092a\u092f\u093e \u0938\u092e\u092f \u092a\u0930 \u092a\u0939\u0941\u0902\u091a\u0947\u0902 \u0914\u0930 \u0916\u093e\u0932\u0940 \u092a\u0947\u091f \u0906\u090f\u0902\u0964 \u0915\u094b\u0908 \u092d\u0940 \u092a\u0941\u0930\u093e\u0928\u0940 \u0930\u093f\u092a\u094b\u0930\u094d\u091f/\u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u093e\u090f\u0902\u0964'
+    + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
+    + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]');
+  return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
+}
+
+function psAddFormHtml() {
+  const editing = !!PS_EDIT_ID;
+  return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:14px;">'
+    + '<label class="field-label">Name</label><input class="input" id="ps-name" value="'+esc(PS_TEMP.name)+'" style="margin-bottom:8px;">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
+    + '<div><label class="field-label">Age</label><input class="input" id="ps-age" type="number" value="'+esc(PS_TEMP.age)+'"></div>'
+    + '<div><label class="field-label">Sex</label><select class="select" id="ps-sex"><option value="">\u2014</option><option value="M"'+(PS_TEMP.sex==='M'?' selected':'')+'>M</option><option value="F"'+(PS_TEMP.sex==='F'?' selected':'')+'>F</option></select></div>'
+    + '</div>'
+    + '<label class="field-label">Diagnosis</label><input class="input" id="ps-diagnosis" value="'+esc(PS_TEMP.diagnosis)+'" style="margin-bottom:8px;">'
+    + '<label class="field-label">Plan (procedure)</label><input class="input" id="ps-plan" value="'+esc(PS_TEMP.plan)+'" style="margin-bottom:8px;">'
+    + '<label class="field-label">Mobile number</label><input class="input" type="tel" id="ps-mobile" value="'+esc(PS_TEMP.mobile)+'" style="margin-bottom:8px;">'
+    + '<label class="field-label">Planned admission date</label><input class="input" type="date" id="ps-date" value="'+esc(PS_TEMP.date)+'" style="margin-bottom:10px;">'
+    + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="ps-cancel-add">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ps-submit">'+(editing?'Save changes':'Add to list')+'</button></div>'
+    + '</div>';
+}
+
+function psStatusBadge(status) {
+  if (status === 'admitted') return '<span class="score-badge" style="background:var(--emerald-bg);color:var(--emerald);">Admitted</span>';
+  if (status === 'no-show') return '<span class="score-badge" style="background:#fee2e2;color:#dc2626;">No-show</span>';
+  return '<span class="score-badge" style="background:var(--accent-light);color:var(--accent-dark);">Waiting</span>';
+}
+
+function psEntryHtml(s) {
+  return '<div class="card" style="padding:12px 14px;margin-bottom:8px;">'
+    + '<div class="row between" style="align-items:flex-start;">'
+    + '<div style="flex:1;">'
+    + '<div style="font-weight:700;font-size:13.5px;">'+escName(s.name)+' <span style="font-weight:400;color:var(--muted);font-size:12px;">'+(s.age?s.age+'y':'')+(s.sex?' / '+s.sex:'')+'</span></div>'
+    + '<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+esc(s.diagnosis||'')+(s.plan?' \u00b7 '+esc(s.plan):'')+'</div>'
+    + '<div style="font-size:12px;font-weight:700;color:var(--accent-dark);margin-top:4px;">'+fmtDate(s.date)+'</div>'
+    + '</div>'
+    + psStatusBadge(s.status)
+    + '</div>'
+    + '<div class="row gap2" style="margin-top:10px;flex-wrap:wrap;">'
+    + (psReminderLink(s) ? '<a href="'+esc(psReminderLink(s))+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Remind</a>' : '')
+    + (s.status !== 'admitted' ? '<button class="btn btn-sm" data-action="ps-mark-admitted" data-id="'+s.id+'">Mark admitted</button>' : '')
+    + (s.status !== 'no-show' ? '<button class="btn btn-sm" data-action="ps-mark-noshow" data-id="'+s.id+'">No-show</button>' : '<button class="btn btn-sm" data-action="ps-mark-waiting" data-id="'+s.id+'">Undo</button>')
+    + '<button class="icon-btn" style="width:32px;height:32px;" data-action="ps-edit" data-id="'+s.id+'" title="Edit">'+ic('pencil')+'</button>'
+    + confirmBtn('ps-delete', s.id)
+    + '</div>'
+    + '</div>';
+}
+
+function renderPlannedSurgeriesView() {
+  const sorted = [...PLANNED_SURGERIES].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-planned-surgeries">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Planned Surgeries</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:10px;">'
+    + (PS_ADD_OPEN ? psAddFormHtml() : '<button class="btn btn-outline-dashed btn-block" style="margin-bottom:14px;" data-action="ps-open-add">'+ic('plus')+' Add planned surgery</button>')
+    + (sorted.length ? sorted.map(psEntryHtml).join('') : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:30px 0;">No planned surgeries yet.</div>')
+    + '</div>'
+    + '</div>';
+}
+
+function renderPatientAiToolsView() {
+  const p = getPatient(SELECTED_ID);
+  if (!p) { VIEW = 'list'; return renderListView(); }
+  const isSurgical = p.caseType === 'surgical';
+
+  const summaryContent = AI_PATIENT_SUMMARY
+    ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-summary-text')+'</div><div class="card" id="ai-patient-summary-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_SUMMARY)+'</div>'
+    : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">A quick 2-3 sentence clinical recap for your own reference.</p>'+aiButtonHtml('ai-summarize-patient','Generate summary',false,null,'claude'));
+
+  const explainContent = AI_PATIENT_EXPLANATION
+    ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-explanation-text','hi-IN')+'</div><div class="card" id="ai-patient-explanation-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PATIENT_EXPLANATION)+'</div>'
+      + '<div class="row gap2">'+aiButtonHtml('ai-explain-patient-hi','Redo in Hindi',false,null,'claude')+aiButtonHtml('ai-explain-patient-en','Redo in simple English',false,null,'claude')+'</div>'
+    : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Simple, jargon-free explanation for the patient/family.</p><div class="row gap2">'+aiButtonHtml('ai-explain-patient-hi','Explain in Hindi',false,null,'claude')+aiButtonHtml('ai-explain-patient-en','Explain in simple English',false,null,'claude')+'</div>');
+
+  const soapContent = '<label class="field-label" style="margin-bottom:2px;">Dictate freely about the visit</label>'
+    + '<div class="row between" style="margin-bottom:2px;"><span></span>'+micButtonHtml('ov-soap-dictate-input')+'</div>'
+    + '<textarea class="textarea" id="ov-soap-dictate-input" rows="3" placeholder="Complaints, exam findings, what you did, the plan\u2026" style="margin-bottom:8px;">'+esc(OV_SOAP_DICTATE_TEXT)+'</textarea>'
+    + aiButtonHtml('ai-structure-soap','Structure as SOAP note',false,null,'claude')
+    + '<div id="ai-soap-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
+    + '<div style="font-size:10.5px;color:var(--muted);margin-top:6px;">Replaces Clinical Notes in the Clinical tab \u2014 review before saving.</div>';
+
+  const waMsgContent = !p.whatsapp
+    ? '<p style="font-size:12px;color:var(--muted);margin:0;">Save a WhatsApp number in the Communicate tab first.</p>'
+    : (AI_PATIENT_WHATSAPP_MESSAGE
+        ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-message-text','hi-IN')+'</div><div class="card" id="ai-patient-message-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PATIENT_WHATSAPP_MESSAGE)+'</div>'
+          + (homeCareInstructionsLink(p, AI_PATIENT_WHATSAPP_MESSAGE) ? '<a href="'+esc(homeCareInstructionsLink(p, AI_PATIENT_WHATSAPP_MESSAGE))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send on WhatsApp</a>'
+            : '<p style="font-size:11px;color:var(--muted);">Save a WhatsApp number to send.</p>')
+        : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Combined home-care do\u2019s/don\u2019ts + follow-up date reminder, in Hindi.</p>'+aiButtonHtml('ai-patient-message','Generate message',false,null,'claude')));
+
+  const fitnessContent = AI_FITNESS_CERT
+    ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-fitness-cert-text')+'</div><div class="card" id="ai-fitness-cert-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_FITNESS_CERT)+'</div>'
+      + '<button class="btn btn-block" data-action="print-fitness-cert">'+ic('printer')+' Print with letterhead</button>'
+    : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Draft a fitness / return-to-duty certificate based on diagnosis and recovery stage. Review dates before printing.</p>'+aiButtonHtml('ai-generate-fitness-cert','Draft certificate',false,null,'claude'));
+
+  const referralContent = '<label class="field-label">Refer to (specialty / doctor name)</label>'
+    + '<input class="input" id="ai-referral-specialist" placeholder="e.g. Rheumatologist, Physiotherapy, Dr. Sharma" value="'+esc(AI_REFERRAL_SPECIALIST)+'" style="margin-bottom:8px;">'
+    + '<label class="field-label">Reason for referral</label>'
+    + '<input class="input" id="ai-referral-reason" placeholder="e.g. Further evaluation of RA, post-op physiotherapy" value="'+esc(AI_REFERRAL_REASON)+'" style="margin-bottom:8px;">'
+    + (AI_REFERRAL_LETTER
+        ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-referral-letter-text')+'</div><div class="card" id="ai-referral-letter-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_REFERRAL_LETTER)+'</div>'
+          + '<button class="btn btn-block" data-action="print-referral-letter">'+ic('printer')+' Print with letterhead</button>'
+        : aiButtonHtml('ai-generate-referral','Draft referral letter',false,null,'claude'));
+
+  const body = aiToolAccordionHtml('summary', 'sparkle', 'Summarize this patient', summaryContent)
+    + aiToolAccordionHtml('explain', 'heart', 'Explain to patient', explainContent)
+    + aiToolAccordionHtml('soap', 'file', 'Dictate visit \u2192 SOAP note', soapContent)
+    + aiToolAccordionHtml('wamsg', 'message', 'Home-care + WhatsApp message', waMsgContent)
+    + aiToolAccordionHtml('fitness', 'shield', 'Fitness / return-to-duty certificate', fitnessContent)
+    + aiToolAccordionHtml('referral', 'printer', 'Referral letter', referralContent);
+
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-patient-ai-tools">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">AI Tools \u2014 '+escName(p.name)+'</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:10px;">' + body + '</div>'
+    + '</div>';
 }
 
 function renderSchemeFinderView() {
@@ -2579,11 +2738,14 @@ async function renderMoreView() {
         moreRowHtml('clock', 'Notifications'+(notifCount?' ('+notifCount+')':''), 'Due reminders and recent activity', 'open-notifications')
         + moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead', 'open-settings')
         + moreRowHtml('gear', 'App Settings', 'App Lock, dark mode, accent color, reminders, Patient ID', 'open-app-settings')
-        + (isAiTier() ? moreRowHtml('sparkle', 'OrthoVault AI', 'Everywhere AI helps in the app \u2014 patient queries, digest, knowledge engine, clinical assistant', 'open-ai-hub', true) : '')
-        + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
-        + moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new')
+    },
+    { key:'ai', title:'AI', icon:'sparkle', rows:
+        (isAiTier() ? moreRowHtml('sparkle', 'OrthoVault AI', 'Everywhere AI helps in the app \u2014 patient queries, digest, knowledge engine, clinical assistant', 'open-ai-hub', true) : '')
         + (!isAiTier() ? moreRowHtml('sparkle', 'Upgrade Plan', isProOrAbove() ? 'You\u2019re on Pro \u2014 tap to see AI tier' : 'Unlock Pro or AI tier features', 'open-upgrade', true) : '')
-        + moreRowHtml('clipboard', 'Scheme Package Finder'+(isProOrAbove()?'':' (Pro)'), 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
+    },
+    { key:'practice', title:'Practice Tools', icon:'clipboard', rows:
+        moreRowHtml('clipboard', 'Scheme Package Finder'+(isProOrAbove()?'':' (Pro)'), 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
+        + moreRowHtml('calendar', 'Planned Surgeries', (PLANNED_SURGERIES.filter(s=>s.status==='waiting').length ? PLANNED_SURGERIES.filter(s=>s.status==='waiting').length + ' upcoming' : 'Track upcoming admissions'), 'open-planned-surgeries')
     },
     { key:'data', title:'Data & Backup', icon:'download', rows:
         moreRowHtml('shield', 'Cloud Sync (AI tier)', !CURRENT_USER ? 'Not signed in \u2014 tap to set up' : (isAiTier() ? 'Signed in \u2014 backing up automatically' : 'Signed in \u2014 upgrade to AI tier to enable'), 'open-cloud-sync')
@@ -2596,6 +2758,10 @@ async function renderMoreView() {
     { key:'reports', title:'Reports', icon:'file', rows:
         moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
         + moreRowHtml('printer', 'Cash Collection Audit', 'Monthly totals of cash payments across all surgical cases', 'open-cash-audit')
+    },
+    { key:'help', title:'Help & Info', icon:'info', rows:
+        moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
+        + moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new')
     },
   ];
   return '<div style="padding-bottom:40px;">'
@@ -2701,12 +2867,12 @@ const ABOUT_SECTIONS = [
   { key:'ai', title:'AI Features (this account only)', icon:'sparkle', items:[
     ['Auto-detect Region/Specialty', 'On Complaints & Diagnosis or Overview, tap the \u2726 Auto-detect chip \u2014 reads your diagnosis/complaints and suggests region + specialty.'],
     ['Diagnosis triggers tracking automatically', 'Type a diagnosis like "CTEV" or "Rheumatoid arthritis" and the matching Special Tracking module switches on by itself \u2014 no manual selection needed. Forgot to add one? Overview \u2192 Clinical has a small "+ Track a condition" button.'],
-    ['AI Quick-Fill', 'In Add Case \u2192 Complaints & Diagnosis, dictate or paste a free-text description in the AI Quick-Fill box (separate from Notes) and tap "Fill all fields from this" \u2014 it distributes the info into the right fields.'],
-    ['AI: Suggested investigations / What to examine', 'In Add Case, once diagnosis is filled \u2014 reference-only suggestions, never auto-inserted into records.'],
+    ['AI Quick-Fill', 'In Add Case \u2192 Complaints & Diagnosis, dictate or paste a free-text description in the AI Quick-Fill box (separate from Notes) and tap "Fill all fields from this" \u2014 it distributes the info into the right fields. The same Quick-Fill also exists on the Follow-Up visit form.'],
+    ['AI: Suggested investigations / What to examine / Similar past cases', 'In Add Case, once diagnosis or complaints are filled \u2014 reference-only suggestions and a list of your own similar past patients, never auto-inserted into records.'],
     ['AI follow-up date suggestion', 'When adding a Follow-Up, "AI suggest" proposes a clinically reasonable next-visit date based on the diagnosis/procedure and how far along the patient is.'],
-    ['AI: Summarize this patient', 'Overview \u2192 Snapshot \u2014 a 2-3 line summary of who they are and what\u2019s going on, for your own quick reference.'],
+    ['Patient AI Tools', 'Open any patient \u2192 tap the \u2726 sparkle icon at the top of Overview. One panel with everything for that patient: Summarize this patient, Explain to patient (Hindi/simple English), Dictate visit \u2192 SOAP note, Home-care + WhatsApp follow-up message, Fitness/return-to-duty certificate, and a Referral letter \u2014 all printable with your letterhead where relevant.'],
     ['Master Voice (bottom-left \u2726 button)', 'Speak a command \u2014 "naya case banao", "X ka case kholo", "X ka follow-up kal rakho", "digest dikhao" \u2014 it\u2019s parsed and confirmed before anything happens.'],
-    ['AI Hub', 'More \u2192 OrthoVault AI (highlighted) \u2014 Clinical Assistant (Q&A), Knowledge Engine (reference lookups), Patient Query (search across your cases), and Digest (activity summary).'],
+    ['AI Hub', 'More \u2192 AI \u2192 OrthoVault AI \u2014 Ask AI about your patients (plain-language query over your whole list), This Week\u2019s Digest, Ortho Knowledge Engine (clinical reasoning), and Ask OrthoVault (case vignette / surgical approach reference).'],
   ]},
   { key:'opd-process', title:'Full Process \u2014 Adding an OPD Case', icon:'calendar', items:[
     ['1. Patient Details tab', 'Tap "+ Add", choose OPD, and fill in Name, Age, Sex, Occupation, Hand dominance (only shown for Upper Limb/Hand cases), WhatsApp.'],
@@ -2732,6 +2898,10 @@ const ABOUT_SECTIONS = [
     ['PJI (MSIS) checklist', 'On an Arthroplasty case, toggle "PJI suspected?" if infection is suspected.'],
     ['BMI calculator', 'Shows automatically for Arthroplasty and Knee OA cases.'],
     ['Pediatric dose calculator / Rickets guide', 'Show automatically for OPD patients under 18.'],
+  ]},
+  { key:'practice-tools', title:'Practice Tools', icon:'clipboard', items:[
+    ['Scheme Package Finder', 'More \u2192 Practice Tools \u2014 search RGHS or MAA Yojana package codes and rates by procedure name. Also available inside a patient\u2019s Overview so you can attach a matched package directly to that case (shows up in Print Case Summary too). Free local search, no AI cost.'],
+    ['Planned Surgeries', 'More \u2192 Practice Tools \u2014 a simple pre-admission list, separate from your main patient records: name, age, sex, diagnosis, plan, mobile number, and planned admission date. Send a WhatsApp reminder, and mark each entry Admitted or No-show as the date arrives.'],
   ]},
   { key:'tabs', title:'Patient Record Tabs', icon:'file', items:[
     ['Overview', 'A compact, read-only clinical dashboard by default \u2014 Patient Snapshot, Clinical, Communicate, Useful, all in one glance. Tap the pencil icon (top-right) to switch into the full editable form for any of it. Patient ID, name, age/sex, and diagnosis are fixed at the top of the screen even as you scroll.'],
@@ -4008,34 +4178,12 @@ function renderOverviewTab(p) {
     + (!p.nextFollowUpDate && !OV_SHOW_SCHEDULE ? '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>' : '')
     + '</div>'
     + (p.nextFollowUpDate || OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" value="'+esc(p.nextFollowUpDate)+'" style="margin-top:6px;">' : '')
-    + '</div>'
-    + (isAiTier() ? (
-        '<div style="padding-top:6px;border-top:1px dashed var(--border);">'
-        + (AI_PATIENT_SUMMARY
-            ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-summary-text')+'</div><div class="card" id="ai-patient-summary-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_SUMMARY)+'</div>'
-            : aiButtonHtml('ai-summarize-patient','AI: Summarize this patient',true,null,'claude'))
-        + '</div>'
-        + '<div style="padding-top:6px;border-top:1px dashed var(--border);margin-top:6px;">'
-        + (AI_PATIENT_EXPLANATION
-            ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-explanation-text','hi-IN')+'</div><div class="card" id="ai-patient-explanation-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_EXPLANATION)+'</div>'
-              + '<div class="row gap2" style="margin-top:6px;">'+aiButtonHtml('ai-explain-patient-hi','Redo in Hindi',false,null,'claude')+aiButtonHtml('ai-explain-patient-en','Redo in simple English',false,null,'claude')+'</div>'
-            : '<div class="row gap2">'+aiButtonHtml('ai-explain-patient-hi','Explain to patient (Hindi)',false,null,'claude')+aiButtonHtml('ai-explain-patient-en','Explain to patient (simple English)',false,null,'claude')+'</div>')
-        + '</div>'
-      ) : '');
+    + '</div>';
 
   let clinicalBody = comorbidityCardHtml(p)
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
     + (isSurgical ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'+OP_NOTE_TEMPLATES.map(([n]) => '<button type="button" class="chip" data-action="insert-op-template" data-value="'+esc(n)+'">'+ic('printer')+' '+esc(n)+'</button>').join('')+'</div>' : '')
     + '<textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
-    + (isAiTier() ? (
-        '<div style="padding:10px;border-radius:12px;background:rgba(67,56,202,0.04);border:1px dashed var(--border);">'
-        + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">'+ic('sparkle')+' Dictate visit \u2192 structured SOAP note</label>'+micButtonHtml('ov-soap-dictate-input')+'</div>'
-        + '<textarea class="textarea" id="ov-soap-dictate-input" rows="3" placeholder="Speak or type freely about the visit \u2014 complaints, exam findings, what you did, the plan\u2026" style="margin-bottom:8px;">'+esc(OV_SOAP_DICTATE_TEXT)+'</textarea>'
-        + aiButtonHtml('ai-structure-soap','Structure as SOAP note',false,null,'claude')
-        + '<div id="ai-soap-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
-        + '<div style="font-size:10.5px;color:var(--muted);margin-top:6px;">Replaces Clinical notes above \u2014 review before saving.</div>'
-        + '</div>'
-      ) : '')
     + (p.condition ? '<div style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></div>'
         : (!isSurgical ? (OV_SHOW_TRACKING_PICK
             ? '<select class="select" id="ov-tracking-select"><option value="">\u2014 Pick \u2014</option><option value="ctev">CTEV</option><option value="ra">RA</option><option value="osteoporosis">Osteoporosis</option><option value="trauma">Trauma</option></select>'
@@ -4061,15 +4209,6 @@ function renderOverviewTab(p) {
         + (followUpReminderLink(p)
             ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Quick Follow-up Reminder</a>'
             : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Quick Follow-up Reminder</button>')
-        + (isAiTier() ? (
-            '<div style="margin-top:8px;">'
-            + (AI_PATIENT_WHATSAPP_MESSAGE
-                ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-message-text','hi-IN')+'</div><div class="card" id="ai-patient-message-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PATIENT_WHATSAPP_MESSAGE)+'</div>'
-                  + (homeCareInstructionsLink(p, AI_PATIENT_WHATSAPP_MESSAGE) ? '<a href="'+esc(homeCareInstructionsLink(p, AI_PATIENT_WHATSAPP_MESSAGE))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send on WhatsApp</a>'
-                    : '<p style="font-size:11px;color:var(--muted);">Save a WhatsApp number to send.</p>')
-                : aiButtonHtml('ai-patient-message','AI: Home-care + follow-up message',true,null,'claude'))
-            + '</div>'
-          ) : '')
         + '</div>' : '')
     + '</div>';
 
@@ -4093,14 +4232,7 @@ function renderOverviewTab(p) {
         : '<div style="text-align:right;">'+(OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" style="max-width:160px;display:inline-block;">' : '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>')+'</div>')
     + (isSurgical && p.procedure ? '<div style="padding-top:8px;border-top:1px solid var(--border);">'+ovSnapCell('clipboard','Procedure', p.procedure)+'</div>' : '')
     + (isSurgical && (p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+ovSnapCell('clipboard','Hospital', p.hospital)+ovSnapCell('shield','Anaesthesia', p.anaesthesiaType)+'</div>' : '')
-    + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '')
-    + (isAiTier() ? (
-        '<div style="padding-top:10px;border-top:1px dashed var(--border);">'
-        + (AI_PATIENT_SUMMARY
-            ? '<div><div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-summary-text-2')+'</div><div id="ai-patient-summary-text-2" style="white-space:pre-wrap;font-size:12px;color:#334155;">'+esc(AI_PATIENT_SUMMARY)+'</div></div>'
-            : aiButtonHtml('ai-summarize-patient','AI: Summarize this patient',false,null,'claude'))
-        + '</div>'
-      ) : '');
+    + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '');
 
   const statCards = '<div style="display:flex;gap:10px;">'
     + '<button type="button" class="card" style="flex:1;text-align:left;display:flex;align-items:center;gap:10px;cursor:pointer;" data-action="set-tab" data-value="imagesrecords">'
@@ -4135,11 +4267,6 @@ function renderOverviewTab(p) {
         (followUpReminderLink(p)
             ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
             : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
-        + (isAiTier() && p.nextFollowUpDate ? (
-            AI_PERSONALIZED_REMINDER
-              ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-reminder-answer-text-2','hi-IN')+'</div><div class="card" id="ai-reminder-answer-text-2" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PERSONALIZED_REMINDER)+'</div>'
-              : aiButtonHtml('ai-personalize-reminder','AI: Personalize this reminder',true,null,'gemini')
-          ) : '')
       ) : '');
 
   const usefulRead = ((p.tags||[]).length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.tags.map(t=>'<span class="badge badge-indigo">'+esc(t)+'</span>').join('')+'</div>' : '<p style="font-size:11.5px;color:var(--muted);margin:0;">No tags</p>')
@@ -4148,6 +4275,7 @@ function renderOverviewTab(p) {
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
     + '<div class="row" style="justify-content:flex-end;gap:8px;">'
     + '<button class="icon-btn" data-action="open-export-summary" title="Export / Share Case Summary">'+ic('printer')+'</button>'
+    + (isAiTier() ? '<button class="icon-btn" data-action="open-patient-ai-tools" title="AI Tools">'+ic('sparkle')+'</button>' : '')
     + '<button class="icon-btn" data-action="duplicate-case" title="Duplicate Case">'+ic('copy')+'</button>'
     + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
     + '</div>'
@@ -4190,6 +4318,11 @@ let AI_PATIENT_EXPLANATION = null;
 let OV_SOAP_DICTATE_TEXT = '';
 let AI_HOME_CARE_INSTRUCTIONS = null;
 let AI_PATIENT_WHATSAPP_MESSAGE = null;
+let PATIENT_AI_TOOL_OPEN = null;
+let AI_FITNESS_CERT = null;
+let AI_REFERRAL_LETTER = null;
+let AI_REFERRAL_SPECIALIST = '';
+let AI_REFERRAL_REASON = '';
 let AI_PERSONALIZED_REMINDER = null;
 let AI_DIGEST_SUMMARY = null;
 let AI_SANITY_CHECK_RESULT = null;
@@ -5266,6 +5399,56 @@ function caseSummaryText(p) {
 }
 function caseSummaryWaLink(p) { return 'https://wa.me/' + toWaNumber(p.whatsapp) + '?text=' + encodeURIComponent(caseSummaryText(p)); }
 function caseSummaryEmailLink(p) { return 'mailto:?subject=' + encodeURIComponent('Case Summary \u2014 ' + p.name) + '&body=' + encodeURIComponent(caseSummaryText(p)); }
+function renderFitnessCertPrintView() {
+  if (!PRINT_FITNESS_CERT) { VIEW = 'list'; return renderListView(); }
+  const { patient: p, text } = PRINT_FITNESS_CERT;
+  const profile = loadProfile();
+  return '<div class="no-print sticky-top row between px" style="padding:14px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
+    + '<button class="icon-btn" data-action="close-print-fitness">'+ic('back')+'</button>'
+    + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
+    + '</div>'
+    + '<div class="rx-sheet">'
+    + '<div class="rx-letterhead">'
+    + '<div><div class="rx-clinic-name">'+esc(profile.clinicName||'\u2014')+'</div>'
+    + '<div class="rx-clinic-addr">'+esc(profile.clinicAddress||'').replace(/\n/g,'<br>')+'</div>'
+    + (profile.clinicPhone?'<div class="rx-clinic-addr" style="margin-top:4px;"><b>Contact Details:</b> '+esc(profile.clinicPhone)+'</div>':'')+'</div>'
+    + '<div style="text-align:right;"><div class="rx-doc-name">'+esc(profile.doctorName||'\u2014')+'</div>'
+    + '<div class="rx-clinic-addr">'+esc(profile.qualifications||'')+'</div>'
+    + '<div class="rx-clinic-addr">Reg. No: '+esc(profile.regNumber||'\u2014')+'</div></div>'
+    + '</div>'
+    + '<div style="text-align:center;font-weight:800;font-size:15px;margin:16px 0;text-decoration:underline;">FITNESS CERTIFICATE</div>'
+    + '<div class="rx-advice" style="white-space:pre-wrap;">' + esc(text) + '</div>'
+    + '<div style="margin-top:50px;text-align:right;">'
+    + '<div style="border-top:1px solid #333;width:200px;display:inline-block;padding-top:4px;">Signature</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function renderReferralPrintView() {
+  if (!PRINT_REFERRAL) { VIEW = 'list'; return renderListView(); }
+  const { patient: p, text, specialist } = PRINT_REFERRAL;
+  const profile = loadProfile();
+  return '<div class="no-print sticky-top row between px" style="padding:14px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
+    + '<button class="icon-btn" data-action="close-print-referral">'+ic('back')+'</button>'
+    + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
+    + '</div>'
+    + '<div class="rx-sheet">'
+    + '<div class="rx-letterhead">'
+    + '<div><div class="rx-clinic-name">'+esc(profile.clinicName||'\u2014')+'</div>'
+    + '<div class="rx-clinic-addr">'+esc(profile.clinicAddress||'').replace(/\n/g,'<br>')+'</div>'
+    + (profile.clinicPhone?'<div class="rx-clinic-addr" style="margin-top:4px;"><b>Contact Details:</b> '+esc(profile.clinicPhone)+'</div>':'')+'</div>'
+    + '<div style="text-align:right;"><div class="rx-doc-name">'+esc(profile.doctorName||'\u2014')+'</div>'
+    + '<div class="rx-clinic-addr">'+esc(profile.qualifications||'')+'</div>'
+    + '<div class="rx-clinic-addr">Reg. No: '+esc(profile.regNumber||'\u2014')+'</div></div>'
+    + '</div>'
+    + '<div style="font-size:12px;color:var(--muted);margin:12px 0;">Date: ' + fmtDate(todayStr()) + (specialist ? ' &nbsp; | &nbsp; To: ' + esc(specialist) : '') + '</div>'
+    + '<div class="rx-advice" style="white-space:pre-wrap;">' + esc(text) + '</div>'
+    + '<div style="margin-top:50px;text-align:right;">'
+    + '<div style="border-top:1px solid #333;width:200px;display:inline-block;padding-top:4px;">Signature</div>'
+    + '</div>'
+    + '</div>';
+}
+
 function renderCaseSummaryPrintView() {
   if (!PRINT_CASE_SUMMARY) { VIEW='list'; return renderListView(); }
   const p = PRINT_CASE_SUMMARY;
@@ -6487,6 +6670,8 @@ async function renderCurrentView(app) {
   if (VIEW === 'whats-new') { app.innerHTML = renderWhatsNewView(); return; }
   if (VIEW === 'upgrade') { app.innerHTML = renderUpgradeView(); return; }
   if (VIEW === 'scheme-finder') { app.innerHTML = renderSchemeFinderView(); return; }
+  if (VIEW === 'patient-ai-tools') { app.innerHTML = renderPatientAiToolsView(); return; }
+  if (VIEW === 'planned-surgeries') { app.innerHTML = renderPlannedSurgeriesView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
   if (VIEW === 'print') { 
     if (!isProOrAbove()) { 
@@ -6504,6 +6689,8 @@ async function renderCurrentView(app) {
     }
     return; 
   }
+  if (VIEW === 'print-fitness') { app.innerHTML = renderFitnessCertPrintView(); return; }
+  if (VIEW === 'print-referral') { app.innerHTML = renderReferralPrintView(); return; }
   if (VIEW === 'export-summary') {
     const p = getPatient(SELECTED_ID);
     if (!p) { VIEW='list'; return render(); }
@@ -7057,7 +7244,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-fitness','close-print-referral','close-planned-surgeries'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -7984,6 +8171,78 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
+  if (action === 'ai-generate-fitness-cert') {
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Drafting\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const isSurgical = p.caseType === 'surgical';
+      const sys = 'You draft a short, formal medical fitness / return-to-duty certificate for an orthopaedic patient, to be printed on a doctor\u2019s letterhead. Format: a brief certifying statement ("This is to certify that [name], aged [age], is under my treatment for [diagnosis]..."), a recommended rest/restriction period with reasoning kept brief, and any activity restrictions on return (e.g. no heavy lifting, no prolonged standing) if clinically reasonable. End with "Fit to resume duties from: [date]" using your best clinical estimate based on the case \u2014 the doctor will review and correct dates before printing. Plain text only, no markdown.';
+      const context = 'Patient: ' + p.name + ', ' + formatAge(p) + ' / ' + (p.sex||'')
+        + '\nCase type: ' + (isSurgical ? 'Post-surgical' : 'OPD / conservative treatment')
+        + '\nDiagnosis: ' + (p.diagnosis || p.chiefComplaints || '\u2014')
+        + (isSurgical ? ('\nProcedure: ' + (p.procedure || '\u2014') + '\nSurgery date: ' + fmtDate(p.surgeryDate)) : '')
+        + '\nToday\u2019s date: ' + fmtDate(todayStr());
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 350 });
+      AI_FITNESS_CERT = (result.data.text || '').trim();
+      await render();
+    } catch (err) {
+      console.error('AI fitness certificate failed:', err);
+      toast('Failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
+  if (action === 'print-fitness-cert') {
+    const p = getPatient(SELECTED_ID);
+    if (!p || !AI_FITNESS_CERT) return;
+    PRINT_FITNESS_CERT = { patient: p, text: AI_FITNESS_CERT };
+    VIEW = 'print-fitness'; render(); return;
+  }
+  if (action === 'close-print-fitness') { PRINT_FITNESS_CERT = null; VIEW = 'patient-ai-tools'; render(); return; }
+  if (action === 'ai-generate-referral') {
+    const specialistEl = document.getElementById('ai-referral-specialist');
+    const reasonEl = document.getElementById('ai-referral-reason');
+    AI_REFERRAL_SPECIALIST = (specialistEl && specialistEl.value || '').trim();
+    AI_REFERRAL_REASON = (reasonEl && reasonEl.value || '').trim();
+    if (!AI_REFERRAL_SPECIALIST) { toast('Enter who you\u2019re referring to first.'); return; }
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Drafting\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const isSurgical = p.caseType === 'surgical';
+      const sys = 'You draft a short, professional medical referral letter from one doctor to another, to be printed on the referring doctor\u2019s letterhead. Include: a brief greeting to the specialist, a concise case summary (relevant history, diagnosis, findings, treatment so far), the specific reason for referral, and a polite closing requesting their evaluation/opinion. Plain text only, no markdown, no placeholders in brackets except where truly unavoidable.';
+      const context = 'Patient: ' + p.name + ', ' + formatAge(p) + ' / ' + (p.sex||'')
+        + '\nCase type: ' + (isSurgical ? 'Surgical' : 'OPD / conservative treatment')
+        + '\nDiagnosis: ' + (p.diagnosis || p.chiefComplaints || '\u2014')
+        + (isSurgical ? ('\nProcedure: ' + (p.procedure || '\u2014') + '\nSurgery date: ' + fmtDate(p.surgeryDate)) : '')
+        + (p.notes ? ('\nClinical notes: ' + p.notes) : '')
+        + '\nReferring to: ' + AI_REFERRAL_SPECIALIST
+        + '\nReason for referral: ' + (AI_REFERRAL_REASON || 'further evaluation and management')
+        + '\nToday\u2019s date: ' + fmtDate(todayStr());
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 400 });
+      AI_REFERRAL_LETTER = (result.data.text || '').trim();
+      await render();
+    } catch (err) {
+      console.error('AI referral letter failed:', err);
+      toast('Failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
+  if (action === 'print-referral-letter') {
+    const p = getPatient(SELECTED_ID);
+    if (!p || !AI_REFERRAL_LETTER) return;
+    PRINT_REFERRAL = { patient: p, text: AI_REFERRAL_LETTER, specialist: AI_REFERRAL_SPECIALIST };
+    VIEW = 'print-referral'; render(); return;
+  }
+  if (action === 'close-print-referral') { PRINT_REFERRAL = null; VIEW = 'patient-ai-tools'; render(); return; }
   if (action === 'ai-patient-message') {
     const p = getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
@@ -7991,7 +8250,7 @@ async function generatePersonalizedReminderMessage(p) {
     el.disabled = true;
     try {
       AI_PATIENT_WHATSAPP_MESSAGE = await generatePatientWhatsAppMessage(p);
-      await renderTabBody(getPatient(SELECTED_ID));
+      await render();
     } catch (err) {
       console.error('AI patient message failed:', err);
       toast('Failed: ' + (err && err.message ? err.message : 'try again'));
@@ -8048,7 +8307,7 @@ async function generatePersonalizedReminderMessage(p) {
         + (p.notes ? ('\nClinical notes: ' + p.notes) : '');
       const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 300 });
       AI_PATIENT_EXPLANATION = (result.data.text || '').trim();
-      await renderTabBody(getPatient(SELECTED_ID));
+      await render();
     } catch (err) {
       console.error('AI patient explanation failed:', err);
       toast('Failed: ' + (err && err.message ? err.message : 'try again'));
@@ -8074,7 +8333,7 @@ async function generatePersonalizedReminderMessage(p) {
         + (p.notes ? ('\nClinical notes: ' + p.notes) : '');
       const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 220 });
       AI_PATIENT_SUMMARY = (result.data.text || '').trim();
-      await renderTabBody(getPatient(SELECTED_ID));
+      await render();
     } catch (err) {
       console.error('AI patient summary failed:', err);
       toast('AI summary failed: ' + (err && err.message ? err.message : 'try again'));
@@ -8944,6 +9203,75 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-whats-new') { VIEW = 'whats-new'; render(); return; }
   if (action === 'open-upgrade') { VIEW = 'upgrade'; render(); return; }
   if (action === 'close-upgrade') { VIEW = 'more'; render(); return; }
+  if (action === 'open-planned-surgeries') {
+    PLANNED_SURGERIES = loadPlannedSurgeries();
+    PS_ADD_OPEN = false; PS_EDIT_ID = null;
+    VIEW = 'planned-surgeries'; render(); return;
+  }
+  if (action === 'close-planned-surgeries') { VIEW = 'more'; render(); return; }
+  if (action === 'ps-open-add') {
+    PS_EDIT_ID = null;
+    PS_TEMP = { name:'', age:'', sex:'', diagnosis:'', plan:'', mobile:'', date: todayStr() };
+    PS_ADD_OPEN = true; render(); return;
+  }
+  if (action === 'ps-cancel-add') { PS_ADD_OPEN = false; PS_EDIT_ID = null; render(); return; }
+  if (action === 'ps-edit') {
+    const entry = PLANNED_SURGERIES.find(s => s.id === el.dataset.id);
+    if (!entry) return;
+    PS_EDIT_ID = entry.id;
+    PS_TEMP = { name: entry.name, age: entry.age, sex: entry.sex, diagnosis: entry.diagnosis, plan: entry.plan, mobile: entry.mobile, date: entry.date };
+    PS_ADD_OPEN = true; render(); return;
+  }
+  if (action === 'ps-submit') {
+    const name = (document.getElementById('ps-name').value || '').trim();
+    if (!name) { toast('Name is required.'); return; }
+    const data = {
+      name,
+      age: document.getElementById('ps-age').value || '',
+      sex: document.getElementById('ps-sex').value || '',
+      diagnosis: (document.getElementById('ps-diagnosis').value || '').trim(),
+      plan: (document.getElementById('ps-plan').value || '').trim(),
+      mobile: (document.getElementById('ps-mobile').value || '').trim(),
+      date: document.getElementById('ps-date').value || todayStr(),
+    };
+    if (PS_EDIT_ID) {
+      const idx = PLANNED_SURGERIES.findIndex(s => s.id === PS_EDIT_ID);
+      if (idx >= 0) PLANNED_SURGERIES[idx] = { ...PLANNED_SURGERIES[idx], ...data };
+    } else {
+      PLANNED_SURGERIES.push({ id: uid(), status: 'waiting', createdAt: Date.now(), ...data });
+    }
+    savePlannedSurgeries(PLANNED_SURGERIES);
+    PS_ADD_OPEN = false; PS_EDIT_ID = null;
+    render(); return;
+  }
+  if (action === 'ps-delete') {
+    if (el.dataset.confirm !== '1') return;
+    PLANNED_SURGERIES = PLANNED_SURGERIES.filter(s => s.id !== el.dataset.id);
+    savePlannedSurgeries(PLANNED_SURGERIES);
+    ARMED_DELETE = null;
+    render(); return;
+  }
+  if (action === 'ps-mark-admitted' || action === 'ps-mark-noshow' || action === 'ps-mark-waiting') {
+    const entry = PLANNED_SURGERIES.find(s => s.id === el.dataset.id);
+    if (entry) {
+      entry.status = action === 'ps-mark-admitted' ? 'admitted' : (action === 'ps-mark-noshow' ? 'no-show' : 'waiting');
+      savePlannedSurgeries(PLANNED_SURGERIES);
+      render();
+    }
+    return;
+  }
+  if (action === 'open-patient-ai-tools') {
+    PATIENT_AI_TOOL_OPEN = null;
+    VIEW = 'patient-ai-tools'; render(); return;
+  }
+  if (action === 'close-patient-ai-tools') {
+    VIEW = 'detail'; TAB = 'overview'; render(); return;
+  }
+  if (action === 'toggle-ai-tool') {
+    const key = el.dataset.value;
+    PATIENT_AI_TOOL_OPEN = (PATIENT_AI_TOOL_OPEN === key) ? null : key;
+    render(); return;
+  }
   if (action === 'open-scheme-finder') {
     if (!isProOrAbove()) { toast('Scheme Package Finder is a Pro feature.'); return; }
     SCHEME_FINDER_TYPE = null; SCHEME_FINDER_QUERY = ''; SCHEME_FINDER_CASE_ID = null;
@@ -9552,6 +9880,8 @@ document.addEventListener('change', async (e) => {
 
 document.addEventListener('input', (e) => {
   if (e.target.id === 'ov-soap-dictate-input') { OV_SOAP_DICTATE_TEXT = e.target.value; }
+  if (e.target.id === 'ai-referral-specialist') { AI_REFERRAL_SPECIALIST = e.target.value; }
+  if (e.target.id === 'ai-referral-reason') { AI_REFERRAL_REASON = e.target.value; }
   if (e.target.id === 'scheme-search-input') {
     SCHEME_FINDER_QUERY = e.target.value;
     const resEl = document.getElementById('scheme-results-list');
