@@ -854,6 +854,319 @@ function fmtDateShort(d) { if (!d) return '\u2014'; const dt = new Date(d); if (
 function todayStr() { return new Date().toISOString().slice(0,10); }
 
 const SURGERY_TYPES = ['Arthroplasty','Arthroscopy','Trauma','Spine','Other'];
+
+// ---- Government scheme package data (RGHS / MAA Yojana), NABH rates ----
+const SCHEME_RGHS = [
+  {c:'1107',n:'Plaster Work',r:293},
+  {c:'1108',n:'Fingers (post slab)',r:268},
+  {c:'1109',n:'Fingers full plaster',r:298},
+  {c:'1110',n:'Colles Fracture - Below elbow',r:1012},
+  {c:'1111',n:'Colles Fracture - Full plaster',r:1029},
+  {c:'1112',n:'Colles fracture Ant. Or post. slab',r:460},
+  {c:'1113',n:'Above elbow full plaster',r:179},
+  {c:'1114',n:'Above Knee post-slab',r:610},
+  {c:'1115',n:'Below Knee full plaster',r:190},
+  {c:'1116',n:'Below Knee post-slab',r:743},
+  {c:'1117',n:'Tube Plaster (or plaster cylinder)',r:863},
+  {c:'1118',n:'Above knee full plaster',r:1310},
+  {c:'1119',n:'Above knee full slab',r:1198},
+  {c:'1120',n:'Minerva Jacket',r:2500},
+  {c:'1121',n:'Plaster Jacket',r:2262},
+  {c:'1122',n:'Shoulder spica',r:2024},
+  {c:'1123',n:'Single Hip spica',r:2322},
+  {c:'1124',n:'Double Hip spica',r:2857},
+  {c:'1125',n:'Strapping of Finger',r:185},
+  {c:'1126',n:'Strapping of Toes',r:186},
+  {c:'1127',n:'Strapping of Wrist',r:238},
+  {c:'1128',n:'Strapping of Elbow',r:271},
+  {c:'1129',n:'Strapping of Knee',r:358},
+  {c:'1130',n:'Strapping of Ankle',r:358},
+  {c:'1131',n:'Strapping of Chest',r:476},
+  {c:'1132',n:'Strapping of Shoulder',r:536},
+  {c:'1133',n:'Figure of 8 bandage',r:536},
+  {c:'1134',n:'Collar and cuff sling',r:265},
+  {c:'1135',n:'Ball bandage',r:414},
+  {c:'1136',n:'Application of POP Casts for Upper & Lower Limbs',r:728},
+  {c:'1137',n:'Application of Functional Cast Brace',r:1397},
+  {c:'1138',n:'Application of Skin Traction',r:714},
+  {c:'1139',n:'Application of Skeletal Tractions',r:982},
+  {c:'1140',n:'Bandage & Strappings for Fractures',r:572},
+  {c:'1141',n:'Aspiration & Intra Articular Injections',r:596},
+  {c:'1142',n:'Application of POP Spices & Jackets',r:2560},
+  {c:'1143',n:'Close Reduction of Fractures of Limb & POP',r:2691},
+  {c:'1144',n:'Reduction of Compound Fractures',r:2857},
+  {c:'1145',n:'Open Reduction & Internal Fixation (ORIF) of Fingers & Toes',r:5357},
+  {c:'1146',n:'Open Reduction of fracture of Long Bones of Upper / Lower Limb -Nailing & External Fixation',r:8332},
+  {c:'1147',n:'Open Reduction of fracture of Long Bones of Upper / Lower Limb -AO Procedures',r:9998},
+  {c:'1148',n:'Tension Band Wirings',r:5856},
+  {c:'1149',n:'Bone Grafting',r:7475},
+  {c:'1150',n:'Excision of Bone Tumours',r:7142},
+  {c:'1151',n:'Excision or other Operations for Scaphoid Fractures',r:7439},
+  {c:'1152',n:'Sequestrectomy & Saucerization',r:7142},
+  {c:'1153',n:'Sequestrectomy & Saucerizations -Arthrotomy',r:10320},
+  {c:'1154',n:'Multiple Pinning Fracture Neck Femur',r:11903},
+  {c:'1155',n:'Plate Fixations for Fracture Neck Femur',r:15180},
+  {c:'1156',n:'AO Compression Procedures for Fracture Neck Femur',r:17140},
+  {c:'1157',n:'Open Reduction of Fracture Neck Femur Muscle Pedicle Graft and Internal Fixations',r:20183},
+  {c:'1158',n:'Close Reduction of Dislocations',r:3286},
+  {c:'1159',n:'Open Reduction of Dislocations',r:3559},
+  {c:'1160',n:'Open Reduction & Internal Fixation (ORIF) of Fracture Dislocation',r:13973},
+  {c:'1161',n:'Neurolysis/Nerve repair',r:14283},
+  {c:'1162',n:'Nerve Repair with Grafting',r:17259},
+  {c:'1163',n:'Tendon with Transplant or Graft',r:10712},
+  {c:'1164',n:'Tendon Lengthening/Tendon repair',r:8332},
+  {c:'1165',n:'Tendon Transfer',r:3214},
+  {c:'1166',n:'Laminectomy Excision Disc and Tumours',r:4999},
+  {c:'1167',n:'Split Osteotomy and Internal Fixations',r:24995},
+  {c:'1168',n:'Anterolateral decompression for tuberculosis/ Costo-Transversectomy',r:3571},
+  {c:'1169',n:'Antereolateral Decompression and Spine Fusion',r:22253},
+  {c:'1170',n:'Corrective Osteotomy & Internal Fixation- short bones',r:14283},
+  {c:'1171',n:'Corrective Osteotomy & Internal Fixation- long bones',r:11426},
+  {c:'1172',n:'Arthrodesis of - Minor Joints',r:10712},
+  {c:'1173',n:'Arthrodesis of - Major Joints',r:10350},
+  {c:'1174',n:'Soft Tissue Operations for Congenital Talipes Equinovarus (CTEV)',r:8332},
+  {c:'1175',n:'Soft Tissue Operations for Polio',r:7142},
+  {c:'1176',n:'Hemiarthroplasty- Hip',r:22138},
+  {c:'1177',n:'Hemiarthroplasty- Shoulder',r:22138},
+  {c:'1178',n:'Operations for Brachial Plexus & Cervical Rib',r:24995},
+  {c:'1179',n:'Amputations - Below Knee',r:7590},
+  {c:'1180',n:'Amputations - Below Elbow',r:7083},
+  {c:'1181',n:'Amputations - Above Knee',r:9258},
+  {c:'1182',n:'Amputations - Above Elbow',r:7083},
+  {c:'1183',n:'Amputations - Forequarter',r:13800},
+  {c:'1184',n:'Amputations -Hind Quarter and Hemipelvectomy',r:19044},
+  {c:'1185',n:'Disarticulations - Major joint',r:21425},
+  {c:'1186',n:'Disarticulations - Minor joint',r:13093},
+  {c:'1187',n:'Arthrography',r:9522},
+  {c:'1188',n:'Arthroscopy - Diagnostic',r:8868},
+  {c:'1189',n:'Arthroscopy-therapeutic: without implant',r:11500},
+  {c:'1190',n:'Arthroscopy-therapeutic: with implant',r:17854},
+  {c:'1191',n:'Soft Tissue Operation on Joints -Small',r:7142},
+  {c:'1192',n:'Soft Tissue Operation on Joints -Large',r:15525},
+  {c:'1193',n:'Myocutaneous and Fasciocutaneous Flap Procedures for Limbs',r:19282},
+  {c:'1194',n:'Removal of Wires & Screw',r:1822},
+  {c:'1195',n:'Removal of Plates',r:4285},
+  {c:'1196',n:'Total Hip Replacement (THR)',r:81650},
+  {c:'1197',n:'Total Ankle Joint Replacement',r:109710},
+  {c:'1198',n:'Total Knee Joint Replacement (TKR)',r:113850},
+  {c:'1199',n:'Total Shoulder Joint Replacement',r:81765},
+  {c:'1200',n:'Total Elbow Joint Replacement',r:81765},
+  {c:'1201',n:'Total Wrist Joint Replacement',r:115000},
+  {c:'1202',n:'Total finger joint replacement',r:20700},
+  {c:'1203',n:'Tubular external fixator',r:4761},
+  {c:'1204',n:'Ilizarov\'s external fixator',r:8035},
+  {c:'1205',n:'Pelvi-acetebular fracture -Internal fixation',r:8927},
+  {c:'1206',n:'Meniscectomy',r:12420},
+  {c:'1207',n:'Meniscus Repair',r:11500},
+  {c:'1208',n:'Anterior Cruciate Ligament (ACL) Reconstruction',r:9775},
+  {c:'1209',n:'Posterior Cruciate Ligament (PCL) Reconstruction',r:15525},
+  {c:'1210',n:'Knee Collateral Ligament Reconstruction',r:14375},
+  {c:'1211',n:'Bencarf Repair Shoulder',r:15180},
+  {c:'1212',n:'RC Repair',r:1725},
+  {c:'1213',n:'Biceps tenodesis',r:16100},
+  {c:'1214',n:'Distal biceps tendon repair',r:11937},
+  {c:'1215',n:'Arthrolysis of knee',r:14375},
+  {c:'1216',n:'Capsulotomy of Shoulder',r:17250},
+  {c:'1217',n:'Conservative Plaster of Paris (POP)',r:1242},
+  {c:'1218',n:'Application for CTEV per sitting',r:1242},
+  {c:'1219',n:'Total Hip Replacement (THR) Revision Stage-I',r:175950},
+  {c:'1220',n:'Total Hip Replacement (THR) Revision Stage-II',r:51750},
+  {c:'1221',n:'Total Knee Replacement (TKR) Revision Stage-I',r:36225},
+  {c:'1222',n:'Total Knee Replacement (TKR) Revision Stage-II',r:36225},
+  {c:'1223',n:'Illizarov/ external fixation for limb lengthening/ deformitycorrection',r:14375},
+  {c:'1224',n:'Discectomy/ Micro Discectomy',r:14375},
+  {c:'1225',n:'Laminectomy',r:5343},
+  {c:'1226',n:'Spinal Fixation Cervical/dorsolumbar/ lumbosacral',r:18400},
+  {c:'1227',n:'Fusion Surgery Cervical/ Lumbar Spine upto 2 Level',r:25300},
+  {c:'1228',n:'Spinal Fusion Surgery Cervical/ Lumbar Spine -More than 2 Level',r:13800},
+  {c:'1229',n:'Scoliosis Surgery/ Deformity Correction of Spine',r:28750},
+  {c:'1230',n:'Vertebroplasty',r:13800},
+  {c:'1231',n:'Spinal Injections',r:466},
+  {c:'1232',n:'Dynamic Hip Screw (DHS) for Fracture Neck Femur',r:17250},
+  {c:'1233',n:'Proximal Femoral Nail (PFN for IT Fracture)',r:16100},
+  {c:'1234',n:'Spinal Osteotomy',r:1649},
+  {c:'1235',n:'Illizarov’s / External Fixation for Trauma',r:13455},
+  {c:'1236',n:'Soft Tissue Operations for Polio/ Cerebral Palsy',r:10926},
+  {c:'1237',n:'Mini Fixator for Hand/Foot',r:10350},
+  {c:'1238',n:'Other Major Surgery',r:39589},
+  {c:'1239',n:'Other Minor Surgery',r:13665}
+];
+
+const SCHEME_MAA = [
+  {c:'2840-SB056A',n:'Pelvic Osteotomy and fixation',g:'Pelvic Osteotomy and fixation',cat:'Tertiary',r:20000},
+  {c:'1840-SB002A',n:'Skeletal Tractions with pin',g:'Application of Traction',cat:'Secondary',r:3500},
+  {c:'2840-SB010B',n:'Closed Reduction & Internal Fixation of long bones Fixation',g:'Fixation of Diaphyseal Fracture - Long Bone',cat:'Tertiary',r:20800},
+  {c:'1840-SL033C',n:'Closed reduction for fracture of zygoma',g:'Closed reduction / intermaxillary fixation for fracture of maxilla / mandible / zygoma',cat:'Secondary',r:5000},
+  {c:'2840-SB015B',n:'ORIF with screw/wire of Medial Condyle',g:'Fracture Condyle - Humerus - ORIF',cat:'Tertiary',r:10000},
+  {c:'2840-SB016A',n:'ORIF Fracture intercondylar Humerus + olecranon osteotomy + TBW',g:'Fracture intercondylar Humerus +/-olecranon osteotomy',cat:'Tertiary',r:15000},
+  {c:'1840-SB067A',n:'Nerve Repair Surgery',g:'Nerve Repair Surgery',cat:'Secondary',r:13000},
+  {c:'1840-SB027B',n:'Fore quarter',g:'Disarticulation',cat:'Secondary',r:23000},
+  {c:'1840-SP009A',n:'Resuturing of Any Wound gap Surgeries',g:'Resuturing of Any Wound gap Surgeries',cat:'Secondary',r:3800},
+  {c:'2840-SB026D',n:'Knee, Knee with plating/Nailing',g:'Arthrodesis',cat:'Tertiary',r:17000},
+  {c:'2840-SB026F',n:'Foot',g:'Arthrodesis',cat:'Tertiary',r:17000},
+  {c:'2840-SB030A',n:'Tension Band Wiring',g:'Tension Band Wiring',cat:'Tertiary',r:12000},
+  {c:'2840-SB032A',n:'Rockwood Type - I',g:'AC Joint reconstruction / Stabilization',cat:'Tertiary',r:20500},
+  {c:'2840-SB032B',n:'Rockwood Type - II',g:'AC Joint reconstruction / Stabilization',cat:'Tertiary',r:20500},
+  {c:'2840-ST010B',n:'Plexus injury along with Vascular injury graft',g:'Plexus injury along with Vascular injury repair / graft',cat:'Tertiary',r:60000},
+  {c:'2840-ST005A',n:'Surgical intervention for Visceral injury and fixation of fracture of single long bone',g:'Management of Visceral injury and fracture long bone',cat:'Tertiary',r:30000},
+  {c:'2840-ST002A',n:'Head injury with repair of Facio-Maxillary Injury & fixations (including implants)',g:'Head injury with repair of Facio-Maxillary Injury & fixations (including implants)',cat:'Tertiary',r:31000},
+  {c:'2840-SB038B',n:'Cementless',g:'Total Hip Replacement',cat:'Tertiary',r:35000},
+  {c:'2840-SB038C',n:'Hybrid',g:'Total Hip Replacement',cat:'Tertiary',r:40000},
+  {c:'2840-SB038D',n:'Revision - Total Hip Replacement',g:'Total Hip Replacement',cat:'Tertiary',r:44000},
+  {c:'1840-SB043G',n:'Wrist',g:'Single Stage Amputation',cat:'Secondary',r:18600},
+  {c:'2840-SB049B',n:'Posterior',g:'Reconstruction of Cruciate Ligament with implant and brace (Tear / Avulsion)',cat:'Tertiary',r:40000},
+  {c:'2840-SB055A',n:'Long Bone',g:'Osteotomy - Govt reserved',cat:'Tertiary',r:10000},
+  {c:'2840-SB007C',n:'Forearm',g:'Elastic nailing for fracture fixation',cat:'Tertiary',r:16000},
+  {c:'2840-SB008A',n:'ORIF Small Bones',g:'Internal Fixation of Small Bones',cat:'Tertiary',r:11000},
+  {c:'1840-SN034A',n:'Laminectomy without fusion for lumbar or cervical canal stenosis',g:'Laminectomy -Govt Reserve',cat:'Secondary',r:25000},
+  {c:'1840-SN046A',n:'Carpal tunnel release',g:'Carpal Tunnel Release',cat:'Secondary',r:13500},
+  {c:'2840-SB037A',n:'Elbow replacement',g:'Elbow replacement',cat:'Tertiary',r:25000},
+  {c:'2840-SB040A',n:'Bone Tumour Excision (malignant) including GCT + Joint replacement (depending upon type of joint and implant)',g:'Bone Tumour Excision (malignant) including GCT + Joint replacement (depending upon type of joint and implant)',cat:'Tertiary',r:60000},
+  {c:'1840-SB045B',n:'Toe(s)',g:'Amputation - Fingers / Toes',cat:'Secondary',r:0},
+  {c:'2840-SB059A',n:'Limb Lengthening / Bone Transport by Ilizarov',g:'Limb Lengthening / Bone Transport by Ilizarov',cat:'Tertiary',r:23700},
+  {c:'1840-SB066B',n:'Nerve Release',g:'Nerve Transposition / Release / Neurolysis',cat:'Secondary',r:13000},
+  {c:'1840-SB076B',n:'POP slab',g:'Application of P.O.P. casts',cat:'Secondary',r:2500},
+  {c:'1840-SB023A',n:'Bone grafting for Fracture Non union',g:'Bone grafting for Non union',cat:'Secondary',r:11000},
+  {c:'1840-SB044B',n:'Below Elbow',g:'Two Stage Amputation',cat:'Secondary',r:23000},
+  {c:'1840-SB044C',n:'Above Knee',g:'Two Stage Amputation',cat:'Secondary',r:23000},
+  {c:'1840-SB044F',n:'Hand',g:'Two Stage Amputation',cat:'Secondary',r:23000},
+  {c:'2840-SB026A',n:'Ankle / Triple with implant',g:'Arthrodesis',cat:'Tertiary',r:17000},
+  {c:'1840-SB026G',n:'Ankle / Triple without implant',g:'Arthrodesis',cat:'Secondary',r:17000},
+  {c:'2840-ST004B',n:'Management of Chest injury with fixation of 2 or more Long bones',g:'Management of Chest injury with fracture of Long bone',cat:'Tertiary',r:33000},
+  {c:'1840-SG090A',n:'Small (< 4% TBSA)',g:'Split thickness skin grafts',cat:'Secondary',r:10000},
+  {c:'2840-ST003A',n:'Subdural hematoma along with fixation of fracture of single long bone',g:'Craniotomy and evacuation of Haematoma with fixation of fracture of long bone',cat:'Tertiary',r:60000},
+  {c:'2840-ST003C',n:'Subdural hematoma along with fixation of fracture of 2 or more long bone.',g:'Craniotomy and evacuation of Haematoma with fixation of fracture of long bone',cat:'Tertiary',r:75000},
+  {c:'2840-ST009C',n:'Tendon injury repair',g:'Management of Nerve Plexus / Tendon injuries',cat:'Tertiary',r:50000},
+  {c:'2840-SB039A',n:'Primary - Total Knee Replacement',g:'Total Knee Replacement',cat:'Tertiary',r:40000},
+  {c:'2840-SB041A',n:'Bone Tumour Excision + reconstruction',g:'Bone Tumour Excision + reconstruction',cat:'Tertiary',r:30000},
+  {c:'2840-SB049A',n:'Anterior',g:'Reconstruction of Cruciate Ligament with implant and brace (Tear / Avulsion)',cat:'Tertiary',r:40000},
+  {c:'1840-SG092A',n:'Tendon Transfer',g:'Tendon Transfer',cat:'Secondary',r:15000},
+  {c:'1840-SB044E',n:'Foot',g:'Two Stage Amputation',cat:'Secondary',r:23000},
+  {c:'1840-SB044G',n:'Wrist',g:'Two Stage Amputation',cat:'Secondary',r:23000},
+  {c:'2840-SB026B',n:'Shoulder',g:'Arthrodesis',cat:'Tertiary',r:17000},
+  {c:'1840-SB028D',n:'Knee',g:'Closed reduction of joint dislocation',cat:'Secondary',r:0},
+  {c:'2840-SB032C',n:'Rockwood Type - III',g:'AC Joint reconstruction / Stabilization',cat:'Tertiary',r:20500},
+  {c:'2840-SN034B',n:'Laminectomy with fusion and fixation for lumbar/cervical/thoracic canal stenosis or for tumor / trauma/Bleed(Cost of implants to be extra)',g:'Laminectomy -Govt Reserve',cat:'Tertiary',r:25000},
+  {c:'2840-SB032E',n:'Rockwood Type - V',g:'AC Joint reconstruction / Stabilization',cat:'Tertiary',r:20500},
+  {c:'2840-SB032F',n:'Rockwood Type - VI',g:'AC Joint reconstruction / Stabilization',cat:'Tertiary',r:20500},
+  {c:'1840-SB043A',n:'Above Elbow',g:'Single Stage Amputation',cat:'Secondary',r:16200},
+  {c:'2840-SB061B',n:'Other foot deformities',g:'Corrective Surgery for foot deformities',cat:'Tertiary',r:15000},
+  {c:'1840-SB064B',n:'Exostosis',g:'Excision of Osteochondroma / Exostosis',cat:'Secondary',r:10000},
+  {c:'1840-SB071A',n:'Nail/ilizarov',g:'Implant Removal under RA / GA',cat:'Secondary',r:15000},
+  {c:'1840-SB075A',n:'crutchfiled tong cervical spine traction',g:'Application of Traction',cat:'Secondary',r:5000},
+  {c:'2840-SB079A',n:'Revision of failed hemi Arthroplasty in to THR',g:'Total Hip Replacement',cat:'Tertiary',r:44000},
+  {c:'2840-SB080A',n:'Combined spinal segment - front and back (anterior/posterior/ combined anterior and posterior)',g:'Spine deformity correction- Govt Reserved',cat:'Tertiary',r:30400},
+  {c:'1840-ST009E',n:'Tendon Transfer',g:'Management of Nerve Plexus / Tendon injuries',cat:'Secondary',r:16500},
+  {c:'1840-SB027A',n:'Hind quarter',g:'Disarticulation',cat:'Secondary',r:23000},
+  {c:'2840-SB026C',n:'Wrist, Wrist with plating',g:'Arthrodesis',cat:'Tertiary',r:17000},
+  {c:'2840-SB031A',n:'Unipolar',g:'Hemiarthroplasty',cat:'Tertiary',r:17000},
+  {c:'2840-SG091A',n:'Skin Flaps -local flap',g:'Skin Flaps - local flap',cat:'Tertiary',r:25000},
+  {c:'1840-SB072A',n:'Core Decompression',g:'Core Decompression - Govt reserved',cat:'Secondary',r:14000},
+  {c:'2840-SB012A',n:'Fixation',g:'Fracture Head radius',cat:'Tertiary',r:10000},
+  {c:'2840-ST006A',n:'Internal fixation of Pelviacetabular fracture',g:'Internal fixation of Pelviacetabular fracture',cat:'Tertiary',r:30800},
+  {c:'1840-SB068A',n:'Nerve root block',g:'Nerve root block',cat:'Secondary',r:3000},
+  {c:'1840-SL033D',n:'Closed reduction and Intermaxillary fixation for fracture of mandible',g:'Closed reduction / intermaxillary fixation for fracture of maxilla / mandible / zygoma',cat:'Secondary',r:5000},
+  {c:'2840-SB046B',n:'Tendon Repair',g:'Tendon Grafting / Repair',cat:'Tertiary',r:15000},
+  {c:'2840-ST008A',n:'Emergency tendons repair ± Peripheral Nerve repair',g:'Emergency tendons repair ± Peripheral Nerve repair/ reconstructive surgery',cat:'Tertiary',r:16500},
+  {c:'2840-SB021A',n:'Cervical spine fixation including odontoid',g:'Cervical spine fixation including odontoid',cat:'Tertiary',r:21300},
+  {c:'1840-SB044D',n:'Below Knee',g:'Two Stage Amputation',cat:'Secondary',r:23000},
+  {c:'2840-SC070A',n:'Bone tumors / soft tissue sarcomas: surgery',g:'Bone tumors / soft tissue sarcomas: surgery',cat:'Tertiary',r:30000},
+  {c:'1840-SB042A',n:'Bone Tumour (benign) curettage / Excision and bone grafting',g:'Bone Tumour (benign) curettage / Excision and bone grafting',cat:'Secondary',r:22100},
+  {c:'2840-SB026E',n:'Hand',g:'Arthrodesis',cat:'Tertiary',r:17000},
+  {c:'1840-SB028B',n:'Shoulder',g:'Closed reduction of joint dislocation',cat:'Secondary',r:0},
+  {c:'1840-SG090B',n:'Medium (4 - 8% TBSA)',g:'Split thickness skin grafts',cat:'Secondary',r:13500},
+  {c:'1840-SN047A',n:'Peripheral nerve repair/Neurolysis',g:'Nerve Decompression',cat:'Secondary',r:13000},
+  {c:'2840-ST003B',n:'Extradural hematoma along with fixation of fracture of single long bone',g:'Craniotomy and evacuation of Haematoma with fixation of fracture of long bone',cat:'Tertiary',r:60000},
+  {c:'2840-SB036A',n:'Arthroscopic Meniscus Repair / Meniscectomy',g:'Arthroscopic Meniscus Repair / Meniscectomy',cat:'Tertiary',r:13200},
+  {c:'1840-SB043B',n:'Below Elbow',g:'Single Stage Amputation',cat:'Secondary',r:16200},
+  {c:'2840-SB053A',n:'Sequestectomy / Curettage',g:'Sequestectomy / Curettage',cat:'Tertiary',r:10000},
+  {c:'2840-SB055B',n:'Small Bone',g:'Osteotomy - Govt reserved',cat:'Tertiary',r:10000},
+  {c:'1840-SB003A',n:'Upper Limbs',g:'Application of P.O.P. casts',cat:'Secondary',r:2500},
+  {c:'1840-SB004A',n:'Spicas',g:'Application of P.O.P. Spicas & Jackets',cat:'Secondary',r:2500},
+  {c:'1840-SB005A',n:'Long bone',g:'External fixation of Fracture',cat:'Secondary',r:14000},
+  {c:'2840-SB005C',n:'Pelvis',g:'External fixation of Fracture',cat:'Tertiary',r:16000},
+  {c:'2840-SB058A',n:'Ilizarov Fixation',g:'Ilizarov Fixation',cat:'Tertiary',r:19030},
+  {c:'1840-SB062A',n:'Correction of club foot per cast',g:'Correction of club foot per cast',cat:'Secondary',r:5700},
+  {c:'1840-SB065A',n:'Excision of Bursa/ cyst / Ganglion',g:'Excision of Bursa',cat:'Secondary',r:0},
+  {c:'1840-SB066C',n:'Nerve Neurolysis',g:'Nerve Transposition / Release / Neurolysis',cat:'Secondary',r:13000},
+  {c:'2840-SB009A',n:'Fracture - Long Bones - Metaphyseal - ORIF',g:'Fracture - Long Bones - Metaphyseal - ORIF',cat:'Tertiary',r:19000},
+  {c:'1840-SB074A',n:'Arthroscopy / open - synovectomy',g:'Arthroscopy / open - synovectomy - Govt reserved',cat:'Secondary',r:10000},
+  {c:'2840-SB014A',n:'Fracture - Both Bones - Forearm - ORIF - Plating / Nailing /DCP/LCP',g:'Fracture - Both Bones - Forearm - ORIF - Plating / Nailing',cat:'Tertiary',r:16000},
+  {c:'2840-SB015A',n:'Lateral Condyle',g:'Fracture Condyle - Humerus - ORIF',cat:'Tertiary',r:10000},
+  {c:'1840-SB047A',n:'Tendon Release / Tenotomy',g:'Tendon Release / Tenotomy',cat:'Secondary',r:5000},
+  {c:'1840-SB048A',n:'Tenolysis',g:'Tenolysis',cat:'Secondary',r:5000},
+  {c:'1840-SB051A',n:'Duputryen’s Contracture release + rehabilitation',g:'Duputryen’s Contracture release + rehabilitation',cat:'Secondary',r:9500},
+  {c:'2840-SB018B',n:'ORIF THROUGH combined Approach PLATING',g:'Fracture - Acetabulum',cat:'Tertiary',r:33000},
+  {c:'1840-SB035A',n:'Patellectomy',g:'Patellectomy',cat:'Secondary',r:11000},
+  {c:'2840-SB039B',n:'Revision - Total Knee Replacement',g:'Total Knee Replacement',cat:'Tertiary',r:45000},
+  {c:'1840-SB043F',n:'Hand',g:'Single Stage Amputation',cat:'Secondary',r:18600},
+  {c:'1840-SB045A',n:'Finger(s)',g:'Amputation - Fingers / Toes',cat:'Secondary',r:0},
+  {c:'2840-SB078A',n:'ORIF with screw of proximal humerus',g:'Fracture proximal - Humerus - ORIF',cat:'Tertiary',r:10000},
+  {c:'1840-SL033B',n:'Closed reduction for fracture of mandible',g:'Closed reduction / intermaxillary fixation for fracture of maxilla / mandible / zygoma',cat:'Secondary',r:5000},
+  {c:'1840-SB046A',n:'Tendon Grafting',g:'Tendon Grafting / Repair',cat:'Secondary',r:15000},
+  {c:'1840-SB050A',n:'Fasciotomy',g:'Fasciotomy',cat:'Secondary',r:9000},
+  {c:'2840-SB019B',n:'ORIF Intertrochanteric Fracture with Dynamic Hip Screw',g:'Fracture - Neck Femur',cat:'Tertiary',r:18400},
+  {c:'1840-SB025B',n:'Knee',g:'Arthrolysis of joint - Govt reserved',cat:'Secondary',r:10000},
+  {c:'1840-SB025C',n:'Ankle',g:'Arthrolysis of joint - Govt reserved',cat:'Secondary',r:10000},
+  {c:'1840-SB028A',n:'Hip',g:'Closed reduction of joint dislocation',cat:'Secondary',r:0},
+  {c:'1840-SB028C',n:'Elbow',g:'Closed reduction of joint dislocation',cat:'Secondary',r:0},
+  {c:'2840-SB029A',n:'Open Reduction of Small Joint without fixation/Open Reduction of Small Joint with fixation (wrist/hand/foot)',g:'Open Reduction of Small Joint',cat:'Tertiary',r:8000},
+  {c:'2840-SB031B',n:'Bipolar (Non - Modular) cemented /non cemented',g:'Hemiarthroplasty',cat:'Tertiary',r:17000},
+  {c:'2840-SB031C',n:'Bipolar (Modular) cemented/non cemented',g:'Hemiarthroplasty',cat:'Tertiary',r:17000},
+  {c:'1840-SG090C',n:'Large (> 8% TBSA)',g:'Split thickness skin grafts',cat:'Secondary',r:15000},
+  {c:'1840-SB052A',n:'Anti-biotic + dressing - minimum of 5 sessions',g:'Debridement & Closure of injuries - contused lacerated wounds',cat:'Secondary',r:9900},
+  {c:'1840-SB002B',n:'Skin Traction',g:'Application of Traction',cat:'Secondary',r:1000},
+  {c:'2840-SB060A',n:'Growth Modulation and fixation',g:'Growth Modulation and fixation',cat:'Tertiary',r:5625},
+  {c:'2840-SB061A',n:'Vertical Talus',g:'Corrective Surgery for foot deformities',cat:'Tertiary',r:15000},
+  {c:'2840-SB063A',n:'Corrective Surgery in Club Foot / JESS Fixator',g:'Corrective Surgery in Club Foot / JESS Fixator',cat:'Tertiary',r:12000},
+  {c:'1840-SB069A',n:'Exploration and Ulnar nerve Repair',g:'Exploration and Ulnar nerve Repair',cat:'Secondary',r:9800},
+  {c:'2840-SB010A',n:'ORIF Long Bones',g:'Fixation of Diaphyseal Fracture - Long Bone',cat:'Tertiary',r:20800},
+  {c:'2840-SB011A',n:'Plating olecrenon fracture, ulna',g:'Surgery for Comminuted Fracture - Olecranon of Ulna',cat:'Tertiary',r:10000},
+  {c:'1840-SB071B',n:'Plate',g:'Implant Removal under RA / GA',cat:'Secondary',r:15000},
+  {c:'1840-SB076A',n:'POP slab',g:'Application of Traction',cat:'Secondary',r:2500},
+  {c:'2840-SB077A',n:'Replacement with Head Radius Prosthesis',g:'Fracture Head radius',cat:'Tertiary',r:10000},
+  {c:'1840-SB012B',n:'Excision',g:'Fracture Head radius',cat:'Secondary',r:9200},
+  {c:'2840-SB013A',n:'Fracture - Single Bone - Forearm - ORIF - Plating / Nailing/DCP/LCP',g:'Fracture - Single Bone - Forearm - ORIF - Plating / Nailing',cat:'Tertiary',r:12000},
+  {c:'2840-SB018A',n:'ORIF THROUGH Single Approach PLATING',g:'Fracture - Acetabulum',cat:'Tertiary',r:28000},
+  {c:'1840-SB019C',n:'ORIF Intertrochanteric Fracture with Proximal Femoral Nail',g:'Fracture - Neck Femur',cat:'Secondary',r:16100},
+  {c:'1840-SB024A',n:'Arthorotomy of any joint',g:'Arthorotomy of any joint - Govt reserved',cat:'Secondary',r:10000},
+  {c:'1840-SP008A',n:'NPWT',g:'NPWT',cat:'Secondary',r:1650},
+  {c:'2840-ST005B',n:'Surgical intervention for Visceral injury and fixation of fracture of 2 or more long bones',g:'Management of Visceral injury and fracture long bone',cat:'Tertiary',r:45000},
+  {c:'2840-PM033A',n:'Vertebroplasty/Kyphoplasty',g:'Vertebroplasty/ Kyphoplasty -Govt Reserve',cat:'Tertiary',r:40000},
+  {c:'1840-SB034A',n:'Open Reduction of CDH',g:'Open Reduction of CDH',cat:'Secondary',r:20000},
+  {c:'1840-SB001A',n:'Fracture - Conservative Management - Without plaster',g:'Fracture - Conservative Management - Without plaster',cat:'Secondary',r:2000},
+  {c:'1840-SB003B',n:'Lower Limbs',g:'Application of P.O.P. casts',cat:'Secondary',r:2500},
+  {c:'1840-SB004B',n:'Jackets',g:'Application of P.O.P. Spikas & Jackets',cat:'Secondary',r:2500},
+  {c:'2840-SB005D',n:'Both bones - forearms + JESS Ligamentotaxis',g:'External fixation of Fracture',cat:'Tertiary',r:14000},
+  {c:'1840-SB007B',n:'Humerus',g:'Elastic nailing for fracture fixation',cat:'Secondary',r:17600},
+  {c:'1840-SB064A',n:'Osteochondroma',g:'Excision of Osteochondroma / Exostosis',cat:'Secondary',r:10000},
+  {c:'1840-SB066A',n:'Nerve Transposition',g:'Nerve Transposition / Release / Neurolysis',cat:'Secondary',r:13000},
+  {c:'2840-ST003D',n:'Extradural hematoma along with fixation of fracture of 2 or more long bone.',g:'Craniotomy and evacuation of Haematoma with fixation of fracture of long bone',cat:'Tertiary',r:75000},
+  {c:'2840-SB032D',n:'Rockwood Type - IV',g:'AC Joint reconstruction / Stabilization',cat:'Tertiary',r:20500},
+  {c:'1840-SB033A',n:'Excision Arthoplasty of Femur head',g:'Excision Arthoplasty of Femur head - Govt reserved',cat:'Secondary',r:14000},
+  {c:'2840-SB038A',n:'Cemented',g:'Total Hip Replacement',cat:'Tertiary',r:38500},
+  {c:'1840-SB043C',n:'Above Knee',g:'Single Stage Amputation',cat:'Secondary',r:18600},
+  {c:'1840-SB043D',n:'Below Knee',g:'Single Stage Amputation',cat:'Secondary',r:18600},
+  {c:'1840-SB043E',n:'Foot',g:'Single Stage Amputation',cat:'Secondary',r:18600},
+  {c:'1840-SB052B',n:'Anti-biotic + dressing - minimum of 2 sessions',g:'Debridement & Closure of injuries - contused lacerated wounds',cat:'Secondary',r:3300},
+  {c:'2840-SB054A',n:'Spine deformity correction',g:'Spine deformity correction- Govt Reserved',cat:'Tertiary',r:33440},
+  {c:'2840-SB005B',n:'Small bone (MC,carpal, tarsal, MT, Calcaneum, Talus, Phalanx)',g:'External fixation of Fracture',cat:'Tertiary',r:9000},
+  {c:'2840-SB057A',n:'High Tibial Osteotomy',g:'High Tibial Osteotomy',cat:'Tertiary',r:16000},
+  {c:'2840-SB006A',n:'Percutaneous - Fixation of Fracture',g:'Percutaneous - Fixation of Fracture',cat:'Tertiary',r:0},
+  {c:'2840-SB007A',n:'Femur + shaft tibia',g:'Elastic nailing for fracture fixation',cat:'Tertiary',r:11000},
+  {c:'2840-SB017A',n:'Open / Closed Reduction Internal Fixation',g:'Displaced Clavicle Fracture',cat:'Tertiary',r:17000},
+  {c:'1840-SB070A',n:'K - Wire/Exfix',g:'Implant Removal under LA',cat:'Secondary',r:0},
+  {c:'2840-SB019A',n:'Closed Reduction and Percutaneous Screw Fixation',g:'Fracture - Neck Femur',cat:'Tertiary',r:15500},
+  {c:'2840-SB020A',n:'ORIF/ CRIF of medial malleolus or bimalleolar fracture or Trimalleolar fracture or talus or calcaneum fracture',g:'Ankle Fractures',cat:'Tertiary',r:15600},
+  {c:'1840-SB070B',n:'Screw',g:'Implant Removal under LA',cat:'Secondary',r:0},
+  {c:'2840-SB022A',n:'Dorsal and lumber spine fixation THROUGH Anterior approach',g:'Dorsal and lumber spine fixation',cat:'Tertiary',r:33000},
+  {c:'2840-SB022B',n:'Dorsal and lumber spine fixation THROUGH Posterior approach',g:'Dorsal and lumber spine fixation',cat:'Tertiary',r:28000},
+  {c:'1840-SB025A',n:'Elbow',g:'Arthrolysis of joint - Govt reserved',cat:'Secondary',r:10000},
+  {c:'1840-SB044A',n:'Above Elbow',g:'Two Stage Amputation',cat:'Secondary',r:23000},
+  {c:'2840-ST004A',n:'Management of Chest injury with fixation of Single Long bone',g:'Management of Chest injury with fracture of Long bone',cat:'Tertiary',r:30000},
+  {c:'2840-ST009D',n:'Tendon graft repair',g:'Management of Nerve Plexus / Tendon injuries',cat:'Tertiary',r:50000}
+];
+
 const TYPE_BADGE = { Arthroplasty:'indigo', Arthroscopy:'emerald', Trauma:'red', Spine:'amber', Other:'slate' };
 const CASE_REGIONS = [
   { key:'Upper Limb', keywords:['shoulder','elbow','wrist','hand','finger','humerus','radius','ulna','clavicle','forearm','bbfa','both bone forearm','supracondylar','olecranon','brachial','deltoid','rotator cuff','rotator','bicep','tricep','carpal','scaphoid','colles','colle\u2019s','smith fracture','monteggia','galeazzi','distal radius','proximal humerus','shaft humerus','frozen shoulder','periarthritis','tennis elbow','golfer\u2019s elbow','lateral epicondylitis','medial epicondylitis'] },
@@ -2076,6 +2389,68 @@ function renderCashAuditView() {
     + '</div>';
 }
 
+function schemeSearchResults() {
+  const q = (SCHEME_FINDER_QUERY || '').trim().toLowerCase();
+  const list = SCHEME_FINDER_TYPE === 'rghs' ? SCHEME_RGHS : SCHEME_MAA;
+  if (!q) return list.slice(0, 25);
+  const words = q.split(/\s+/).filter(Boolean);
+  return list.filter(item => {
+    const hay = (item.n + ' ' + item.c + ' ' + (item.g||'')).toLowerCase();
+    return words.every(w => hay.includes(w));
+  }).slice(0, 40);
+}
+
+function schemeResultsHtml(forCase) {
+  const results = schemeSearchResults();
+  return results.length ? results.map(item => {
+    return '<div class="card" style="padding:12px 14px;margin-bottom:8px;">'
+      + '<div class="row between" style="align-items:flex-start;">'
+      + '<div style="flex:1;">'
+      + '<div style="font-weight:700;font-size:13.5px;">'+esc(item.n)+'</div>'
+      + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">Code: '+esc(item.c)+(item.cat?' \u00b7 '+esc(item.cat):'')+'</div>'
+      + '</div>'
+      + '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'
+      + '<div style="font-weight:800;font-size:14px;color:var(--emerald);">\u20b9'+Number(item.r).toLocaleString('en-IN')+'</div>'
+      + (forCase ? '<button class="btn btn-sm btn-primary" style="margin-top:6px;" data-action="scheme-attach" data-code="'+esc(item.c)+'">Attach</button>' : '')
+      + '</div>'
+      + '</div></div>';
+  }).join('') : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:30px 0;">No matches. Try different keywords.</div>';
+}
+
+function renderSchemeFinderView() {
+  const forCase = !!SCHEME_FINDER_CASE_ID;
+  let body;
+
+  if (!SCHEME_FINDER_TYPE) {
+    body = '<div class="px" style="padding-top:12px;">'
+      + '<div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Which scheme is this patient covered under?</div>'
+      + '<button class="btn btn-block" style="margin-bottom:10px;padding:16px;justify-content:flex-start;" data-action="scheme-pick-rghs">'
+        + '<div style="text-align:left;"><div style="font-weight:800;font-size:14.5px;">RGHS</div><div style="font-size:11.5px;color:var(--muted);">Govt. employees, pensioners \u2014 OPD & surgical codes</div></div>'
+      + '</button>'
+      + '<button class="btn btn-block" style="padding:16px;justify-content:flex-start;" data-action="scheme-pick-maa">'
+        + '<div style="text-align:left;"><div style="font-weight:800;font-size:14.5px;">MAA Yojana</div><div style="font-size:11.5px;color:var(--muted);">Jan Aadhaar / BPL families \u2014 secondary & tertiary packages</div></div>'
+      + '</button>'
+      + '</div>';
+  } else {
+    const isRghs = SCHEME_FINDER_TYPE === 'rghs';
+    body = '<div class="px" style="padding-top:10px;">'
+      + '<div class="row between" style="margin-bottom:10px;">'
+        + '<span class="score-badge" style="background:var(--accent-light);color:var(--accent-dark);">'+(isRghs?'RGHS':'MAA Yojana')+'</span>'
+        + '<button class="btn btn-sm" data-action="scheme-change-scheme">Change scheme</button>'
+      + '</div>'
+      + '<input class="input" id="scheme-search-input" placeholder="Search procedure, e.g. \u2018knee replacement\u2019 or \u2018plaster\u2019" value="'+esc(SCHEME_FINDER_QUERY)+'" style="margin-bottom:12px;">'
+      + '<div id="scheme-results-list">' + schemeResultsHtml(forCase) + '</div>'
+      + '</div>';
+  }
+
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-scheme-finder">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Scheme Package Finder</h2></div>'
+    + '</div>'
+    + body
+    + '</div>';
+}
+
 function renderUpgradeView() {
   const planLabel = isAiTier() ? 'AI' : (isProOrAbove() ? 'Pro' : 'Free');
   const planColor = isAiTier() ? 'var(--accent)' : (isProOrAbove() ? 'var(--emerald)' : 'var(--muted)');
@@ -2189,6 +2564,9 @@ async function purchaseSubscription(sku) {
 }
 
 let MORE_EXPANDED = new Set(['settings']);
+let SCHEME_FINDER_TYPE = null;
+let SCHEME_FINDER_QUERY = '';
+let SCHEME_FINDER_CASE_ID = null;
 async function renderMoreView() {
   const unfiled = await computeUnfiledImages();
   const notifCount = (await computeActivityFeed()).filter(e => e.ts > notifLastSeen()).length;
@@ -2201,6 +2579,7 @@ async function renderMoreView() {
         + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
         + moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new')
         + (!isAiTier() ? moreRowHtml('sparkle', 'Upgrade Plan', isProOrAbove() ? 'You\u2019re on Pro \u2014 tap to see AI tier' : 'Unlock Pro or AI tier features', 'open-upgrade', true) : '')
+        + moreRowHtml('clipboard', 'Scheme Package Finder'+(isProOrAbove()?'':' (Pro)'), 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
     },
     { key:'data', title:'Data & Backup', icon:'download', rows:
         moreRowHtml('shield', 'Cloud Sync (AI tier)', !CURRENT_USER ? 'Not signed in \u2014 tap to set up' : (isAiTier() ? 'Signed in \u2014 backing up automatically' : 'Signed in \u2014 upgrade to AI tier to enable'), 'open-cloud-sync')
@@ -3322,6 +3701,18 @@ function renderAddTypePickerView() {
     + '</div>'
     + '</div>';
 }
+function apDiagAiSuggestBlockHtml() {
+  if (!isAiTier() || !(AP_TEMP.diagnosis || AP_TEMP.chiefComplaints)) return '';
+  return '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
+    + '<div class="row gap2" style="flex-wrap:wrap;">'
+    + (AI_INVESTIGATION_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-investigations','Investigations',false,null,'claude') : '')
+    + (AI_EXAM_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-exam','What to examine',false,null,'claude') : '')
+    + '</div>'
+    + (AI_INVESTIGATION_SUGGESTIONS && AI_INVESTIGATION_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">Investigations (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
+    + (AI_EXAM_SUGGESTIONS && AI_EXAM_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">To examine (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
+    + '</div>';
+}
+
 function renderAddView() {
   const isSurgical = AP_TEMP.caseType === 'surgical';
   const tab2Label = isSurgical ? 'Diagnosis' : 'Complaints & Diagnosis';
@@ -3355,17 +3746,8 @@ function renderAddView() {
       + '</div></div>'
       + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
       + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
-        + (isAiTier() && AP_TEMP.diagnosis ? (
-            '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
-            + '<div class="row gap2" style="flex-wrap:wrap;">'
-            + (AI_INVESTIGATION_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-investigations','Investigations',false,null,'claude') : '')
-            + (AI_EXAM_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-exam','What to examine',false,null,'claude') : '')
-            + '</div>'
-            + (AI_INVESTIGATION_SUGGESTIONS && AI_INVESTIGATION_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">Investigations (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
-            + (AI_EXAM_SUGGESTIONS && AI_EXAM_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">To examine (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
-            + '</div>'
-          ) : '')
-        + '</div>'
+        + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+'</div>'
+      + '</div>'
       + '</div>';
   } else if (AP_SUBTAB === 'tracking') {
     tabBody = isSurgical ? (
@@ -3547,6 +3929,25 @@ function renderOverviewTab(p) {
     + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
     + '<div><label class="field-label">Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
     + '</div>'
+    + (isProOrAbove() ? (
+        '<div><label class="field-label">Govt. scheme package</label>'
+        + (p.schemePackage ? (
+            '<div class="card" style="padding:12px 14px;">'
+            + '<div class="row between" style="align-items:flex-start;">'
+            + '<div style="flex:1;">'
+            + '<span class="score-badge" style="background:var(--accent-light);color:var(--accent-dark);font-size:10.5px;">'+esc(p.schemePackage.scheme)+'</span>'
+            + '<div style="font-weight:700;font-size:13px;margin-top:4px;">'+esc(p.schemePackage.name)+'</div>'
+            + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">Code: '+esc(p.schemePackage.code)+'</div>'
+            + '</div>'
+            + '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'
+            + '<div style="font-weight:800;font-size:14px;color:var(--emerald);">\u20b9'+Number(p.schemePackage.rate).toLocaleString('en-IN')+'</div>'
+            + '<button class="btn btn-sm" style="margin-top:6px;" data-action="scheme-detach" data-id="'+p.id+'">Remove</button>'
+            + '</div></div></div>'
+          ) : (
+            '<button class="btn btn-block" data-action="open-scheme-finder-for-case" data-id="'+p.id+'">'+ic('clipboard')+' Find RGHS / MAA Yojana package</button>'
+          ))
+        + '</div>'
+      ) : '')
     + (isSurgical ? (
         '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
         + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('ov-procedure')
@@ -4805,6 +5206,7 @@ function renderCaseSummaryPrintView() {
     if (p.chiefComplaints) body += '<div class="rx-diagnosis"><b>C/O:</b> ' + esc(p.chiefComplaints) + '</div>';
     if (p.diagnosis) body += '<div class="rx-diagnosis"><b>Diagnosis:</b> ' + esc(displayDiagnosis(p.diagnosis)) + '</div>';
     if (p.caseType === 'surgical' && p.procedure) body += '<div class="rx-diagnosis"><b>Procedure:</b> ' + esc(p.procedure) + (p.surgeryDate ? ' (' + fmtDate(p.surgeryDate) + ')' : '') + '</div>';
+    if (p.schemePackage) body += '<div class="rx-diagnosis"><b>' + esc(p.schemePackage.scheme) + ' Package:</b> ' + esc(p.schemePackage.name) + ' (Code: ' + esc(p.schemePackage.code) + ') \u2014 \u20b9' + Number(p.schemePackage.rate).toLocaleString('en-IN') + '</div>';
   }
   if (s.has('followups') && (p.followUps||[]).length) {
     body += '<div class="rx-advice"><b>Follow-up Visits</b><br>' + [...p.followUps].sort((a,b)=>new Date(a.date)-new Date(b.date)).map(f => fmtDate(f.date) + ' \u2014 ' + esc(f.label) + (detailed && f.notes ? ': ' + esc(f.notes) : '')).join('<br>') + '</div>';
@@ -6012,6 +6414,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'notifications') { app.innerHTML = await renderNotificationsView(); return; }
   if (VIEW === 'whats-new') { app.innerHTML = renderWhatsNewView(); return; }
   if (VIEW === 'upgrade') { app.innerHTML = renderUpgradeView(); return; }
+  if (VIEW === 'scheme-finder') { app.innerHTML = renderSchemeFinderView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
   if (VIEW === 'print') { 
     if (!isProOrAbove()) { 
@@ -6582,7 +6985,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -8351,6 +8754,44 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-whats-new') { VIEW = 'whats-new'; render(); return; }
   if (action === 'open-upgrade') { VIEW = 'upgrade'; render(); return; }
   if (action === 'close-upgrade') { VIEW = 'more'; render(); return; }
+  if (action === 'open-scheme-finder') {
+    if (!isProOrAbove()) { toast('Scheme Package Finder is a Pro feature.'); return; }
+    SCHEME_FINDER_TYPE = null; SCHEME_FINDER_QUERY = ''; SCHEME_FINDER_CASE_ID = null;
+    VIEW = 'scheme-finder'; render(); return;
+  }
+  if (action === 'close-scheme-finder') {
+    if (SCHEME_FINDER_CASE_ID) { VIEW = 'detail'; SELECTED_ID = SCHEME_FINDER_CASE_ID; TAB = 'overview'; }
+    else VIEW = 'more';
+    render(); return;
+  }
+  if (action === 'scheme-pick-rghs') { SCHEME_FINDER_TYPE = 'rghs'; render(); return; }
+  if (action === 'scheme-pick-maa') { SCHEME_FINDER_TYPE = 'maa'; render(); return; }
+  if (action === 'scheme-change-scheme') { SCHEME_FINDER_TYPE = null; SCHEME_FINDER_QUERY = ''; render(); return; }
+  if (action === 'scheme-attach') {
+    const code = el.dataset.code;
+    if (SCHEME_FINDER_CASE_ID && code) {
+      const list = SCHEME_FINDER_TYPE === 'rghs' ? SCHEME_RGHS : SCHEME_MAA;
+      const item = list.find(x => x.c === code);
+      const p = getPatient(SCHEME_FINDER_CASE_ID);
+      if (item && p) {
+        p.schemePackage = { scheme: SCHEME_FINDER_TYPE === 'rghs' ? 'RGHS' : 'MAA Yojana', code: item.c, name: item.n, rate: item.r };
+        await savePatient(p);
+        toast('Package attached to case.');
+        VIEW = 'detail'; SELECTED_ID = SCHEME_FINDER_CASE_ID; TAB = 'overview'; render();
+      }
+    }
+    return;
+  }
+  if (action === 'scheme-detach') {
+    const p = getPatient(el.dataset.id);
+    if (p) { p.schemePackage = null; await savePatient(p); toast('Package removed.'); render(); }
+    return;
+  }
+  if (action === 'open-scheme-finder-for-case') {
+    if (!isProOrAbove()) { toast('Scheme Package Finder is a Pro feature.'); return; }
+    SCHEME_FINDER_TYPE = null; SCHEME_FINDER_QUERY = ''; SCHEME_FINDER_CASE_ID = el.dataset.id || SELECTED_ID;
+    VIEW = 'scheme-finder'; render(); return;
+  }
   if (action === 'buy-pro-monthly') { purchaseSubscription('orthovault_pro_monthly'); return; }
   if (action === 'buy-pro-yearly') { purchaseSubscription('orthovault_pro_yearly'); return; }
   if (action === 'buy-ai-monthly') { purchaseSubscription('orthovault_ai_monthly'); return; }
@@ -8920,6 +9361,11 @@ document.addEventListener('change', async (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'scheme-search-input') {
+    SCHEME_FINDER_QUERY = e.target.value;
+    const resEl = document.getElementById('scheme-results-list');
+    if (resEl) resEl.innerHTML = schemeResultsHtml(!!SCHEME_FINDER_CASE_ID);
+  }
   if (e.target.id === 'usearch-input') {
     USEARCH_QUERY = e.target.value;
     const resEl = document.getElementById('usearch-results');
@@ -8955,6 +9401,10 @@ document.addEventListener('blur', async (e) => {
   if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','ov-procedure','custom-tag-input'].includes(e.target.id)) {
     const id = e.target.id;
     setTimeout(() => hideAutocomplete(id), 200);
+  }
+  if ((e.target.id === 'ap-diagnosis' || e.target.id === 'ap-complaints') && isAiTier()) {
+    const block = document.getElementById('ap-diag-ai-suggest-block');
+    if (block) block.innerHTML = apDiagAiSuggestBlockHtml();
   }
 }, true);
 document.addEventListener('keydown', (e) => {
