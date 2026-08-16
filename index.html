@@ -2076,6 +2076,79 @@ function renderCashAuditView() {
     + '</div>';
 }
 
+function renderUpgradeView() {
+  const planLabel = isAiTier() ? 'AI' : (isProOrAbove() ? 'Pro' : 'Free');
+  const proCard = '<div style="border:1px solid #e5e5ea;border-radius:14px;padding:16px;margin-bottom:14px;">'
+    + '<div style="font-weight:700;font-size:16px;">Pro</div>'
+    + '<div style="color:#666;font-size:13px;margin:6px 0 12px;">Google Drive backup, Special Tracking (CTEV/RA/DEXA), Case Export, Prescriptions with letterhead</div>'
+    + (isProOrAbove() ? '<div style="color:#34c759;font-weight:600;font-size:13px;">\u2713 Active</div>'
+        : '<div style="display:flex;gap:8px;">'
+          + '<button class="primary-btn" data-action="buy-pro-monthly" style="flex:1;">\u20b999/mo</button>'
+          + '<button class="primary-btn" data-action="buy-pro-yearly" style="flex:1;background:#5856d6;">\u20b9999/yr</button>'
+          + '</div>'
+          + '<div style="color:#34c759;font-size:11px;margin-top:6px;">Save 2 months with yearly</div>')
+    + '</div>';
+  const aiCard = '<div style="border:1px solid #e5e5ea;border-radius:14px;padding:16px;margin-bottom:14px;">'
+    + '<div style="font-weight:700;font-size:16px;">AI</div>'
+    + '<div style="color:#666;font-size:13px;margin:6px 0 12px;">Everything in Pro + Firebase Cloud Sync + AI clinical assistant (Claude + Gemini)</div>'
+    + (isAiTier() ? '<div style="color:#34c759;font-weight:600;font-size:13px;">\u2713 Active</div>'
+        : '<div style="display:flex;gap:8px;">'
+          + '<button class="primary-btn" data-action="buy-ai-monthly" style="flex:1;">\u20b9299/mo</button>'
+          + '<button class="primary-btn" data-action="buy-ai-yearly" style="flex:1;background:#5856d6;">\u20b92999/yr</button>'
+          + '</div>'
+          + '<div style="color:#34c759;font-size:11px;margin-top:6px;">Save ~2 months with yearly</div>')
+    + '</div>';
+  return '<div class="view-header">'
+    + '<button class="icon-btn" data-action="close-upgrade">'+ic('back')+'</button>'
+    + '<div class="view-title">Upgrade Plan</div>'
+    + '</div>'
+    + '<div style="padding:16px;">'
+    + '<div style="color:#666;font-size:13px;margin-bottom:16px;">Current plan: <strong>'+planLabel+'</strong></div>'
+    + proCard + aiCard
+    + '<div style="color:#999;font-size:12px;margin-top:8px;">Billed via Google Play. Cancel anytime from the Play Store app.</div>'
+    + '</div>';
+}
+
+async function purchaseSubscription(sku) {
+  try {
+    if (!('getDigitalGoodsService' in window)) {
+      toast('In-app purchases are only available in the Play Store app version.');
+      return;
+    }
+    const service = await window.getDigitalGoodsService('https://play.google.com/billing');
+    const details = await service.getDetails([sku]);
+    if (!details || !details.length) { toast('Subscription not found. Try again later.'); return; }
+
+    const paymentMethodData = [{ supportedMethods: 'https://play.google.com/billing', data: { sku } }];
+    const paymentDetails = { total: { label: 'Total', amount: { currency: details[0].price.currency, value: '0' } } };
+    const request = new PaymentRequest(paymentMethodData, paymentDetails);
+    const response = await request.show();
+    const purchaseToken = response.details.purchaseToken;
+    await response.complete('success');
+
+    // Verify server-side and update CURRENT_PLAN
+    const uid = CURRENT_USER && CURRENT_USER.uid;
+    if (!uid) { toast('Please sign in first.'); return; }
+    const verifyRes = await fetch('https://asia-south2-orthovault02.cloudfunctions.net/verifyPurchase', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid, sku, purchaseToken })
+    });
+    const verifyData = await verifyRes.json();
+    if (verifyData.plan) {
+      CURRENT_PLAN = verifyData.plan;
+      toast('Subscribed! Welcome to ' + (verifyData.plan === 'ai' ? 'AI' : 'Pro') + ' tier.');
+      VIEW = 'more'; render();
+    } else {
+      toast('Purchase completed but verification failed. Contact support.');
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return; // user cancelled
+    console.error('Purchase error:', e);
+    toast('Purchase failed. Please try again.');
+  }
+}
+
 let MORE_EXPANDED = new Set(['settings']);
 async function renderMoreView() {
   const unfiled = await computeUnfiledImages();
@@ -2088,6 +2161,7 @@ async function renderMoreView() {
         + (isAiTier() ? moreRowHtml('sparkle', 'OrthoVault AI', 'Everywhere AI helps in the app \u2014 patient queries, digest, knowledge engine, clinical assistant', 'open-ai-hub', true) : '')
         + moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
         + moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new')
+        + (!isAiTier() ? moreRowHtml('sparkle', 'Upgrade Plan', isProOrAbove() ? 'You\u2019re on Pro \u2014 tap to see AI tier' : 'Unlock Pro or AI tier features', 'open-upgrade', true) : '')
     },
     { key:'data', title:'Data & Backup', icon:'download', rows:
         moreRowHtml('shield', 'Cloud Sync (AI tier)', !CURRENT_USER ? 'Not signed in \u2014 tap to set up' : (isAiTier() ? 'Signed in \u2014 backing up automatically' : 'Signed in \u2014 upgrade to AI tier to enable'), 'open-cloud-sync')
@@ -5897,6 +5971,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'drive-restore-list') { app.innerHTML = await renderDriveRestoreListView(); return; }
   if (VIEW === 'notifications') { app.innerHTML = await renderNotificationsView(); return; }
   if (VIEW === 'whats-new') { app.innerHTML = renderWhatsNewView(); return; }
+  if (VIEW === 'upgrade') { app.innerHTML = renderUpgradeView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
   if (VIEW === 'print') { 
     if (!isProOrAbove()) { 
@@ -6467,7 +6542,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -8234,6 +8309,12 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-cloud-sync') { VIEW = 'cloud-sync'; render(); return; }
   if (action === 'open-notifications') { VIEW = 'notifications'; render(); return; }
   if (action === 'open-whats-new') { VIEW = 'whats-new'; render(); return; }
+  if (action === 'open-upgrade') { VIEW = 'upgrade'; render(); return; }
+  if (action === 'close-upgrade') { VIEW = 'more'; render(); return; }
+  if (action === 'buy-pro-monthly') { purchaseSubscription('orthovault_pro_monthly'); return; }
+  if (action === 'buy-pro-yearly') { purchaseSubscription('orthovault_pro_yearly'); return; }
+  if (action === 'buy-ai-monthly') { purchaseSubscription('orthovault_ai_monthly'); return; }
+  if (action === 'buy-ai-yearly') { purchaseSubscription('orthovault_ai_yearly'); return; }
   if (action === 'close-notifications') { VIEW = 'more'; render(); return; }
   if (action === 'close-whats-new') { VIEW = 'more'; render(); return; }
   if (action === 'notif-jump-patient') {
