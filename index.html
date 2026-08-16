@@ -1434,6 +1434,8 @@ function resetPerPatientUiState() {
   AI_PATIENT_SUMMARY = null;
   AI_PATIENT_EXPLANATION = null;
   OV_SOAP_DICTATE_TEXT = '';
+  AI_HOME_CARE_INSTRUCTIONS = null;
+  AI_PATIENT_WHATSAPP_MESSAGE = null;
   ROM_LOG_OPEN = false;
   ADD_FOLLOWUP_OPEN = false;
   ADD_INVESTIGATION_OPEN = false;
@@ -3076,6 +3078,13 @@ function followUpReminderMessage(patient) {
     + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
     + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]');
 }
+function homeCareInstructionsLink(patient, text) {
+  const digits = toWaNumber(patient.whatsapp);
+  if (!digits || !text) return null;
+  const profile = loadProfile();
+  const msg = text + '\n\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n' + (profile.doctorName || '[Set your name in Doctor Profile]');
+  return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
+}
 function followUpReminderLink(patient) {
   const digits = toWaNumber(patient.whatsapp);
   if (!digits || !patient.nextFollowUpDate) return null;
@@ -3703,6 +3712,43 @@ function renderAddTypePickerView() {
     + '</div>'
     + '</div>';
 }
+function findSimilarCases(diagnosisText, limit) {
+  const q = (diagnosisText || '').toLowerCase().trim();
+  if (!q) return [];
+  const stopWords = new Set(['and','with','of','the','a','an','in','on','for','to','right','left','bilateral','mild','moderate','severe']);
+  const words = q.split(/[\s,.-]+/).filter(w => w.length > 2 && !stopWords.has(w));
+  if (!words.length) return [];
+  const scored = PATIENTS.map(p => {
+    const hay = ((p.diagnosis || '') + ' ' + (p.chiefComplaints || '')).toLowerCase();
+    if (!hay.trim()) return null;
+    const matchCount = words.filter(w => hay.includes(w)).length;
+    if (matchCount === 0) return null;
+    return { p, score: matchCount };
+  }).filter(Boolean);
+  scored.sort((a, b) => b.score - a.score || (b.p.createdAt||0) - (a.p.createdAt||0));
+  return scored.slice(0, limit || 5).map(s => s.p);
+}
+
+function apSimilarCasesBlockHtml() {
+  if (!isProOrAbove()) return '';
+  const q = AP_TEMP.diagnosis || AP_TEMP.chiefComplaints;
+  if (!q) return '';
+  const matches = findSimilarCases(q, 5);
+  if (!matches.length) return '';
+  return '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
+    + '<label class="field-label" style="margin-bottom:4px;">Similar past cases ('+matches.length+')</label>'
+    + matches.map(m => (
+        '<button type="button" class="row between card" style="padding:8px 10px;margin-bottom:6px;text-align:left;width:100%;" data-action="open-patient" data-id="'+m.id+'">'
+        + '<span style="flex:1;overflow:hidden;">'
+          + '<span style="display:block;font-size:12.5px;font-weight:700;">'+escName(m.name)+'</span>'
+          + '<span style="display:block;font-size:11px;color:var(--muted);">'+esc(displayDiagnosis(m.diagnosis||m.chiefComplaints||''))+(m.procedure?' \u00b7 '+esc(m.procedure):'')+'</span>'
+        + '</span>'
+        + '<span style="font-size:10.5px;color:var(--muted);flex-shrink:0;margin-left:8px;">'+(m.surgeryDate?fmtDate(m.surgeryDate):(m.createdAt?fmtDate(new Date(m.createdAt).toISOString().slice(0,10)):''))+'</span>'
+        + '</button>'
+      )).join('')
+    + '</div>';
+}
+
 function apDiagAiSuggestBlockHtml() {
   if (!isAiTier() || !(AP_TEMP.diagnosis || AP_TEMP.chiefComplaints)) return '';
   return '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
@@ -3748,7 +3794,7 @@ function renderAddView() {
       + '</div></div>'
       + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
       + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
-        + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+'</div>'
+        + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+apSimilarCasesBlockHtml()+'</div>'
       + '</div>'
       + '</div>';
   } else if (AP_SUBTAB === 'tracking') {
@@ -4013,13 +4059,15 @@ function renderOverviewTab(p) {
         : '<p style="font-size:11px;color:var(--muted);">Save a number to send messages.</p>')
     + (p.whatsapp ? '<div style="margin-top:8px;">'
         + (followUpReminderLink(p)
-            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
-            : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
-        + (isAiTier() && p.nextFollowUpDate ? (
+            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Quick Follow-up Reminder</a>'
+            : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Quick Follow-up Reminder</button>')
+        + (isAiTier() ? (
             '<div style="margin-top:8px;">'
-            + (AI_PERSONALIZED_REMINDER
-                ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PERSONALIZED_REMINDER)+'</div>'
-                : aiButtonHtml('ai-personalize-reminder','AI: Personalize this reminder',true,null,'gemini'))
+            + (AI_PATIENT_WHATSAPP_MESSAGE
+                ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-message-text','hi-IN')+'</div><div class="card" id="ai-patient-message-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PATIENT_WHATSAPP_MESSAGE)+'</div>'
+                  + (homeCareInstructionsLink(p, AI_PATIENT_WHATSAPP_MESSAGE) ? '<a href="'+esc(homeCareInstructionsLink(p, AI_PATIENT_WHATSAPP_MESSAGE))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send on WhatsApp</a>'
+                    : '<p style="font-size:11px;color:var(--muted);">Save a WhatsApp number to send.</p>')
+                : aiButtonHtml('ai-patient-message','AI: Home-care + follow-up message',true,null,'claude'))
             + '</div>'
           ) : '')
         + '</div>' : '')
@@ -4140,6 +4188,8 @@ let AI_EXAM_SUGGESTIONS = null;
 let AI_PATIENT_SUMMARY = null;
 let AI_PATIENT_EXPLANATION = null;
 let OV_SOAP_DICTATE_TEXT = '';
+let AI_HOME_CARE_INSTRUCTIONS = null;
+let AI_PATIENT_WHATSAPP_MESSAGE = null;
 let AI_PERSONALIZED_REMINDER = null;
 let AI_DIGEST_SUMMARY = null;
 let AI_SANITY_CHECK_RESULT = null;
@@ -7156,6 +7206,20 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+async function generatePatientWhatsAppMessage(p) {
+  const askClaude = firebaseFunctions.httpsCallable('askClaude');
+  const isSurgical = p.caseType === 'surgical';
+  const sys = 'You write a single warm, practical WhatsApp message in Hindi (Devanagari script) from a doctor to their orthopaedic patient (or family), combining two things naturally into one flowing message: (1) home-care guidance \u2014 activity restrictions, wound/dressing care if relevant, medicine reminders (generic, no drug names/doses), and 2-3 warning signs to call the doctor immediately; (2) if a next follow-up date is given, a gentle reminder of that date and to bring old X-ray/MRI/reports. Keep it complete but concise \u2014 this is read on WhatsApp. No markdown symbols like * or #, just natural line breaks. Do not include a greeting or sign-off \u2014 those are added separately.';
+  const context = 'Patient name: ' + p.name
+    + '\nCase type: ' + (isSurgical ? 'Post-surgical' : 'OPD / conservative treatment')
+    + '\nDiagnosis: ' + (p.diagnosis || p.chiefComplaints || '\u2014')
+    + (isSurgical ? ('\nProcedure: ' + (p.procedure || '\u2014') + '\nSurgery date: ' + fmtDate(p.surgeryDate)) : '')
+    + '\nNext follow-up date: ' + (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'not scheduled yet')
+    + (p.notes ? ('\nNotes: ' + p.notes) : '');
+  const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 450 });
+  return (result.data.text || '').trim();
+}
+
 async function generatePersonalizedReminderMessage(p) {
   const askClaude = callGeminiDirect;
   const profile = loadProfile();
@@ -7918,6 +7982,22 @@ async function generatePersonalizedReminderMessage(p) {
     const key = el.dataset.value;
     if (OV_EDIT_SECTIONS.has(key)) OV_EDIT_SECTIONS.delete(key); else { OV_EDIT_SECTIONS.add(key); OV_EXPANDED.add(key); }
     await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ai-patient-message') {
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Writing\u2026';
+    el.disabled = true;
+    try {
+      AI_PATIENT_WHATSAPP_MESSAGE = await generatePatientWhatsAppMessage(p);
+      await renderTabBody(getPatient(SELECTED_ID));
+    } catch (err) {
+      console.error('AI patient message failed:', err);
+      toast('Failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
     return;
   }
   if (action === 'ai-structure-soap') {
@@ -9513,9 +9593,9 @@ document.addEventListener('blur', async (e) => {
     const id = e.target.id;
     setTimeout(() => hideAutocomplete(id), 200);
   }
-  if ((e.target.id === 'ap-diagnosis' || e.target.id === 'ap-complaints') && isAiTier()) {
+  if ((e.target.id === 'ap-diagnosis' || e.target.id === 'ap-complaints') && isProOrAbove()) {
     const block = document.getElementById('ap-diag-ai-suggest-block');
-    if (block) block.innerHTML = apDiagAiSuggestBlockHtml();
+    if (block) block.innerHTML = apDiagAiSuggestBlockHtml() + apSimilarCasesBlockHtml();
   }
 }, true);
 document.addEventListener('keydown', (e) => {
