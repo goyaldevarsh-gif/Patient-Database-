@@ -1167,6 +1167,84 @@ const SCHEME_MAA = [
   {c:'2840-ST009D',n:'Tendon graft repair',g:'Management of Nerve Plexus / Tendon injuries',cat:'Tertiary',r:50000}
 ];
 
+// ---- MAA Yojana implant codes, keyed by package code ----
+const MAA_IMPLANTS = {
+  '2840-SB005B': [{c:'SB005B-IMP105',n:'EXTERNAL FIXATOR',q:1,r:7000},{c:'SB005B-IMP106',n:'JESS',q:1,r:3000}],
+  '2840-SB005C': [{c:'SB005C-IMP107',n:'EXTERNAL FIXATOR',q:1,r:7000},{c:'SB005C-IMP108',n:'CC-SCREW',q:3,r:1000},{c:'SB005C-IMP109',n:'K-WIRE',q:3,r:250},{c:'SB005C-IMP110',n:'PEDICLE SCREW',q:2,r:2500},{c:'SB005C-IMP111',n:'ROD',q:2,r:1500}],
+  '2840-SB005D': [{c:'SB005D-IMP105',n:'EXTERNAL FIXATOR',q:1,r:7000},{c:'SB005D-IMP106',n:'JESS',q:1,r:3000}],
+  '2840-SB006A': [{c:'SB006A-IMP112',n:'K-WIRE',q:3,r:250}],
+  '2840-SB007A': [{c:'SB007A-IMP113',n:'CC-SCREW',q:3,r:1000},{c:'SB007A-IMP114',n:'EXTERNAL FIXATOR / ELASTIC NAIL',q:3,r:5000},{c:'SB007A-IMP115',n:'K-WIRE',q:3,r:250}],
+  '2840-SB007C': [{c:'SB007C-IMP113',n:'CC-SCREW',q:3,r:1000},{c:'SB007C-IMP114',n:'EXTERNAL FIXATOR / ELASTIC NAIL',q:3,r:5000},{c:'SB007C-IMP115',n:'K-WIRE',q:3,r:250}],
+  '2840-SB008A': [{c:'SB008A-IMP116',n:'1500 PER PLATE',q:1,r:1500},{c:'SB008A-IMP117',n:'ONE 6 HOLE SMALL DCP WITH SCREWS - 3500 PER PLATE',q:1,r:3500},{c:'SB008A-IMP118',n:'CC-SCREW',q:1,r:1000}],
+  '2840-SB009A': [{c:'SB009A-IMP119',n:'CC-SCREW',q:2,r:1000},{c:'SB009A-IMP120',n:'HERBERT SCREW',q:2,r:2500},{c:'SB009A-IMP121',n:'PER PLATE',q:2,r:7000},{c:'SB009A-IMP122',n:'K-WIRE',q:2,r:250}],
+  '2840-SB010A': [{c:'SB010A-IMP123',n:'CC-SCREW',q:4,r:1000},{c:'SB010A-IMP124',n:'CRUTCH',q:4,r:1000},{c:'SB010A-IMP125',n:'HERBERT SCREW',q:4,r:2500},{c:'SB010A-IMP126',n:'PER PLATE/NAIL',q:4,r:5000}],
+  '2840-SB010B': [{c:'SB010B-IMP128',n:'PLATE/ IM NAIL FOR - DIAPHYSEAL FRACTURE - LONG BONE',q:1,r:7000},{c:'SB010B-IMP129',n:'K-WIRE',q:4,r:250},{c:'SB010B-IMP130',n:'CC-SCREW',q:4,r:1000}],
+  '2840-SB011A': [{c:'SB011A-IMP131',n:'HERBERT SCREW',q:3,r:2500},{c:'SB011A-IMP132',n:'NAIL / PLATE AND SCREW',q:3,r:5000},{c:'SB011A-IMP133',n:'K-WIRE',q:3,r:250}],
+  '2840-SB012A': [{c:'SB012A-IMP134',n:'HERBERT SCREW',q:3,r:2500},{c:'SB012A-IMP135',n:'NAIL / PLATE AND SCREW',q:3,r:5000},{c:'SB012A-IMP136',n:'K-WIRE',q:3,r:300}],
+  '2840-SB013A': [{c:'SB013A-IMP137',n:'HERBERT SCREW',q:4,r:2500},{c:'SB013A-IMP138',n:'PER PLATE/ NAIL',q:4,r:5000},{c:'SB013A-IMP139',n:'CC-SCREW',q:4,r:1000}],
+  '2840-SB014A': [{c:'SB014A-IMP143',n:'CC-SCREW',q:2,r:1000},{c:'SB014A-IMP144',n:'HERBERT SCREW',q:2,r:2500},{c:'SB014A-IMP145',n:'PER PLATE WITH SCREWS',q:1,r:5000}],
+  '2840-SB015A': [{c:'SB015A-IMP147',n:'CC-SCREW',q:4,r:1000},{c:'SB015A-IMP148',n:'HERBERT SCREW',q:4,r:2500},{c:'SB015A-IMP149',n:'K-WIRE',q:4,r:300},{c:'SB015A-IMP150',n:'PLATE',q:2,r:5000}],
+  '2840-SB015B': [{c:'SB015B-IMP147',n:'CC-SCREW',q:4,r:1000},{c:'SB015B-IMP148',n:'HERBERT SCREW',q:4,r:2500},{c:'SB015B-IMP149',n:'K-WIRE',q:4,r:300},{c:'SB015B-IMP150',n:'PLATE',q:2,r:5000}],
+  '2840-SB016A': [{c:'SB016A-IMP151',n:'CC-SCREW',q:3,r:1000},{c:'SB016A-IMP152',n:'HERBERT SCREW',q:3,r:2500},{c:'SB016A-IMP153',n:'PLATE WITH SCREWS',q:3,r:5000}],
+  '2840-SB017A': [{c:'SB017A-IMP156',n:'PLATE/ELASTI C NAIL',q:2,r:5000},{c:'SB017A-IMP157',n:'KWIRE',q:2,r:250}],
+  '2840-SB018A': [{c:'SB018A-IMP158',n:'CC-SCREW',q:3,r:1500},{c:'SB018A-IMP159',n:'PLATE',q:3,r:5000}],
+  '2840-SB018B': [{c:'SB018B-IMP158',n:'CC-SCREW',q:3,r:1500},{c:'SB018B-IMP159',n:'PLATE',q:3,r:5000}],
+  '2840-SB019A': [{c:'SB019A-IMP160',n:'CANNULATED SCREWS FOR CLOSED REDUCTION AND PERCUTANEOUS SCREW FIXATION (NECK FEMUR) - 2000/SCREW',q:1,r:2000}],
+  '2840-SB019B': [{c:'SB019B-IMP161',n:'DYNAMIC HIP SCREW FOR INTERTROCHANTERIC FRACTURE',q:1,r:5000},{c:'SB019B-IMP162',n:'CC-SCREW',q:1,r:1000}],
+  '2840-SB020A': [{c:'SB020A-IMP163',n:'CALCANEUM PLATE',q:5,r:5000},{c:'SB020A-IMP164',n:'PER CC- SCREW',q:5,r:1000},{c:'SB020A-IMP165',n:'PER PLATE/ NAIL',q:5,r:5000}],
+  '2840-SB021A': [{c:'SB021A-IMP168',n:'ODONTOID SCREW',q:1,r:10000},{c:'SB021A-IMP169',n:'ROD',q:3,r:1500},{c:'SB021A-IMP170',n:'PEDICLE SCREW',q:1,r:2500},{c:'SB021A-IMP171',n:'PLATE WITH SCREW',q:1,r:5000}],
+  '2840-SB022A': [{c:'SB022A-IMP168',n:'ODONTOID SCREW',q:1,r:10000},{c:'SB022A-IMP169',n:'ROD',q:3,r:1500},{c:'SB022A-IMP170',n:'PEDICLE SCREW',q:1,r:2500},{c:'SB022A-IMP171',n:'PLATE WITH SCREW',q:1,r:5000}],
+  '2840-SB022B': [{c:'SB022B-IMP168',n:'ODONTOID SCREW',q:1,r:10000},{c:'SB022B-IMP169',n:'ROD',q:3,r:1500},{c:'SB022B-IMP170',n:'PEDICLE SCREW',q:1,r:2500},{c:'SB022B-IMP171',n:'PLATE WITH SCREW',q:1,r:5000}],
+  '2840-SB026A': [{c:'SB026A-IMP173',n:'HERBERT SCREW',q:4,r:2500},{c:'SB026A-IMP174',n:'PER PLATE/ NAIL',q:4,r:5000},{c:'SB026A-IMP175',n:'CC-SCREW',q:4,r:1000},{c:'SB026A-IMP176',n:'K-WIRE',q:4,r:250},{c:'SB026A-IMP177',n:'EXFIX 5000',q:1,r:5000},{c:'SB026A-IMP178',n:'TTC NAIL 7500',q:1,r:7500}],
+  '2840-SB026B': [{c:'SB026B-IMP179',n:'HERBERT SCREW',q:4,r:2500},{c:'SB026B-IMP180',n:'PER PLATE/ NAIL',q:4,r:5000},{c:'SB026B-IMP181',n:'CC-SCREW',q:4,r:1000},{c:'SB026B-IMP182',n:'K-WIRE',q:4,r:250},{c:'SB026B-IMP183',n:'EXFIX 5000',q:1,r:5000}],
+  '2840-SB026C': [{c:'SB026C-IMP184',n:'HERBERT SCREW',q:4,r:2500},{c:'SB026C-IMP185',n:'PER PLATE/NAIL',q:4,r:5000},{c:'SB026C-IMP186',n:'CC-SCREW',q:4,r:1000},{c:'SB026C-IMP187',n:'K-WIRE',q:4,r:250},{c:'SB026C-IMP188',n:'EXFIX 5000',q:1,r:5000}],
+  '2840-SB026D': [{c:'SB026D-IMP137',n:'HERBERT SCREW',q:4,r:2500},{c:'SB026D-IMP138',n:'PER PLATE/ NAIL',q:4,r:5000},{c:'SB026D-IMP139',n:'CC-SCREW',q:4,r:1000},{c:'SB026D-IMP140',n:'K-WIRE',q:4,r:250},{c:'SB026D-IMP141',n:'TTC NAIL',q:1,r:7500}],
+  '2840-SB026E': [{c:'SB026E-IMP189',n:'HERBERT SCREW',q:4,r:2500},{c:'SB026E-IMP190',n:'PER PLATE/ NAIL',q:4,r:5000},{c:'SB026E-IMP191',n:'CC-SCREW',q:4,r:1000},{c:'SB026E-IMP192',n:'K-WIRE',q:4,r:300}],
+  '2840-SB026F': [{c:'SB026F-IMP189',n:'HERBERT SCREW',q:4,r:2500},{c:'SB026F-IMP190',n:'PER PLATE/ NAIL',q:4,r:5000},{c:'SB026F-IMP191',n:'CC-SCREW',q:4,r:1000},{c:'SB026F-IMP192',n:'K-WIRE',q:4,r:300}],
+  '2840-SB029A': [{c:'SB029A-IMP113',n:'CC-SCREW',q:3,r:1000},{c:'SB029A-IMP114',n:'EXTERNAL FIXATOR / ELASTIC NAIL',q:3,r:5000},{c:'SB029A-IMP115',n:'K-WIRE',q:3,r:250}],
+  '2840-SB030A': [{c:'SB030A-IMP193',n:'TENSION BAND',q:5,r:1000},{c:'SB030A-IMP194',n:'K- WIRE',q:5,r:250}],
+  '2840-SB031A': [{c:'SB031A-IMP195',n:'CRUTCH',q:1,r:1000},{c:'SB031A-IMP196',n:'IMPLANT FOR UNIPOLAR HEMIARTHROPLASTY',q:1,r:4000}],
+  '2840-SB031B': [{c:'SB031B-IMP197',n:'NON - MODULAR - NON - CEMENTED',q:1,r:8500},{c:'SB031B-IMP198',n:'NON - MODULAR - CEMENTED',q:1,r:12000},{c:'SB031B-IMP199',n:'CRUTCH',q:1,r:1000}],
+  '2840-SB031C': [{c:'SB031C-IMP200',n:'MODULAR - CEMENTED',q:1,r:20000},{c:'SB031C-IMP201',n:'MODULAR - UNCEMENTED',q:1,r:25000}],
+  '2840-SB032A': [{c:'SB032A-IMP202',n:'BRACE',q:3,r:1000},{c:'SB032A-IMP203',n:'PER FIBRE WIRE',q:3,r:3000},{c:'SB032A-IMP204',n:'PER PLATE/ NAIL',q:3,r:5000},{c:'SB032A-IMP205',n:'PER SCREW- 1000 MAX :3 RECONSTRUCTION BY TENDON',q:3,r:1000}],
+  '2840-SB032B': [{c:'SB032B-IMP202',n:'BRACE',q:3,r:1000},{c:'SB032B-IMP203',n:'PER FIBRE WIRE',q:3,r:3000},{c:'SB032B-IMP204',n:'PER PLATE/ NAIL',q:3,r:5000},{c:'SB032B-IMP205',n:'PER SCREW- 1000 MAX :3 RECONSTRUCTION BY TENDON',q:3,r:1000}],
+  '2840-SB032C': [{c:'SB032C-IMP202',n:'BRACE',q:3,r:1000},{c:'SB032C-IMP203',n:'PER FIBRE WIRE',q:3,r:3000},{c:'SB032C-IMP204',n:'PER PLATE/ NAIL',q:3,r:5000},{c:'SB032C-IMP205',n:'PER SCREW- 1000 MAX :3 RECONSTRUCTION BY TENDON',q:3,r:1000}],
+  '2840-SB032D': [{c:'SB032D-IMP202',n:'BRACE',q:3,r:1000},{c:'SB032D-IMP203',n:'PER FIBRE WIRE',q:3,r:3000},{c:'SB032D-IMP204',n:'PER PLATE/ NAIL',q:3,r:5000},{c:'SB032D-IMP205',n:'PER SCREW- 1000 MAX :3 RECONSTRUCTION BY TENDON',q:3,r:1000}],
+  '2840-SB032E': [{c:'SB032E-IMP202',n:'BRACE',q:3,r:1000},{c:'SB032E-IMP203',n:'PER FIBRE WIRE',q:3,r:3000},{c:'SB032E-IMP204',n:'PER PLATE/ NAIL',q:3,r:5000},{c:'SB032E-IMP205',n:'PER SCREW- 1000 MAX :3 RECONSTRUCTION BY TENDON',q:3,r:1000}],
+  '2840-SB032F': [{c:'SB032F-IMP202',n:'BRACE',q:3,r:1000},{c:'SB032F-IMP203',n:'PER FIBRE WIRE',q:3,r:3000},{c:'SB032F-IMP204',n:'PER PLATE/ NAIL',q:3,r:5000},{c:'SB032F-IMP205',n:'PER SCREW- 1000 MAX :3 RECONSTRUCTION BY TENDON',q:3,r:1000}],
+  '2840-SB036A': [{c:'SB036A-IMP207',n:'ARTHROSCOP IC MENISCAL REPAIR WITH FIBRE WIRE FOR INSIDE OUT TECHNIQUE',q:3,r:3000},{c:'SB036A-IMP208',n:'BRACE',q:3,r:1000},{c:'SB036A-IMP209',n:'CRUTCH',q:3,r:1000}],
+  '2840-SB037A': [{c:'SB037A-IMP211',n:'BRACE',q:2,r:1000},{c:'SB037A-IMP212',n:'IMPLANT FOR ELBOW REPLACEMENT',q:2,r:30000}],
+  '2840-SB038A': [{c:'SB038A-IMP213',n:'CRUTCH',q:1,r:1000},{c:'SB038A-IMP214',n:'IMPLANT FOR TOTAL HIP REPLACEMENT - CEMENTED',q:1,r:40000}],
+  '2840-SB038B': [{c:'SB038B-IMP215',n:'CRUTCH',q:1,r:1000},{c:'SB038B-IMP216',n:'IMPLANT FOR TOTAL HIP REPLACEMENT - CEMENTLESS',q:1,r:65000}],
+  '2840-SB038C': [{c:'SB038C-IMP217',n:'CRUTCH',q:1,r:1000},{c:'SB038C-IMP218',n:'IMPLANT FOR TOTAL HIP REPLACEMENT - HYBRID',q:1,r:51000}],
+  '2840-SB038D': [{c:'SB038D-IMP219',n:'CRUTCH',q:1,r:1000},{c:'SB038D-IMP220',n:'IMPLANT FOR REVISION TOTAL HIP REPLACEMENT',q:2,r:70000},{c:'SB038D-IMP221',n:'CEMENT SPACER',q:1,r:5000}],
+  '2840-SB039A': [{c:'SB039A-IMP222',n:'CRUTCH',q:1,r:1000},{c:'SB039A-IMP223',n:'IMPLANT FOR TOTAL KNEE REPLACEMENT',q:1,r:55000},{c:'SB039A-IMP224',n:'BRACE',q:2,r:1000}],
+  '2840-SB039B': [{c:'SB039B-IMP225',n:'IMPLANT FOR REVISION TOTAL HIP REPLACEMENT',q:1,r:140000},{c:'SB039B-IMP226',n:'BRACE',q:2,r:1000},{c:'SB039B-IMP227',n:'CRUTCH',q:1,r:1000}],
+  '2840-SB040A': [{c:'SB040A-IMP228',n:'MODULAR CUSTOM PROSTHESIS FOR BONE TUMOUR EXCISION - MALIGNANT INCLUDING GCT + JOINT REPLACEMENT',q:1,r:150000},{c:'SB040A-IMP229',n:'MEGA PROSTHESIS (1)',q:1,r:100000}],
+  '2840-SB041A': [{c:'SB041A-IMP230',n:'BRCE-1000 MX :1',q:1,r:1000},{c:'SB041A-IMP231',n:'CRUTCH-1000 MX :1',q:1,r:1000},{c:'SB041A-IMP232',n:'MODULR CUSTOM PROSTHESIS -MEG PROSTHESIS-85000 MX :1',q:1,r:85000}],
+  '2840-SB046B': [{c:'SB046B-IMP236',n:'BRACE',q:2,r:1000},{c:'SB046B-IMP237',n:'CRUTCH',q:1,r:1000},{c:'SB046B-IMP238',n:'SCREW / ENDOBUTTON / ANCHOR / SUTURE DISC+ETHIBOND',q:4,r:17000}],
+  '2840-SB049A': [{c:'SB049A-IMP233',n:'BRACE',q:4,r:1000},{c:'SB049A-IMP234',n:'CRUTCH',q:4,r:1000},{c:'SB049A-IMP235',n:'SCREW / ENDOBUTTON / ANCHOR / SUTURE DISC + ETHIBOND',q:4,r:17000}],
+  '2840-SB049B': [{c:'SB049B-IMP236',n:'BRACE',q:2,r:1000},{c:'SB049B-IMP237',n:'CRUTCH',q:1,r:1000},{c:'SB049B-IMP238',n:'SCREW / ENDOBUTTON / ANCHOR / SUTURE DISC+ETHIBOND',q:4,r:17000}],
+  '2840-SB053A': [{c:'SB053A-IMP239',n:'ANTIBIOTIC CEMENT BEADS',q:1,r:5000}],
+  '2840-SB054A': [{c:'SB054A-IMP240',n:'ODONTOID SCREW',q:2,r:10000},{c:'SB054A-IMP241',n:'ROD',q:3,r:1500},{c:'SB054A-IMP242',n:'DEFORMITY SCREW',q:1,r:5000},{c:'SB054A-IMP243',n:'PLATE WITH SCREW',q:1,r:5000}],
+  '2840-SB055A': [{c:'SB055A-IMP245',n:'PLATE WITH SCREW - LONG & SMALL BONE (GOVT. RESERVED)',q:2,r:6000}],
+  '2840-SB055B': [{c:'SB055B-IMP246',n:'PLATE WITH SCREW - LONG & SMALL BONE (GOVT. RESERVED)',q:2,r:5000}],
+  '2840-SB056A': [{c:'SB056A-IMP247',n:'CC-SCREW - PELVIC OSTEOTOMY AND FIXATION',q:3,r:1500},{c:'SB056A-IMP248',n:'RECON PLATE',q:3,r:5000},{c:'SB056A-IMP249',n:'K-WIRE',q:3,r:250}],
+  '2840-SB057A': [{c:'SB057A-IMP250',n:'PLATE',q:1,r:7000},{c:'SB057A-IMP251',n:'FIXATOR',q:1,r:15000},{c:'SB057A-IMP252',n:'CC-SCREW',q:4,r:1000},{c:'SB057A-IMP253',n:'CRUTCH',q:1,r:1000},{c:'SB057A-IMP254',n:'HERBERT SCREW',q:4,r:2500}],
+  '2840-SB058A': [{c:'SB058A-IMP255',n:'CRUTCH',q:1,r:1000},{c:'SB058A-IMP256',n:'IMPLANT FOR ILIZAROV FIXATION',q:2,r:12000}],
+  '2840-SB059A': [{c:'SB059A-IMP257',n:'CRUTCH',q:1,r:1000},{c:'SB059A-IMP258',n:'IMPLANT FOR LIMB LENGTHENING / BONE TRANSPORT BY ILIZAROV / LRS',q:2,r:12000},{c:'SB059A-IMP259',n:'NAIL',q:1,r:5000}],
+  '2840-SB060A': [{c:'SB060A-IMP260',n:'IMPLANT FOR GROWTH MODULATION & FIXATION PLATE',q:4,r:5000}],
+  '2840-SB061A': [{c:'SB061A-IMP261',n:'CC-SCREW',q:3,r:1000},{c:'SB061A-IMP262',n:'HERBERT SCREW',q:3,r:2500},{c:'SB061A-IMP263',n:'PER PLATE/ NAIL',q:3,r:5000},{c:'SB061A-IMP264',n:'K-WIRE',q:3,r:250}],
+  '2840-SB061B': [{c:'SB061B-IMP261',n:'CC-SCREW',q:3,r:1000},{c:'SB061B-IMP262',n:'HERBERT SCREW',q:3,r:2500},{c:'SB061B-IMP263',n:'PER PLATE/ NAIL',q:3,r:5000},{c:'SB061B-IMP264',n:'K-WIRE',q:3,r:250}],
+  '2840-SB063A': [{c:'SB063A-IMP265',n:'CTEV JESS FIXATOR',q:1,r:7000}],
+  '2840-SB077A': [{c:'SB077A-IMP266',n:'HERBERT SCREW',q:3,r:2500},{c:'SB077A-IMP267',n:'NAIL / PLATE AND SCREW',q:3,r:5000},{c:'SB077A-IMP268',n:'RADIAL HEAD PROSTHESIS',q:1,r:20000},{c:'SB077A-IMP269',n:'K-WIRE',q:3,r:250}],
+  '2840-SB078A': [{c:'SB078A-IMP270',n:'IMPLANT FOR FRACTURE - HUMERUS - ORIF - PLATE - 12000 PER PLATE',q:1,r:12000},{c:'SB078A-IMP271',n:'CC-SCREW',q:4,r:1000},{c:'SB078A-IMP272',n:'HERBERT SCREW',q:4,r:2500},{c:'SB078A-IMP273',n:'K-WIRE',q:4,r:250}],
+  '2840-SB079A': [{c:'SB079A-IMP274',n:'CRUTCH',q:1,r:1000},{c:'SB079A-IMP275',n:'IMPLANT FOR REVISION TOTAL HIP REPLACEMENT',q:2,r:70000}],
+  '2840-SB080A': [{c:'SB080A-IMP276',n:'IMPLANT FOR REVISION TOTAL HIP REPLACEMENT',q:1,r:140000},{c:'SB080A-IMP277',n:'BRACE',q:2,r:1000},{c:'SB080A-IMP278',n:'CRUTCH',q:2,r:1000}],
+  '2840-SN034B': [{c:'SN034B-IMP168',n:'ODONTOID SCREW',q:1,r:10000},{c:'SN034B-IMP169',n:'ROD',q:3,r:1500},{c:'SN034B-IMP170',n:'PEDICLE SCREW',q:1,r:2500}],
+  '2840-ST008A': [{c:'ST008A-IMP236',n:'BRACE',q:2,r:1000},{c:'ST008A-IMP237',n:'CRUTCH',q:1,r:1000},{c:'ST008A-IMP238',n:'SCREW / ENDOBUTTON / ANCHOR / SUTURE DISC+ETHIBOND',q:4,r:17000}]
+};
+
 const TYPE_BADGE = { Arthroplasty:'indigo', Arthroscopy:'emerald', Trauma:'red', Spine:'amber', Other:'slate' };
 const CASE_REGIONS = [
   { key:'Upper Limb', keywords:['shoulder','elbow','wrist','hand','finger','humerus','radius','ulna','clavicle','forearm','bbfa','both bone forearm','supracondylar','olecranon','brachial','deltoid','rotator cuff','rotator','bicep','tricep','carpal','scaphoid','colles','colle\u2019s','smith fracture','monteggia','galeazzi','distal radius','proximal humerus','shaft humerus','frozen shoulder','periarthritis','tennis elbow','golfer\u2019s elbow','lateral epicondylitis','medial epicondylitis'] },
@@ -2416,6 +2494,23 @@ function renderCashAuditView() {
     + '</div>';
 }
 
+function schemeQuickMatch(queryText, limit) {
+  const q = (queryText || '').trim().toLowerCase();
+  if (!q) return [];
+  const words = q.split(/[\s,.-]+/).filter(w => w.length > 2);
+  if (!words.length) return [];
+  function scoreList(list, type) {
+    return list.map(item => {
+      const hay = (item.n + ' ' + (item.g||'')).toLowerCase();
+      const matchCount = words.filter(w => hay.includes(w)).length;
+      return matchCount ? { item, type, score: matchCount } : null;
+    }).filter(Boolean);
+  }
+  const combined = [...scoreList(SCHEME_RGHS, 'rghs'), ...scoreList(SCHEME_MAA, 'maa')];
+  combined.sort((a,b) => b.score - a.score);
+  return combined.slice(0, limit || 3);
+}
+
 function schemeSearchResults() {
   const q = (SCHEME_FINDER_QUERY || '').trim().toLowerCase();
   const list = SCHEME_FINDER_TYPE === 'rghs' ? SCHEME_RGHS : SCHEME_MAA;
@@ -2430,18 +2525,55 @@ function schemeSearchResults() {
 function schemeResultsHtml(forCase) {
   const results = schemeSearchResults();
   return results.length ? results.map(item => {
+    const implantCount = (MAA_IMPLANTS[item.c] || []).length;
     return '<div class="card" style="padding:12px 14px;margin-bottom:8px;">'
       + '<div class="row between" style="align-items:flex-start;">'
       + '<div style="flex:1;">'
       + '<div style="font-weight:700;font-size:13.5px;">'+esc(item.n)+'</div>'
-      + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">Code: '+esc(item.c)+(item.cat?' \u00b7 '+esc(item.cat):'')+'</div>'
+      + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">Code: '+esc(item.c)+(item.cat?' \u00b7 '+esc(item.cat):'')+(implantCount?' \u00b7 '+implantCount+' implant option'+(implantCount>1?'s':''):'')+'</div>'
       + '</div>'
       + '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'
       + '<div style="font-weight:800;font-size:14px;color:var(--emerald);">\u20b9'+Number(item.r).toLocaleString('en-IN')+'</div>'
-      + (forCase ? '<button class="btn btn-sm btn-primary" style="margin-top:6px;" data-action="scheme-attach" data-code="'+esc(item.c)+'">Attach</button>' : '')
+      + (forCase ? '<button class="btn btn-sm btn-primary" style="margin-top:6px;" data-action="scheme-pick-package" data-code="'+esc(item.c)+'">Select</button>' : '')
       + '</div>'
       + '</div></div>';
   }).join('') : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:30px 0;">No matches. Try different keywords.</div>';
+}
+
+function schemeImplantPickerHtml() {
+  const pkg = SCHEME_ATTACH_PACKAGE;
+  if (!pkg) return '';
+  const available = MAA_IMPLANTS[pkg.c] || [];
+  const selectedCodes = new Set(SCHEME_SELECTED_IMPLANTS.map(i => i.code));
+  return '<div class="px" style="padding-top:10px;">'
+    + '<button class="btn btn-sm" style="margin-bottom:10px;" data-action="scheme-back-to-search">'+ic('back')+' Back to search</button>'
+    + '<div class="card" style="padding:12px 14px;margin-bottom:14px;">'
+    + '<div style="font-weight:700;font-size:14px;">'+esc(pkg.n)+'</div>'
+    + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">Code: '+esc(pkg.c)+' \u00b7 \u20b9'+Number(pkg.r).toLocaleString('en-IN')+'</div>'
+    + '</div>'
+    + '<label class="field-label">Implant(s) used (optional)</label>'
+    + (available.length ? available.map(im => (
+        '<label class="row" style="align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--border);">'
+        + '<input type="checkbox" data-action="scheme-toggle-implant" data-code="'+esc(im.c)+'" data-name="'+esc(im.n)+'" data-rate="'+im.r+'" '+(selectedCodes.has(im.c)?'checked':'')+'>'
+        + '<span style="flex:1;font-size:13px;">'+esc(im.n)+'<span style="display:block;font-size:11px;color:var(--muted);">'+esc(im.c)+' \u00b7 max qty '+im.q+' \u00b7 \u20b9'+Number(im.r).toLocaleString('en-IN')+' each</span></span>'
+        + '</label>'
+      )).join('') : '<p style="font-size:12px;color:var(--muted);margin:0 0 10px;">No implant list on file for this package.</p>')
+    + (SCHEME_SELECTED_IMPLANTS.filter(i => i.custom).length ? SCHEME_SELECTED_IMPLANTS.filter(i=>i.custom).map(im => (
+        '<div class="row between" style="align-items:center;padding:10px 4px;border-bottom:1px solid var(--border);">'
+        + '<span style="font-size:13px;">'+esc(im.name)+'<span style="display:block;font-size:11px;color:var(--muted);">'+esc(im.code)+' (custom) \u00b7 \u20b9'+Number(im.rate).toLocaleString('en-IN')+'</span></span>'
+        + '<button class="icon-btn" data-action="scheme-remove-custom-implant" data-code="'+esc(im.code)+'">'+ic('x')+'</button>'
+        + '</div>'
+      )).join('') : '')
+    + (SCHEME_CUSTOM_IMPLANT_OPEN
+        ? '<div class="card" style="margin-top:10px;padding:12px;">'
+          + '<label class="field-label">Implant code</label><input class="input" id="custom-implant-code" style="margin-bottom:6px;">'
+          + '<label class="field-label">Implant name</label><input class="input" id="custom-implant-name" style="margin-bottom:6px;">'
+          + '<label class="field-label">Rate (\u20b9)</label><input class="input" type="number" id="custom-implant-rate" style="margin-bottom:8px;">'
+          + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="scheme-cancel-custom-implant">Cancel</button><button class="btn btn-primary" style="flex:1;" data-action="scheme-save-custom-implant">Add</button></div>'
+          + '</div>'
+        : '<button class="btn btn-sm" style="margin-top:10px;" data-action="scheme-open-custom-implant">'+ic('plus')+' Add custom implant code</button>')
+    + '<button class="btn btn-primary btn-block" style="margin-top:16px;" data-action="scheme-confirm-attach">Confirm & attach to case</button>'
+    + '</div>';
 }
 
 function aiToolAccordionHtml(key, icon, title, contentHtml) {
@@ -2517,6 +2649,13 @@ function renderPlannedSurgeriesView() {
     + '</div>'
     + '<div class="px" style="padding-top:10px;">'
     + (PS_ADD_OPEN ? psAddFormHtml() : '<button class="btn btn-outline-dashed btn-block" style="margin-bottom:14px;" data-action="ps-open-add">'+ic('plus')+' Add planned surgery</button>')
+    + (sorted.length ? '<div class="row gap2" style="margin-bottom:14px;">'
+        + '<button class="btn btn-sm" style="flex:1;" data-action="ps-share-text">'+ic('message')+' Share as text</button>'
+        + '<button class="btn btn-sm" style="flex:1;" data-action="ps-export-file">'+ic('upload')+' Export list</button>'
+        + '<button class="btn btn-sm" style="flex:1;" data-action="trigger-ps-import">'+ic('download')+' Import list</button>'
+        + '</div>'
+      : (PLANNED_SURGERIES.length === 0 ? '<div class="row gap2" style="margin-bottom:14px;"><button class="btn btn-sm btn-block" data-action="trigger-ps-import">'+ic('download')+' Import a list from another device</button></div>' : ''))
+    + '<input type="file" accept="application/json,.json" id="ps-import-file-input" style="display:none;">'
     + (sorted.length ? sorted.map(psEntryHtml).join('') : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:30px 0;">No planned surgeries yet.</div>')
     + '</div>'
     + '</div>';
@@ -2584,7 +2723,9 @@ function renderSchemeFinderView() {
   const forCase = !!SCHEME_FINDER_CASE_ID;
   let body;
 
-  if (!SCHEME_FINDER_TYPE) {
+  if (SCHEME_ATTACH_PACKAGE) {
+    body = schemeImplantPickerHtml();
+  } else if (!SCHEME_FINDER_TYPE) {
     body = '<div class="px" style="padding-top:12px;">'
       + '<div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Which scheme is this patient covered under?</div>'
       + '<button class="btn btn-block" style="margin-bottom:10px;padding:16px;justify-content:flex-start;" data-action="scheme-pick-rghs">'
@@ -2730,6 +2871,9 @@ let MORE_EXPANDED = new Set(['settings']);
 let SCHEME_FINDER_TYPE = null;
 let SCHEME_FINDER_QUERY = '';
 let SCHEME_FINDER_CASE_ID = null;
+let SCHEME_ATTACH_PACKAGE = null; // package item awaiting implant selection
+let SCHEME_SELECTED_IMPLANTS = []; // array of {code,name,rate} chosen for this attach
+let SCHEME_CUSTOM_IMPLANT_OPEN = false;
 async function renderMoreView() {
   const unfiled = await computeUnfiledImages();
   const notifCount = (await computeActivityFeed()).filter(e => e.ts > notifLastSeen()).length;
@@ -3899,6 +4043,27 @@ function findSimilarCases(diagnosisText, limit) {
   return scored.slice(0, limit || 5).map(s => s.p);
 }
 
+function apSchemeSuggestBlockHtml() {
+  if (!isProOrAbove()) return '';
+  const q = AP_TEMP.diagnosis || AP_TEMP.chiefComplaints;
+  if (!q) return '';
+  const matches = schemeQuickMatch(q, 3);
+  if (!matches.length) return '';
+  return '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
+    + '<label class="field-label" style="margin-bottom:4px;">Matching scheme codes</label>'
+    + matches.map(m => (
+        '<div class="row between" style="padding:8px 10px;margin-bottom:6px;background:var(--bg-soft);border-radius:10px;">'
+        + '<span style="flex:1;overflow:hidden;">'
+          + '<span style="display:block;font-size:12px;font-weight:700;">'+esc(m.item.n)+'</span>'
+          + '<span style="display:block;font-size:10.5px;color:var(--muted);">'+(m.type==='rghs'?'RGHS':'MAA Yojana')+' \u00b7 '+esc(m.item.c)+'</span>'
+        + '</span>'
+        + '<span style="font-size:12px;font-weight:800;color:var(--emerald);flex-shrink:0;">\u20b9'+Number(m.item.r).toLocaleString('en-IN')+'</span>'
+        + '</div>'
+      )).join('')
+    + '<p style="font-size:10.5px;color:var(--muted);margin:2px 0 0;">Attach the right one after saving \u2014 Overview \u2192 scheme package card.</p>'
+    + '</div>';
+}
+
 function apSimilarCasesBlockHtml() {
   if (!isProOrAbove()) return '';
   const q = AP_TEMP.diagnosis || AP_TEMP.chiefComplaints;
@@ -3964,7 +4129,7 @@ function renderAddView() {
       + '</div></div>'
       + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
       + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
-        + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+apSimilarCasesBlockHtml()+'</div>'
+        + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+apSimilarCasesBlockHtml()+apSchemeSuggestBlockHtml()+'</div>'
       + '</div>'
       + '</div>';
   } else if (AP_SUBTAB === 'tracking') {
@@ -4292,7 +4457,11 @@ function renderOverviewTab(p) {
           + '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'
           + '<div style="font-weight:800;font-size:14px;color:var(--emerald);">\u20b9'+Number(p.schemePackage.rate).toLocaleString('en-IN')+'</div>'
           + '<button class="btn btn-sm" style="margin-top:6px;" data-action="scheme-detach" data-id="'+p.id+'">Remove</button>'
-          + '</div></div></div>'
+          + '</div></div>'
+          + (p.schemePackage.implants && p.schemePackage.implants.length ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);font-size:11.5px;color:var(--muted);">'
+              + p.schemePackage.implants.map(im => esc(im.name)+' ('+esc(im.code)+') \u2014 \u20b9'+Number(im.rate).toLocaleString('en-IN')).join('<br>')
+              + '</div>' : '')
+          + '</div>'
         ) : (
           '<button class="btn btn-block" data-action="open-scheme-finder-for-case" data-id="'+p.id+'">'+ic('clipboard')+' Find RGHS / MAA Yojana package</button>'
         )
@@ -5461,7 +5630,9 @@ function renderCaseSummaryPrintView() {
     if (p.chiefComplaints) body += '<div class="rx-diagnosis"><b>C/O:</b> ' + esc(p.chiefComplaints) + '</div>';
     if (p.diagnosis) body += '<div class="rx-diagnosis"><b>Diagnosis:</b> ' + esc(displayDiagnosis(p.diagnosis)) + '</div>';
     if (p.caseType === 'surgical' && p.procedure) body += '<div class="rx-diagnosis"><b>Procedure:</b> ' + esc(p.procedure) + (p.surgeryDate ? ' (' + fmtDate(p.surgeryDate) + ')' : '') + '</div>';
-    if (p.schemePackage) body += '<div class="rx-diagnosis"><b>' + esc(p.schemePackage.scheme) + ' Package:</b> ' + esc(p.schemePackage.name) + ' (Code: ' + esc(p.schemePackage.code) + ') \u2014 \u20b9' + Number(p.schemePackage.rate).toLocaleString('en-IN') + '</div>';
+    if (p.schemePackage) body += '<div class="rx-diagnosis"><b>' + esc(p.schemePackage.scheme) + ' Package:</b> ' + esc(p.schemePackage.name) + ' (Code: ' + esc(p.schemePackage.code) + ') \u2014 \u20b9' + Number(p.schemePackage.rate).toLocaleString('en-IN')
+      + (p.schemePackage.implants && p.schemePackage.implants.length ? '<br><b>Implants:</b> ' + p.schemePackage.implants.map(im => esc(im.name)+' ('+esc(im.code)+', \u20b9'+Number(im.rate).toLocaleString('en-IN')+')').join(', ') : '')
+      + '</div>';
   }
   if (s.has('followups') && (p.followUps||[]).length) {
     body += '<div class="rx-advice"><b>Follow-up Visits</b><br>' + [...p.followUps].sort((a,b)=>new Date(a.date)-new Date(b.date)).map(f => fmtDate(f.date) + ' \u2014 ' + esc(f.label) + (detailed && f.notes ? ': ' + esc(f.notes) : '')).join('<br>') + '</div>';
@@ -9203,6 +9374,39 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-whats-new') { VIEW = 'whats-new'; render(); return; }
   if (action === 'open-upgrade') { VIEW = 'upgrade'; render(); return; }
   if (action === 'close-upgrade') { VIEW = 'more'; render(); return; }
+  if (action === 'ps-share-text') {
+    const sorted = [...PLANNED_SURGERIES].filter(s=>s.status==='waiting').sort((a,b) => (a.date||'').localeCompare(b.date||''));
+    if (!sorted.length) { toast('No waiting patients to share.'); return; }
+    let msg = '\ud83d\udccb Planned Surgeries (as of ' + fmtDate(todayStr()) + ')\n\n';
+    sorted.forEach((s, i) => {
+      msg += (i+1) + '. ' + s.name + ', ' + (s.age||'?') + '/' + (s.sex||'?') + ' \u2014 ' + (s.diagnosis||'\u2014') + ' \u2014 ' + (s.plan||'\u2014') + ' \u2014 ' + fmtDate(s.date) + '\n';
+    });
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    return;
+  }
+  if (action === 'ps-export-file') {
+    try {
+      const payload = { type: 'orthovault-planned-surgeries', exportedAt: Date.now(), entries: PLANNED_SURGERIES };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const filename = 'planned-surgeries-' + todayStr() + '.json';
+      const file = new File([blob], filename, { type: 'application/json' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        toast('List exported \u2014 share the downloaded file');
+      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      toast('Export failed: ' + err.message);
+    }
+    return;
+  }
+  if (action === 'trigger-ps-import') { document.getElementById('ps-import-file-input').click(); return; }
   if (action === 'open-planned-surgeries') {
     PLANNED_SURGERIES = loadPlannedSurgeries();
     PS_ADD_OPEN = false; PS_EDIT_ID = null;
@@ -9285,18 +9489,62 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'scheme-pick-rghs') { SCHEME_FINDER_TYPE = 'rghs'; render(); return; }
   if (action === 'scheme-pick-maa') { SCHEME_FINDER_TYPE = 'maa'; render(); return; }
   if (action === 'scheme-change-scheme') { SCHEME_FINDER_TYPE = null; SCHEME_FINDER_QUERY = ''; render(); return; }
-  if (action === 'scheme-attach') {
+  if (action === 'scheme-pick-package') {
     const code = el.dataset.code;
-    if (SCHEME_FINDER_CASE_ID && code) {
-      const list = SCHEME_FINDER_TYPE === 'rghs' ? SCHEME_RGHS : SCHEME_MAA;
-      const item = list.find(x => x.c === code);
-      const p = getPatient(SCHEME_FINDER_CASE_ID);
-      if (item && p) {
-        p.schemePackage = { scheme: SCHEME_FINDER_TYPE === 'rghs' ? 'RGHS' : 'MAA Yojana', code: item.c, name: item.n, rate: item.r };
-        await savePatient(p);
-        toast('Package attached to case.');
-        VIEW = 'detail'; SELECTED_ID = SCHEME_FINDER_CASE_ID; TAB = 'overview'; render();
-      }
+    const list = SCHEME_FINDER_TYPE === 'rghs' ? SCHEME_RGHS : SCHEME_MAA;
+    const item = list.find(x => x.c === code);
+    if (!item) return;
+    if (!SCHEME_FINDER_CASE_ID) {
+      // Not attached to a case yet (e.g. browsing standalone) \u2014 nothing to attach to.
+      toast('Open this from a patient\u2019s Overview to attach a package.');
+      return;
+    }
+    SCHEME_ATTACH_PACKAGE = item;
+    SCHEME_SELECTED_IMPLANTS = [];
+    SCHEME_CUSTOM_IMPLANT_OPEN = false;
+    render(); return;
+  }
+  if (action === 'scheme-back-to-search') {
+    SCHEME_ATTACH_PACKAGE = null; SCHEME_SELECTED_IMPLANTS = []; SCHEME_CUSTOM_IMPLANT_OPEN = false;
+    render(); return;
+  }
+  if (action === 'scheme-toggle-implant') {
+    const code = el.dataset.code, name = el.dataset.name, rate = el.dataset.rate;
+    if (el.checked) {
+      SCHEME_SELECTED_IMPLANTS.push({ code, name, rate: Number(rate) });
+    } else {
+      SCHEME_SELECTED_IMPLANTS = SCHEME_SELECTED_IMPLANTS.filter(i => i.code !== code);
+    }
+    return;
+  }
+  if (action === 'scheme-open-custom-implant') { SCHEME_CUSTOM_IMPLANT_OPEN = true; render(); return; }
+  if (action === 'scheme-cancel-custom-implant') { SCHEME_CUSTOM_IMPLANT_OPEN = false; render(); return; }
+  if (action === 'scheme-save-custom-implant') {
+    const code = (document.getElementById('custom-implant-code').value || '').trim();
+    const name = (document.getElementById('custom-implant-name').value || '').trim();
+    const rate = Number(document.getElementById('custom-implant-rate').value || 0);
+    if (!name) { toast('Enter an implant name.'); return; }
+    SCHEME_SELECTED_IMPLANTS.push({ code: code || 'CUSTOM-'+Date.now(), name, rate, custom: true });
+    SCHEME_CUSTOM_IMPLANT_OPEN = false;
+    render(); return;
+  }
+  if (action === 'scheme-remove-custom-implant') {
+    SCHEME_SELECTED_IMPLANTS = SCHEME_SELECTED_IMPLANTS.filter(i => i.code !== el.dataset.code);
+    render(); return;
+  }
+  if (action === 'scheme-confirm-attach') {
+    const item = SCHEME_ATTACH_PACKAGE;
+    const p = getPatient(SCHEME_FINDER_CASE_ID);
+    if (item && p) {
+      p.schemePackage = {
+        scheme: SCHEME_FINDER_TYPE === 'rghs' ? 'RGHS' : 'MAA Yojana',
+        code: item.c, name: item.n, rate: item.r,
+        implants: SCHEME_SELECTED_IMPLANTS.slice()
+      };
+      await savePatient(p);
+      toast('Package attached to case.');
+      SCHEME_ATTACH_PACKAGE = null; SCHEME_SELECTED_IMPLANTS = [];
+      VIEW = 'detail'; SELECTED_ID = SCHEME_FINDER_CASE_ID; TAB = 'overview'; render();
     }
     return;
   }
@@ -9697,6 +9945,38 @@ document.addEventListener('change', async (e) => {
     return;
   }
 
+  if (t.id === 'ps-import-file-input') {
+    const file = t.files && t.files[0];
+    t.value = '';
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const incoming = Array.isArray(parsed) ? parsed : (parsed.entries || []);
+      if (!Array.isArray(incoming) || !incoming.length) { toast('No entries found in that file.'); return; }
+      const existingIds = new Set(PLANNED_SURGERIES.map(s => s.id));
+      let added = 0, updated = 0;
+      incoming.forEach(entry => {
+        if (!entry || !entry.name) return;
+        if (entry.id && existingIds.has(entry.id)) {
+          const idx = PLANNED_SURGERIES.findIndex(s => s.id === entry.id);
+          PLANNED_SURGERIES[idx] = { ...PLANNED_SURGERIES[idx], ...entry };
+          updated++;
+        } else {
+          PLANNED_SURGERIES.push({ ...entry, id: entry.id || uid() });
+          added++;
+        }
+      });
+      savePlannedSurgeries(PLANNED_SURGERIES);
+      toast('Imported: ' + added + ' new, ' + updated + ' updated');
+      render();
+    } catch (err) {
+      console.error('Planned surgeries import failed:', err);
+      toast('Import failed \u2014 not a valid file');
+    }
+    return;
+  }
+
   if (t.matches && t.matches('[data-photo-input]')) {
     const which = t.dataset.photoInput;
     if (which === 'ap-remove-photo') await handlePhotoInputChange(t, AP_PHOTOS, 'ap-thumbs', AP_TEMP && AP_TEMP.id);
@@ -9925,7 +10205,7 @@ document.addEventListener('blur', async (e) => {
   }
   if ((e.target.id === 'ap-diagnosis' || e.target.id === 'ap-complaints') && isProOrAbove()) {
     const block = document.getElementById('ap-diag-ai-suggest-block');
-    if (block) block.innerHTML = apDiagAiSuggestBlockHtml() + apSimilarCasesBlockHtml();
+    if (block) block.innerHTML = apDiagAiSuggestBlockHtml() + apSimilarCasesBlockHtml() + apSchemeSuggestBlockHtml();
   }
 }, true);
 document.addEventListener('keydown', (e) => {
