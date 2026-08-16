@@ -1432,6 +1432,8 @@ function resetPerPatientUiState() {
   OV_SHOW_TRACKING_PICK = false;
   OV_EDIT_SECTIONS = new Set();
   AI_PATIENT_SUMMARY = null;
+  AI_PATIENT_EXPLANATION = null;
+  OV_SOAP_DICTATE_TEXT = '';
   ROM_LOG_OPEN = false;
   ADD_FOLLOWUP_OPEN = false;
   ADD_INVESTIGATION_OPEN = false;
@@ -3929,25 +3931,6 @@ function renderOverviewTab(p) {
     + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
     + '<div><label class="field-label">Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
     + '</div>'
-    + (isProOrAbove() ? (
-        '<div><label class="field-label">Govt. scheme package</label>'
-        + (p.schemePackage ? (
-            '<div class="card" style="padding:12px 14px;">'
-            + '<div class="row between" style="align-items:flex-start;">'
-            + '<div style="flex:1;">'
-            + '<span class="score-badge" style="background:var(--accent-light);color:var(--accent-dark);font-size:10.5px;">'+esc(p.schemePackage.scheme)+'</span>'
-            + '<div style="font-weight:700;font-size:13px;margin-top:4px;">'+esc(p.schemePackage.name)+'</div>'
-            + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">Code: '+esc(p.schemePackage.code)+'</div>'
-            + '</div>'
-            + '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'
-            + '<div style="font-weight:800;font-size:14px;color:var(--emerald);">\u20b9'+Number(p.schemePackage.rate).toLocaleString('en-IN')+'</div>'
-            + '<button class="btn btn-sm" style="margin-top:6px;" data-action="scheme-detach" data-id="'+p.id+'">Remove</button>'
-            + '</div></div></div>'
-          ) : (
-            '<button class="btn btn-block" data-action="open-scheme-finder-for-case" data-id="'+p.id+'">'+ic('clipboard')+' Find RGHS / MAA Yojana package</button>'
-          ))
-        + '</div>'
-      ) : '')
     + (isSurgical ? (
         '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
         + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('ov-procedure')
@@ -3986,12 +3969,27 @@ function renderOverviewTab(p) {
             ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-summary-text')+'</div><div class="card" id="ai-patient-summary-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_SUMMARY)+'</div>'
             : aiButtonHtml('ai-summarize-patient','AI: Summarize this patient',true,null,'claude'))
         + '</div>'
+        + '<div style="padding-top:6px;border-top:1px dashed var(--border);margin-top:6px;">'
+        + (AI_PATIENT_EXPLANATION
+            ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-explanation-text','hi-IN')+'</div><div class="card" id="ai-patient-explanation-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_EXPLANATION)+'</div>'
+              + '<div class="row gap2" style="margin-top:6px;">'+aiButtonHtml('ai-explain-patient-hi','Redo in Hindi',false,null,'claude')+aiButtonHtml('ai-explain-patient-en','Redo in simple English',false,null,'claude')+'</div>'
+            : '<div class="row gap2">'+aiButtonHtml('ai-explain-patient-hi','Explain to patient (Hindi)',false,null,'claude')+aiButtonHtml('ai-explain-patient-en','Explain to patient (simple English)',false,null,'claude')+'</div>')
+        + '</div>'
       ) : '');
 
   let clinicalBody = comorbidityCardHtml(p)
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
     + (isSurgical ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'+OP_NOTE_TEMPLATES.map(([n]) => '<button type="button" class="chip" data-action="insert-op-template" data-value="'+esc(n)+'">'+ic('printer')+' '+esc(n)+'</button>').join('')+'</div>' : '')
     + '<textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
+    + (isAiTier() ? (
+        '<div style="padding:10px;border-radius:12px;background:rgba(67,56,202,0.04);border:1px dashed var(--border);">'
+        + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">'+ic('sparkle')+' Dictate visit \u2192 structured SOAP note</label>'+micButtonHtml('ov-soap-dictate-input')+'</div>'
+        + '<textarea class="textarea" id="ov-soap-dictate-input" rows="3" placeholder="Speak or type freely about the visit \u2014 complaints, exam findings, what you did, the plan\u2026" style="margin-bottom:8px;">'+esc(OV_SOAP_DICTATE_TEXT)+'</textarea>'
+        + aiButtonHtml('ai-structure-soap','Structure as SOAP note',false,null,'claude')
+        + '<div id="ai-soap-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
+        + '<div style="font-size:10.5px;color:var(--muted);margin-top:6px;">Replaces Clinical notes above \u2014 review before saving.</div>'
+        + '</div>'
+      ) : '')
     + (p.condition ? '<div style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></div>'
         : (!isSurgical ? (OV_SHOW_TRACKING_PICK
             ? '<select class="select" id="ov-tracking-select"><option value="">\u2014 Pick \u2014</option><option value="ctev">CTEV</option><option value="ra">RA</option><option value="osteoporosis">Osteoporosis</option><option value="trauma">Trauma</option></select>'
@@ -4106,6 +4104,23 @@ function renderOverviewTab(p) {
     + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
     + '</div>'
     + statCards
+    + (isProOrAbove() ? (
+        p.schemePackage ? (
+          '<div class="card" style="padding:12px 14px;">'
+          + '<div class="row between" style="align-items:flex-start;">'
+          + '<div style="flex:1;">'
+          + '<span class="score-badge" style="background:var(--accent-light);color:var(--accent-dark);font-size:10.5px;">'+esc(p.schemePackage.scheme)+' package</span>'
+          + '<div style="font-weight:700;font-size:13px;margin-top:4px;">'+esc(p.schemePackage.name)+'</div>'
+          + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">Code: '+esc(p.schemePackage.code)+'</div>'
+          + '</div>'
+          + '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'
+          + '<div style="font-weight:800;font-size:14px;color:var(--emerald);">\u20b9'+Number(p.schemePackage.rate).toLocaleString('en-IN')+'</div>'
+          + '<button class="btn btn-sm" style="margin-top:6px;" data-action="scheme-detach" data-id="'+p.id+'">Remove</button>'
+          + '</div></div></div>'
+        ) : (
+          '<button class="btn btn-block" data-action="open-scheme-finder-for-case" data-id="'+p.id+'">'+ic('clipboard')+' Find RGHS / MAA Yojana package</button>'
+        )
+      ) : '')
     + ovSectionV2('snapshot', 'Patient Snapshot', 'userPlus', snapshotRead, snapshotBody)
     + ovSectionV2('clinical', 'Clinical', 'file', clinicalRead, clinicalBody)
     + ovSectionV2('communicate', 'Communicate', 'message', communicateRead, communicateBody)
@@ -4123,6 +4138,8 @@ let AI_QUERY_TEXT = '';
 let AI_INVESTIGATION_SUGGESTIONS = null;
 let AI_EXAM_SUGGESTIONS = null;
 let AI_PATIENT_SUMMARY = null;
+let AI_PATIENT_EXPLANATION = null;
+let OV_SOAP_DICTATE_TEXT = '';
 let AI_PERSONALIZED_REMINDER = null;
 let AI_DIGEST_SUMMARY = null;
 let AI_SANITY_CHECK_RESULT = null;
@@ -4867,6 +4884,11 @@ async function renderFollowupsTab(p) {
       + '<select class="select" id="fu-inv-category" style="margin-bottom:8px;">'+IMAGES_RECORDS_SECTIONS.map(([v,l])=>'<option value="'+v+'"'+(FU_INV_CATEGORY===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'
       + '<div id="fu-inv-controls">'+fuInvControlsHtml()+'</div>'
       + '<div id="fu-inv-thumbs">'+fuInvThumbsHtml()+'</div>'
+      + (isAiTier() ? (
+          '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">'+ic('sparkle')+' AI Quick-Fill (optional)</label>'+micButtonHtml('fu-ai-fill-input')+'</div>'
+          + '<textarea class="textarea" id="fu-ai-fill-input" rows="2" placeholder="e.g. wound clean and healthy, mild swelling, ROM improving, callus forming on X-ray..." style="margin-bottom:8px;"></textarea>'
+          + '<div style="margin-bottom:10px;">'+aiButtonHtml('fu-ai-fill','AI: Fill from this',false,null,'gemini')+'</div><div id="fu-ai-fill-status" style="font-size:11px;color:var(--muted);margin:-6px 0 8px;"></div>'
+        ) : '')
       + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
       + '<div class="row between" style="margin-top:10px;"><label class="field-label" style="margin-bottom:0;">Next follow-up date (optional)</label>'
       + (isAiTier() ? '<span style="display:inline-block;transform:scale(0.85);transform-origin:left center;">'+aiButtonHtml('ai-suggest-followup','AI suggest',false,null,'gemini')+'</span>' : '')
@@ -7306,6 +7328,37 @@ async function generatePersonalizedReminderMessage(p) {
     }
     return;
   }
+  if (action === 'fu-ai-fill') {
+    const inputEl = document.getElementById('fu-ai-fill-input');
+    const notesText = (inputEl && inputEl.value || '').trim();
+    const statusEl = document.getElementById('fu-ai-fill-status');
+    if (!notesText) { if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'Write something in the box first.'; } return; }
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Reading\u2026';
+    el.disabled = true;
+    if (statusEl) statusEl.textContent = '';
+    try {
+      const isTrauma = p && (p.surgeryType === 'Trauma' || p.condition === 'trauma');
+      const sys = 'You are a clinical data extraction assistant for an orthopaedic follow-up visit note. Given free-text dictated notes from a doctor during a follow-up visit, extract fields and return ONLY a JSON object, no markdown fences, no explanation. Fields: {"notes": string (a clean clinical note summarizing findings), "woundStatus": one of ' + JSON.stringify(WOUND_STATUS_OPTIONS) + ' or "" if not mentioned' + (isTrauma ? ', "unionStatus": one of ' + JSON.stringify(UNION_STATUS_OPTIONS) + ' or "" if not mentioned' : '') + '}. Leave a field empty string if not clearly stated.';
+      const result = await callGeminiDirect({ systemPrompt: sys, userMessage: notesText, maxTokens: 250 });
+      let raw = (result.data.text || '').trim();
+      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+      const extracted = JSON.parse(raw);
+      let filledCount = 0;
+      if (extracted.notes) { const n = document.getElementById('fu-notes'); if (n) { n.value = extracted.notes; filledCount++; } }
+      if (extracted.woundStatus && WOUND_STATUS_OPTIONS.includes(extracted.woundStatus)) { const w = document.getElementById('fu-woundstatus'); if (w) { w.value = extracted.woundStatus; filledCount++; } }
+      if (extracted.unionStatus && UNION_STATUS_OPTIONS.includes(extracted.unionStatus)) { const u = document.getElementById('fu-unionstatus'); if (u) { u.value = extracted.unionStatus; filledCount++; } }
+      el.innerHTML = originalHtml; el.disabled = false;
+      toast(filledCount ? ('Filled ' + filledCount + ' field(s) \u2014 please review') : 'Nothing clear to extract from that');
+    } catch (err) {
+      console.error('Follow-up AI fill failed:', err);
+      if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = '\u2717 ' + (err && err.message ? err.message : 'Request failed'); }
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
   if (action === 'ai-fill-from-notes') {
     syncApTempFromDom();
     const notesText = (AP_AI_FILL_TEXT || '').trim();
@@ -7865,6 +7918,63 @@ async function generatePersonalizedReminderMessage(p) {
     const key = el.dataset.value;
     if (OV_EDIT_SECTIONS.has(key)) OV_EDIT_SECTIONS.delete(key); else { OV_EDIT_SECTIONS.add(key); OV_EXPANDED.add(key); }
     await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ai-structure-soap') {
+    const inputEl = document.getElementById('ov-soap-dictate-input');
+    const dictateText = (inputEl && inputEl.value || OV_SOAP_DICTATE_TEXT || '').trim();
+    const statusEl = document.getElementById('ai-soap-status');
+    if (!dictateText) { if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'Dictate or type something about the visit first.'; } return; }
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Structuring\u2026';
+    el.disabled = true;
+    if (statusEl) statusEl.textContent = '';
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const sys = 'You convert a doctor\u2019s free-form dictation about a patient visit into a concise, well-organized clinical note in SOAP format (Subjective, Objective, Assessment, Plan). Use short section headers (S:, O:, A:, P:) each on their own line, followed by brief bullet-style lines. Only include a section if there is relevant content for it \u2014 omit empty sections. Do not invent findings that were not mentioned. Plain text only, no markdown formatting characters like ** or #.';
+      const context = 'Case: ' + (p.diagnosis || p.chiefComplaints || 'orthopaedic patient') + (p.caseType === 'surgical' ? (' \u2014 ' + (p.procedure || '')) : '') + '\n\nDoctor\u2019s dictation:\n' + dictateText;
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 400 });
+      const soapNote = (result.data.text || '').trim();
+      const notesEl = document.getElementById('ov-notes');
+      if (notesEl) { notesEl.value = soapNote; }
+      await patchField('notes', soapNote);
+      OV_SOAP_DICTATE_TEXT = '';
+      const dictateEl = document.getElementById('ov-soap-dictate-input');
+      if (dictateEl) dictateEl.value = '';
+      el.innerHTML = originalHtml; el.disabled = false;
+      toast('Clinical notes updated with structured SOAP note \u2014 please review');
+    } catch (err) {
+      console.error('AI SOAP structuring failed:', err);
+      if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = '\u2717 ' + (err && err.message ? err.message : 'Request failed'); }
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
+    return;
+  }
+  if (action === 'ai-explain-patient-hi' || action === 'ai-explain-patient-en') {
+    const isHindi = action === 'ai-explain-patient-hi';
+    const p = getPatient(SELECTED_ID);
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span> Writing\u2026';
+    el.disabled = true;
+    try {
+      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const sys = isHindi
+        ? 'You explain a medical diagnosis to a patient in simple, warm, conversational Hindi (Devanagari script), as an orthopaedic doctor would speak to a worried patient with no medical background. Avoid medical jargon and English technical terms where a simple Hindi word exists. 3-5 short sentences. No markdown, no headers, plain text only.'
+        : 'You explain a medical diagnosis to a patient in simple, warm, conversational English, avoiding medical jargon, as if speaking to someone with no medical background. 3-5 short sentences. No markdown, no headers, plain text only.';
+      const context = 'Diagnosis: ' + (p.diagnosis || p.chiefComplaints || '\u2014')
+        + (p.caseType === 'surgical' ? ('\nProcedure planned/done: ' + (p.procedure || '\u2014')) : '')
+        + (p.notes ? ('\nClinical notes: ' + p.notes) : '');
+      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 300 });
+      AI_PATIENT_EXPLANATION = (result.data.text || '').trim();
+      await renderTabBody(getPatient(SELECTED_ID));
+    } catch (err) {
+      console.error('AI patient explanation failed:', err);
+      toast('Failed: ' + (err && err.message ? err.message : 'try again'));
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+    }
     return;
   }
   if (action === 'ai-summarize-patient') {
@@ -9361,6 +9471,7 @@ document.addEventListener('change', async (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'ov-soap-dictate-input') { OV_SOAP_DICTATE_TEXT = e.target.value; }
   if (e.target.id === 'scheme-search-input') {
     SCHEME_FINDER_QUERY = e.target.value;
     const resEl = document.getElementById('scheme-results-list');
