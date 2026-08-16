@@ -2016,8 +2016,8 @@ function renderAiHubView() {
     ['Fill fields from notes (or voice)', 'Add Case \u2192 AI Quick-Fill box, below Global Notes'],
     ['Auto-detect Region / Specialty', 'Add Case & Overview \u2192 next to Region/Specialty chips'],
     ['Suggest tags', 'Overview \u2192 Tags card'],
-    ['Suggested investigations', 'Overview \u2192 Snapshot, below Diagnosis'],
-    ['What to examine', 'Overview \u2192 Snapshot, below Diagnosis'],
+    ['Suggested investigations', 'Add Case \u2192 below Diagnosis, once it\u2019s filled'],
+    ['What to examine', 'Add Case \u2192 below Diagnosis, once it\u2019s filled'],
     ['Diagnosis auto-triggers tracking', 'Add Case / Overview \u2192 typing a diagnosis like CTEV/RA silently switches on the matching Special Tracking module'],
     ['Suggest next follow-up interval', 'Follow-Up \u2192 Add visit form'],
     ['Personalize WhatsApp reminder', 'Overview \u2192 Communicate section'],
@@ -2319,7 +2319,7 @@ const ABOUT_SECTIONS = [
     ['Auto-detect Region/Specialty', 'On Complaints & Diagnosis or Overview, tap the \u2726 Auto-detect chip \u2014 reads your diagnosis/complaints and suggests region + specialty.'],
     ['Diagnosis triggers tracking automatically', 'Type a diagnosis like "CTEV" or "Rheumatoid arthritis" and the matching Special Tracking module switches on by itself \u2014 no manual selection needed. Forgot to add one? Overview \u2192 Clinical has a small "+ Track a condition" button.'],
     ['AI Quick-Fill', 'In Add Case \u2192 Complaints & Diagnosis, dictate or paste a free-text description in the AI Quick-Fill box (separate from Notes) and tap "Fill all fields from this" \u2014 it distributes the info into the right fields.'],
-    ['AI: Suggested investigations / What to examine', 'On Overview, once diagnosis is filled \u2014 reference-only suggestions, never auto-inserted into records.'],
+    ['AI: Suggested investigations / What to examine', 'In Add Case, once diagnosis is filled \u2014 reference-only suggestions, never auto-inserted into records.'],
     ['AI follow-up date suggestion', 'When adding a Follow-Up, "AI suggest" proposes a clinically reasonable next-visit date based on the diagnosis/procedure and how far along the patient is.'],
     ['AI: Summarize this patient', 'Overview \u2192 Snapshot \u2014 a 2-3 line summary of who they are and what\u2019s going on, for your own quick reference.'],
     ['Master Voice (bottom-left \u2726 button)', 'Speak a command \u2014 "naya case banao", "X ka case kholo", "X ka follow-up kal rakho", "digest dikhao" \u2014 it\u2019s parsed and confirmed before anything happens.'],
@@ -3354,7 +3354,18 @@ function renderAddView() {
       + ['Left','Right','Bilateral'].map(s=>'<button class="seg-btn'+(AP_TEMP.side===s?' active':'')+'" data-action="ap-set-side" data-value="'+s+'">'+s+'</button>').join('')
       + '</div></div>'
       + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
-      + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')+'</div>'
+      + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
+        + (isAiTier() && AP_TEMP.diagnosis ? (
+            '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
+            + '<div class="row gap2" style="flex-wrap:wrap;">'
+            + (AI_INVESTIGATION_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-investigations','Investigations',false,null,'claude') : '')
+            + (AI_EXAM_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-exam','What to examine',false,null,'claude') : '')
+            + '</div>'
+            + (AI_INVESTIGATION_SUGGESTIONS && AI_INVESTIGATION_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">Investigations (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
+            + (AI_EXAM_SUGGESTIONS && AI_EXAM_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">To examine (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
+            + '</div>'
+          ) : '')
+        + '</div>'
       + '</div>';
   } else if (AP_SUBTAB === 'tracking') {
     tabBody = isSurgical ? (
@@ -3454,7 +3465,7 @@ function renderAddView() {
     + (isAiTier() ? (
         '<div>'
         + aiButtonHtml('ai-sanity-check','AI: Check for mismatches before saving',true,null,'claude')
-        + (AI_SANITY_CHECK_RESULT ? '<div class="card" id="ai-sanity-answer-text" style="margin-top:8px;font-size:12.5px;white-space:pre-wrap;">'+esc(AI_SANITY_CHECK_RESULT)+speakButtonHtml('ai-sanity-answer-text')+'</div>' : '')
+        + (AI_SANITY_CHECK_RESULT ? '<div style="margin-top:8px;"><div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-sanity-answer-text')+'</div><div class="card" id="ai-sanity-answer-text" style="font-size:12.5px;white-space:pre-wrap;">'+esc(AI_SANITY_CHECK_RESULT)+'</div></div>' : '')
         + '</div>'
       ) : '')
     + '</div>'
@@ -3535,16 +3546,6 @@ function renderOverviewTab(p) {
     + (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
     + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
     + '<div><label class="field-label">Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
-    + (isAiTier() ? (
-        '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
-        + '<div class="row gap2" style="flex-wrap:wrap;">'
-        + (AI_INVESTIGATION_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-investigations','Investigations',false,null,'claude') : '')
-        + (AI_EXAM_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-exam','What to examine',false,null,'claude') : '')
-        + '</div>'
-        + (AI_INVESTIGATION_SUGGESTIONS && AI_INVESTIGATION_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">Investigations (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
-        + (AI_EXAM_SUGGESTIONS && AI_EXAM_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">To examine (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
-        + '</div>'
-      ) : '')
     + '</div>'
     + (isSurgical ? (
         '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
@@ -3581,7 +3582,7 @@ function renderOverviewTab(p) {
     + (isAiTier() ? (
         '<div style="padding-top:6px;border-top:1px dashed var(--border);">'
         + (AI_PATIENT_SUMMARY
-            ? '<div class="card" id="ai-patient-summary-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_SUMMARY)+speakButtonHtml('ai-patient-summary-text')+'</div>'
+            ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-summary-text')+'</div><div class="card" id="ai-patient-summary-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_SUMMARY)+'</div>'
             : aiButtonHtml('ai-summarize-patient','AI: Summarize this patient',true,null,'claude'))
         + '</div>'
       ) : '');
@@ -3618,7 +3619,7 @@ function renderOverviewTab(p) {
         + (isAiTier() && p.nextFollowUpDate ? (
             '<div style="margin-top:8px;">'
             + (AI_PERSONALIZED_REMINDER
-                ? '<div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PERSONALIZED_REMINDER)+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
+                ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PERSONALIZED_REMINDER)+'</div>'
                 : aiButtonHtml('ai-personalize-reminder','AI: Personalize this reminder',true,null,'gemini'))
             + '</div>'
           ) : '')
@@ -3649,7 +3650,7 @@ function renderOverviewTab(p) {
     + (isAiTier() ? (
         '<div style="padding-top:10px;border-top:1px dashed var(--border);">'
         + (AI_PATIENT_SUMMARY
-            ? '<div style="white-space:pre-wrap;font-size:12px;color:#334155;">'+esc(AI_PATIENT_SUMMARY)+speakButtonHtml('ai-patient-summary-text')+'</div>'
+            ? '<div><div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-summary-text-2')+'</div><div id="ai-patient-summary-text-2" style="white-space:pre-wrap;font-size:12px;color:#334155;">'+esc(AI_PATIENT_SUMMARY)+'</div></div>'
             : aiButtonHtml('ai-summarize-patient','AI: Summarize this patient',false,null,'claude'))
         + '</div>'
       ) : '');
@@ -3689,7 +3690,7 @@ function renderOverviewTab(p) {
             : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
         + (isAiTier() && p.nextFollowUpDate ? (
             AI_PERSONALIZED_REMINDER
-              ? '<div class="card" id="ai-reminder-answer-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PERSONALIZED_REMINDER)+speakButtonHtml('ai-reminder-answer-text','hi-IN')+'</div><a href="https://wa.me/'+esc(toWaNumber(p.whatsapp))+'?text='+encodeURIComponent(AI_PERSONALIZED_REMINDER)+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send this personalized version</a>'
+              ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-reminder-answer-text-2','hi-IN')+'</div><div class="card" id="ai-reminder-answer-text-2" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PERSONALIZED_REMINDER)+'</div>'
               : aiButtonHtml('ai-personalize-reminder','AI: Personalize this reminder',true,null,'gemini')
           ) : '')
       ) : '');
@@ -5767,7 +5768,7 @@ function renderConfirmDeletePatientView(p) {
     + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="close-confirm-delete">'+ic('back')+'</button>'
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">Delete Case</h2>'
-    + '</div></div></div>'
+    + '</div></div>'
     + '<div class="px" style="flex:1;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:6px;padding-bottom:60px;">'
     + '<div style="width:72px;height:72px;border-radius:50%;background:var(--red-bg);color:var(--red);display:flex;align-items:center;justify-content:center;margin-bottom:8px;">'+ic('trash')+'</div>'
     + '<h2 style="font-size:19px;font-weight:800;margin:0;">Delete this case?</h2>'
