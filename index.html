@@ -2078,34 +2078,73 @@ function renderCashAuditView() {
 
 function renderUpgradeView() {
   const planLabel = isAiTier() ? 'AI' : (isProOrAbove() ? 'Pro' : 'Free');
-  const proCard = '<div style="border:1px solid #e5e5ea;border-radius:14px;padding:16px;margin-bottom:14px;">'
-    + '<div style="font-weight:700;font-size:16px;">Pro</div>'
-    + '<div style="color:#666;font-size:13px;margin:6px 0 12px;">Google Drive backup, Special Tracking (CTEV/RA/DEXA), Case Export, Prescriptions with letterhead</div>'
-    + (isProOrAbove() ? '<div style="color:#34c759;font-weight:600;font-size:13px;">\u2713 Active</div>'
+  const planColor = isAiTier() ? 'var(--accent)' : (isProOrAbove() ? 'var(--emerald)' : 'var(--muted)');
+
+  function featureRow(text) {
+    return '<div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:7px;">'
+      + '<span style="color:var(--emerald);flex-shrink:0;margin-top:1px;">'+ic('check')+'</span>'
+      + '<span style="font-size:13px;color:var(--ink);line-height:1.4;">'+esc(text)+'</span>'
+      + '</div>';
+  }
+
+  function planCard(opts) {
+    const { name, tagline, active, features, monthlyPrice, yearlyPrice, monthlyAction, yearlyAction, accent } = opts;
+    return '<div class="card" style="padding:18px;margin-bottom:14px;'+(accent?'border-color:'+accent+';border-width:1.5px;':'')+'">'
+      + '<div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:2px;">'
+      + '<div>'
+      + '<div style="font-family:\'Plus Jakarta Sans\',sans-serif;font-weight:800;font-size:17px;color:var(--ink);">'+esc(name)+'</div>'
+      + '<div style="font-size:12.5px;color:var(--muted);margin-top:2px;">'+esc(tagline)+'</div>'
+      + '</div>'
+      + (active ? '<span class="score-badge score-remission" style="font-size:11px;">Active</span>' : '')
+      + '</div>'
+      + '<div style="margin:14px 0;">' + features.map(featureRow).join('') + '</div>'
+      + (active ? ''
         : '<div style="display:flex;gap:8px;">'
-          + '<button class="primary-btn" data-action="buy-pro-monthly" style="flex:1;">\u20b999/mo</button>'
-          + '<button class="primary-btn" data-action="buy-pro-yearly" style="flex:1;background:#5856d6;">\u20b9999/yr</button>'
-          + '</div>'
-          + '<div style="color:#34c759;font-size:11px;margin-top:6px;">Save 2 months with yearly</div>')
-    + '</div>';
-  const aiCard = '<div style="border:1px solid #e5e5ea;border-radius:14px;padding:16px;margin-bottom:14px;">'
-    + '<div style="font-weight:700;font-size:16px;">AI</div>'
-    + '<div style="color:#666;font-size:13px;margin:6px 0 12px;">Everything in Pro + Firebase Cloud Sync + AI clinical assistant (Claude + Gemini)</div>'
-    + (isAiTier() ? '<div style="color:#34c759;font-weight:600;font-size:13px;">\u2713 Active</div>'
-        : '<div style="display:flex;gap:8px;">'
-          + '<button class="primary-btn" data-action="buy-ai-monthly" style="flex:1;">\u20b9299/mo</button>'
-          + '<button class="primary-btn" data-action="buy-ai-yearly" style="flex:1;background:#5856d6;">\u20b92999/yr</button>'
-          + '</div>'
-          + '<div style="color:#34c759;font-size:11px;margin-top:6px;">Save ~2 months with yearly</div>')
-    + '</div>';
-  return '<div class="view-header">'
-    + '<button class="icon-btn" data-action="close-upgrade">'+ic('back')+'</button>'
-    + '<div class="view-title">Upgrade Plan</div>'
+          + '<button class="btn btn-primary" style="flex:1;flex-direction:column;padding:10px 8px;line-height:1.3;" data-action="'+monthlyAction+'">'
+            + '<div style="font-size:14px;font-weight:800;">\u20b9'+monthlyPrice+'</div>'
+            + '<div style="font-size:10px;font-weight:600;opacity:0.85;">per month</div>'
+          + '</button>'
+          + '<button class="btn" style="flex:1;flex-direction:column;padding:10px 8px;line-height:1.3;border:1.5px solid var(--accent);color:var(--accent);" data-action="'+yearlyAction+'">'
+            + '<div style="font-size:14px;font-weight:800;">\u20b9'+yearlyPrice+'</div>'
+            + '<div style="font-size:10px;font-weight:600;opacity:0.85;">per year</div>'
+          + '</button>'
+          + '</div>')
+      + '</div>';
+  }
+
+  const proCard = planCard({
+    name: 'Pro', tagline: 'For solo practice essentials', active: isProOrAbove(),
+    features: [
+      'Google Drive auto-backup, daily',
+      'Special Tracking \u2014 CTEV, RA, Osteoporosis/DEXA',
+      'Case log export to CSV/Excel',
+      'Prescriptions with clinic letterhead, print & share'
+    ],
+    monthlyPrice: '99', yearlyPrice: '999',
+    monthlyAction: 'buy-pro-monthly', yearlyAction: 'buy-pro-yearly'
+  });
+
+  const aiCard = planCard({
+    name: 'AI', tagline: 'Everything, plus your clinical co-pilot', active: isAiTier(), accent: 'var(--accent)',
+    features: [
+      'Everything in Pro',
+      'Real-time Cloud Sync across devices',
+      'AI clinical assistant \u2014 Claude + Gemini',
+      'Smart digests, suggested investigations & more'
+    ],
+    monthlyPrice: '299', yearlyPrice: '2,999',
+    monthlyAction: 'buy-ai-monthly', yearlyAction: 'buy-ai-yearly'
+  });
+
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-upgrade">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Upgrade Plan</h2></div>'
     + '</div>'
-    + '<div style="padding:16px;">'
-    + '<div style="color:#666;font-size:13px;margin-bottom:16px;">Current plan: <strong>'+planLabel+'</strong></div>'
+    + '<div class="px" style="padding-top:8px;">'
+    + '<div style="font-size:12.5px;color:'+planColor+';font-weight:700;margin-bottom:14px;">CURRENT PLAN \u2014 '+planLabel.toUpperCase()+'</div>'
     + proCard + aiCard
-    + '<div style="color:#999;font-size:12px;margin-top:8px;">Billed via Google Play. Cancel anytime from the Play Store app.</div>'
+    + '<div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:6px;">Billed via Google Play \u00b7 Cancel anytime from the Play Store app</div>'
+    + '</div>'
     + '</div>';
 }
 
