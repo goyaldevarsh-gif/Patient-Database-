@@ -2106,6 +2106,7 @@ function startMasterVoice() {
   recognition.interimResults = false;
   recognition.continuous = false;
   recognition.onresult = async (e) => {
+    if (!e.results || !e.results[0] || !e.results[0][0]) { MASTER_VOICE_STATE = 'idle'; updateMasterVoiceUI(); return; }
     const transcript = e.results[0][0].transcript;
     MASTER_VOICE_TRANSCRIPT = transcript;
     MASTER_VOICE_STATE = 'thinking';
@@ -2202,6 +2203,7 @@ function startMic(targetId, btnEl) {
   recognition.interimResults = false;
   recognition.continuous = false;
   recognition.onresult = (e) => {
+    if (!e.results || !e.results[0] || !e.results[0][0]) return;
     const transcript = e.results[0][0].transcript;
     const ta = document.getElementById(targetId);
     if (ta) { ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + transcript; ta.dispatchEvent(new Event('input',{bubbles:true})); }
@@ -2913,11 +2915,13 @@ async function purchaseSubscription(sku) {
     const service = await window.getDigitalGoodsService('https://play.google.com/billing');
     const details = await service.getDetails([sku]);
     if (!details || !details.length) { toast('Subscription not found. Try again later.'); return; }
+    if (!details[0].price || !details[0].price.currency) { toast('Invalid subscription details. Try again later.'); return; }
 
     const paymentMethodData = [{ supportedMethods: 'https://play.google.com/billing', data: { sku } }];
     const paymentDetails = { total: { label: 'Total', amount: { currency: details[0].price.currency, value: '0' } } };
     const request = new PaymentRequest(paymentMethodData, paymentDetails);
     const response = await request.show();
+    if (!response || !response.details || !response.details.purchaseToken) { toast('Payment response invalid. Please try again.'); return; }
     const purchaseToken = response.details.purchaseToken;
     await response.complete('success');
 
@@ -2929,8 +2933,9 @@ async function purchaseSubscription(sku) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uid, sku, purchaseToken })
     });
+    if (!verifyRes.ok) { toast('Verification failed. Please contact support.'); return; }
     const verifyData = await verifyRes.json();
-    if (verifyData.plan) {
+    if (verifyData && verifyData.plan) {
       CURRENT_PLAN = verifyData.plan;
       toast('Subscribed! Welcome to ' + (verifyData.plan === 'ai' ? 'AI' : 'Pro') + ' tier.');
       VIEW = 'more'; render();
@@ -2965,7 +2970,7 @@ async function renderMoreView() {
         + (!isAiTier() ? moreRowHtml('sparkle', 'Upgrade Plan', isProOrAbove() ? 'You\u2019re on Pro \u2014 tap to see AI tier' : 'Unlock Pro or AI tier features', 'open-upgrade', true) : '')
     },
     { key:'practice', title:'Practice Tools', icon:'clipboard', rows:
-        moreRowHtml('clipboard', 'Scheme Package Finder'+(isProOrAbove()?'':' (Pro)'), 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
+        moreRowHtml('clipboard', 'Scheme Package Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
         + moreRowHtml('calendar', 'Planned Surgeries', (PLANNED_SURGERIES.filter(s=>s.status==='waiting').length ? PLANNED_SURGERIES.filter(s=>s.status==='waiting').length + ' upcoming' : 'Track upcoming admissions'), 'open-planned-surgeries')
     },
     { key:'data', title:'Data & Backup', icon:'download', rows:
@@ -6600,6 +6605,7 @@ async function renderComparePickerView() {
 
 function renderCompareView() {
   const p = getPatient(SELECTED_ID);
+  if (!COMPARE_SELECTED || COMPARE_SELECTED.length < 2) { VIEW = 'detail'; TAB = 'imagesrecords'; return renderDetailShell(p); }
   const imA = COMPARE_IMAGES_CACHE.find(im => im.id === COMPARE_SELECTED[0]);
   const imB = COMPARE_IMAGES_CACHE.find(im => im.id === COMPARE_SELECTED[1]);
   if (!imA || !imB) { VIEW = 'detail'; TAB = 'imagesrecords'; return renderDetailShell(p); }
@@ -7689,7 +7695,7 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'ai-suggest-investigations') {
-    const p = getPatient(SELECTED_ID);
+    const p = AP_TEMP || getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
     el.disabled = true;
@@ -7702,7 +7708,7 @@ async function generatePersonalizedReminderMessage(p) {
       raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
       const suggestions = JSON.parse(raw);
       AI_INVESTIGATION_SUGGESTIONS = Array.isArray(suggestions) ? suggestions.filter(s => typeof s === 'string' && s.trim()).slice(0, 5) : [];
-      await renderTabBody(getPatient(SELECTED_ID));
+      await renderTabBody(AP_TEMP);
     } catch (err) {
       console.error('AI investigation suggestion failed:', err);
       toast('AI suggestion failed: ' + (err && err.message ? err.message : 'try again'));
@@ -7712,7 +7718,7 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'ai-suggest-exam') {
-    const p = getPatient(SELECTED_ID);
+    const p = AP_TEMP || getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
     el.disabled = true;
@@ -7725,7 +7731,7 @@ async function generatePersonalizedReminderMessage(p) {
       raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
       const suggestions = JSON.parse(raw);
       AI_EXAM_SUGGESTIONS = Array.isArray(suggestions) ? suggestions.filter(s => typeof s === 'string' && s.trim()).slice(0, 6) : [];
-      await renderTabBody(getPatient(SELECTED_ID));
+      await renderTabBody(AP_TEMP);
     } catch (err) {
       console.error('AI exam suggestion failed:', err);
       toast('AI suggestion failed: ' + (err && err.message ? err.message : 'try again'));
@@ -9573,7 +9579,6 @@ async function generatePersonalizedReminderMessage(p) {
     render(); return;
   }
   if (action === 'open-scheme-finder') {
-    if (!isProOrAbove()) { toast('Scheme Package Finder is a Pro feature.'); return; }
     SCHEME_FINDER_TYPE = null; SCHEME_FINDER_QUERY = ''; SCHEME_FINDER_CASE_ID = null;
     VIEW = 'scheme-finder'; render(); return;
   }
@@ -9658,7 +9663,6 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'open-scheme-finder-for-case') {
-    if (!isProOrAbove()) { toast('Scheme Package Finder is a Pro feature.'); return; }
     SCHEME_FINDER_TYPE = null; SCHEME_FINDER_QUERY = ''; SCHEME_FINDER_CASE_ID = el.dataset.id || SELECTED_ID;
     VIEW = 'scheme-finder'; render(); return;
   }
@@ -10006,14 +10010,24 @@ document.addEventListener('change', async (e) => {
 
   if (t.dataset && t.dataset.ctevField) {
     const p = getPatient(SELECTED_ID);
+    if (!p) return;
+    if (!p.ctev) p.ctev = {};
     const parts = t.dataset.ctevField.split('.');
-    if (parts.length === 3) p.ctev[parts[0]][parts[1]][parts[2]] = t.value;
-    else if (parts.length === 2) p.ctev[parts[0]][parts[1]] = t.value;
+    if (parts.length === 3) {
+      if (!p.ctev[parts[0]]) p.ctev[parts[0]] = {};
+      if (!p.ctev[parts[0]][parts[1]]) p.ctev[parts[0]][parts[1]] = {};
+      p.ctev[parts[0]][parts[1]][parts[2]] = t.value;
+    } else if (parts.length === 2) {
+      if (!p.ctev[parts[0]]) p.ctev[parts[0]] = {};
+      p.ctev[parts[0]][parts[1]] = t.value;
+    }
     await dbPutPatient(p); await refreshPatients();
     return;
   }
   if (t.dataset && t.dataset.raField) {
     const p = getPatient(SELECTED_ID);
+    if (!p) return;
+    if (!p.ra) p.ra = {};
     const parts = t.dataset.raField.split('.');
     if (parts.length === 2) { if (!p.ra[parts[0]]) p.ra[parts[0]] = {}; p.ra[parts[0]][parts[1]] = t.value; }
     else p.ra[parts[0]] = t.value;
@@ -10023,9 +10037,15 @@ document.addEventListener('change', async (e) => {
   }
   if (t.dataset && t.dataset.osteoField) {
     const p = getPatient(SELECTED_ID);
+    if (!p) return;
+    if (!p.osteo) p.osteo = {};
     const parts = t.dataset.osteoField.split('.');
-    if (parts.length === 2) p.osteo[parts[0]][parts[1]] = t.value;
-    else p.osteo[parts[0]] = t.value;
+    if (parts.length === 2) {
+      if (!p.osteo[parts[0]]) p.osteo[parts[0]] = {};
+      p.osteo[parts[0]][parts[1]] = t.value;
+    } else {
+      p.osteo[parts[0]] = t.value;
+    }
     await dbPutPatient(p); await refreshPatients();
     if (t.dataset.osteoField === 'nextDexaDate') await renderTabBody(getPatient(SELECTED_ID));
     return;
