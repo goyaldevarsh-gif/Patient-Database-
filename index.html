@@ -1674,6 +1674,21 @@ async function renderNotificationsView() {
   return html;
 }
 const CHANGELOG = [
+  { version:'1.2.0', date:'2026-08-17', features: [
+      'Scheme Package Finder \u2014 look up RGHS and MAA Yojana package codes, rates, and implant codes; attach the right one to any case, with a "+ custom implant code" option when yours isn\u2019t in the list',
+      'Matching scheme codes now suggested automatically as you type a diagnosis, right alongside investigation suggestions',
+      'Planned Surgeries \u2014 a lightweight pre-admission list (name, age, diagnosis, plan, mobile, admission date), with WhatsApp reminders, Admitted/No-show tracking, and share/export so the list can travel between rotating residents',
+      'AI Tools \u2014 all patient-level AI actions consolidated into one panel (tap the sparkle icon in Overview): Summarize this patient, Explain to patient (Hindi/English), Dictate visit \u2192 SOAP note, Home-care + follow-up WhatsApp message, Fitness/return-to-duty certificate, and Referral letter \u2014 the last two print with your letterhead',
+      'AI Quick-Fill added to the Follow-Up visit form, matching the one already in Add Case',
+      'Similar past cases \u2014 typing a diagnosis in Add Case now surfaces your own matching past patients for reference, instantly and at no AI cost',
+    ], improvements: [
+      'More menu reorganised into clearer groups: Settings, AI, Practice Tools, Data & Backup, Reports, Help & Info',
+      'Home-care + follow-up WhatsApp message no longer cuts off mid-sentence, and reads in a calmer, more professional tone',
+      'Added a direct Call button next to Message Patient in the Communicate tab',
+      'Fixed the read-aloud (speaker) icon on AI-generated text throughout the app',
+      'Fixed a rare blank-screen glitch on the Delete Case confirmation screen',
+      'Firestore and Storage security rules tightened so each account can only ever read or write its own data',
+    ] },
   { version:'1.1.0', date:'2026-08-13', features: [
       'AI Case Summary \u2014 generate a 2\u20133 sentence summary of any patient instantly',
       'Gemini + Claude split \u2014 lighter AI tasks now run on Gemini, clinical reasoning stays on Claude',
