@@ -213,9 +213,10 @@
   .icon-btn { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; flex:none; border-radius:10px; border:none; background:transparent; color:var(--accent); }
   svg.ic { width:18px; height:18px; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; display:block; }
 
-  .btn { border-radius:11px; font-weight:700; padding:10px 14px; border:1px solid var(--border); background:#fff; color:var(--ink); font-size:13px; }
+  .btn { border-radius:11px; font-weight:700; padding:10px 14px; border:1px solid var(--border); background:#fff; color:var(--ink); font-size:13px; cursor:pointer; }
+  .btn:disabled { opacity:0.5; cursor:not-allowed; background:var(--slate); color:var(--muted); border-color:var(--slate); }
   .btn-primary { background:var(--accent); border-color:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(67,56,202,0.25); }
-  .btn-primary:disabled { opacity:0.4; }
+  .btn-primary:disabled { opacity:0.5; cursor:not-allowed; background:var(--slate); border-color:var(--slate); color:var(--muted); box-shadow:none; }
   .btn-block { width:100%; display:flex; align-items:center; justify-content:center; gap:6px; }
   .btn-sm { padding:6px 10px; font-size:11px; border-radius:8px; }
   .btn-danger-confirm { background:#dc2626; color:#fff; border-color:#dc2626; }
@@ -347,7 +348,7 @@
   .img-note-caption { position:absolute; top:calc(64px + env(safe-area-inset-top, 0px)); left:16px; right:16px; z-index:2; background:rgba(245,158,11,0.95); color:#1e293b; font-weight:700; font-size:13px; padding:10px 14px; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.25); display:flex; align-items:flex-start; gap:6px; }
   .modal-label { color:#fff; font-size:12px; margin-top:10px; opacity:0.8; }
 
-  .toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%) translateY(0); z-index:40; background:rgba(15,23,42,0.94); color:#fff; font-size:12px; font-weight:600; padding:8px 16px; border-radius:999px; opacity:1; transition:opacity 200ms ease, transform 200ms ease; }
+  .toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%) translateY(0); z-index:40; background:rgba(15,23,42,0.94); color:#fff; font-size:12px; font-weight:600; padding:8px 16px; border-radius:999px; opacity:1; transition:opacity 200ms ease, transform 200ms ease; max-width:90vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .toast.toast-hidden { opacity:0; transform:translateX(-50%) translateY(6px); pointer-events:none; }
 
   .rx-sheet { max-width:520px; margin:0 auto; padding:22px 18px 40px; font-family:'Inter',sans-serif; color:#111827; }
@@ -509,6 +510,8 @@
 </style>
 </head>
 <body>
+  <a href="#main-content" style="position:absolute;top:-40px;left:0;background:#000;color:#fff;padding:8px;z-index:100;" class="skip-link">Skip to main content</a>
+  <style>.skip-link:focus { top:0; }</style>
 <div id="app"></div>
 <div id="usearch-fab-wrap" style="display:none;position:fixed;inset:0;max-width:520px;margin:0 auto;pointer-events:none;z-index:45;">
   <button id="usearch-fab" class="usearch-fab" data-action="open-universal-search" title="Search everything" style="pointer-events:auto;"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
@@ -1454,6 +1457,17 @@ let SELECTED_ID = null;
 let SEARCH = '';
 let FILTER_TYPE = 'all';
 let TAG_FILTER = '';
+const FILTER_STATE_KEY = 'surgical-case-log-filter-state-v1';
+const TAB_STATE_KEY = 'surgical-case-log-tab-state-v1';
+function saveTabState() { try { localStorage.setItem(TAB_STATE_KEY, TAB); } catch(e) {} }
+function loadTabState() { try { const t = localStorage.getItem(TAB_STATE_KEY); if (t) TAB = t; } catch(e) {} }
+const SCROLL_POSITION_KEY = 'surgical-case-log-scroll-pos-v1';
+function saveScrollPosition() { try { const app = document.getElementById('app'); if (app) localStorage.setItem(SCROLL_POSITION_KEY, String(app.scrollTop || 0)); } catch(e) {} }
+function restoreScrollPosition() { try { const app = document.getElementById('app'); if (app) { setTimeout(() => { app.scrollTop = Number(localStorage.getItem(SCROLL_POSITION_KEY) || 0); }, 50); } } catch(e) {} }
+function setTab(newTab) { TAB = newTab; saveTabState(); }
+function saveFilterState() { try { localStorage.setItem(FILTER_STATE_KEY, JSON.stringify({ search: SEARCH, filterType: FILTER_TYPE, tagFilter: TAG_FILTER })); } catch(e) {} }
+function loadFilterState() { try { const s = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || '{}'); SEARCH = s.search || ''; FILTER_TYPE = s.filterType || 'all'; TAG_FILTER = s.tagFilter || ''; } catch(e) {} }
+let TAG_FILTER = '';
 let TAB = 'overview';
 let ARMED_DELETE = null;
 let SHOW_TAG_FILTER = false;
@@ -1469,6 +1483,8 @@ let PATIENT_LIST_EXPANDED = false;
 let SHOW_ADD_MENU = false;
 let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
 let QUICK_PICKER_QUERY = '';
+let SEARCH_DEBOUNCE_TIMER = null;
+let QUICK_PICKER_DEBOUNCE_TIMER = null;
 function addMenuDropdownHtml() {
   const items = [
     ['userPlus', 'New OPD Case', 'add-menu-new-opd'],
@@ -1488,7 +1504,7 @@ function openQuickPicker(purpose) {
   QUICK_PICKER_PURPOSE = purpose;
   QUICK_PICKER_QUERY = '';
   const overlay = document.createElement('div');
-  overlay.id = 'quick-picker-overlay';
+  overlay.id = 'quick-picker-overlay'; overlay.setAttribute('role', 'dialog'); overlay.setAttribute('aria-modal', 'true'); overlay.setAttribute('aria-label', 'Pick a patient');
   overlay.className = 'usearch-overlay';
   overlay.innerHTML = quickPickerHtml();
   document.body.appendChild(overlay);
@@ -1503,8 +1519,8 @@ function closeQuickPicker() {
 function quickPickerHtml() {
   const purposeLabel = { followup:'Add Follow-up Visit', reminder:'Add Reminder', investigation:'Add Investigation' }[QUICK_PICKER_PURPOSE] || 'Pick a patient';
   return '<div class="usearch-topbar">'
-    + '<button class="icon-btn" data-action="close-quick-picker">'+ic('back')+'</button>'
-    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="quick-picker-input" placeholder="'+purposeLabel+' \u2014 pick a patient" value="'+esc(QUICK_PICKER_QUERY)+'"></div>'
+    + '<button class="icon-btn" data-action="close-quick-picker" aria-label="Close patient picker">'+ic('back')+'</button>'
+    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="quick-picker-input" autofocus placeholder="'+purposeLabel+' \u2014 pick a patient" value="'+esc(QUICK_PICKER_QUERY)+'"></div>'
     + '</div>'
     + '<div class="usearch-results" id="quick-picker-results">'+quickPickerResultsHtml()+'</div>';
 }
@@ -1513,7 +1529,7 @@ function quickPickerResultsHtml() {
   const results = (q ? PATIENTS.filter(p => matchCase(p, q)) : PATIENTS.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))).slice(0, 30);
   if (!results.length) return '<p style="text-align:center;color:var(--muted);font-size:12px;padding:36px 20px;">No matches.</p>';
   return '<div style="display:flex;flex-direction:column;gap:8px;">' + results.map(p => '<button class="case-card" style="width:100%;" data-action="quick-pick-patient" data-id="'+p.id+'">'
-      + '<div style="min-width:0;flex:1;"><div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+escName(p.name)+'</span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
+      + '<div style="min-width:0;flex:1;"><div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+escName(p.name)+(p.patientCode?' <span style="font-weight:400;color:var(--muted);font-size:12px;">('+esc(p.patientCode)+')</span>':'')+' </span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
       + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(sideTag(p))+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||'\u2014'))+'</div></div></button>').join('') + '</div>';
 }
 let SHOW_LEGEND = false;
@@ -1910,7 +1926,11 @@ function updateAutocomplete(targetId, libKey, query, selectAction) {
     })
     .sort((a,b)=>(b.useCount-a.useCount)||(b.lastUsed-a.lastUsed))
     .slice(0, 5);
-  if (!matches.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  if (!matches.length) { 
+    box.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:var(--muted);text-align:center;">No matches for \u201c'+esc(q)+'\u201d</div>'; 
+    box.style.display = 'block'; 
+    return; 
+  }
   box.innerHTML = matches.map(x => '<button type="button" class="autocomplete-item" data-action="'+selectAction+'" data-target="'+targetId+'" data-value="'+esc(x.value)+'">'+esc(x.value)+'</button>').join('');
   box.style.display = 'block';
 }
@@ -2333,6 +2353,7 @@ function raScoreBadgeHtml(label, value, band) {
 // "default" for anyone, since this file is shared by every install.)
 const DEFAULT_PROFILE = {
   doctorName: '',
+  email: '',
   qualifications: '',
   regNumber: '',
   clinicName: '',
@@ -2652,7 +2673,7 @@ function psAddFormHtml() {
   return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:14px;">'
     + '<label class="field-label">Name</label><input class="input" id="ps-name" value="'+esc(PS_TEMP.name)+'" style="margin-bottom:8px;">'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
-    + '<div><label class="field-label">Age</label><input class="input" id="ps-age" type="number" value="'+esc(PS_TEMP.age)+'"></div>'
+    + '<div><label class="field-label">Age</label><input class="input" id="ps-age" type="number" min="0" max="150" value="'+esc(PS_TEMP.age)+'"></div>'
     + '<div><label class="field-label">Sex</label><select class="select" id="ps-sex"><option value="">\u2014</option><option value="M"'+(PS_TEMP.sex==='M'?' selected':'')+'>M</option><option value="F"'+(PS_TEMP.sex==='F'?' selected':'')+'>F</option></select></div>'
     + '</div>'
     + '<label class="field-label">Diagnosis</label><input class="input" id="ps-diagnosis" value="'+esc(PS_TEMP.diagnosis)+'" style="margin-bottom:8px;">'
@@ -2792,7 +2813,7 @@ function renderPatientAiToolsView() {
 
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
-    + '<div class="row gap3"><button class="icon-btn" data-action="close-patient-ai-tools">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">AI Tools \u2014 '+escName(p.name)+'</h2></div>'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-patient-ai-tools" aria-label="Close AI tools">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">AI Tools \u2014 '+escName(p.name)+'</h2></div>'
     + '</div>'
     + '<div class="px" style="padding-top:10px;">' + body + '</div>'
     + '</div>';
@@ -2828,7 +2849,7 @@ function renderSchemeFinderView() {
 
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
-    + '<div class="row gap3"><button class="icon-btn" data-action="close-scheme-finder">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Scheme Package Finder</h2></div>'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-scheme-finder" aria-label="Close scheme finder">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Scheme Package Finder</h2></div>'
     + '</div>'
     + body
     + '</div>';
@@ -3287,6 +3308,7 @@ function renderSettingsView() {
     + '<p style="font-size:12px;color:var(--muted);margin:0;">These details print on the prescription letterhead. Fill them in once, edit anytime.</p>'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="e.g. Dr. Jane Smith"></div>'
     + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
+    + '<div><label class="field-label">Email (optional)</label><input class="input" type="email" id="pr-email" value="'+esc(pr.email||'')+'"></div>'
     + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder="e.g. RMC-12345"></div>'
     + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
     + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="Full address">'+esc(pr.clinicAddress)+'</textarea></div>'
@@ -3417,6 +3439,7 @@ function renderOnboardingView() {
     + '<div style="text-align:center;margin-bottom:4px;"><img src="icons/icon-192.png" style="width:56px;height:56px;border-radius:14px;box-shadow:0 4px 14px rgba(67,56,202,0.3);"><h1 style="font-size:20px;font-weight:800;margin:10px 0 2px;">Welcome to Ortho<span style="color:var(--accent);">Vault</span></h1><p style="font-size:12px;color:var(--muted);margin:0;">Quick one-time setup \u2014 takes a minute</p></div>'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="e.g. Dr. Jane Smith"></div>'
     + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
+    + '<div><label class="field-label">Email (optional)</label><input class="input" type="email" id="pr-email" value="'+esc(pr.email||'')+'"></div>'
     + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder="e.g. RMC-12345"></div>'
     + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
     + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="Full address">'+esc(pr.clinicAddress)+'</textarea></div>'
@@ -3676,7 +3699,7 @@ function closeUniversalSearch() {
 }
 function usearchOverlayHtml() {
   return '<div class="usearch-topbar">'
-    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="usearch-input" placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(USEARCH_QUERY)+'"></div>'
+    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="usearch-input" autofocus placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(USEARCH_QUERY)+'"></div>'
     + '<button class="icon-btn" data-action="close-usearch">'+ic('x')+'</button>'
     + '</div>'
     + '<div class="usearch-results" id="usearch-results">'+usearchResultsHtml()+'</div>';
@@ -3996,6 +4019,7 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId, patie
       try { await dbAddImage(imgRec); } catch (e) { toast('Could not save that photo to device \u2014 please retry'); }
     }
   }
+  toast('\u2713 '+files.length+' photo'+(files.length>1?'s':'')+' saved');
   const removeAction = containerId==='ap-thumbs' ? 'ap-remove-photo' : containerId==='inv-thumbs' ? 'inv-remove-photo' : containerId==='rx-thumbs' ? 'rx-remove-photo' : containerId==='fu-wound-thumbs' ? 'fu-wound-remove-photo' : containerId==='fu-clinical-thumbs' ? 'fu-clinical-remove-photo' : 'fu-remove-photo';
   const container = document.getElementById(containerId);
   if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbGridHtml(targetArray, removeAction)+'</div>';
@@ -4191,7 +4215,7 @@ function renderAddView() {
   let tabBody = '';
   if (AP_SUBTAB === 'details') {
     tabBody = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" placeholder="Patient name" value="'+esc(AP_TEMP.name)+'"></div>'
+      + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label><div class="row gap2">'
       + '<input class="input" type="number" min="0" id="ap-age" placeholder="Years" value="'+esc(AP_TEMP.age)+'" style="flex:1;">'
@@ -4204,7 +4228,7 @@ function renderAddView() {
       + (AP_TEMP.regions.includes('Upper Limb') || AP_TEMP.regions.includes('Hand') ? '<div><label class="field-label">Hand dominance (optional)</label><div class="seg">'
       + [['Left','L'],['Right','R'],['Ambidextrous','Ambi']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.handDominance===v?' active':'')+'" data-action="ap-set-hand" data-value="'+v+'">'+l+'</button>').join('')
       + '</div></div>' : '')
-      + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
+      + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
       + '</div>';
   } else if (AP_SUBTAB === 'complaints') {
     tabBody = '<div style="display:flex;flex-direction:column;gap:12px;">'
@@ -4214,7 +4238,7 @@ function renderAddView() {
       + ['Left','Right','Bilateral'].map(s=>'<button class="seg-btn'+(AP_TEMP.side===s?' active':'')+'" data-action="ap-set-side" data-value="'+s+'">'+s+'</button>').join('')
       + '</div></div>'
       + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
-      + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
+      + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" maxlength="500" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
         + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+apSimilarCasesBlockHtml()+apSchemeSuggestBlockHtml()+'</div>'
       + '</div>'
       + '</div>';
@@ -4223,7 +4247,7 @@ function renderAddView() {
       '<div style="display:flex;flex-direction:column;gap:12px;">'
       + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
-      + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
+      + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Hospital (optional)</label><input class="input" id="ap-hospital" value="'+esc(AP_TEMP.hospital||'')+'"></div>'
       + '<div><label class="field-label">Anaesthesia (optional)</label><select class="select" id="ap-anaesthesia"><option value=""'+(!AP_TEMP.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(AP_TEMP.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
@@ -4298,13 +4322,13 @@ function renderAddView() {
     + '<button class="seg-btn'+(AP_TEMP.caseType==='surgical'?' active':'')+'" data-action="ap-set-casetype" data-value="surgical">Surgical</button>'
     + '</div></div>'
 
-    + (!isSurgical ? '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;">Visit date</label><input class="input" type="date" id="ap-date" value="'+esc(AP_TEMP.surgeryDate)+'" style="width:auto;max-width:150px;"></div>' : '')
+    + (!isSurgical ? '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;">Visit date</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'" style="width:auto;max-width:150px;"></div>' : '')
 
     + '<div class="seg" style="width:100%;">' + tabs.map(([v,l])=>'<button type="button" class="seg-btn'+(AP_SUBTAB===v?' active':'')+'" style="flex:1;" data-action="ap-switch-tab" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
 
     + '<div class="card" style="padding:14px;">' + tabBody + '</div>'
 
-    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
+    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
     + (isAiTier() ? (
         '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
         + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">'+ic('sparkle')+' AI Quick-Fill</label>'+micButtonHtml('ap-ai-fill-input')+'</div>'
@@ -4434,7 +4458,7 @@ function renderOverviewTab(p) {
   let clinicalBody = comorbidityCardHtml(p)
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
     + (isSurgical ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'+OP_NOTE_TEMPLATES.map(([n]) => '<button type="button" class="chip" data-action="insert-op-template" data-value="'+esc(n)+'">'+ic('printer')+' '+esc(n)+'</button>').join('')+'</div>' : '')
-    + '<textarea class="textarea" id="ov-notes" rows="5" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
+    + '<textarea class="textarea" id="ov-notes" rows="5" maxlength="5000" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
     + (p.condition ? '<div style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></div>'
         : (!isSurgical ? (OV_SHOW_TRACKING_PICK
             ? '<select class="select" id="ov-tracking-select"><option value="">\u2014 Pick \u2014</option><option value="ctev">CTEV</option><option value="ra">RA</option><option value="osteoporosis">Osteoporosis</option><option value="trauma">Trauma</option></select>'
@@ -5327,7 +5351,7 @@ async function renderFollowupsTab(p) {
           + '<textarea class="textarea" id="fu-ai-fill-input" rows="2" placeholder="e.g. wound clean and healthy, mild swelling, ROM improving, callus forming on X-ray..." style="margin-bottom:8px;"></textarea>'
           + '<div style="margin-bottom:10px;">'+aiButtonHtml('fu-ai-fill','AI: Fill from this',false,null,'gemini')+'</div><div id="fu-ai-fill-status" style="font-size:11px;color:var(--muted);margin:-6px 0 8px;"></div>'
         ) : '')
-      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" placeholder="Range of motion, complications\u2026"></textarea>'
+      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" maxlength="5000" placeholder="Range of motion, complications\u2026"></textarea>'
       + '<div class="row between" style="margin-top:10px;"><label class="field-label" style="margin-bottom:0;">Next follow-up date (optional)</label>'
       + (isAiTier() ? '<span style="display:inline-block;transform:scale(0.85);transform-origin:left center;">'+aiButtonHtml('ai-suggest-followup','AI suggest',false,null,'gemini')+'</span>' : '')
       + '</div>'
@@ -5393,7 +5417,7 @@ function renderInjectionsTab(p) {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + '<label class="field-label">Injection (type + site)</label>'+renderQuickTextChips(INJECTION_LIB_KEY,'inj-label')+'<input class="input" id="inj-label" placeholder="e.g. Intra-articular steroid \u2014 Right knee" style="margin-bottom:10px;">'
       + '<label class="field-label">Date</label><input class="input" type="date" id="inj-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
-      + '<div class="row between" style="margin:0 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes (optional)</label>'+micButtonHtml('inj-notes')+'</div><textarea class="textarea" id="inj-notes" rows="2" placeholder="Dose, response, next due\u2026"></textarea>'
+      + '<div class="row between" style="margin:0 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes (optional)</label>'+micButtonHtml('inj-notes')+'</div><textarea class="textarea" id="inj-notes" rows="2" maxlength="2000" placeholder="Dose, response, next due\u2026"></textarea>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-inj">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-inj">Save injection</button></div>'
       + '</div>';
   }
@@ -5465,7 +5489,7 @@ async function renderInvestigationsTab(p) {
       + '</div>'
       + '<label class="field-label">Date</label><input class="input" type="date" id="inv-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
       + '<label class="field-label">Photos / report images</label><div id="inv-thumbs">'+thumbGridHtml(INV_PHOTOS,'inv-remove-photo')+'</div>'
-      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('inv-notes')+'</div><textarea class="textarea" id="inv-notes" rows="2" placeholder="Key findings, impression\u2026"></textarea>'
+      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('inv-notes')+'</div><textarea class="textarea" id="inv-notes" rows="2" maxlength="2000" placeholder="Key findings, impression\u2026"></textarea>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-inv">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-inv">Save investigation</button></div>'
       + '</div>';
   }
@@ -6339,7 +6363,7 @@ function renderCtevTab(p) {
   html += '<div class="section-title">Brace</div>';
   html += '<div class="card" style="margin-bottom:10px;">'
     + '<label class="field-label">Regimen</label><textarea class="textarea" rows="2" data-ctev-field="brace.regimen">'+esc(ctev.brace.regimen)+'</textarea>'
-    + '<label class="field-label" style="margin-top:8px;">Start date</label><input class="input" type="date" data-ctev-field="brace.startDate" value="'+esc(ctev.brace.startDate)+'">'
+    + '<label class="field-label" style="margin-top:8px;">Start date</label><input class="input" type="date" data-ctev-field="brace.startDate" max="'+todayStr()+'" value="'+esc(ctev.brace.startDate)+'">'
     + '</div>';
   html += '<button class="btn btn-outline-dashed btn-block" data-action="ctev-open-add-brace-log" style="margin-bottom:10px;">'+ic('plus')+' Log brace compliance check</button>';
   if (ADD_CTEV_BRACELOG_OPEN) {
@@ -7573,6 +7597,10 @@ document.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 document.addEventListener('click', async (e) => {
+  // Close overlays when clicking the backdrop
+  if (e.target.id === 'quick-picker-overlay') { closeQuickPicker(); return; }
+  if (e.target.id === 'usearch-overlay') { EDU_SEARCH = null; render(); return; }
+  
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.dataset.action;
@@ -7680,11 +7708,14 @@ async function generatePersonalizedReminderMessage(p) {
 }
   if (action === 'ai-personalize-reminder') {
     const p = getPatient(SELECTED_ID);
+    if (!p) return;
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Writing\u2026';
     el.disabled = true;
     try {
       AI_PERSONALIZED_REMINDER = await generatePersonalizedReminderMessage(p);
+      el.innerHTML = '✓ Done'; el.style.background = 'var(--emerald)'; el.style.color = '#fff';
+      setTimeout(() => { el.innerHTML = originalHtml; el.disabled = false; el.style.background = ''; el.style.color = ''; }, 2000);
       await renderTabBody(getPatient(SELECTED_ID));
     } catch (err) {
       console.error('AI personalized reminder failed:', err);
@@ -7949,7 +7980,7 @@ async function generatePersonalizedReminderMessage(p) {
     window.scrollTo(0,0);
     return;
   }
-  if (action === 'go-add-with-type') { initApTemp(); AP_TEMP.caseType = el.dataset.value; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
+  if (action === 'go-add-with-type') { initApTemp(); AP_TEMP.caseType = el.dataset.value; AP_PHOTOS = []; AP_INVESTIGATIONS = []; AP_INV_CATEGORY = 'xray'; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
   if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
   if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; VIEW = 'ai-digest'; render(); return; }
   if (action === 'open-ai-knowledge') { AI_KNOWLEDGE_ANSWER = null; VIEW = 'ai-knowledge'; render(); return; }
@@ -8103,7 +8134,7 @@ async function generatePersonalizedReminderMessage(p) {
     const input = document.getElementById('patient-code-input');
     const val = input ? input.value.trim() : '';
     if (!val) { toast('Patient ID can\u2019t be blank'); return; }
-    const clash = PATIENTS.find(x => x.id !== SELECTED_ID && (x.patientCode||'') === val);
+    const clash = PATIENTS.find(x => x.id !== SELECTED_ID && (x.patientCode||'').toLowerCase() === val.toLowerCase());
     if (clash) { toast('That ID is already used by '+clash.name+' \u2014 pick a different one'); return; }
     const p = getPatient(SELECTED_ID);
     p.patientCode = val;
@@ -8687,6 +8718,9 @@ async function generatePersonalizedReminderMessage(p) {
       if (guess) AP_TEMP.condition = guess;
     }
     if (!AP_TEMP.name.trim()) { toast('Name is required'); return; }
+    const dupCount = PATIENTS.filter(x => x.id !== AP_TEMP.id && x.name && x.name.toLowerCase() === AP_TEMP.name.trim().toLowerCase()).length;
+    if (dupCount > 0) { toast('Note: Another patient named "'+AP_TEMP.name.trim()+'" already exists. Check before saving.'); }
+    if (AP_TEMP.caseType === 'surgical' && AP_TEMP.procedure) { const dupDiag = PATIENTS.find(x => x.id !== AP_TEMP.id && x.name === AP_TEMP.name && x.procedure === AP_TEMP.procedure && x.diagnosis === AP_TEMP.diagnosis); if (dupDiag) { toast('Note: This patient already has a case for "'+ AP_TEMP.procedure+'"''. ); } }
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
@@ -9819,6 +9853,7 @@ async function generatePersonalizedReminderMessage(p) {
 function readProfileFromDom() {
   return {
     doctorName: document.getElementById('pr-doctorName').value,
+    email: document.getElementById('pr-email').value,
     qualifications: document.getElementById('pr-qualifications').value,
     regNumber: document.getElementById('pr-regNumber').value,
     clinicName: document.getElementById('pr-clinicName').value,
@@ -9835,7 +9870,7 @@ function readProfileFromDom() {
     if (action === 'onboarding-continue') saveProfile(readProfileFromDom(), true);
     try { localStorage.setItem(ONBOARDING_DONE_KEY, '1'); } catch(e) {}
     VIEW = 'list';
-    await refreshPatients(); loadReminders(); render();
+    await refreshPatients(); loadReminders(); loadFilterState(); loadTabState(); render();
     return;
   }
 
@@ -10303,13 +10338,19 @@ document.addEventListener('input', (e) => {
   }
   if (e.target.id === 'usearch-input') {
     USEARCH_QUERY = e.target.value;
-    const resEl = document.getElementById('usearch-results');
-    if (resEl) resEl.innerHTML = usearchResultsHtml();
+    clearTimeout(SEARCH_DEBOUNCE_TIMER);
+    SEARCH_DEBOUNCE_TIMER = setTimeout(() => {
+      const resEl = document.getElementById('usearch-results');
+      if (resEl) resEl.innerHTML = usearchResultsHtml();
+    }, 300);
   }
   if (e.target.id === 'quick-picker-input') {
     QUICK_PICKER_QUERY = e.target.value;
-    const resEl = document.getElementById('quick-picker-results');
-    if (resEl) resEl.innerHTML = quickPickerResultsHtml();
+    clearTimeout(QUICK_PICKER_DEBOUNCE_TIMER);
+    QUICK_PICKER_DEBOUNCE_TIMER = setTimeout(() => {
+      const resEl = document.getElementById('quick-picker-results');
+      if (resEl) resEl.innerHTML = quickPickerResultsHtml();
+    }, 300);
   }
   if (e.target.id && e.target.id.startsWith('ra-v-') && ADD_RA_VISIT_OPEN) {
     syncRaVisitFromDom();
@@ -10344,11 +10385,29 @@ document.addEventListener('blur', async (e) => {
 }, true);
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && e.target && e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
+  if (e.key === 'Escape') {
+    // Close quick picker
+    const qp = document.getElementById('quick-picker-overlay');
+    if (qp && qp.style.display !== 'none') { SHOW_ADD_MENU = false; render(); }
+    // Close autocomplete
+    const ac = document.querySelectorAll('[id$="-ac"]');
+    ac.forEach(box => { box.style.display = 'none'; box.innerHTML = ''; });
+    // Close universal search
+    const us = document.getElementById('usearch-overlay');
+    if (us && us.style.display !== 'none') { EDU_SEARCH = null; render(); }
+  }
 });
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => { navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' }).catch(()=>{}); });
 }
+
+window.addEventListener('beforeunload', (e) => {
+  if (VIEW !== 'add') return;
+  if (!AP_TEMP || (!AP_TEMP.name && !AP_TEMP.diagnosis && !AP_PHOTOS.length)) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 /* ================= Theme (dark mode) ================= */
 const THEME_KEY = 'surgical-case-log-theme-v1';
