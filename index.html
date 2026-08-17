@@ -1467,7 +1467,6 @@ function restoreScrollPosition() { try { const app = document.getElementById('ap
 function setTab(newTab) { TAB = newTab; saveTabState(); }
 function saveFilterState() { try { localStorage.setItem(FILTER_STATE_KEY, JSON.stringify({ search: SEARCH, filterType: FILTER_TYPE, tagFilter: TAG_FILTER })); } catch(e) {} }
 function loadFilterState() { try { const s = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || '{}'); SEARCH = s.search || ''; FILTER_TYPE = s.filterType || 'all'; TAG_FILTER = s.tagFilter || ''; } catch(e) {} }
-let TAG_FILTER = '';
 let TAB = 'overview';
 let ARMED_DELETE = null;
 let SHOW_TAG_FILTER = false;
@@ -8720,7 +8719,7 @@ async function generatePersonalizedReminderMessage(p) {
     if (!AP_TEMP.name.trim()) { toast('Name is required'); return; }
     const dupCount = PATIENTS.filter(x => x.id !== AP_TEMP.id && x.name && x.name.toLowerCase() === AP_TEMP.name.trim().toLowerCase()).length;
     if (dupCount > 0) { toast('Note: Another patient named "'+AP_TEMP.name.trim()+'" already exists. Check before saving.'); }
-    if (AP_TEMP.caseType === 'surgical' && AP_TEMP.procedure) { const dupDiag = PATIENTS.find(x => x.id !== AP_TEMP.id && x.name === AP_TEMP.name && x.procedure === AP_TEMP.procedure && x.diagnosis === AP_TEMP.diagnosis); if (dupDiag) { toast('Note: This patient already has a case for "'+ AP_TEMP.procedure+'"''. ); } }
+    if (AP_TEMP.caseType === 'surgical' && AP_TEMP.procedure) { const dupDiag = PATIENTS.find(x => x.id !== AP_TEMP.id && x.name === AP_TEMP.name && x.procedure === AP_TEMP.procedure && x.diagnosis === AP_TEMP.diagnosis); if (dupDiag) { toast('Note: This patient already has a case for "' + AP_TEMP.procedure + '". Check if it\u2019s a duplicate.'); } }
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
