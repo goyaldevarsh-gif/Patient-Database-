@@ -660,6 +660,23 @@ async function retryPendingSync() {
   }
 }
 let PENDING_SYNC_INTERVAL = null;
+function updateOfflineBanner() {
+  let el = document.getElementById('offline-banner');
+  if (navigator.onLine) {
+    if (el) el.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'offline-banner';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#f59e0b;color:#fff;text-align:center;font-size:11.5px;font-weight:700;padding:5px 8px;';
+    el.textContent = '\u26a0 Offline \u2014 AI features and cloud sync are paused until you\u2019re back online';
+    document.body.appendChild(el);
+  }
+}
+window.addEventListener('online', updateOfflineBanner);
+window.addEventListener('offline', updateOfflineBanner);
+
 function startPendingSyncRetryLoop() {
   if (PENDING_SYNC_INTERVAL) return;
   PENDING_SYNC_INTERVAL = setInterval(retryPendingSync, 60000); // every 60s while the app is open
@@ -2538,6 +2555,9 @@ function schemeSearchResults() {
 }
 
 let SCHEME_VIEWING_IMPLANTS = null; // package code currently expanded, standalone mode
+let RQ_QUEUE = []; // array of patient ids in this reminder session
+let RQ_INDEX = 0;
+let RQ_SENT_COUNT = 0;
 
 function schemeResultsHtml(forCase) {
   const results = schemeSearchResults();
@@ -2663,6 +2683,37 @@ function psEntryHtml(s) {
     + (s.status !== 'no-show' ? '<button class="btn btn-sm" data-action="ps-mark-noshow" data-id="'+s.id+'">No-show</button>' : '<button class="btn btn-sm" data-action="ps-mark-waiting" data-id="'+s.id+'">Undo</button>')
     + '<button class="icon-btn" style="width:32px;height:32px;" data-action="ps-edit" data-id="'+s.id+'" title="Edit">'+ic('pencil')+'</button>'
     + confirmBtn('ps-delete', s.id)
+    + '</div>'
+    + '</div>';
+}
+
+function renderReminderQueueView() {
+  if (RQ_INDEX >= RQ_QUEUE.length) {
+    return '<div style="padding:60px 24px;text-align:center;">'
+      + '<div style="font-size:40px;margin-bottom:10px;">\u2705</div>'
+      + '<div style="font-weight:800;font-size:16px;margin-bottom:6px;">All done</div>'
+      + '<div style="color:var(--muted);font-size:13px;margin-bottom:20px;">Sent '+RQ_SENT_COUNT+' of '+RQ_QUEUE.length+' reminders.</div>'
+      + '<button class="btn btn-primary" data-action="close-reminder-queue">Back to list</button>'
+      + '</div>';
+  }
+  const p = getPatient(RQ_QUEUE[RQ_INDEX]);
+  if (!p) { RQ_INDEX++; return renderReminderQueueView(); }
+  const message = followUpReminderMessage(p);
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row between"><div class="row gap3"><button class="icon-btn" data-action="close-reminder-queue">'+ic('x')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Reminders</h2></div>'
+    + '<span style="font-size:12.5px;color:var(--muted);font-weight:700;">'+(RQ_INDEX+1)+' of '+RQ_QUEUE.length+'</span></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:10px;">'
+    + '<div class="card" style="margin-bottom:14px;">'
+    + '<div style="font-weight:800;font-size:15px;">'+escName(p.name)+'</div>'
+    + '<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||''))+' \u00b7 Follow-up: '+fmtDate(p.nextFollowUpDate)+'</div>'
+    + '</div>'
+    + '<div class="card" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:16px;">'+esc(message)+'</div>'
+    + '<div class="row gap2">'
+    + '<button class="btn" style="flex:1;" data-action="rq-skip">Skip</button>'
+    + '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-primary" style="flex:2;text-decoration:none;text-align:center;" data-action="rq-send">'+ic('message')+' Send & Next</a>'
+    + '</div>'
     + '</div>'
     + '</div>';
 }
@@ -3517,10 +3568,14 @@ function renderDashboardSection() {
     + '</div>';
 
   if (s.important.length) {
+    const queueEligible = s.important.filter(item => item.type === 'Follow-up' && item.patient.whatsapp);
     html += '<button type="button" class="btn" style="width:100%;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-weight:800;background:var(--red-bg);border-color:var(--red-border);color:var(--red);" data-action="toggle-attention-expanded">'
       + '<span>'+ic('alert')+' Needs Attention Today ('+s.important.length+')</span>'
       + '<span style="font-size:16px;">'+(ATTENTION_EXPANDED?'\u2212':'+')+'</span>'
       + '</button>';
+    if (queueEligible.length) {
+      html += '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>';
+    }
     if (ATTENTION_EXPANDED) {
       const showAll = SHOW_ALL_ATTENTION || s.important.length <= 3;
       const shown = showAll ? s.important.slice(0,8) : s.important.slice(0,3);
@@ -5491,6 +5546,7 @@ async function renderPrescriptionsTab(p) {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
       + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
+      + ((p.prescriptions||[]).length ? '<button class="btn btn-sm" style="margin-bottom:12px;" data-action="repeat-last-rx">'+ic('copy')+' Repeat last prescription ('+fmtDate(p.prescriptions[p.prescriptions.length-1].date)+')</button>' : '')
       + (isAiTier() ? '<div style="margin-bottom:12px;">'+aiButtonHtml('ai-draft-rx','AI: Draft from diagnosis/notes',true,null,'claude')+'</div>' : '')
       + renderRxTemplatesRow()
       + renderQuickAddChips()
@@ -5602,6 +5658,7 @@ function renderFitnessCertPrintView() {
     + '<button class="icon-btn" data-action="close-print-fitness">'+ic('back')+'</button>'
     + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
     + '</div>'
+    + (!profileIsComplete(profile) ? '<div class="no-print px cspine-alert" style="margin:10px 16px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
     + '<div class="rx-sheet">'
     + '<div class="rx-letterhead">'
     + '<div><div class="rx-clinic-name">'+esc(profile.clinicName||'\u2014')+'</div>'
@@ -5627,6 +5684,7 @@ function renderReferralPrintView() {
     + '<button class="icon-btn" data-action="close-print-referral">'+ic('back')+'</button>'
     + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
     + '</div>'
+    + (!profileIsComplete(profile) ? '<div class="no-print px cspine-alert" style="margin:10px 16px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
     + '<div class="rx-sheet">'
     + '<div class="rx-letterhead">'
     + '<div><div class="rx-clinic-name">'+esc(profile.clinicName||'\u2014')+'</div>'
@@ -5673,6 +5731,7 @@ function renderCaseSummaryPrintView() {
     + '<button class="icon-btn" data-action="close-print-summary">'+ic('back')+'</button>'
     + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
     + '</div>'
+    + (!profileIsComplete(profile) ? '<div class="no-print px cspine-alert" style="margin:10px 16px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
     + '<div class="rx-sheet">'
     + '<div class="rx-letterhead">'
     + '<div><div class="rx-clinic-name">'+esc(profile.clinicName||'\u2014')+'</div>'
@@ -6869,6 +6928,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'scheme-finder') { app.innerHTML = renderSchemeFinderView(); return; }
   if (VIEW === 'patient-ai-tools') { app.innerHTML = renderPatientAiToolsView(); return; }
   if (VIEW === 'planned-surgeries') { app.innerHTML = renderPlannedSurgeriesView(); return; }
+  if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
   if (VIEW === 'print') { 
     if (!isProOrAbove()) { 
@@ -7441,7 +7501,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-fitness','close-print-referral','close-planned-surgeries'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-fitness','close-print-referral','close-planned-surgeries','close-reminder-queue'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -9433,6 +9493,16 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'trigger-ps-import') { document.getElementById('ps-import-file-input').click(); return; }
+  if (action === 'start-reminder-queue') {
+    const s = computeDashboardStats();
+    RQ_QUEUE = s.important.filter(item => item.type === 'Follow-up' && item.patient.whatsapp).map(item => item.patient.id);
+    RQ_INDEX = 0; RQ_SENT_COUNT = 0;
+    if (!RQ_QUEUE.length) { toast('No patients with a saved WhatsApp number.'); return; }
+    VIEW = 'reminder-queue'; render(); return;
+  }
+  if (action === 'rq-send') { RQ_SENT_COUNT++; RQ_INDEX++; render(); return; }
+  if (action === 'rq-skip') { RQ_INDEX++; render(); return; }
+  if (action === 'close-reminder-queue') { RQ_QUEUE = []; RQ_INDEX = 0; VIEW = 'list'; render(); return; }
   if (action === 'open-planned-surgeries') {
     PLANNED_SURGERIES = loadPlannedSurgeries();
     PS_ADD_OPEN = false; PS_EDIT_ID = null;
@@ -9790,6 +9860,16 @@ function readProfileFromDom() {
       el.innerHTML = originalHtml;
       el.disabled = false;
     }
+    return;
+  }
+  if (action === 'repeat-last-rx') {
+    const p = getPatient(SELECTED_ID);
+    const last = (p.prescriptions||[])[p.prescriptions.length-1];
+    if (!last) return;
+    RX_TEMP.medicines = last.medicines.map(m => ({ ...m, id: uid() }));
+    RX_TEMP.advice = last.advice || '';
+    toast('Copied last prescription \u2014 review before saving');
+    await renderTabBody(p);
     return;
   }
   if (action === 'open-add-rx') { const p0 = getPatient(SELECTED_ID); initRxTemp(p0 ? p0.nextFollowUpDate : ''); RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = true; await renderTabBody(p0); return; }
@@ -10502,6 +10582,7 @@ function renderSplashScreen() {
     maybeAutoBackup();
     maybeNotifyToday();
     startPendingSyncRetryLoop();
+    updateOfflineBanner();
     if (CURRENT_USER) retryPendingSync();
   }
   requestAnimationFrame(() => requestAnimationFrame(() => { app.style.opacity = '1'; }));
