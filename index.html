@@ -2522,21 +2522,32 @@ function schemeSearchResults() {
   }).slice(0, 40);
 }
 
+let SCHEME_VIEWING_IMPLANTS = null; // package code currently expanded, standalone mode
+
 function schemeResultsHtml(forCase) {
   const results = schemeSearchResults();
   return results.length ? results.map(item => {
-    const implantCount = (MAA_IMPLANTS[item.c] || []).length;
+    const implants = MAA_IMPLANTS[item.c] || [];
+    const implantCount = implants.length;
+    const expanded = SCHEME_VIEWING_IMPLANTS === item.c;
     return '<div class="card" style="padding:12px 14px;margin-bottom:8px;">'
       + '<div class="row between" style="align-items:flex-start;">'
       + '<div style="flex:1;">'
       + '<div style="font-weight:700;font-size:13.5px;">'+esc(item.n)+'</div>'
-      + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">Code: '+esc(item.c)+(item.cat?' \u00b7 '+esc(item.cat):'')+(implantCount?' \u00b7 '+implantCount+' implant option'+(implantCount>1?'s':''):'')+'</div>'
+      + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">Code: '+esc(item.c)+(item.cat?' \u00b7 '+esc(item.cat):'')+'</div>'
       + '</div>'
       + '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'
       + '<div style="font-weight:800;font-size:14px;color:var(--emerald);">\u20b9'+Number(item.r).toLocaleString('en-IN')+'</div>'
       + (forCase ? '<button class="btn btn-sm btn-primary" style="margin-top:6px;" data-action="scheme-pick-package" data-code="'+esc(item.c)+'">Select</button>' : '')
       + '</div>'
-      + '</div></div>';
+      + '</div>'
+      + (!forCase && implantCount ? (
+          '<button class="btn btn-sm" style="margin-top:8px;" data-action="scheme-toggle-view-implants" data-code="'+esc(item.c)+'">'+ic('clipboard')+' '+implantCount+' implant option'+(implantCount>1?'s':'')+(expanded?' \u2013 hide':' \u2013 view')+'</button>'
+          + (expanded ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
+              + implants.map(im => '<div style="font-size:12px;padding:4px 0;">'+esc(im.n)+' <span style="color:var(--muted);">('+esc(im.c)+', max qty '+im.q+')</span> <span style="float:right;font-weight:700;">\u20b9'+Number(im.r).toLocaleString('en-IN')+'</span></div>').join('')
+              + '</div>' : '')
+        ) : '')
+      + '</div>';
   }).join('') : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:30px 0;">No matches. Try different keywords.</div>';
 }
 
@@ -4426,7 +4437,7 @@ function renderOverviewTab(p) {
 
   const communicateRead = '<div class="row between" style="align-items:center;margin-bottom:'+(p.whatsapp?'10px':'0')+';">'
     + '<div><div style="font-size:11px;color:var(--muted);">WhatsApp</div><div style="font-size:13px;font-weight:700;">'+esc(p.whatsapp||'Not saved')+'</div></div>'
-    + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:none;">'+ic('message')+' Message Patient</a>' : '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="communicate">'+ic('plus')+' Add number</button>')
+    + (waLink(p) ? '<div class="row gap2" style="flex:none;"><a href="tel:+'+esc(toWaNumber(p.whatsapp))+'" class="btn btn-sm" style="text-decoration:none;" title="Call">'+ic('phone')+'</a><a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Message Patient</a></div>' : '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="communicate">'+ic('plus')+' Add number</button>')
     + '</div>'
     + (p.whatsapp ? (
         (followUpReminderLink(p)
@@ -7567,14 +7578,14 @@ document.addEventListener('click', async (e) => {
 async function generatePatientWhatsAppMessage(p) {
   const askClaude = firebaseFunctions.httpsCallable('askClaude');
   const isSurgical = p.caseType === 'surgical';
-  const sys = 'You write a single warm, practical WhatsApp message in Hindi (Devanagari script) from a doctor to their orthopaedic patient (or family), combining two things naturally into one flowing message: (1) home-care guidance \u2014 activity restrictions, wound/dressing care if relevant, medicine reminders (generic, no drug names/doses), and 2-3 warning signs to call the doctor immediately; (2) if a next follow-up date is given, a gentle reminder of that date and to bring old X-ray/MRI/reports. Keep it complete but concise \u2014 this is read on WhatsApp. No markdown symbols like * or #, just natural line breaks. Do not include a greeting or sign-off \u2014 those are added separately.';
+  const sys = 'You write a single clear, calm, professional WhatsApp message in Hindi (Devanagari script) from a doctor to their orthopaedic patient (or family). Tone: respectful and measured, like a doctor briefing a patient in clinic \u2014 not overly casual or effusive, no excessive warmth or exclamation marks. Combine two things naturally into one flowing message: (1) home-care guidance \u2014 activity restrictions, wound/dressing care if relevant, medicine reminders (generic, no drug names/doses), and 2-3 warning signs to call the doctor immediately; (2) if a next follow-up date is given, a clear reminder of that date and to bring old X-ray/MRI/reports. Keep it complete \u2014 do not cut any section short for brevity. No markdown symbols like * or #, just natural line breaks. Do not include a greeting or sign-off \u2014 those are added separately.';
   const context = 'Patient name: ' + p.name
     + '\nCase type: ' + (isSurgical ? 'Post-surgical' : 'OPD / conservative treatment')
     + '\nDiagnosis: ' + (p.diagnosis || p.chiefComplaints || '\u2014')
     + (isSurgical ? ('\nProcedure: ' + (p.procedure || '\u2014') + '\nSurgery date: ' + fmtDate(p.surgeryDate)) : '')
     + '\nNext follow-up date: ' + (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'not scheduled yet')
     + (p.notes ? ('\nNotes: ' + p.notes) : '');
-  const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 450 });
+  const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 900 });
   return (result.data.text || '').trim();
 }
 
@@ -9489,6 +9500,14 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'scheme-pick-rghs') { SCHEME_FINDER_TYPE = 'rghs'; render(); return; }
   if (action === 'scheme-pick-maa') { SCHEME_FINDER_TYPE = 'maa'; render(); return; }
   if (action === 'scheme-change-scheme') { SCHEME_FINDER_TYPE = null; SCHEME_FINDER_QUERY = ''; render(); return; }
+  if (action === 'scheme-toggle-view-implants') {
+    const code = el.dataset.code;
+    SCHEME_VIEWING_IMPLANTS = (SCHEME_VIEWING_IMPLANTS === code) ? null : code;
+    const resEl = document.getElementById('scheme-results-list');
+    if (resEl) resEl.innerHTML = schemeResultsHtml(!!SCHEME_FINDER_CASE_ID);
+    else render();
+    return;
+  }
   if (action === 'scheme-pick-package') {
     const code = el.dataset.code;
     const list = SCHEME_FINDER_TYPE === 'rghs' ? SCHEME_RGHS : SCHEME_MAA;
