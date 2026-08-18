@@ -3586,7 +3586,14 @@ function renderDashboardSection() {
   let html = '';
 
   const firstName = (ownerProfileForGreeting.doctorName||'').replace(/^Dr\.?\s*/i,'').split(' ')[0];
-  html += '<p style="font-size:13px;color:var(--muted);margin:0 0 12px;display:flex;align-items:center;gap:3px;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.78);transform-origin:center;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+' \u2014 '+new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})+'</p>';
+  const greetingDate = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
+  const statusBadge = s.important.length
+    ? '<span class="badge badge-red" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+s.important.length+' to review</span>'
+    : '<span class="badge badge-emerald" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+ic('check')+' all clear</span>';
+  html += '<div class="row between" style="margin-bottom:12px;align-items:center;">'
+    + '<p style="font-size:13px;color:var(--muted);margin:0;display:flex;align-items:center;gap:3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.78);transform-origin:center;flex-shrink:0;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+' \u2014 '+greetingDate+'</p>'
+    + statusBadge
+    + '</div>';
 
   const pinnedPatients = PATIENTS.filter(p => p.pinned);
   if (pinnedPatients.length) {
