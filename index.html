@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta name="google-site-verification" content="B2ZCjtwax8Bq2Ejs-5iZ_a1q_eck-UeviP39F_ElErM" />
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>OrthoVault</title>
@@ -6162,7 +6161,7 @@ async function renderTabBody(p) {
   const el = document.getElementById('tab-body');
   if (!el) return;
   if (TAB === 'overview') { el.innerHTML = renderOverviewTab(p); return; }
-  if (TAB === 'ctev') { el.innerHTML = renderCtevTab(p); return; }
+  if (TAB === 'ctev') { el.innerHTML = await renderCtevTab(p); return; }
   if (TAB === 'timeline') { el.innerHTML = renderTimelineTab(p); return; }
   if (TAB === 'ra') { el.innerHTML = renderRaTab(p); return; }
   if (TAB === 'osteo') { el.innerHTML = renderOsteoTab(p); return; }
@@ -6222,6 +6221,16 @@ function visibleTabs(p) {
 
 /* ================= CTEV tracking tab ================= */
 
+const CTEV_CAST_CARE_MESSAGE = '\u0906\u092a\u0915\u0947 \u092c\u091a\u094d\u091a\u0947 \u0915\u094b \u0906\u091c \u092a\u094d\u0932\u093e\u0938\u094d\u091f\u0930 \u0915\u093e\u0938\u094d\u091f \u0932\u0917\u093e\u092f\u093e \u0917\u092f\u093e \u0939\u0948\u0964 \u0915\u0943\u092a\u092f\u093e \u0907\u0928 \u092c\u093e\u0924\u094b\u0902 \u0915\u093e \u0927\u094d\u092f\u093e\u0928 \u0930\u0916\u0947\u0902:'
+  + '\n\n\u2705 \u0915\u093e\u0938\u094d\u091f \u0915\u094b \u092a\u0942\u0930\u0940 \u0924\u0930\u0939 \u0938\u0942\u0916\u093e \u0930\u0916\u0947\u0902 \u2014 \u0928\u0939\u093e\u0924\u0947/\u0928\u0939\u0932\u093e\u0924\u0947 \u0938\u092e\u092f \u092a\u0932\u093e\u0938\u094d\u091f\u0930 \u0917\u0940\u0932\u093e \u0928\u093e \u0939\u094b'
+  + '\n\u2705 \u092a\u0948\u0930 \u0915\u0940 \u0909\u0902\u0917\u0932\u093f\u092f\u093e\u0902 \u0939\u0930 \u0930\u094b\u091c \u091a\u0947\u0915 \u0915\u0930\u0947\u0902 \u2014 \u0930\u0902\u0917, \u0938\u0942\u091c\u0928, \u0920\u0902\u0921\u0915 \u0939\u094b\u0928\u093e'
+  + '\n\u2705 \u092a\u0932\u093e\u0938\u094d\u091f\u0930 \u0915\u0947 \u0905\u0902\u0926\u0930 \u0915\u0941\u091b \u092d\u0940 \u0928\u093e \u0921\u093e\u0932\u0947\u0902 (\u0916\u0941\u091c\u0932\u0940 \u0915\u0947 \u0932\u093f\u090f \u092d\u0940 \u0928\u0939\u0940\u0902)'
+  + '\n\u2705 \u092a\u0932\u093e\u0938\u094d\u091f\u0930 \u092a\u0930 \u0935\u091c\u0928 \u0928\u093e \u0921\u093e\u0932\u0947\u0902, \u0906\u0930\u093e\u092e \u0938\u0947 \u091a\u0932\u0928\u0947-\u092b\u093f\u0930\u0928\u0947 \u0926\u0947\u0902'
+  + '\n\n\u26a0\ufe0f \u0924\u0941\u0930\u0902\u0924 \u0921\u0949\u0915\u094d\u091f\u0930 \u0938\u0947 \u0938\u0902\u092a\u0930\u094d\u0915 \u0915\u0930\u0947\u0902 \u0905\u0917\u0930:'
+  + '\n\u2022 \u0909\u0902\u0917\u0932\u093f\u092f\u093e\u0902 \u0928\u0940\u0932\u0940/\u0938\u092b\u0947\u0926 \u092f\u093e \u0920\u0902\u0921\u0940 \u092a\u0921\u0947\u0902'
+  + '\n\u2022 \u092a\u0932\u093e\u0938\u094d\u091f\u0930 \u0938\u0947 \u092c\u0926\u092c\u0942 \u0906\u090f'
+  + '\n\u2022 \u0938\u0942\u091c\u0928, \u091b\u093e\u0932\u0947 \u092f\u093e \u0916\u0942\u0928 \u0926\u093f\u0916\u0947'
+  + '\n\u2022 \u092c\u091a\u094d\u091a\u093e \u092c\u0939\u0941\u0924 \u0930\u094b\u0928\u0947\u0932\u0917\u0947 \u092f\u093e \u092a\u0948\u0930 \u0939\u093f\u0932\u093e\u0928\u0947 \u092e\u0947\u0902 \u092d\u0940 \u091c\u094d\u092f\u093e\u0926\u093e \u0926\u0930\u094d\u0926 \u0939\u094b';
 let ADD_CTEV_SESSION_OPEN = false;
 let CTEV_SESSION_TEMP = null;
 let CTEV_SESSION_ACTIVE_FOOT = 'left'; // which foot's scorer is shown when bilateral (one at a time \u2014 side-by-side overflowed the screen)
@@ -6279,9 +6288,11 @@ function tenotomyCheck(session, foot) {
   return hind > 0.5 && mid < 1 && talarHead === 0 && abd > 60;
 }
 
-function renderCtevTab(p) {
+async function renderCtevTab(p) {
   const feet = feetForLaterality(p.laterality);
   const ctev = p.ctev;
+  const allImages = await dbGetImagesByPatient(p.id);
+  revokeActiveUrls();
   let html = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
 
   const latestSession = ctev.castingSessions.length ? ctev.castingSessions[ctev.castingSessions.length-1] : null;
@@ -6340,10 +6351,23 @@ function renderCtevTab(p) {
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="ctev-cancel-add-session">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ctev-submit-session">Save session</button></div>'
       + '</div></div>';
   }
+  const ctevCastLink = homeCareInstructionsLink(p, CTEV_CAST_CARE_MESSAGE);
   [...ctev.castingSessions].reverse().forEach(s => {
+    const sessionImages = allImages.filter(im => im.ctevSessionId === s.id);
     html += '<div class="fu-card"><div class="row between" style="margin-bottom:6px;"><span style="font-weight:800;">Session '+s.sessionNo+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+fmtDate(s.date)+'</span></span>'+(s.sessionNo!==1?confirmBtn('ctev-delete-session', s.id):'')+'</div>';
     feet.forEach(f => { if (s[f]) { const t = piraniTotal(s[f].components); html += '<span style="font-size:12px;margin-right:10px;color:'+FOOT_COLOR[f]+';font-weight:700;">'+(f==='left'?'L':'R')+' '+t+'/6</span>'; } });
     if (s.notes) html += '<p style="font-size:12px;color:#64748b;margin-top:6px;">'+esc(s.notes)+'</p>';
+    html += '<div class="thumb-grid" style="margin-top:8px;">';
+    sessionImages.forEach(im => {
+      const url = trackUrl(URL.createObjectURL(im.blob));
+      html += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>';
+    });
+    html += '<label class="add-photo-tile" title="Add cast image">'+ic('camera')+'<span>Cast photo</span><input type="file" accept="image/*" multiple data-ctev-input="'+s.id+'" style="display:none;"></label>';
+    html += '</div>';
+    html += '<div class="row gap2" style="margin-top:8px;flex-wrap:wrap;">'
+      + '<button type="button" class="btn" style="flex:1;font-size:11.5px;padding:8px;" data-action="ctev-jump-followup">'+ic('plus')+' Follow-up</button>'
+      + (ctevCastLink ? '<a href="'+esc(ctevCastLink)+'" target="_blank" rel="noopener" class="btn" style="flex:1;font-size:11.5px;padding:8px;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;text-align:center;">'+ic('message')+' Cast care msg</a>' : '')
+      + '</div>';
     html += '</div>';
   });
 
@@ -7739,7 +7763,9 @@ async function generatePersonalizedReminderMessage(p) {
       raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
       const suggestions = JSON.parse(raw);
       AI_INVESTIGATION_SUGGESTIONS = Array.isArray(suggestions) ? suggestions.filter(s => typeof s === 'string' && s.trim()).slice(0, 5) : [];
-      await renderTabBody(AP_TEMP);
+      const invBlock = document.getElementById('ap-diag-ai-suggest-block');
+      if (invBlock) invBlock.innerHTML = apDiagAiSuggestBlockHtml() + apSimilarCasesBlockHtml() + apSchemeSuggestBlockHtml();
+      else await renderTabBody(AP_TEMP);
     } catch (err) {
       console.error('AI investigation suggestion failed:', err);
       toast('AI suggestion failed: ' + (err && err.message ? err.message : 'try again'));
@@ -7762,7 +7788,9 @@ async function generatePersonalizedReminderMessage(p) {
       raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
       const suggestions = JSON.parse(raw);
       AI_EXAM_SUGGESTIONS = Array.isArray(suggestions) ? suggestions.filter(s => typeof s === 'string' && s.trim()).slice(0, 6) : [];
-      await renderTabBody(AP_TEMP);
+      const examBlock = document.getElementById('ap-diag-ai-suggest-block');
+      if (examBlock) examBlock.innerHTML = apDiagAiSuggestBlockHtml() + apSimilarCasesBlockHtml() + apSchemeSuggestBlockHtml();
+      else await renderTabBody(AP_TEMP);
     } catch (err) {
       console.error('AI exam suggestion failed:', err);
       toast('AI suggestion failed: ' + (err && err.message ? err.message : 'try again'));
@@ -8234,6 +8262,7 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
+  if (action === 'ctev-jump-followup') { TAB = 'followups'; FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); window.scrollTo(0,0); return; }
   if (action === 'ctev-open-add-brace-log') { ADD_CTEV_BRACELOG_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-cancel-add-bracelog') { ADD_CTEV_BRACELOG_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-submit-bracelog') {
@@ -10290,6 +10319,20 @@ document.addEventListener('change', async (e) => {
     const fu = (p.followUps||[]).find(f => f.id === fuId);
     if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
     await dbPutPatient(p); await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (t.dataset && t.dataset.ctevInput) {
+    const ctevSessionId = t.dataset.ctevInput;
+    const files = Array.from(t.files || []);
+    if (!files.length) return;
+    const p = getPatient(SELECTED_ID);
+    toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+    for (const file of files) {
+      const blob = await resizeImageFile(file);
+      await dbAddImage({ id: uid(), patientId: p.id, ctevSessionId, blob, createdAt: Date.now(), imageCategory: 'cast' });
+    }
+    await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
