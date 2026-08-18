@@ -303,7 +303,9 @@
   .tab.active { border-bottom-color:var(--accent); color:var(--accent-dark); }
 
   .stat-card { border:1px solid var(--border); border-radius:20px; padding:12px; background:#fff; }
-  .dash-tile { flex:1; border-radius:20px; padding:14px 12px; text-align:center; border:1px solid; }
+  .dash-tile { flex:1; border-radius:20px; padding:14px 12px; text-align:center; border:1px solid; box-shadow:0 1px 3px rgba(15,23,42,0.05); transition:transform 0.12s ease, box-shadow 0.12s ease; }
+  button.dash-tile:active { transform:scale(0.97); box-shadow:0 1px 2px rgba(15,23,42,0.06); }
+  .dash-tile .di { display:flex; align-items:center; justify-content:center; margin-bottom:4px; opacity:0.9; }
   .dash-tile .dv { font-size:22px; font-weight:800; font-family:'JetBrains Mono',monospace; line-height:1.1; }
   .dash-tile .dl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; margin-top:3px; opacity:0.85; }
   .backup-banner { display:flex; align-items:center; gap:10px; border-radius:20px; padding:10px 12px; background:var(--amber-bg); border:1px solid var(--amber-border); margin-bottom:12px; }
@@ -1845,7 +1847,7 @@ function newPatientShape() {
     id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', handDominance:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [],
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'',
-    side:'N/A', surgeryDate: todayStr(), status:'Active follow-up', notes:'', whatsapp:'',
+    side:'N/A', surgeryDate: todayStr(), status:'Active', notes:'', whatsapp:'',
     nextFollowUpDate:'',
     preOpImageCount:0, followUps:[], investigations:[], prescriptions:[],
     ctev: null, ra: null, osteo: null,
@@ -1955,6 +1957,7 @@ function ageFieldHtml(p) {
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
 function overdueDays(dateStr) { if (!dateStr) return 0; const d = new Date(dateStr); if (isNaN(d)) return 0; const diff = Math.round((new Date(todayStr()) - d) / 86400000); return diff > 0 ? diff : 0; }
+function greetingWord() { const h = new Date().getHours(); if (h < 12) return 'Good morning'; if (h < 17) return 'Good afternoon'; return 'Good evening'; }
 
 /* ---- Dashboard + Practice Insights ---- */
 function computeDashboardStats() {
@@ -1980,7 +1983,17 @@ function computeDashboardStats() {
     ...dexaDueToday.map(p => ({ patient:p, type:'DEXA scan', label:'DEXA scan due today', isOverdue:false, date:p.osteo.nextDexaDate })),
   ].sort((a,b) => overdueDays(b.date) - overdueDays(a.date));
   const surgeriesThisWeek = PATIENTS.filter(p => p.caseType==='surgical' && p.surgeryDate >= sevenDaysAgoStr && p.surgeryDate <= today).length;
-  const activeCases = PATIENTS.filter(p => p.status === 'Active follow-up').length;
+  const activeCases = PATIENTS.filter(p => !p.status || p.status === 'Active' || p.status === 'Active follow-up').length;
+
+  /* Daily new-case counts for the last 7 days (oldest first), for the dashboard sparkline */
+  const weekTrend = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const dayKey = d.toISOString().slice(0,10);
+    const count = PATIENTS.filter(p => p.createdAt && new Date(p.createdAt).toISOString().slice(0,10) === dayKey).length;
+    weekTrend.push({ day: d.toLocaleDateString('en-IN',{weekday:'narrow'}), count });
+  }
+  const weekNewCases = weekTrend.reduce((sum,d) => sum + d.count, 0);
 
   const monthPatients = PATIENTS.filter(p => p.createdAt && new Date(p.createdAt).toISOString().slice(0,7) === thisMonthKey);
   const procCounts = {};
@@ -1993,7 +2006,7 @@ function computeDashboardStats() {
   const topConditions = Object.entries(condCounts).sort((a,b)=>b[1]-a[1]).slice(0,3)
     .map(([id,n]) => { const e = EDU_LIBRARY.find(x=>x.id===id); return [CONDITION_LABEL_OVERRIDES[id] || (e?e.name.en:id), n]; });
 
-  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, monthCount: monthPatients.length, topProcedures, topConditions };
+  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, monthCount: monthPatients.length, topProcedures, topConditions, weekTrend, weekNewCases };
 }
 
 /* ---- Daily "important today" notifications ---- */
@@ -3569,7 +3582,21 @@ function renderDashboardSection() {
   if (!PATIENTS.length) return '';
   const s = computeDashboardStats();
   const daysBack = daysSinceLastBackup();
+  const ownerProfileForGreeting = loadProfile();
   let html = '';
+
+  const firstName = (ownerProfileForGreeting.doctorName||'').replace(/^Dr\.?\s*/i,'').split(' ')[0];
+  html += '<p style="font-size:13px;color:var(--muted);margin:0 0 12px;display:flex;align-items:center;gap:3px;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.78);transform-origin:center;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+' \u2014 '+new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'})+'</p>';
+
+  const pinnedPatients = PATIENTS.filter(p => p.pinned);
+  if (pinnedPatients.length) {
+    html += '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-bottom:12px;">'
+      + pinnedPatients.map(p => '<button type="button" class="chip" data-action="open-patient" data-id="'+p.id+'" style="flex-shrink:0;display:flex;align-items:center;gap:6px;padding:7px 12px 7px 8px;cursor:pointer;">'
+          + '<span style="width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+esc((p.name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase())+'</span>'
+          + '<span style="font-size:12px;font-weight:700;white-space:nowrap;">'+esc(p.name)+'</span>'
+          + '</button>').join('')
+      + '</div>';
+  }
 
   if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 14)) {
     html += '<div class="backup-banner">'
@@ -3590,14 +3617,35 @@ function renderDashboardSection() {
   }
 
   html += '<div class="row gap2" style="margin-bottom:12px;">'
-    + '<div class="dash-tile" style="'+(s.important.length ? 'border-color:var(--red-border);background:var(--red-bg);' : 'border-color:var(--border);background:#fff;')+'"><div class="dv" style="color:'+(s.important.length?'var(--red)':'var(--ink)')+';">'+s.important.length+'</div><div class="dl" style="color:'+(s.important.length?'var(--red)':'var(--muted)')+';">Important today</div></div>'
-    + '<div class="dash-tile" style="border-color:var(--border);"><div class="dv">'+s.surgeriesThisWeek+'</div><div class="dl" style="color:var(--muted);">Surgeries (7 days)</div></div>'
-    + '<div class="dash-tile" style="border-color:var(--border);"><div class="dv">'+s.activeCases+'</div><div class="dl" style="color:var(--muted);">Active cases</div></div>'
+    + '<button type="button" class="dash-tile" data-action="dash-tile-attention" style="'+(s.important.length ? 'border-color:var(--red-border);background:var(--red-bg);' : 'border-color:var(--border);background:#fff;')+'cursor:pointer;"><div class="di" style="color:'+(s.important.length?'var(--red)':'var(--emerald)')+';">'+ic(s.important.length?'alert':'check')+'</div><div class="dv" style="color:'+(s.important.length?'var(--red)':'var(--ink)')+';">'+s.important.length+'</div><div class="dl" style="color:'+(s.important.length?'var(--red)':'var(--muted)')+';">Important today</div></button>'
+    + '<button type="button" class="dash-tile" style="border-color:var(--border);cursor:pointer;" data-action="dash-tile-calendar"><div class="di" style="color:var(--accent);">'+ic('calendar')+'</div><div class="dv">'+s.surgeriesThisWeek+'</div><div class="dl" style="color:var(--muted);">Surgeries (7 days)</div></button>'
+    + '<div class="dash-tile" style="border-color:var(--border);"><div class="di" style="color:var(--emerald);">'+ic('shield')+'</div><div class="dv">'+s.activeCases+'</div><div class="dl" style="color:var(--muted);">Active cases</div></div>'
     + '</div>';
+
+  if (s.weekTrend && s.weekTrend.some(d => d.count > 0)) {
+    const maxDay = Math.max(...s.weekTrend.map(d => d.count), 1);
+    html += '<div class="card" style="margin-bottom:12px;padding:12px 14px;border-left:3px solid var(--accent);">'
+      + '<div class="row between" style="margin-bottom:8px;"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;">This week</span><span style="font-size:12px;font-weight:800;color:var(--ink);">'+s.weekNewCases+' new case'+(s.weekNewCases!==1?'s':'')+'</span></div>'
+      + '<div style="display:flex;align-items:flex-end;gap:5px;height:44px;">'
+        + s.weekTrend.map(d => '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">'
+            + '<div style="width:100%;max-width:22px;border-radius:4px 4px 2px 2px;background:'+(d.count?'var(--accent)':'var(--border)')+';height:'+Math.max(4,Math.round(d.count/maxDay*32))+'px;"></div>'
+            + '<span style="font-size:9px;color:var(--muted);margin-top:3px;">'+esc(d.day)+'</span>'
+          + '</div>').join('')
+      + '</div>'
+      + '</div>';
+  }
+
+  if (!s.important.length) {
+    html += '<div class="card" style="text-align:center;padding:18px 14px;margin-bottom:12px;background:var(--emerald-bg);border-color:var(--emerald-border);">'
+      + '<div style="color:var(--emerald);margin-bottom:4px;">'+ic('check')+'</div>'
+      + '<p style="font-size:13px;font-weight:700;color:var(--ink);margin:0;">All caught up \u2014 nothing urgent today</p>'
+      + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 0;">No overdue follow-ups, RA labs, or DEXA scans.</p>'
+      + '</div>';
+  }
 
   if (s.important.length) {
     const queueEligible = s.important.filter(item => item.type === 'Follow-up' && item.patient.whatsapp);
-    html += '<button type="button" class="btn" style="width:100%;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-weight:800;background:var(--red-bg);border-color:var(--red-border);color:var(--red);" data-action="toggle-attention-expanded">'
+    html += '<button type="button" id="dash-attention-anchor" class="btn" style="width:100%;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-weight:800;background:var(--red-bg);border-color:var(--red-border);color:var(--red);" data-action="toggle-attention-expanded">'
       + '<span>'+ic('alert')+' Needs Attention Today ('+s.important.length+')</span>'
       + '<span style="font-size:16px;">'+(ATTENTION_EXPANDED?'\u2212':'+')+'</span>'
       + '</button>';
@@ -3608,7 +3656,7 @@ function renderDashboardSection() {
       const showAll = SHOW_ALL_ATTENTION || s.important.length <= 3;
       const shown = showAll ? s.important.slice(0,8) : s.important.slice(0,3);
       const typeIcon = { 'Follow-up':'calendar', 'RA labs':'file', 'DEXA scan':'file' };
-      html += '<div class="card" style="margin-bottom:12px;padding:6px 0;">'
+      html += '<div class="card" style="margin-bottom:12px;padding:6px 0;border-left:3px solid var(--red);">'
         + shown.map(item => {
             const days = overdueDays(item.date);
             const severityText = item.isOverdue ? (days > 0 ? days+' day'+(days>1?'s':'')+' overdue' : 'Overdue') : 'Due today';
@@ -3633,12 +3681,12 @@ function renderDashboardSection() {
     if (!SHOW_INSIGHTS) {
       html += '<button class="chip" style="margin-bottom:12px;" data-action="toggle-insights">'+ic('search')+' This month\u2019s insights ('+s.monthCount+' cases added)</button>';
     } else {
-      html += '<div class="card" style="margin-bottom:14px;">'
+      html += '<div class="card" style="margin-bottom:14px;border-left:3px solid var(--emerald);">'
         + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">This month\u2019s insights ('+s.monthCount+' cases added)</label><button class="icon-btn" style="width:24px;height:24px;color:var(--muted);" data-action="toggle-insights" title="Collapse">'+ic('x')+'</button></div>'
         + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top procedures</span>'
-            + s.topProcedures.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
+            + (function(){ const max = s.topProcedures[0][1]; return s.topProcedures.map(([name,n]) => '<div class="insight-row" style="display:block;padding:5px 0;"><div class="row between" style="margin-bottom:3px;"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div><div style="height:4px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:var(--accent);width:'+Math.max(8,Math.round(n/max*100))+'%;"></div></div></div>').join(''); })() + '</div>' : '')
         + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top conditions</span>'
-            + s.topConditions.map(([name,n]) => '<div class="insight-row"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div>').join('') + '</div>' : '')
+            + (function(){ const max = s.topConditions[0][1]; return s.topConditions.map(([name,n]) => '<div class="insight-row" style="display:block;padding:5px 0;"><div class="row between" style="margin-bottom:3px;"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div><div style="height:4px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:var(--emerald);width:'+Math.max(8,Math.round(n/max*100))+'%;"></div></div></div>').join(''); })() + '</div>' : '')
         + '</div>';
     }
   }
@@ -8412,6 +8460,17 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'toggle-insights') { SHOW_INSIGHTS = !SHOW_INSIGHTS; render(); return; }
   if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
   if (action === 'toggle-attention-expanded') { ATTENTION_EXPANDED = !ATTENTION_EXPANDED; render(); return; }
+  if (action === 'dash-tile-attention') {
+    ATTENTION_EXPANDED = true;
+    render();
+    setTimeout(() => { const el2 = document.getElementById('dash-attention-anchor'); if (el2) el2.scrollIntoView({ behavior:'smooth', block:'start' }); }, 50);
+    return;
+  }
+  if (action === 'dash-tile-calendar') {
+    const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
+    CAL_SUBVIEW = 'upcoming'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    VIEW = 'calendar'; render(); return;
+  }
   if (action === 'toggle-patient-list-expanded') { PATIENT_LIST_EXPANDED = !PATIENT_LIST_EXPANDED; render(); return; }
   if (action === 'toggle-legend') { SHOW_LEGEND = !SHOW_LEGEND; render(); return; }
   if (action === 'tl-jump') {
