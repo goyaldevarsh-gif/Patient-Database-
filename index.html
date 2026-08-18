@@ -1477,7 +1477,7 @@ const DAILY_LIMIT = 15000;
 const MONTHLY_LIMIT = 100000;
 let SHOW_INSIGHTS = false;
 let SHOW_ALL_ATTENTION = false;
-let ATTENTION_EXPANDED = false;
+let ATTENTION_EXPANDED = true;
 let PATIENT_LIST_EXPANDED = false;
 let SHOW_ADD_MENU = false;
 let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
@@ -1954,6 +1954,7 @@ function ageFieldHtml(p) {
     + '</div></div>';
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
+function overdueDays(dateStr) { if (!dateStr) return 0; const d = new Date(dateStr); if (isNaN(d)) return 0; const diff = Math.round((new Date(todayStr()) - d) / 86400000); return diff > 0 ? diff : 0; }
 
 /* ---- Dashboard + Practice Insights ---- */
 function computeDashboardStats() {
@@ -1971,13 +1972,13 @@ function computeDashboardStats() {
 
   /* Everything that needs attention today or is already overdue, across follow-ups, RA labs, and DEXA scans */
   const important = [
-    ...overdue.map(p => ({ patient:p, type:'Follow-up', label:'Follow-up overdue', isOverdue:true })),
-    ...raOverdue.map(p => ({ patient:p, type:'RA labs', label:'RA labs overdue', isOverdue:true })),
-    ...dexaOverdue.map(p => ({ patient:p, type:'DEXA scan', label:'DEXA scan overdue', isOverdue:true })),
-    ...dueToday.map(p => ({ patient:p, type:'Follow-up', label:'Follow-up due today', isOverdue:false })),
-    ...raDueToday.map(p => ({ patient:p, type:'RA labs', label:'RA labs due today', isOverdue:false })),
-    ...dexaDueToday.map(p => ({ patient:p, type:'DEXA scan', label:'DEXA scan due today', isOverdue:false })),
-  ];
+    ...overdue.map(p => ({ patient:p, type:'Follow-up', label:'Follow-up overdue', isOverdue:true, date:p.nextFollowUpDate })),
+    ...raOverdue.map(p => ({ patient:p, type:'RA labs', label:'RA labs overdue', isOverdue:true, date:p.ra.nextLabsDate })),
+    ...dexaOverdue.map(p => ({ patient:p, type:'DEXA scan', label:'DEXA scan overdue', isOverdue:true, date:p.osteo.nextDexaDate })),
+    ...dueToday.map(p => ({ patient:p, type:'Follow-up', label:'Follow-up due today', isOverdue:false, date:p.nextFollowUpDate })),
+    ...raDueToday.map(p => ({ patient:p, type:'RA labs', label:'RA labs due today', isOverdue:false, date:p.ra.nextLabsDate })),
+    ...dexaDueToday.map(p => ({ patient:p, type:'DEXA scan', label:'DEXA scan due today', isOverdue:false, date:p.osteo.nextDexaDate })),
+  ].sort((a,b) => overdueDays(b.date) - overdueDays(a.date));
   const surgeriesThisWeek = PATIENTS.filter(p => p.caseType==='surgical' && p.surgeryDate >= sevenDaysAgoStr && p.surgeryDate <= today).length;
   const activeCases = PATIENTS.filter(p => p.status === 'Active follow-up').length;
 
@@ -3606,13 +3607,24 @@ function renderDashboardSection() {
     if (ATTENTION_EXPANDED) {
       const showAll = SHOW_ALL_ATTENTION || s.important.length <= 3;
       const shown = showAll ? s.important.slice(0,8) : s.important.slice(0,3);
-      html += '<div class="card" style="margin-bottom:12px;">'
-        + '<label class="field-label">Follow-ups, RA labs, DEXA scans</label>'
-        + shown.map(item => '<div class="row between" data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;padding:6px 0;">'
-            + '<span style="font-size:13px;font-weight:600;">'+esc(item.patient.name)+'<span style="font-weight:400;color:var(--muted);"> \u00b7 '+esc(item.type)+'</span></span>'
-            + '<span class="badge '+(item.isOverdue?'badge-red':'badge-amber')+'" style="font-size:10px;">'+(item.isOverdue?'Overdue':'Today')+'</span>'
-            + '</div>').join('')
-        + (!showAll ? '<button class="chip" style="margin-top:6px;" data-action="toggle-show-all-attention">Show all '+s.important.length+'</button>' : '')
+      const typeIcon = { 'Follow-up':'calendar', 'RA labs':'file', 'DEXA scan':'file' };
+      html += '<div class="card" style="margin-bottom:12px;padding:6px 0;">'
+        + shown.map(item => {
+            const days = overdueDays(item.date);
+            const severityText = item.isOverdue ? (days > 0 ? days+' day'+(days>1?'s':'')+' overdue' : 'Overdue') : 'Due today';
+            const waLink = (item.type === 'Follow-up' && item.patient.whatsapp) ? followUpReminderLink(item.patient) : null;
+            return '<div class="row between" style="padding:8px 14px;border-bottom:1px solid var(--border);">'
+              + '<span data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px;min-width:0;">'
+                + '<span style="color:'+(item.isOverdue?'var(--red)':'#b45309')+';flex-shrink:0;">'+ic(typeIcon[item.type]||'calendar')+'</span>'
+                + '<span style="min-width:0;overflow:hidden;">'
+                  + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.patient.name)+'</span>'
+                  + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+'</span>'
+                + '</span>'
+              + '</span>'
+              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
+              + '</div>';
+          }).join('')
+        + (!showAll ? '<div style="padding:8px 14px 2px;"><button class="chip" data-action="toggle-show-all-attention">Show all '+s.important.length+'</button></div>' : '')
         + '</div>';
     }
   }
