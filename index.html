@@ -530,7 +530,7 @@
 /* ================= IndexedDB layer ================= */
 
 const DB_NAME = 'surgical-case-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 let dbPromise = null;
 
 function openDB() {
@@ -544,6 +544,7 @@ function openDB() {
         const s = db.createObjectStore('images', { keyPath:'id' });
         s.createIndex('patientId','patientId',{unique:false});
       }
+      if (!db.objectStoreNames.contains('clinicalBank')) db.createObjectStore('clinicalBank', { keyPath:'id' });
     };
     req.onsuccess = e => resolve(e.target.result);
     req.onerror = e => reject(e.target.error);
@@ -556,6 +557,16 @@ function reqToPromise(req) { return new Promise((res, rej) => { req.onsuccess = 
 async function dbGetAllPatients() { const s = await storeOf('patients','readonly'); return reqToPromise(s.getAll()); }
 async function dbPutPatient(p) { const s = await storeOf('patients','readwrite'); const r = await reqToPromise(s.put(p)); syncPatientToCloud(p); return r; }
 async function dbDeletePatient(id) { const s = await storeOf('patients','readwrite'); const r = await reqToPromise(s.delete(id)); deletePatientFromCloud(id); return r; }
+
+async function dbGetAllClinicalBank() { const s = await storeOf('clinicalBank','readonly'); return reqToPromise(s.getAll()); }
+async function dbPutClinicalBank(c) { const s = await storeOf('clinicalBank','readwrite'); const r = await reqToPromise(s.put(c)); syncClinicalBankToCloud(c); return r; }
+async function dbDeleteClinicalBank(id) {
+  const s = await storeOf('clinicalBank','readwrite'); const r = await reqToPromise(s.delete(id));
+  const imgs = (await dbGetAllImages()).filter(im => im.clinicalBankId === id);
+  for (const img of imgs) await dbDeleteImage(img.id);
+  deleteClinicalBankFromCloud(id);
+  return r;
+}
 
 /* ================= Cloud Sync Engine (background, best-effort \u2014 local IndexedDB always stays the source of truth for the UI) ================= */
 let SYNC_APPLYING_REMOTE = false; // true while writing incoming cloud changes locally, to avoid re-pushing them right back up
@@ -628,6 +639,22 @@ function deletePatientFromCloud(id) {
   try {
     firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('patients').doc(String(id)).delete()
       .catch(function(err) { console.error('Cloud sync (delete) failed for patient', id, err); });
+  } catch (e) {}
+}
+function syncClinicalBankToCloud(c) {
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE || !isAiTier()) return;
+  try {
+    const clean = JSON.parse(JSON.stringify(c));
+    withTimeout(firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('clinicalBank').doc(String(c.id)).set(clean), 20000, 'Sync')
+      .then(function() { removePendingSync('clinicalBank', c.id); })
+      .catch(function(err) { console.error('Cloud sync (save) failed for clinical bank entry', c.id, err); addPendingSync('clinicalBank', c.id); });
+  } catch (e) {}
+}
+function deleteClinicalBankFromCloud(id) {
+  if (!CURRENT_USER || SYNC_APPLYING_REMOTE || !isAiTier()) return;
+  try {
+    firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('clinicalBank').doc(String(id)).delete()
+      .catch(function(err) { console.error('Cloud sync (delete) failed for clinical bank entry', id, err); });
   } catch (e) {}
 }
 /* Re-attempts every item currently in the pending queue. Safe to call often \u2014 it's a
@@ -1456,6 +1483,7 @@ async function callAI(provider, systemPrompt, userMessage, maxTokens) {
 /* ================= State ================= */
 
 let PATIENTS = [];
+let CLINICAL_BANK = [];
 let VIEW = 'list';
 let SELECTED_ID = null;
 let SEARCH = '';
@@ -1487,6 +1515,7 @@ let SHOW_ADD_MENU = false;
 let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
 let QUICK_PICKER_QUERY = '';
 let SEARCH_DEBOUNCE_TIMER = null;
+let CB_SEARCH_DEBOUNCE_TIMER = null;
 let QUICK_PICKER_DEBOUNCE_TIMER = null;
 function addMenuDropdownHtml() {
   const items = [
@@ -3026,6 +3055,7 @@ async function renderMoreView() {
         moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
         + moreRowHtml('printer', 'Cash Collection Audit', 'Monthly totals of cash payments across all surgical cases', 'open-cash-audit')
         + moreRowHtml('bookmark', 'Research Cases'+(PATIENTS.filter(p=>p.researchFlag).length ? ' ('+PATIENTS.filter(p=>p.researchFlag).length+')' : ''), 'Cases flagged for papers, case reports & study', 'open-research-cases')
+        + moreRowHtml('camera', 'Clinical Bank'+(CLINICAL_BANK.length ? ' ('+CLINICAL_BANK.length+')' : ''), 'Interesting X-rays, CT findings \u2014 kept separate from patient records', 'open-clinical-bank')
     },
     { key:'help', title:'Help & Info', icon:'info', rows:
         moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
@@ -3061,6 +3091,119 @@ function moreRowHtml(icon, title, sub, action, highlight) {
 }
 
 /* ================= Recently Deleted (soft-delete safety net) ================= */
+let CB_ADD_OPEN = false;
+let CB_SELECTED_ID = null;
+let CB_DRAFT_NOTE = '';
+let CB_DRAFT_TAGS = [];
+let CB_SEARCH = '';
+
+function cbAllTags() {
+  const set = new Set();
+  CLINICAL_BANK.forEach(c => (c.tags||[]).forEach(t => set.add(t)));
+  return [...set].sort();
+}
+
+function cbTagEditorHtml() {
+  const suggestions = cbAllTags().filter(t => !CB_DRAFT_TAGS.includes(t));
+  return '<label class="field-label" style="margin-top:10px;">Tags</label>'
+    + '<div class="row gap2">'
+      + '<input class="input" id="cb-tag-input" placeholder="e.g. rare fracture, teaching case" style="flex:1;">'
+      + '<button type="button" class="btn" data-action="cb-add-tag">'+ic('plus')+'</button>'
+    + '</div>'
+    + (CB_DRAFT_TAGS.length ? '<div class="chips" style="margin-top:8px;">' + CB_DRAFT_TAGS.map(t => '<button type="button" class="chip" data-action="cb-remove-draft-tag" data-tag="'+esc(t)+'" style="background:var(--accent-bg);color:var(--accent);border-color:var(--accent-border);">'+esc(t)+' '+ic('x')+'</button>').join('') + '</div>' : '')
+    + (suggestions.length ? '<div class="chips" style="margin-top:8px;">' + suggestions.slice(0,10).map(t => '<button type="button" class="chip" data-action="cb-add-suggested-tag" data-tag="'+esc(t)+'">+ '+esc(t)+'</button>').join('') + '</div>' : '');
+}
+
+function cbFilteredEntries() {
+  const q = CB_SEARCH.trim().toLowerCase();
+  return [...CLINICAL_BANK].sort((a,b) => (b.createdAt||0) - (a.createdAt||0)).filter(c => {
+    if (!q) return true;
+    if ((c.note||'').toLowerCase().includes(q)) return true;
+    return (c.tags||[]).some(t => t.toLowerCase().includes(q));
+  });
+}
+
+function cbResultsListHtml(filtered, imageMap) {
+  if (!filtered.length) {
+    return '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">'
+      + (CLINICAL_BANK.length ? 'No matches for \u201c'+esc(CB_SEARCH)+'\u201d.' : 'Nothing saved yet.<br>Tap \u201cNew Entry\u201d to add your first finding.')
+      + '</div>';
+  }
+  return filtered.map(c => {
+    const imgs = imageMap[c.id] || [];
+    const thumb = imgs.length ? '<img src="'+esc(trackUrl(URL.createObjectURL(imgs[0].blob)))+'" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex-shrink:0;">' : '<div style="width:52px;height:52px;border-radius:10px;background:var(--bg-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--muted);">'+ic('bookmark')+'</div>';
+    return '<div class="fu-card" data-action="open-clinical-bank-entry" data-id="'+c.id+'" style="cursor:pointer;display:flex;gap:10px;align-items:flex-start;">'
+      + thumb
+      + '<div style="min-width:0;flex:1;">'
+        + '<p style="font-size:12.5px;color:var(--ink);margin:0;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">'+(c.note?esc(c.note):'<span style="color:var(--muted);">No note</span>')+'</p>'
+        + (c.tags && c.tags.length ? '<div class="chips" style="margin-top:6px;">'+c.tags.slice(0,4).map(t=>'<span class="chip" style="font-size:10px;padding:2px 8px;">'+esc(t)+'</span>').join('')+'</div>' : '')
+        + (imgs.length ? '<span style="font-size:10.5px;color:var(--muted);display:block;margin-top:5px;">'+imgs.length+' image'+(imgs.length>1?'s':'')+'</span>' : '')
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+async function cbBuildImageMap() {
+  const allImages = await dbGetAllImages();
+  const imageMap = {};
+  allImages.forEach(im => { if (im.clinicalBankId) { (imageMap[im.clinicalBankId] = imageMap[im.clinicalBankId] || []).push(im); } });
+  return imageMap;
+}
+
+async function renderClinicalBankView() {
+  const imageMap = await cbBuildImageMap();
+  revokeActiveUrls();
+  const filtered = cbFilteredEntries();
+
+  let html = '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-clinical-bank">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Clinical Bank</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
+    + '<p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">Interesting findings, saved separately from patient records \u2014 for papers, teaching, or your own reference.</p>'
+    + '<div class="search-wrap" style="margin-bottom:10px;">'+ic('search')+'<input class="search-input" id="cb-search-input" placeholder="Search notes or tags\u2026" value="'+esc(CB_SEARCH)+'"></div>'
+    + '<button type="button" class="btn btn-block" style="margin-bottom:14px;" data-action="cb-open-add">'+ic('plus')+' New Entry</button>'
+    + '<div id="cb-results-list">' + cbResultsListHtml(filtered, imageMap) + '</div>'
+    + '</div></div>';
+  return html;
+}
+
+async function renderClinicalBankDetailView() {
+  const entry = CB_SELECTED_ID ? CLINICAL_BANK.find(c => c.id === CB_SELECTED_ID) : null;
+  let imgs = [];
+  if (entry) { imgs = (await dbGetAllImages()).filter(im => im.clinicalBankId === entry.id); revokeActiveUrls(); }
+
+  let html = '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-clinical-bank-detail">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">'+(entry?'Edit Entry':'New Entry')+'</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
+    + '<div class="card">'
+    + '<label class="field-label">What\u2019s interesting about this?</label>'
+    + '<textarea class="textarea" id="cb-note" rows="3" placeholder="e.g. Rare bilateral presentation, unusual union pattern\u2026">'+esc(CB_DRAFT_NOTE)+'</textarea>'
+    + cbTagEditorHtml()
+    + '<button type="button" class="btn btn-primary btn-block" style="margin-top:14px;" data-action="cb-save-entry">'+ic('check')+' Save</button>'
+    + '</div>';
+
+  if (entry) {
+    html += '<div class="card" style="margin-top:14px;">'
+      + '<label class="field-label">Images</label>'
+      + '<div class="thumb-grid" style="margin-top:8px;">'
+        + imgs.map(im => '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(trackUrl(URL.createObjectURL(im.blob)))+'"><img src="'+esc(trackUrl(URL.createObjectURL(im.blob)))+'"></div>').join('')
+        + '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-cb-input="'+entry.id+'" style="display:none;"></label>'
+      + '</div>'
+      + '</div>'
+      + '<div style="margin-top:14px;text-align:center;">'
+      + (ARMED_DELETE === 'cb-delete-entry:'+entry.id
+          ? '<button type="button" class="btn btn-sm btn-danger-confirm" data-action="cb-delete-entry" data-id="'+entry.id+'">'+ic('check')+' Confirm delete</button>'
+          : '<button type="button" class="btn btn-sm" style="color:var(--red);" data-action="arm-delete" data-arm="cb-delete-entry:'+entry.id+'">'+ic('trash')+' Delete entry</button>')
+      + '</div>';
+  }
+
+  html += '</div></div>';
+  return html;
+}
+
 function renderResearchCasesView() {
   const flagged = PATIENTS.filter(p => p.researchFlag).sort((a,b) => (b.surgeryDate||'').localeCompare(a.surgeryDate||''));
   return '<div style="padding-bottom:40px;">'
@@ -3577,6 +3720,7 @@ function rxWaLink(patient, rx, profile) {
 }
 
 async function refreshPatients() { const all = await dbGetAllPatients(); PATIENTS = all.filter(p => !p.deletedAt); }
+async function refreshClinicalBank() { CLINICAL_BANK = await dbGetAllClinicalBank(); }
 async function dbGetDeletedPatients() { const all = await dbGetAllPatients(); return all.filter(p => p.deletedAt).sort((a,b) => b.deletedAt - a.deletedAt); }
 function getPatient(id) { return PATIENTS.find(p => p.id === id); }
 /* p here is always the live object already inside PATIENTS (getPatient returns a
@@ -7148,6 +7292,8 @@ async function renderCurrentView(app) {
   if (VIEW === 'terms') { app.innerHTML = renderTermsView(); return; }
   if (VIEW === 'recently-deleted') { app.innerHTML = await renderRecentlyDeletedView(); return; }
   if (VIEW === 'research-cases') { app.innerHTML = renderResearchCasesView(); return; }
+  if (VIEW === 'clinical-bank') { app.innerHTML = await renderClinicalBankView(); return; }
+  if (VIEW === 'clinical-bank-detail') { app.innerHTML = await renderClinicalBankDetailView(); return; }
   if (VIEW === 'unfiled-photos') { app.innerHTML = await renderUnfiledPhotosView(); return; }
   if (VIEW === 'detail') {
     const p = getPatient(SELECTED_ID);
@@ -7796,9 +7942,12 @@ document.addEventListener('click', async (e) => {
         await dbPutPatient(doc.data());
         count++;
       }
+      const cbSnap = await firestoreDB.collection('users').doc(uid).collection('clinicalBank').get();
+      for (const doc of cbSnap.docs) { await dbPutClinicalBank(doc.data()); count++; }
       await refreshPatients();
+      await refreshClinicalBank();
       render();
-      toast('Restored ' + count + ' patient(s) from cloud');
+      toast('Restored ' + count + ' item(s) from cloud');
     } catch (err) {
       toast('Restore failed: ' + (err && err.message ? err.message : 'unknown error'));
     }
@@ -9989,6 +10138,68 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-recently-deleted') { VIEW = 'recently-deleted'; await render(); return; }
   if (action === 'open-research-cases') { VIEW = 'research-cases'; render(); return; }
   if (action === 'close-research-cases') { VIEW = 'more'; render(); return; }
+  if (action === 'open-clinical-bank') { VIEW = 'clinical-bank'; CB_SEARCH = ''; await refreshClinicalBank(); render(); return; }
+  if (action === 'close-clinical-bank') { VIEW = 'more'; render(); return; }
+  if (action === 'cb-open-add') { CB_SELECTED_ID = null; CB_DRAFT_NOTE = ''; CB_DRAFT_TAGS = []; VIEW = 'clinical-bank-detail'; render(); return; }
+  if (action === 'open-clinical-bank-entry') {
+    const entry = CLINICAL_BANK.find(c => c.id === el.dataset.id);
+    if (!entry) return;
+    CB_SELECTED_ID = entry.id; CB_DRAFT_NOTE = entry.note || ''; CB_DRAFT_TAGS = [...(entry.tags||[])];
+    VIEW = 'clinical-bank-detail'; render(); return;
+  }
+  if (action === 'close-clinical-bank-detail') { VIEW = 'clinical-bank'; CB_SELECTED_ID = null; render(); return; }
+  if (action === 'cb-add-tag') {
+    const noteEl0 = document.getElementById('cb-note'); if (noteEl0) CB_DRAFT_NOTE = noteEl0.value;
+    const inp = document.getElementById('cb-tag-input');
+    const val = inp ? inp.value.trim() : '';
+    if (val && !CB_DRAFT_TAGS.includes(val)) CB_DRAFT_TAGS.push(val);
+    render();
+    return;
+  }
+  if (action === 'cb-add-suggested-tag') {
+    const noteEl0 = document.getElementById('cb-note'); if (noteEl0) CB_DRAFT_NOTE = noteEl0.value;
+    const val = el.dataset.tag;
+    if (val && !CB_DRAFT_TAGS.includes(val)) CB_DRAFT_TAGS.push(val);
+    render();
+    return;
+  }
+  if (action === 'cb-remove-draft-tag') {
+    const noteEl0 = document.getElementById('cb-note'); if (noteEl0) CB_DRAFT_NOTE = noteEl0.value;
+    CB_DRAFT_TAGS = CB_DRAFT_TAGS.filter(t => t !== el.dataset.tag);
+    render();
+    return;
+  }
+  if (action === 'cb-save-entry') {
+    const noteEl = document.getElementById('cb-note');
+    const note = noteEl ? noteEl.value.trim() : CB_DRAFT_NOTE.trim();
+    const now = Date.now();
+    if (CB_SELECTED_ID) {
+      const existing = CLINICAL_BANK.find(c => c.id === CB_SELECTED_ID);
+      const entry = Object.assign({}, existing, { note, tags: CB_DRAFT_TAGS.slice(), updatedAt: now });
+      await dbPutClinicalBank(entry);
+      await refreshClinicalBank();
+      toast('Saved');
+      render();
+    } else {
+      const entry = { id: uid(), note, tags: CB_DRAFT_TAGS.slice(), createdAt: now, updatedAt: now };
+      await dbPutClinicalBank(entry);
+      await refreshClinicalBank();
+      CB_SELECTED_ID = entry.id;
+      toast('Saved \u2014 add photos below if you have any');
+      render();
+    }
+    return;
+  }
+  if (action === 'cb-delete-entry') {
+    await dbDeleteClinicalBank(el.dataset.id);
+    await refreshClinicalBank();
+    ARMED_DELETE = null;
+    VIEW = 'clinical-bank';
+    CB_SELECTED_ID = null;
+    toast('Entry deleted');
+    render();
+    return;
+  }
   if (action === 'toggle-more-section') {
     const key = el.dataset.value;
     if (MORE_EXPANDED.has(key)) MORE_EXPANDED.delete(key); else MORE_EXPANDED.add(key);
@@ -10134,7 +10345,7 @@ function readProfileFromDom() {
     if (action === 'onboarding-continue') saveProfile(readProfileFromDom(), true);
     try { localStorage.setItem(ONBOARDING_DONE_KEY, '1'); } catch(e) {}
     VIEW = 'list';
-    await refreshPatients(); loadReminders(); loadFilterState(); loadTabState(); render();
+    await refreshPatients(); await refreshClinicalBank(); loadReminders(); loadFilterState(); loadTabState(); render();
     return;
   }
 
@@ -10557,6 +10768,18 @@ document.addEventListener('change', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
+  if (t.dataset && t.dataset.cbInput) {
+    const clinicalBankId = t.dataset.cbInput;
+    const files = Array.from(t.files || []);
+    if (!files.length) return;
+    toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+    for (const file of files) {
+      const blob = await resizeImageFile(file);
+      await dbAddImage({ id: uid(), patientId: null, clinicalBankId, blob, createdAt: Date.now(), imageCategory: 'clinical-bank' });
+    }
+    render();
+    return;
+  }
   if (t.dataset && t.dataset.ctevInput) {
     const ctevSessionId = t.dataset.ctevInput;
     const files = Array.from(t.files || []);
@@ -10613,6 +10836,15 @@ document.addEventListener('input', (e) => {
     SCHEME_FINDER_QUERY = e.target.value;
     const resEl = document.getElementById('scheme-results-list');
     if (resEl) resEl.innerHTML = schemeResultsHtml(!!SCHEME_FINDER_CASE_ID);
+  }
+  if (e.target.id === 'cb-search-input') {
+    CB_SEARCH = e.target.value;
+    clearTimeout(CB_SEARCH_DEBOUNCE_TIMER);
+    CB_SEARCH_DEBOUNCE_TIMER = setTimeout(async () => {
+      const imageMap = await cbBuildImageMap();
+      const el = document.getElementById('cb-results-list');
+      if (el) el.innerHTML = cbResultsListHtml(cbFilteredEntries(), imageMap);
+    }, 300);
   }
   if (e.target.id === 'usearch-input') {
     USEARCH_QUERY = e.target.value;
