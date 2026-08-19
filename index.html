@@ -166,7 +166,7 @@
   @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,wght@0,500;0,600;0,700;1,500&display=swap');
   :root {
     --ink:#0f172a; --muted:#64748b; --border:#e2e8f0; --bg:#ffffff; --bg-soft:#f8fafc;
-    --accent:#4338ca; --accent-dark:#3730a3;
+    --accent:#4338ca; --accent-dark:#3730a3; --accent-bg:#eef2ff; --accent-border:#c7d2fe;
     --amber:#b45309; --amber-bg:#fef3c7; --amber-border:#fde68a;
     --orange:#c2410c; --orange-bg:#ffedd5; --orange-border:#fed7aa;
     --emerald:#047857; --emerald-bg:#d1fae5; --emerald-border:#a7f3d0;
@@ -425,7 +425,7 @@
   /* ---- Dark mode (print/education handouts deliberately excluded -- always light for printing/sharing) ---- */
   [data-theme="dark"] {
     --ink:#e2e8f0; --muted:#94a3b8; --border:#334155; --bg:#0f172a; --bg-soft:#1e293b;
-    --accent:#818cf8; --accent-dark:#a5b4fc;
+    --accent:#818cf8; --accent-dark:#a5b4fc; --accent-bg:#312e81; --accent-border:#4338ca;
     --amber:#fbbf24; --amber-bg:#3f2d05; --amber-border:#78350f;
     --orange:#fb923c; --orange-bg:#431407; --orange-border:#7c2d12;
     --emerald:#34d399; --emerald-bg:#022c22; --emerald-border:#065f46;
@@ -1363,6 +1363,8 @@ const ICONS = {
   gemini:'<path d="M12 2c0 5.52 4.48 10 10 10-5.52 0-10 4.48-10 10 0-5.52-4.48-10-10-10 5.52 0 10-4.48 10-10z"/>',
   pencil:'<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>',
   userPlus:'<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/>',
+  trending:'<polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>',
+  bookmark:'<path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
   video:'<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
@@ -1848,6 +1850,7 @@ function newPatientShape() {
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active', notes:'', whatsapp:'',
+    lastReminderSentAt: null, followUpSnoozeCount: 0, researchFlag: false, researchNote: '',
     nextFollowUpDate:'',
     preOpImageCount:0, followUps:[], investigations:[], prescriptions:[],
     ctev: null, ra: null, osteo: null,
@@ -1966,12 +1969,16 @@ function computeDashboardStats() {
   const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0,10);
   const thisMonthKey = new Date().toISOString().slice(0,7);
 
-  const dueToday = PATIENTS.filter(p => p.nextFollowUpDate === today);
-  const overdue = PATIENTS.filter(p => isOverdue(p.nextFollowUpDate));
-  const raDueToday = PATIENTS.filter(p => p.condition === 'ra' && p.ra && p.ra.nextLabsDate === today);
-  const raOverdue = PATIENTS.filter(p => p.condition === 'ra' && p.ra && isOverdue(p.ra.nextLabsDate));
-  const dexaDueToday = PATIENTS.filter(p => p.condition === 'osteoporosis' && p.osteo && p.osteo.nextDexaDate === today);
-  const dexaOverdue = PATIENTS.filter(p => p.condition === 'osteoporosis' && p.osteo && isOverdue(p.osteo.nextDexaDate));
+  const isTrackable = p => !p.status || p.status === 'Active' || p.status === 'Active follow-up';
+  const dueToday = PATIENTS.filter(p => isTrackable(p) && p.nextFollowUpDate === today);
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  const tomorrowStr = tomorrow.toISOString().slice(0,10);
+  const dueTomorrowCount = PATIENTS.filter(p => isTrackable(p) && p.nextFollowUpDate === tomorrowStr).length;
+  const overdue = PATIENTS.filter(p => isTrackable(p) && isOverdue(p.nextFollowUpDate));
+  const raDueToday = PATIENTS.filter(p => isTrackable(p) && p.condition === 'ra' && p.ra && p.ra.nextLabsDate === today);
+  const raOverdue = PATIENTS.filter(p => isTrackable(p) && p.condition === 'ra' && p.ra && isOverdue(p.ra.nextLabsDate));
+  const dexaDueToday = PATIENTS.filter(p => isTrackable(p) && p.condition === 'osteoporosis' && p.osteo && p.osteo.nextDexaDate === today);
+  const dexaOverdue = PATIENTS.filter(p => isTrackable(p) && p.condition === 'osteoporosis' && p.osteo && isOverdue(p.osteo.nextDexaDate));
 
   /* Everything that needs attention today or is already overdue, across follow-ups, RA labs, and DEXA scans */
   const important = [
@@ -2006,7 +2013,7 @@ function computeDashboardStats() {
   const topConditions = Object.entries(condCounts).sort((a,b)=>b[1]-a[1]).slice(0,3)
     .map(([id,n]) => { const e = EDU_LIBRARY.find(x=>x.id===id); return [CONDITION_LABEL_OVERRIDES[id] || (e?e.name.en:id), n]; });
 
-  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, monthCount: monthPatients.length, topProcedures, topConditions, weekTrend, weekNewCases };
+  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, monthCount: monthPatients.length, topProcedures, topConditions, weekTrend, weekNewCases, dueTomorrowCount };
 }
 
 /* ---- Daily "important today" notifications ---- */
@@ -2748,7 +2755,7 @@ function renderReminderQueueView() {
     + '<div class="card" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:16px;">'+esc(message)+'</div>'
     + '<div class="row gap2">'
     + '<button class="btn" style="flex:1;" data-action="rq-skip">Skip</button>'
-    + '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-primary" style="flex:2;text-decoration:none;text-align:center;" data-action="rq-send">'+ic('message')+' Send & Next</a>'
+    + '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-primary" style="flex:2;text-decoration:none;text-align:center;" data-action="rq-send" data-id="'+p.id+'">'+ic('message')+' Send & Next</a>'
     + '</div>'
     + '</div>'
     + '</div>';
@@ -3018,6 +3025,7 @@ async function renderMoreView() {
     { key:'reports', title:'Reports', icon:'file', rows:
         moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
         + moreRowHtml('printer', 'Cash Collection Audit', 'Monthly totals of cash payments across all surgical cases', 'open-cash-audit')
+        + moreRowHtml('bookmark', 'Research Cases'+(PATIENTS.filter(p=>p.researchFlag).length ? ' ('+PATIENTS.filter(p=>p.researchFlag).length+')' : ''), 'Cases flagged for papers, case reports & study', 'open-research-cases')
     },
     { key:'help', title:'Help & Info', icon:'info', rows:
         moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
@@ -3053,6 +3061,26 @@ function moreRowHtml(icon, title, sub, action, highlight) {
 }
 
 /* ================= Recently Deleted (soft-delete safety net) ================= */
+function renderResearchCasesView() {
+  const flagged = PATIENTS.filter(p => p.researchFlag).sort((a,b) => (b.surgeryDate||'').localeCompare(a.surgeryDate||''));
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-research-cases">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Research Cases</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
+    + (flagged.length ? '<p style="font-size:11.5px;color:var(--muted);margin:0 0 14px;">Cases you\u2019ve flagged as interesting \u2014 for papers, case reports, or study.</p>' : '')
+    + (flagged.length ? '<button class="btn btn-block" style="margin-bottom:14px;" data-action="export-research-cases">'+ic('download')+' Export as CSV</button>' : '')
+    + (flagged.length ? flagged.map(p => {
+        return '<div class="fu-card" data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;">'
+          + '<div class="row between"><span style="font-weight:800;">'+escName(p.name)+'</span><span style="font-size:11px;color:var(--muted);">'+fmtDate(p.surgeryDate)+'</span></div>'
+          + (p.diagnosis || p.chiefComplaints ? '<p style="font-size:12px;color:var(--muted);margin-top:4px;">'+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints))+'</p>' : '')
+          + (p.researchNote ? '<p style="font-size:12px;color:#92400e;margin-top:6px;background:var(--amber-bg);border-radius:8px;padding:6px 9px;"><strong>Why:</strong> '+esc(p.researchNote)+'</p>' : '')
+          + '</div>';
+      }).join('')
+      : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">No research cases flagged yet.<br>Open any patient and tap the bookmark icon to flag it here.</div>')
+    + '</div></div>';
+}
+
 async function renderRecentlyDeletedView() {
   const deleted = await dbGetDeletedPatients();
   return '<div style="padding-bottom:40px;">'
@@ -3590,10 +3618,21 @@ function renderDashboardSection() {
   const statusBadge = s.important.length
     ? '<span class="badge badge-red" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+s.important.length+' to review</span>'
     : '<span class="badge badge-emerald" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+ic('check')+' all clear</span>';
-  html += '<div class="row between" style="margin-bottom:12px;align-items:center;">'
+  html += '<div class="row between" style="margin-bottom:'+(s.dueTomorrowCount ? '2px' : '12px')+';align-items:center;">'
     + '<p style="font-size:13px;color:var(--muted);margin:0;display:flex;align-items:center;gap:3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.78);transform-origin:center;flex-shrink:0;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+' \u2014 '+greetingDate+'</p>'
     + statusBadge
     + '</div>';
+  if (s.dueTomorrowCount) {
+    html += '<p style="font-size:11px;color:var(--muted);margin:0 0 12px;">'+s.dueTomorrowCount+' follow-up'+(s.dueTomorrowCount>1?'s':'')+' due tomorrow</p>';
+  }
+
+  if (isAiTier()) {
+    html += '<button type="button" class="card" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;padding:11px 14px;margin-bottom:12px;cursor:pointer;" data-action="open-ai-digest">'
+      + '<span style="width:26px;height:26px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent);">'+ic('sparkle')+'</span>'
+      + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12.5px;font-weight:700;color:var(--ink);">AI Practice Briefing</span><span style="display:block;font-size:11px;color:var(--muted);">Tap for today\u2019s summary</span></span>'
+      + '<span style="color:var(--muted);flex-shrink:0;">'+ic('chevron')+'</span>'
+      + '</button>';
+  }
 
   const pinnedPatients = PATIENTS.filter(p => p.pinned);
   if (pinnedPatients.length) {
@@ -3631,8 +3670,8 @@ function renderDashboardSection() {
 
   if (s.weekTrend && s.weekTrend.some(d => d.count > 0)) {
     const maxDay = Math.max(...s.weekTrend.map(d => d.count), 1);
-    html += '<div class="card" style="margin-bottom:12px;padding:12px 14px;border-left:3px solid var(--accent);">'
-      + '<div class="row between" style="margin-bottom:8px;"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;">This week</span><span style="font-size:12px;font-weight:800;color:var(--ink);">'+s.weekNewCases+' new case'+(s.weekNewCases!==1?'s':'')+'</span></div>'
+    html += '<div class="card" style="margin-bottom:12px;padding:12px 14px;">'
+      + '<div class="row between" style="margin-bottom:8px;"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:5px;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.75);">'+ic('trending')+'</span>This week</span><span style="font-size:12px;font-weight:800;color:var(--ink);">'+s.weekNewCases+' new case'+(s.weekNewCases!==1?'s':'')+'</span></div>'
       + '<div style="display:flex;align-items:flex-end;gap:5px;height:44px;">'
         + s.weekTrend.map(d => '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">'
             + '<div style="width:100%;max-width:22px;border-radius:4px 4px 2px 2px;background:'+(d.count?'var(--accent)':'var(--border)')+';height:'+Math.max(4,Math.round(d.count/maxDay*32))+'px;"></div>'
@@ -3643,10 +3682,9 @@ function renderDashboardSection() {
   }
 
   if (!s.important.length) {
-    html += '<div class="card" style="text-align:center;padding:18px 14px;margin-bottom:12px;background:var(--emerald-bg);border-color:var(--emerald-border);">'
-      + '<div style="color:var(--emerald);margin-bottom:4px;">'+ic('check')+'</div>'
-      + '<p style="font-size:13px;font-weight:700;color:var(--ink);margin:0;">All caught up \u2014 nothing urgent today</p>'
-      + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 0;">No overdue follow-ups, RA labs, or DEXA scans.</p>'
+    html += '<div class="card" style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:12px;">'
+      + '<span style="width:26px;height:26px;border-radius:50%;background:var(--emerald-bg);color:var(--emerald);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ic('check')+'</span>'
+      + '<div><p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:0;">All caught up</p><p style="font-size:11px;color:var(--muted);margin:1px 0 0;">No overdue follow-ups, RA labs, or DEXA scans today.</p></div>'
       + '</div>';
   }
 
@@ -3668,15 +3706,33 @@ function renderDashboardSection() {
             const days = overdueDays(item.date);
             const severityText = item.isOverdue ? (days > 0 ? days+' day'+(days>1?'s':'')+' overdue' : 'Overdue') : 'Due today';
             const waLink = (item.type === 'Follow-up' && item.patient.whatsapp) ? followUpReminderLink(item.patient) : null;
-            return '<div class="row between" style="padding:8px 14px;border-bottom:1px solid var(--border);">'
+            const showEscalation = item.type === 'Follow-up' && item.isOverdue && days >= 3;
+            const showTrackingSnooze = (item.type === 'RA labs' || item.type === 'DEXA scan') && item.isOverdue && days >= 3;
+            const trackingField = item.type === 'RA labs' ? 'ra' : 'dexa';
+            const lostArmed = ARMED_DELETE === 'attn-mark-lost:'+item.patient.id;
+            const remindedDaysAgo = item.patient.lastReminderSentAt ? Math.floor((Date.now() - item.patient.lastReminderSentAt) / 86400000) : null;
+            const remindedText = remindedDaysAgo === null ? '' : (remindedDaysAgo === 0 ? ' \u00b7 reminded today' : ' \u00b7 reminded '+remindedDaysAgo+'d ago');
+            const snoozeCount = item.patient.followUpSnoozeCount || 0;
+            return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);">'
+              + '<div class="row between">'
               + '<span data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px;min-width:0;">'
                 + '<span style="color:'+(item.isOverdue?'var(--red)':'#b45309')+';flex-shrink:0;">'+ic(typeIcon[item.type]||'calendar')+'</span>'
                 + '<span style="min-width:0;overflow:hidden;">'
                   + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.patient.name)+'</span>'
-                  + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+'</span>'
+                  + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+esc(remindedText)+'</span>'
                 + '</span>'
               + '</span>'
-              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
+              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+item.patient.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
+              + '</div>'
+              + (showEscalation ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;">'
+                  + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;'+(snoozeCount>0?'color:#b45309;border-color:var(--amber-border,#fde68a);background:var(--amber-bg,#fffbeb);':'')+'" data-action="attn-snooze-followup" data-id="'+item.patient.id+'" title="'+(snoozeCount>0?'Already snoozed '+snoozeCount+' time'+(snoozeCount>1?'s':''):'')+'">'+ic('clock')+' '+(snoozeCount>0?'Snooze again':'Snooze 7d')+'</button>'
+                  + (lostArmed
+                      ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+item.patient.id+'">'+ic('check')+' Confirm?</button>'
+                      : '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--muted);" data-action="arm-delete" data-arm="attn-mark-lost:'+item.patient.id+'">Lost to follow-up</button>')
+                  + '</div>' : '')
+              + (showTrackingSnooze ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;">'
+                  + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-tracking" data-id="'+item.patient.id+'" data-field="'+trackingField+'">'+ic('clock')+' Snooze 14d</button>'
+                  + '</div>' : '')
               + '</div>';
           }).join('')
         + (!showAll ? '<div style="padding:8px 14px 2px;"><button class="chip" data-action="toggle-show-all-attention">Show all '+s.important.length+'</button></div>' : '')
@@ -3688,8 +3744,8 @@ function renderDashboardSection() {
     if (!SHOW_INSIGHTS) {
       html += '<button class="chip" style="margin-bottom:12px;" data-action="toggle-insights">'+ic('search')+' This month\u2019s insights ('+s.monthCount+' cases added)</button>';
     } else {
-      html += '<div class="card" style="margin-bottom:14px;border-left:3px solid var(--emerald);">'
-        + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">This month\u2019s insights ('+s.monthCount+' cases added)</label><button class="icon-btn" style="width:24px;height:24px;color:var(--muted);" data-action="toggle-insights" title="Collapse">'+ic('x')+'</button></div>'
+      html += '<div class="card" style="margin-bottom:12px;">'
+        + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;display:flex;align-items:center;gap:5px;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.75);">'+ic('search')+'</span>This month\u2019s insights ('+s.monthCount+' cases added)</label><button class="icon-btn" style="width:24px;height:24px;color:var(--muted);" data-action="toggle-insights" title="Collapse">'+ic('x')+'</button></div>'
         + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top procedures</span>'
             + (function(){ const max = s.topProcedures[0][1]; return s.topProcedures.map(([name,n]) => '<div class="insight-row" style="display:block;padding:5px 0;"><div class="row between" style="margin-bottom:3px;"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div><div style="height:4px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:var(--accent);width:'+Math.max(8,Math.round(n/max*100))+'%;"></div></div></div>').join(''); })() + '</div>' : '')
         + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top conditions</span>'
@@ -4519,6 +4575,12 @@ function renderOverviewTab(p) {
     + (!p.nextFollowUpDate && !OV_SHOW_SCHEDULE ? '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>' : '')
     + '</div>'
     + (p.nextFollowUpDate || OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" value="'+esc(p.nextFollowUpDate)+'" style="margin-top:6px;">' : '')
+    + (overdue && overdueDays(p.nextFollowUpDate) >= 3 ? '<div class="row" style="gap:6px;margin-top:8px;">'
+        + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-followup" data-id="'+p.id+'">'+ic('clock')+' Snooze 7d</button>'
+        + (ARMED_DELETE === 'attn-mark-lost:'+p.id
+            ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+p.id+'">'+ic('check')+' Confirm?</button>'
+            : '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--muted);" data-action="arm-delete" data-arm="attn-mark-lost:'+p.id+'">Lost to follow-up</button>')
+        + '</div>' : '')
     + '</div>';
 
   let clinicalBody = comorbidityCardHtml(p)
@@ -4548,7 +4610,7 @@ function renderOverviewTab(p) {
         : '<p style="font-size:11px;color:var(--muted);">Save a number to send messages.</p>')
     + (p.whatsapp ? '<div style="margin-top:8px;">'
         + (followUpReminderLink(p)
-            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Quick Follow-up Reminder</a>'
+            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" data-action="log-reminder-sent" data-id="'+p.id+'" style="text-decoration:none;">'+ic('calendar')+' Quick Follow-up Reminder</a>'
             : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Quick Follow-up Reminder</button>')
         + '</div>' : '')
     + '</div>';
@@ -4606,7 +4668,7 @@ function renderOverviewTab(p) {
     + '</div>'
     + (p.whatsapp ? (
         (followUpReminderLink(p)
-            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
+            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" data-action="log-reminder-sent" data-id="'+p.id+'" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
             : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
       ) : '');
 
@@ -4619,7 +4681,9 @@ function renderOverviewTab(p) {
     + (isAiTier() ? '<button class="icon-btn" data-action="open-patient-ai-tools" title="AI Tools">'+ic('sparkle')+'</button>' : '')
     + '<button class="icon-btn" data-action="duplicate-case" title="Duplicate Case">'+ic('copy')+'</button>'
     + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
+    + '<button class="icon-btn'+(p.researchFlag?' active':'')+'" style="'+(p.researchFlag?'color:#b45309;':'')+'" data-action="toggle-research-flag" data-id="'+p.id+'" title="'+(p.researchFlag?'Remove from research cases':'Flag as interesting case (for paper / study)')+'">'+ic('bookmark')+'</button>'
     + '</div>'
+    + (p.researchFlag ? '<div class="row" style="gap:6px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:var(--amber-bg);border:1px solid var(--amber-border);"><span style="color:#b45309;flex-shrink:0;margin-top:1px;">'+ic('bookmark')+'</span><p style="font-size:12px;color:#92400e;margin:0;flex:1;"><strong>Research case</strong>'+(p.researchNote?' \u2014 '+esc(p.researchNote):'')+'</p></div>' : '')
     + statCards
     + (isProOrAbove() ? (
         p.schemePackage ? (
@@ -7083,6 +7147,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'privacy-policy') { app.innerHTML = renderPrivacyPolicyView(); return; }
   if (VIEW === 'terms') { app.innerHTML = renderTermsView(); return; }
   if (VIEW === 'recently-deleted') { app.innerHTML = await renderRecentlyDeletedView(); return; }
+  if (VIEW === 'research-cases') { app.innerHTML = renderResearchCasesView(); return; }
   if (VIEW === 'unfiled-photos') { app.innerHTML = await renderUnfiledPhotosView(); return; }
   if (VIEW === 'detail') {
     const p = getPatient(SELECTED_ID);
@@ -7243,6 +7308,29 @@ function csvCell(v) {
   const s = (v==null?'':String(v)).replace(/"/g,'""');
   return '"' + s + '"';
 }
+function exportResearchCasesCsv() {
+  const flagged = PATIENTS.filter(p => p.researchFlag);
+  const headers = ['Patient ID','Name','Age','Sex','Diagnosis','Chief Complaints','Procedure','Case Type','Date','Why interesting'];
+  const rows = [headers.map(csvCell).join(',')];
+  flagged.forEach(p => {
+    rows.push([
+      p.patientCode, p.name, formatAge(p), p.sex, p.diagnosis, p.chiefComplaints,
+      p.procedure, p.caseType==='surgical'?'Surgical':'OPD', fmtDate(p.surgeryDate), p.researchNote||''
+    ].map(csvCell).join(','));
+  });
+  const csv = '\uFEFF' + rows.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'OrthoVault-research-cases-' + todayStr() + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  toast('Research cases exported \u2014 ' + flagged.length + ' cases');
+}
+
 function exportCaseLogCsv() {
   const headers = ['Patient ID','Name','Age','Sex','Case Type','Diagnosis','Chief Complaints','Region / Specialty','Side','Procedure','Surgery Type','Date','Payment Method','Cash Amount','Insurance Type','Next Follow-up','Status','Tags'];
   const rows = [headers.map(csvCell).join(',')];
@@ -9046,6 +9134,68 @@ async function generatePersonalizedReminderMessage(p) {
     await render();
     return;
   }
+  if (action === 'log-reminder-sent') {
+    const p = getPatient(el.dataset.id);
+    if (p) { p.lastReminderSentAt = Date.now(); dbPutPatient(p).then(refreshPatients); }
+    return;
+  }
+  if (action === 'attn-snooze-tracking') {
+    const p = getPatient(el.dataset.id);
+    if (!p) return;
+    const field = el.dataset.field;
+    const d = new Date(); d.setDate(d.getDate() + 14);
+    const dateStr = d.toISOString().slice(0,10);
+    if (field === 'ra' && p.ra) p.ra.nextLabsDate = dateStr;
+    else if (field === 'dexa' && p.osteo) p.osteo.nextDexaDate = dateStr;
+    else return;
+    await dbPutPatient(p);
+    await refreshPatients();
+    toast('Snoozed \u2014 will remind again in 14 days');
+    render();
+    return;
+  }
+  if (action === 'attn-snooze-followup') {
+    const p = getPatient(el.dataset.id);
+    if (!p) return;
+    const d = new Date(); d.setDate(d.getDate() + 7);
+    p.nextFollowUpDate = d.toISOString().slice(0,10);
+    p.followUpSnoozeCount = (p.followUpSnoozeCount || 0) + 1;
+    await dbPutPatient(p);
+    await refreshPatients();
+    toast('Snoozed \u2014 will remind again in 7 days');
+    render();
+    return;
+  }
+  if (action === 'attn-mark-lost') {
+    const p = getPatient(el.dataset.id);
+    if (!p) return;
+    p.status = 'Lost to follow-up';
+    p.followUpSnoozeCount = 0;
+    await dbPutPatient(p);
+    await refreshPatients();
+    ARMED_DELETE = null;
+    toast('Marked as lost to follow-up');
+    render();
+    return;
+  }
+  if (action === 'toggle-research-flag') {
+    const p = getPatient(el.dataset.id);
+    if (!p) return;
+    if (!p.researchFlag) {
+      const note = prompt('Why is this case interesting? (optional \u2014 for your reference when writing it up later)', p.researchNote || '');
+      if (note === null) return; // cancelled
+      p.researchFlag = true;
+      p.researchNote = note.trim();
+      toast('Flagged as research case');
+    } else {
+      p.researchFlag = false;
+      toast('Removed from research cases');
+    }
+    await dbPutPatient(p);
+    await refreshPatients();
+    await renderTabBody(getPatient(p.id));
+    return;
+  }
   if (action === 'toggle-pin') {
     const p = getPatient(SELECTED_ID);
     p.pinned = !p.pinned;
@@ -9146,7 +9296,7 @@ async function generatePersonalizedReminderMessage(p) {
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
     const nextFuEl = document.getElementById('fu-next-followup');
-    if (nextFuEl) p.nextFollowUpDate = nextFuEl.value;
+    if (nextFuEl) { p.nextFollowUpDate = nextFuEl.value; p.followUpSnoozeCount = 0; p.lastReminderSentAt = null; }
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
@@ -9412,6 +9562,7 @@ async function generatePersonalizedReminderMessage(p) {
     exportCaseLogCsv(); 
     return; 
   }
+  if (action === 'export-research-cases') { exportResearchCasesCsv(); return; }
   if (action === 'rx-save-template') {
     syncRxMedsFromDom();
     const meds = RX_TEMP.medicines.filter(m => m.name.trim());
@@ -9647,7 +9798,11 @@ async function generatePersonalizedReminderMessage(p) {
     if (!RQ_QUEUE.length) { toast('No patients with a saved WhatsApp number.'); return; }
     VIEW = 'reminder-queue'; render(); return;
   }
-  if (action === 'rq-send') { RQ_SENT_COUNT++; RQ_INDEX++; render(); return; }
+  if (action === 'rq-send') {
+    const p = getPatient(el.dataset.id);
+    if (p) { p.lastReminderSentAt = Date.now(); dbPutPatient(p).then(refreshPatients); }
+    RQ_SENT_COUNT++; RQ_INDEX++; render(); return;
+  }
   if (action === 'rq-skip') { RQ_INDEX++; render(); return; }
   if (action === 'close-reminder-queue') { RQ_QUEUE = []; RQ_INDEX = 0; VIEW = 'list'; render(); return; }
   if (action === 'open-planned-surgeries') {
@@ -9832,6 +9987,8 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-terms') { VIEW = 'terms'; render(); return; }
   if (action === 'close-terms') { VIEW = 'about'; render(); return; }
   if (action === 'open-recently-deleted') { VIEW = 'recently-deleted'; await render(); return; }
+  if (action === 'open-research-cases') { VIEW = 'research-cases'; render(); return; }
+  if (action === 'close-research-cases') { VIEW = 'more'; render(); return; }
   if (action === 'toggle-more-section') {
     const key = el.dataset.value;
     if (MORE_EXPANDED.has(key)) MORE_EXPANDED.delete(key); else MORE_EXPANDED.add(key);
