@@ -695,6 +695,12 @@ async function retryPendingSync() {
       } else if (item.type === 'profile') {
         await withTimeout(firestoreDB.collection('users').doc(uidStr).collection('meta').doc('profile').set(loadProfile()), 15000, 'Sync');
         removePendingSync('profile', 'profile');
+      } else if (item.type === 'clinicalBank') {
+        const c = CLINICAL_BANK.find(x => x.id === item.id) || await (async () => { const s = await storeOf('clinicalBank','readonly'); return reqToPromise(s.get(item.id)); })();
+        if (!c) { removePendingSync('clinicalBank', item.id); continue; }
+        const clean = JSON.parse(JSON.stringify(c));
+        await withTimeout(firestoreDB.collection('users').doc(uidStr).collection('clinicalBank').doc(String(c.id)).set(clean), 20000, 'Sync');
+        removePendingSync('clinicalBank', item.id);
       }
     } catch (err) {
       // Still failing (offline, etc.) \u2014 leave it queued, the next retry pass will try again.
