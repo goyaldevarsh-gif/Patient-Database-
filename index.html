@@ -214,6 +214,8 @@
   ::-webkit-scrollbar { display:none; }
 
   .sticky-top { position:sticky; top:0; z-index:10; background:rgba(255,255,255,0.96); backdrop-filter:blur(6px); border-bottom:1px solid var(--border); }
+  .section-sticky-label { position:sticky; top:68px; z-index:8; background:rgba(255,255,255,0.96); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); padding:8px 0; margin:0 0 10px; font-size:11px; font-weight:800; letter-spacing:0.03em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--border); }
+  [data-theme="dark"] .section-sticky-label { background:rgba(15,23,42,0.97); }
   .sticky-top::before { content:''; display:block; width:100%; height:env(safe-area-inset-top, 0px); }
   .px { padding-left:16px; padding-right:16px; }
   .row { display:flex; align-items:center; }
@@ -4361,7 +4363,6 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId, patie
 
 let AP_TEMP = null;
 let AP_DUPLICATE_FROM = null;
-let AP_SUBTAB = 'details';
 let AP_INVESTIGATIONS = [];
 let AP_INV_CATEGORY = 'xray';
 let AP_INV_XRAY_SUBTYPE = 'General OPD';
@@ -4391,7 +4392,6 @@ function initApTemp() {
   AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', handDominance:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
   AP_SCHEDULE = defaultFollowUpSchedule(AP_TEMP.surgeryDate);
-  AP_SUBTAB = 'details';
   AP_INVESTIGATIONS = [];
   AP_INV_CATEGORY = 'xray';
   AP_INV_XRAY_SUBTYPE = 'General OPD';
@@ -4541,11 +4541,8 @@ function renderAddView() {
   const isSurgical = AP_TEMP.caseType === 'surgical';
   const tab2Label = isSurgical ? 'Diagnosis' : 'Complaints & Diagnosis';
   const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
-  const tabs = [['details','Patient Details'], ['complaints',tab2Label], ['investigations','Investigations'], ['tracking',tab3Label]];
 
-  let tabBody = '';
-  if (AP_SUBTAB === 'details') {
-    tabBody = '<div style="display:flex;flex-direction:column;gap:12px;">'
+  const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
       + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label><div class="row gap2">'
@@ -4561,8 +4558,8 @@ function renderAddView() {
       + '</div></div>' : '')
       + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
       + '</div>';
-  } else if (AP_SUBTAB === 'complaints') {
-    tabBody = '<div style="display:flex;flex-direction:column;gap:12px;">'
+
+  const complaintsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
       + (!isSurgical ? '<div><label class="field-label">Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
       + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div>'
       + '<div><label class="field-label">Side</label><div class="seg">'
@@ -4573,8 +4570,29 @@ function renderAddView() {
         + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+apSimilarCasesBlockHtml()+apSchemeSuggestBlockHtml()+'</div>'
       + '</div>'
       + '</div>';
-  } else if (AP_SUBTAB === 'tracking') {
-    tabBody = isSurgical ? (
+
+  const investigationsHtml = '<div style="display:flex;flex-direction:column;gap:10px;">'
+      + AP_INV_GROUPS.map(g => {
+          const open = AP_INV_ACTIVE_GROUP === g.key;
+          const groupPhotos = AP_INVESTIGATIONS.filter(ph => g.categories.includes(ph.category));
+          return '<div class="card" style="padding:12px;">'
+            + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:0;" data-action="ap-inv-toggle-group" data-value="'+g.key+'">'
+            + '<span style="font-size:13px;font-weight:700;">'+g.label+(groupPhotos.length?' ('+groupPhotos.length+')':'')+'</span>'
+            + '<span style="color:var(--accent);transform:rotate('+(open?90:0)+'deg);display:inline-flex;">'+ic('chevron')+'</span>'
+            + '</button>'
+            + (open ? (
+                '<div style="margin-top:10px;">'
+                + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' + g.categories.map(c => '<button type="button" class="chip'+(AP_INV_CATEGORY===c?' active':'')+'" data-action="ap-inv-set-category" data-value="'+c+'">'+apInvCatLabel(c)+'</button>').join('') + '</div>'
+                + (AP_INV_CATEGORY === 'xray' && g.categories.includes('xray') ? '<div style="margin-bottom:8px;"><select class="select" id="ap-inv-xray-subtype">'+XRAY_SUBTYPES.filter(s => !isSurgical || s !== 'General OPD').map(s=>'<option'+(AP_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>' : '')
+                + '<div id="ap-inv-thumbs">'+categorizedThumbsHtml(groupPhotos, 'ap-inv-remove-photo')+'</div>'
+                + '</div>'
+              ) : '')
+            + '</div>';
+        }).join('')
+      + '<p style="font-size:11px;color:var(--muted);margin:0;">Injections aren\u2019t added here \u2014 log them from the patient\u2019s record after the case is saved.</p>'
+      + '</div>';
+
+  const trackingHtml = isSurgical ? (
       '<div style="display:flex;flex-direction:column;gap:12px;">'
       + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
@@ -4617,48 +4635,36 @@ function renderAddView() {
           + '</div></div>' : '')
       + '</div>'
     );
-  } else {
-    tabBody = '<div style="display:flex;flex-direction:column;gap:10px;">'
-      + AP_INV_GROUPS.map(g => {
-          const open = AP_INV_ACTIVE_GROUP === g.key;
-          const groupPhotos = AP_INVESTIGATIONS.filter(ph => g.categories.includes(ph.category));
-          return '<div class="card" style="padding:12px;">'
-            + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:0;" data-action="ap-inv-toggle-group" data-value="'+g.key+'">'
-            + '<span style="font-size:13px;font-weight:700;">'+g.label+(groupPhotos.length?' ('+groupPhotos.length+')':'')+'</span>'
-            + '<span style="color:var(--accent);transform:rotate('+(open?90:0)+'deg);display:inline-flex;">'+ic('chevron')+'</span>'
-            + '</button>'
-            + (open ? (
-                '<div style="margin-top:10px;">'
-                + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' + g.categories.map(c => '<button type="button" class="chip'+(AP_INV_CATEGORY===c?' active':'')+'" data-action="ap-inv-set-category" data-value="'+c+'">'+apInvCatLabel(c)+'</button>').join('') + '</div>'
-                + (AP_INV_CATEGORY === 'xray' && g.categories.includes('xray') ? '<div style="margin-bottom:8px;"><select class="select" id="ap-inv-xray-subtype">'+XRAY_SUBTYPES.filter(s => !isSurgical || s !== 'General OPD').map(s=>'<option'+(AP_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>' : '')
-                + '<div id="ap-inv-thumbs">'+categorizedThumbsHtml(groupPhotos, 'ap-inv-remove-photo')+'</div>'
-                + '</div>'
-              ) : '')
-            + '</div>';
-        }).join('')
-      + '<p style="font-size:11px;color:var(--muted);margin:0;">Injections aren\u2019t added here \u2014 log them from the patient\u2019s record after the case is saved.</p>'
-      + '</div>';
-  }
 
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="cancel-add">'+ic('back')+'</button>'
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">New case</h2>'
     + '</div></div>'
-    + '<div class="px" style="padding-top:16px;display:flex;flex-direction:column;gap:16px;">'
-    + (AP_DUPLICATE_FROM ? '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;padding:10px 12px;"><span style="font-size:12px;color:var(--accent-dark);font-weight:600;">'+ic('tag')+' Duplicated from '+esc(AP_DUPLICATE_FROM)+' \u2014 everything else was copied, just check Name, Age and Side below.</span></div>' : '')
+    + '<div class="px" style="padding-top:16px;display:flex;flex-direction:column;gap:0;">'
+    + (AP_DUPLICATE_FROM ? '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;padding:10px 12px;margin-bottom:16px;"><span style="font-size:12px;color:var(--accent-dark);font-weight:600;">'+ic('tag')+' Duplicated from '+esc(AP_DUPLICATE_FROM)+' \u2014 everything else was copied, just check Name, Age and Side below.</span></div>' : '')
 
-    + '<div><label class="field-label">Case type</label><div class="seg">'
+    + '<div style="margin-bottom:16px;"><label class="field-label">Case type</label><div class="seg">'
     + '<button class="seg-btn'+(AP_TEMP.caseType==='opd'?' active':'')+'" data-action="ap-set-casetype" data-value="opd">OPD</button>'
     + '<button class="seg-btn'+(AP_TEMP.caseType==='surgical'?' active':'')+'" data-action="ap-set-casetype" data-value="surgical">Surgical</button>'
     + '</div></div>'
 
-    + (!isSurgical ? '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;">Visit date</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'" style="width:auto;max-width:150px;"></div>' : '')
+    + (!isSurgical ? '<div class="row between" style="align-items:center;margin-bottom:16px;"><label class="field-label" style="margin-bottom:0;">Visit date</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'" style="width:auto;max-width:150px;"></div>' : '')
 
-    + '<div class="seg" style="width:100%;">' + tabs.map(([v,l])=>'<button type="button" class="seg-btn'+(AP_SUBTAB===v?' active':'')+'" style="flex:1;" data-action="ap-switch-tab" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
+    + '<div class="section-sticky-label">Patient Details</div>'
+    + '<div style="margin-bottom:22px;">' + detailsHtml + '</div>'
 
-    + '<div class="card" style="padding:14px;">' + tabBody + '</div>'
+    + '<div class="section-sticky-label">'+tab2Label+'</div>'
+    + '<div style="margin-bottom:22px;">' + complaintsHtml + '</div>'
 
+    + '<div class="section-sticky-label">Investigations</div>'
+    + '<div style="margin-bottom:22px;">' + investigationsHtml + '</div>'
+
+    + '<div class="section-sticky-label">'+tab3Label+'</div>'
+    + '<div style="margin-bottom:22px;">' + trackingHtml + '</div>'
+
+    + '<div class="section-sticky-label">Notes'+(isAiTier()?' & AI':'')+'</div>'
+    + '<div style="display:flex;flex-direction:column;gap:16px;">'
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
     + (isAiTier() ? (
         '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
@@ -4674,6 +4680,7 @@ function renderAddView() {
         + (AI_SANITY_CHECK_RESULT ? '<div style="margin-top:8px;"><div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-sanity-answer-text')+'</div><div class="card" id="ai-sanity-answer-text" style="font-size:12.5px;white-space:pre-wrap;">'+esc(AI_SANITY_CHECK_RESULT)+'</div></div>' : '')
         + '</div>'
       ) : '')
+    + '</div>'
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
     + '<button class="btn" style="flex:1;" data-action="cancel-add">Cancel</button>'
@@ -8364,9 +8371,8 @@ async function generatePersonalizedReminderMessage(p) {
       if (extracted.symptomDuration) { AP_TEMP.symptomDuration = extracted.symptomDuration; filledCount++; }
       if (extracted.side && ['Left','Right','Bilateral'].includes(extracted.side)) { AP_TEMP.side = extracted.side; filledCount++; }
       if (extracted.chiefComplaints && !isSurgical) { AP_TEMP.chiefComplaints = extracted.chiefComplaints; filledCount++; }
-      AP_SUBTAB = 'details';
       render();
-      toast(filledCount ? ('Filled ' + filledCount + ' field(s) across tabs \u2014 please review each tab') : 'Nothing clear to extract from those notes');
+      toast(filledCount ? ('Filled ' + filledCount + ' field(s) \u2014 please review before saving') : 'Nothing clear to extract from those notes');
     } catch (err) {
       console.error('AI fill failed:', err);
       if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = '\u2717 ' + (err && err.message ? err.message : 'Request failed'); }
@@ -8839,14 +8845,6 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'ap-toggle-payment') { AP_SHOW_PAYMENT = !AP_SHOW_PAYMENT; render(); return; }
   if (action === 'ap-schedule-remove') { syncApTempFromDom(); AP_SCHEDULE = AP_SCHEDULE.filter(v => v.id !== el.dataset.value); render(); return; }
   if (action === 'ap-schedule-add') { syncApTempFromDom(); AP_SCHEDULE.push({ id: uid(), label: 'Custom Visit', date: AP_TEMP.surgeryDate || todayStr() }); render(); return; }
-  if (action === 'ap-switch-tab') {
-    syncApTempFromDom();
-    if (AP_TEMP.caseType === 'opd' && !AP_TEMP.condition) {
-      const guess = autoDetectCondition(AP_TEMP.diagnosis + ' ' + (AP_TEMP.chiefComplaints||''));
-      if (guess) AP_TEMP.condition = guess;
-    }
-    AP_SUBTAB = el.dataset.value; render(); return;
-  }
   if (action === 'ap-inv-toggle-group') {
     const key = el.dataset.value;
     AP_INV_ACTIVE_GROUP = (AP_INV_ACTIVE_GROUP === key) ? null : key;
@@ -10996,6 +10994,11 @@ document.addEventListener('blur', async (e) => {
   if ((e.target.id === 'ap-diagnosis' || e.target.id === 'ap-complaints') && isProOrAbove()) {
     const block = document.getElementById('ap-diag-ai-suggest-block');
     if (block) block.innerHTML = apDiagAiSuggestBlockHtml() + apSimilarCasesBlockHtml() + apSchemeSuggestBlockHtml();
+  }
+  if ((e.target.id === 'ap-diagnosis' || e.target.id === 'ap-complaints') && AP_TEMP && AP_TEMP.caseType === 'opd' && !AP_TEMP.condition) {
+    syncApTempFromDom();
+    const guess = autoDetectCondition(AP_TEMP.diagnosis + ' ' + (AP_TEMP.chiefComplaints||''));
+    if (guess) { AP_TEMP.condition = guess; render(); }
   }
 }, true);
 document.addEventListener('keydown', (e) => {
