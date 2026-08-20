@@ -10280,6 +10280,7 @@ async function generatePersonalizedReminderMessage(p) {
     const noteEl = document.getElementById('cb-note');
     const note = noteEl ? noteEl.value.trim() : CB_DRAFT_NOTE.trim();
     const now = Date.now();
+    CB_DRAFT_NOTE = note;
     if (CB_SELECTED_ID) {
       const existing = CLINICAL_BANK.find(c => c.id === CB_SELECTED_ID);
       const entry = Object.assign({}, existing, { note, tags: CB_DRAFT_TAGS.slice(), updatedAt: now });
