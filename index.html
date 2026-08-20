@@ -28,20 +28,30 @@
     appId: "1:251974181391:web:348e0e07d0e53ec672f97a",
     measurementId: "G-NRDTY5SCV1"
   };
-  firebase.initializeApp(firebaseConfig);
-  const firestoreDB = firebase.firestore();
-  const firebaseStorage = firebase.storage();
-  const firebaseFunctions = firebase.app().functions('asia-south2');
+  // These MUST always be declared (even if Firebase itself fails to load, e.g. offline
+  // with the CDN scripts not yet cached) \u2014 everything downstream checks CURRENT_USER
+  // before touching firestoreDB/etc., but a ReferenceError from an undeclared variable
+  // would crash the whole app's startup, not just the cloud features. Local-only use
+  // must keep working even when Firebase never initializes.
+  let firestoreDB = null, firebaseStorage = null, firebaseFunctions = null;
   // Only this account sees AI-feature UI. Must match the ALLOWED_UIDS
   // entry in the Cloud Function - find your UID in Firebase Console ->
   // Authentication -> Users. This is a UX nicety only; the real gate
   // is server-side in the Cloud Function itself.
   const MY_UID = 'oc3eOgkVgqQ200UoswTzEH1Feuh1';
   let CURRENT_USER = null;
-  firebase.auth().onAuthStateChanged(function(user) {
-    CURRENT_USER = user;
-    if (typeof onAuthChanged === 'function') onAuthChanged(user);
-  });
+  try {
+    firebase.initializeApp(firebaseConfig);
+    firestoreDB = firebase.firestore();
+    firebaseStorage = firebase.storage();
+    firebaseFunctions = firebase.app().functions('asia-south2');
+    firebase.auth().onAuthStateChanged(function(user) {
+      CURRENT_USER = user;
+      if (typeof onAuthChanged === 'function') onAuthChanged(user);
+    });
+  } catch (e) {
+    console.error('Firebase failed to initialize (likely offline) \u2014 continuing in local-only mode', e);
+  }
 
   /* ================= Subscription / Entitlement (client-side UX gate; source of
      truth is the Firestore doc, server-verified once Play Billing is wired up) ================= */
@@ -1510,6 +1520,7 @@ const MONTHLY_LIMIT = 100000;
 let SHOW_INSIGHTS = false;
 let SHOW_ALL_ATTENTION = false;
 let ATTENTION_EXPANDED = true;
+let SHOW_TOMORROW_LIST = false;
 let PATIENT_LIST_EXPANDED = false;
 let SHOW_ADD_MENU = false;
 let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
@@ -2002,7 +2013,7 @@ function computeDashboardStats() {
   const dueToday = PATIENTS.filter(p => isTrackable(p) && p.nextFollowUpDate === today);
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const tomorrowStr = tomorrow.toISOString().slice(0,10);
-  const dueTomorrowCount = PATIENTS.filter(p => isTrackable(p) && p.nextFollowUpDate === tomorrowStr).length;
+  const dueTomorrowList = PATIENTS.filter(p => isTrackable(p) && p.nextFollowUpDate === tomorrowStr);
   const overdue = PATIENTS.filter(p => isTrackable(p) && isOverdue(p.nextFollowUpDate));
   const raDueToday = PATIENTS.filter(p => isTrackable(p) && p.condition === 'ra' && p.ra && p.ra.nextLabsDate === today);
   const raOverdue = PATIENTS.filter(p => isTrackable(p) && p.condition === 'ra' && p.ra && isOverdue(p.ra.nextLabsDate));
@@ -2042,7 +2053,7 @@ function computeDashboardStats() {
   const topConditions = Object.entries(condCounts).sort((a,b)=>b[1]-a[1]).slice(0,3)
     .map(([id,n]) => { const e = EDU_LIBRARY.find(x=>x.id===id); return [CONDITION_LABEL_OVERRIDES[id] || (e?e.name.en:id), n]; });
 
-  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, monthCount: monthPatients.length, topProcedures, topConditions, weekTrend, weekNewCases, dueTomorrowCount };
+  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, monthCount: monthPatients.length, topProcedures, topConditions, weekTrend, weekNewCases, dueTomorrowList };
 }
 
 /* ---- Daily "important today" notifications ---- */
@@ -3055,7 +3066,9 @@ async function renderMoreView() {
         moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
         + moreRowHtml('printer', 'Cash Collection Audit', 'Monthly totals of cash payments across all surgical cases', 'open-cash-audit')
         + moreRowHtml('bookmark', 'Research Cases'+(PATIENTS.filter(p=>p.researchFlag).length ? ' ('+PATIENTS.filter(p=>p.researchFlag).length+')' : ''), 'Cases flagged for papers, case reports & study', 'open-research-cases')
-        + moreRowHtml('camera', 'Clinical Bank'+(CLINICAL_BANK.length ? ' ('+CLINICAL_BANK.length+')' : ''), 'Interesting X-rays, CT findings \u2014 kept separate from patient records', 'open-clinical-bank')
+    },
+    { key:'clinicalbank', title:'Clinical Bank', icon:'bookmark', rows:
+        moreRowHtml('camera', 'Clinical Bank'+(CLINICAL_BANK.length ? ' ('+CLINICAL_BANK.length+')' : ''), 'Interesting X-rays, CT findings & notes \u2014 kept separate from patient records', 'open-clinical-bank')
     },
     { key:'help', title:'Help & Info', icon:'info', rows:
         moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
@@ -3095,6 +3108,7 @@ let CB_ADD_OPEN = false;
 let CB_SELECTED_ID = null;
 let CB_DRAFT_NOTE = '';
 let CB_DRAFT_TAGS = [];
+let CB_DRAFT_PHOTOS = [];
 let CB_SEARCH = '';
 
 function cbAllTags() {
@@ -3112,6 +3126,43 @@ function cbTagEditorHtml() {
     + '</div>'
     + (CB_DRAFT_TAGS.length ? '<div class="chips" style="margin-top:8px;">' + CB_DRAFT_TAGS.map(t => '<button type="button" class="chip" data-action="cb-remove-draft-tag" data-tag="'+esc(t)+'" style="background:var(--accent-bg);color:var(--accent);border-color:var(--accent-border);">'+esc(t)+' '+ic('x')+'</button>').join('') + '</div>' : '')
     + (suggestions.length ? '<div class="chips" style="margin-top:8px;">' + suggestions.slice(0,10).map(t => '<button type="button" class="chip" data-action="cb-add-suggested-tag" data-tag="'+esc(t)+'">+ '+esc(t)+'</button>').join('') + '</div>' : '');
+}
+
+async function cbThumbsHtml(entryId) {
+  let html = '<div class="thumb-grid">';
+  if (entryId) {
+    const imgs = (await dbGetAllImages()).filter(im => im.clinicalBankId === entryId);
+    revokeActiveUrls();
+    imgs.forEach(im => {
+      const url = trackUrl(URL.createObjectURL(im.blob));
+      html += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+esc(url)+'"></div>';
+    });
+    html += '<label class="add-photo-tile">'+ic('camera')+'<span>Gallery</span><input type="file" accept="image/*" multiple data-cb-photo-input="'+entryId+'" style="display:none;"></label>'
+      + '</div>' + cameraFabHtml('data-cb-photo-input="'+entryId+'"', 'Take photo');
+  } else {
+    CB_DRAFT_PHOTOS.forEach(ph => {
+      html += '<div class="thumb-wrap"><img src="'+ph.previewUrl+'"><button class="thumb-remove" data-action="cb-remove-draft-photo" data-tempid="'+ph.tempId+'">\u2715</button></div>';
+    });
+    html += '<label class="add-photo-tile">'+ic('camera')+'<span>Gallery</span><input type="file" accept="image/*" multiple data-cb-photo-input="new" style="display:none;"></label>'
+      + '</div>' + cameraFabHtml('data-cb-photo-input="new"', 'Take photo');
+  }
+  return html;
+}
+async function handleCbPhotoInputChange(fileInput, entryId) {
+  const files = Array.from(fileInput.files || []);
+  if (!files.length) return;
+  toast('Saving '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+  for (const file of files) {
+    const blob = await resizeImageFile(file);
+    if (entryId) {
+      await dbAddImage({ id: uid(), patientId: null, clinicalBankId: entryId, blob, createdAt: Date.now(), imageCategory: 'clinical-bank' });
+    } else {
+      CB_DRAFT_PHOTOS.push({ tempId: uid(), blob, previewUrl: trackUrl(URL.createObjectURL(blob)) });
+    }
+  }
+  const container = document.getElementById('cb-thumbs');
+  if (container) container.innerHTML = await cbThumbsHtml(entryId);
+  toast('Saved');
 }
 
 function cbFilteredEntries() {
@@ -3170,8 +3221,7 @@ async function renderClinicalBankView() {
 
 async function renderClinicalBankDetailView() {
   const entry = CB_SELECTED_ID ? CLINICAL_BANK.find(c => c.id === CB_SELECTED_ID) : null;
-  let imgs = [];
-  if (entry) { imgs = (await dbGetAllImages()).filter(im => im.clinicalBankId === entry.id); revokeActiveUrls(); }
+  const thumbsHtml = await cbThumbsHtml(entry ? entry.id : null);
 
   let html = '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
@@ -3179,6 +3229,8 @@ async function renderClinicalBankDetailView() {
     + '</div>'
     + '<div class="px" style="padding-top:14px;">'
     + '<div class="card">'
+    + '<label class="field-label">Images</label>'
+    + '<div id="cb-thumbs" style="position:relative;margin-top:8px;margin-bottom:14px;">' + thumbsHtml + '</div>'
     + '<label class="field-label">What\u2019s interesting about this?</label>'
     + '<textarea class="textarea" id="cb-note" rows="3" placeholder="e.g. Rare bilateral presentation, unusual union pattern\u2026">'+esc(CB_DRAFT_NOTE)+'</textarea>'
     + cbTagEditorHtml()
@@ -3186,14 +3238,7 @@ async function renderClinicalBankDetailView() {
     + '</div>';
 
   if (entry) {
-    html += '<div class="card" style="margin-top:14px;">'
-      + '<label class="field-label">Images</label>'
-      + '<div class="thumb-grid" style="margin-top:8px;">'
-        + imgs.map(im => '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(trackUrl(URL.createObjectURL(im.blob)))+'"><img src="'+esc(trackUrl(URL.createObjectURL(im.blob)))+'"></div>').join('')
-        + '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-cb-input="'+entry.id+'" style="display:none;"></label>'
-      + '</div>'
-      + '</div>'
-      + '<div style="margin-top:14px;text-align:center;">'
+    html += '<div style="margin-top:14px;text-align:center;">'
       + (ARMED_DELETE === 'cb-delete-entry:'+entry.id
           ? '<button type="button" class="btn btn-sm btn-danger-confirm" data-action="cb-delete-entry" data-id="'+entry.id+'">'+ic('check')+' Confirm delete</button>'
           : '<button type="button" class="btn btn-sm" style="color:var(--red);" data-action="arm-delete" data-arm="cb-delete-entry:'+entry.id+'">'+ic('trash')+' Delete entry</button>')
@@ -3762,12 +3807,26 @@ function renderDashboardSection() {
   const statusBadge = s.important.length
     ? '<span class="badge badge-red" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+s.important.length+' to review</span>'
     : '<span class="badge badge-emerald" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+ic('check')+' all clear</span>';
-  html += '<div class="row between" style="margin-bottom:'+(s.dueTomorrowCount ? '2px' : '12px')+';align-items:center;">'
+  html += '<div class="row between" style="margin-bottom:'+(s.dueTomorrowList.length ? '2px' : '12px')+';align-items:center;">'
     + '<p style="font-size:13px;color:var(--muted);margin:0;display:flex;align-items:center;gap:3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.78);transform-origin:center;flex-shrink:0;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+' \u2014 '+greetingDate+'</p>'
     + statusBadge
     + '</div>';
-  if (s.dueTomorrowCount) {
-    html += '<p style="font-size:11px;color:var(--muted);margin:0 0 12px;">'+s.dueTomorrowCount+' follow-up'+(s.dueTomorrowCount>1?'s':'')+' due tomorrow</p>';
+  if (s.dueTomorrowList.length) {
+    html += '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:0;margin:0 0 12px;cursor:pointer;" data-action="toggle-tomorrow-list">'
+      + '<span style="font-size:11px;color:var(--muted);">'+s.dueTomorrowList.length+' follow-up'+(s.dueTomorrowList.length>1?'s':'')+' due tomorrow</span>'
+      + '<span style="color:var(--muted);transform:scale(0.7);'+(SHOW_TOMORROW_LIST?'transform:scale(0.7) rotate(180deg);':'')+'">'+ic('chevron')+'</span>'
+      + '</button>';
+    if (SHOW_TOMORROW_LIST) {
+      html += '<div class="card" style="margin-bottom:12px;padding:6px 0;">'
+        + s.dueTomorrowList.map(p => {
+            const waLink = p.whatsapp ? followUpReminderLink(p) : null;
+            return '<div class="row between" style="padding:7px 14px;border-bottom:1px solid var(--border);">'
+              + '<span data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;font-size:12.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.name)+'</span>'
+              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+p.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
+              + '</div>';
+          }).join('')
+        + '</div>';
+    }
   }
 
   if (isAiTier()) {
@@ -7324,12 +7383,28 @@ async function patchField(field, value) {
 let IMG_GALLERY = null;
 let IMG_GALLERY_IDX = 0;
 let ZOOM_SCALE = 1, ZOOM_TX = 0, ZOOM_TY = 0;
-function resetZoom() { ZOOM_SCALE = 1; ZOOM_TX = 0; ZOOM_TY = 0; applyZoomTransform(); }
+let VIEWER_BASE_W = 0, VIEWER_BASE_H = 0; // unscaled rendered image size, cached per-image for pan clamping
+function resetZoom() { ZOOM_SCALE = 1; ZOOM_TX = 0; ZOOM_TY = 0; VIEWER_BASE_W = 0; VIEWER_BASE_H = 0; applyZoomTransform(); }
 function applyZoomTransform() {
   const img = document.querySelector('#img-viewer img');
   if (img) img.style.transform = 'translate('+ZOOM_TX+'px,'+ZOOM_TY+'px) scale('+ZOOM_SCALE+')';
 }
 function touchDist(t1, t2) { return Math.hypot(t1.clientX-t2.clientX, t1.clientY-t2.clientY); }
+function ensureViewerBaseSize() {
+  if (VIEWER_BASE_W && VIEWER_BASE_H) return;
+  const img = document.querySelector('#img-viewer img');
+  if (!img) return;
+  const rect = img.getBoundingClientRect();
+  VIEWER_BASE_W = rect.width / (ZOOM_SCALE || 1);
+  VIEWER_BASE_H = rect.height / (ZOOM_SCALE || 1);
+}
+function clampPan() {
+  if (!VIEWER_BASE_W || !VIEWER_BASE_H) return;
+  const maxX = Math.max(0, (VIEWER_BASE_W * ZOOM_SCALE - VIEWER_BASE_W) / 2);
+  const maxY = Math.max(0, (VIEWER_BASE_H * ZOOM_SCALE - VIEWER_BASE_H) / 2);
+  ZOOM_TX = Math.min(maxX, Math.max(-maxX, ZOOM_TX));
+  ZOOM_TY = Math.min(maxY, Math.max(-maxY, ZOOM_TY));
+}
 
 async function openImageViewer(url, imgId, gallery, idx) {
   IMG_GALLERY = (gallery && gallery.length > 1) ? gallery : null;
@@ -7343,26 +7418,45 @@ async function openImageViewer(url, imgId, gallery, idx) {
     document.body.appendChild(overlay);
     let touchStartX = null, touchStartY = null;
     let pinchStartDist = null, pinchStartScale = 1;
+    let pinchMidX0 = 0, pinchMidY0 = 0, pinchTx0 = 0, pinchTy0 = 0;
     let panStartTx = 0, panStartTy = 0;
     let lastTapTime = 0;
+    let gestureWasPan = false;
     overlay.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
+        ensureViewerBaseSize();
         pinchStartDist = touchDist(e.touches[0], e.touches[1]);
         pinchStartScale = ZOOM_SCALE;
+        pinchMidX0 = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        pinchMidY0 = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        pinchTx0 = ZOOM_TX; pinchTy0 = ZOOM_TY;
       } else if (e.touches.length === 1) {
+        ensureViewerBaseSize();
         touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY;
         panStartTx = ZOOM_TX; panStartTy = ZOOM_TY;
+        gestureWasPan = false;
       }
     }, { passive:true });
     overlay.addEventListener('touchmove', (e) => {
       if (e.touches.length === 2 && pinchStartDist) {
         const dist = touchDist(e.touches[0], e.touches[1]);
-        ZOOM_SCALE = Math.min(4, Math.max(1, pinchStartScale * (dist / pinchStartDist)));
+        const newScale = Math.min(4, Math.max(1, pinchStartScale * (dist / pinchStartDist)));
+        // Anchor the zoom to the midpoint between the two fingers, not the image center,
+        // so the content under the fingers stays put as the scale changes (matches native feel).
+        const cx = window.innerWidth / 2, cy = window.innerHeight / 2;
+        const d0x = pinchMidX0 - cx - pinchTx0, d0y = pinchMidY0 - cy - pinchTy0;
+        const ratio = newScale / pinchStartScale;
+        ZOOM_TX = pinchMidX0 - cx - ratio * d0x;
+        ZOOM_TY = pinchMidY0 - cy - ratio * d0y;
+        ZOOM_SCALE = newScale;
+        clampPan();
         applyZoomTransform();
       } else if (e.touches.length === 1 && ZOOM_SCALE > 1.02 && touchStartX != null) {
         ZOOM_TX = panStartTx + (e.touches[0].clientX - touchStartX);
         ZOOM_TY = panStartTy + (e.touches[0].clientY - touchStartY);
+        clampPan();
         applyZoomTransform();
+        gestureWasPan = true;
       }
     }, { passive:true });
     overlay.addEventListener('touchend', (e) => {
@@ -7370,12 +7464,12 @@ async function openImageViewer(url, imgId, gallery, idx) {
       const now = Date.now();
       const wasPinch = pinchStartDist != null;
       pinchStartDist = null;
-      if (!wasPinch && e.changedTouches.length === 1 && now - lastTapTime < 300) {
-        if (ZOOM_SCALE > 1.02) resetZoom(); else { ZOOM_SCALE = 2.5; applyZoomTransform(); }
-        lastTapTime = 0; touchStartX = null;
+      if (!wasPinch && !gestureWasPan && e.changedTouches.length === 1 && now - lastTapTime < 300) {
+        if (ZOOM_SCALE > 1.02) resetZoom(); else { ZOOM_SCALE = 2.5; clampPan(); applyZoomTransform(); }
+        lastTapTime = 0; touchStartX = null; gestureWasPan = false;
         return;
       }
-      lastTapTime = now;
+      lastTapTime = (!wasPinch && !gestureWasPan) ? now : 0;
       if (!wasPinch && ZOOM_SCALE <= 1.02 && touchStartX != null && e.changedTouches.length) {
         const dx = e.changedTouches[0].clientX - touchStartX;
         if (Math.abs(dx) >= 50 && IMG_GALLERY) {
@@ -7383,7 +7477,7 @@ async function openImageViewer(url, imgId, gallery, idx) {
           else if (dx < 0 && IMG_GALLERY_IDX < IMG_GALLERY.length-1) viewerNav(1);
         }
       }
-      touchStartX = null; touchStartY = null;
+      touchStartX = null; touchStartY = null; gestureWasPan = false;
     }, { passive:true });
   }
   await renderImageViewerFrame(url, imgId);
@@ -8704,6 +8798,7 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'toggle-insights') { SHOW_INSIGHTS = !SHOW_INSIGHTS; render(); return; }
   if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
   if (action === 'toggle-attention-expanded') { ATTENTION_EXPANDED = !ATTENTION_EXPANDED; render(); return; }
+  if (action === 'toggle-tomorrow-list') { SHOW_TOMORROW_LIST = !SHOW_TOMORROW_LIST; render(); return; }
   if (action === 'dash-tile-attention') {
     ATTENTION_EXPANDED = true;
     render();
@@ -9604,8 +9699,8 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'viewer-prev') { viewerNav(-1); return; }
   if (action === 'viewer-next') { viewerNav(1); return; }
   if (action === 'viewer-close') { closeImageViewer(); return; }
-  if (action === 'viewer-zoom-in') { ZOOM_SCALE = Math.min(4, ZOOM_SCALE + 0.5); applyZoomTransform(); return; }
-  if (action === 'viewer-zoom-out') { ZOOM_SCALE = Math.max(1, ZOOM_SCALE - 0.5); if (ZOOM_SCALE === 1) { ZOOM_TX = 0; ZOOM_TY = 0; } applyZoomTransform(); return; }
+  if (action === 'viewer-zoom-in') { ensureViewerBaseSize(); ZOOM_SCALE = Math.min(4, ZOOM_SCALE + 0.5); clampPan(); applyZoomTransform(); return; }
+  if (action === 'viewer-zoom-out') { ensureViewerBaseSize(); ZOOM_SCALE = Math.max(1, ZOOM_SCALE - 0.5); if (ZOOM_SCALE === 1) { ZOOM_TX = 0; ZOOM_TY = 0; } else { clampPan(); } applyZoomTransform(); return; }
   if (action === 'viewer-download') {
     const a = document.createElement('a');
     a.href = el.dataset.url;
@@ -10140,14 +10235,20 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'close-research-cases') { VIEW = 'more'; render(); return; }
   if (action === 'open-clinical-bank') { VIEW = 'clinical-bank'; CB_SEARCH = ''; await refreshClinicalBank(); render(); return; }
   if (action === 'close-clinical-bank') { VIEW = 'more'; render(); return; }
-  if (action === 'cb-open-add') { CB_SELECTED_ID = null; CB_DRAFT_NOTE = ''; CB_DRAFT_TAGS = []; VIEW = 'clinical-bank-detail'; render(); return; }
+  if (action === 'cb-open-add') { CB_SELECTED_ID = null; CB_DRAFT_NOTE = ''; CB_DRAFT_TAGS = []; CB_DRAFT_PHOTOS = []; VIEW = 'clinical-bank-detail'; render(); return; }
   if (action === 'open-clinical-bank-entry') {
     const entry = CLINICAL_BANK.find(c => c.id === el.dataset.id);
     if (!entry) return;
-    CB_SELECTED_ID = entry.id; CB_DRAFT_NOTE = entry.note || ''; CB_DRAFT_TAGS = [...(entry.tags||[])];
+    CB_SELECTED_ID = entry.id; CB_DRAFT_NOTE = entry.note || ''; CB_DRAFT_TAGS = [...(entry.tags||[])]; CB_DRAFT_PHOTOS = [];
     VIEW = 'clinical-bank-detail'; render(); return;
   }
   if (action === 'close-clinical-bank-detail') { VIEW = 'clinical-bank'; CB_SELECTED_ID = null; render(); return; }
+  if (action === 'cb-remove-draft-photo') {
+    CB_DRAFT_PHOTOS = CB_DRAFT_PHOTOS.filter(p => p.tempId !== el.dataset.tempid);
+    const container = document.getElementById('cb-thumbs');
+    if (container) container.innerHTML = await cbThumbsHtml(null);
+    return;
+  }
   if (action === 'cb-add-tag') {
     const noteEl0 = document.getElementById('cb-note'); if (noteEl0) CB_DRAFT_NOTE = noteEl0.value;
     const inp = document.getElementById('cb-tag-input');
@@ -10183,9 +10284,13 @@ async function generatePersonalizedReminderMessage(p) {
     } else {
       const entry = { id: uid(), note, tags: CB_DRAFT_TAGS.slice(), createdAt: now, updatedAt: now };
       await dbPutClinicalBank(entry);
+      for (const ph of CB_DRAFT_PHOTOS) {
+        await dbAddImage({ id: ph.tempId, patientId: null, clinicalBankId: entry.id, blob: ph.blob, createdAt: Date.now(), imageCategory: 'clinical-bank' });
+      }
+      CB_DRAFT_PHOTOS = [];
       await refreshClinicalBank();
       CB_SELECTED_ID = entry.id;
-      toast('Saved \u2014 add photos below if you have any');
+      toast('Saved');
       render();
     }
     return;
@@ -10768,16 +10873,9 @@ document.addEventListener('change', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (t.dataset && t.dataset.cbInput) {
-    const clinicalBankId = t.dataset.cbInput;
-    const files = Array.from(t.files || []);
-    if (!files.length) return;
-    toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
-    for (const file of files) {
-      const blob = await resizeImageFile(file);
-      await dbAddImage({ id: uid(), patientId: null, clinicalBankId, blob, createdAt: Date.now(), imageCategory: 'clinical-bank' });
-    }
-    render();
+  if (t.dataset && t.dataset.cbPhotoInput) {
+    const val = t.dataset.cbPhotoInput;
+    await handleCbPhotoInputChange(t, val === 'new' ? null : val);
     return;
   }
   if (t.dataset && t.dataset.ctevInput) {
