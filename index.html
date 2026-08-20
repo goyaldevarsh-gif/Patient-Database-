@@ -1587,7 +1587,6 @@ let SHOW_LEGEND = false;
 let EDITING_PATIENT_CODE = false;
 function resetPerPatientUiState() {
   EDITING_PATIENT_CODE = false;
-  OV_SUBTAB = 'details';
   OV_EXPANDED = new Set(['snapshot']);
   OV_SHOW_SCHEDULE = false;
   OV_SHOW_PAYMENT = false;
@@ -4543,7 +4542,7 @@ function renderAddView() {
   const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
 
   const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
+      + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label><div class="row gap2">'
       + '<input class="input" type="number" min="0" id="ap-age" placeholder="Years" value="'+esc(AP_TEMP.age)+'" style="flex:1;">'
@@ -4691,7 +4690,6 @@ function renderAddView() {
 
 /* ================= Detail view: tabs ================= */
 
-let OV_SUBTAB = 'details';
 let OV_EXPANDED = new Set(['snapshot']);
 let OV_EDIT_SECTIONS = new Set();
 function ovRow(label, value) {
@@ -6511,7 +6509,7 @@ async function renderTabBody(p) {
   if (TAB === 'ctev') { el.innerHTML = await renderCtevTab(p); return; }
   if (TAB === 'timeline') { el.innerHTML = renderTimelineTab(p); return; }
   if (TAB === 'ra') { el.innerHTML = renderRaTab(p); return; }
-  if (TAB === 'osteo') { el.innerHTML = renderOsteoTab(p); return; }
+  if (TAB === 'osteo') { el.innerHTML = await renderOsteoTab(p); return; }
   el.innerHTML = '<div class="px" style="padding-top:14px;">'
     + '<div class="skeleton-line" style="width:60%;height:14px;margin-bottom:14px;"></div>'
     + '<div class="skeleton-block"></div>'
@@ -6810,6 +6808,15 @@ const RA_MGT_HELP_HTML = '<div class="help-box">'
   + '<p style="font-size:10px;color:var(--muted);margin:0;">General evidence-based reference for your own use \u2014 individualise for each patient (renal/hepatic function, comorbidities, pregnancy plans, current guideline updates).</p>'
   + '</div>';
 
+const RA_MEDICATION_REMINDER_MESSAGE = '\u0906\u092a\u0915\u0940 RA (Rheumatoid Arthritis) \u0915\u0940 \u0926\u0935\u093e\u0908 \u0915\u094b \u0932\u0947\u0915\u0930 \u0915\u0941\u091b \u091c\u093c\u0930\u0942\u0930\u0940 \u092c\u093e\u0924\u0947\u0902:'
+  + '\n\n\u2705 \u0926\u0935\u093e\u0908 \u0930\u094b\u091c\u093c\u093e\u0928\u093e \u0938\u0939\u0940 \u0938\u092e\u092f \u092a\u0930 \u0932\u0947\u0902, \u092c\u0940\u091a \u092e\u0947\u0902 \u092c\u0902\u0926 \u0928\u093e \u0915\u0930\u0947\u0902'
+  + '\n\u2705 \u0916\u0942\u0928 \u0915\u0940 \u091c\u093e\u0902\u091a (CBC, LFT) \u0938\u092e\u092f \u092a\u0930 \u0915\u0930\u0935\u093e\u0924\u0947 \u0930\u0939\u0947\u0902 \u2014 monitoring \u0915\u0947 \u0932\u093f\u090f \u091c\u093c\u0930\u0942\u0930\u0940 \u0939\u0948'
+  + '\n\u2705 \u092d\u0930\u092a\u0942\u0930 \u092a\u093e\u0928\u0940 \u092a\u093f\u092f\u0947\u0902, \u0938\u0902\u0924\u0941\u0932\u093f\u0924 \u0906\u0939\u093e\u0930 \u0932\u0947\u0902'
+  + '\n\n\u26a0\ufe0f \u0924\u0941\u0930\u0902\u0924 \u0921\u0949\u0915\u094d\u091f\u0930 \u0938\u0947 \u0938\u0902\u092a\u0930\u094d\u0915 \u0915\u0930\u0947\u0902 \u0905\u0917\u0930:'
+  + '\n\u2022 \u092c\u0941\u0916\u093e\u0930, \u0920\u0902\u0921 \u0932\u0917\u0928\u093e, \u092f\u093e \u0915\u094b\u0908 \u0907\u0928\u094d\u092b\u0947\u0915\u094d\u0936\u0928 \u0915\u0947 \u0932\u0915\u094d\u0937\u0923 \u0926\u093f\u0916\u0947\u0902 \u2014 \u0907\u0938 \u0938\u094d\u0925\u093f\u0924\u093f \u092e\u0947\u0902 \u0905\u0917\u0932\u0940 \u0926\u0935\u093e\u0908 (DMARD/biologic) \u0930\u094b\u0915\u0947\u0902 \u0914\u0930 \u0924\u0941\u0930\u0902\u0924 \u0938\u0902\u092a\u0930\u094d\u0915 \u0915\u0930\u0947\u0902'
+  + '\n\u2022 \u0928\u0908 \u0938\u0942\u091c\u0928 \u092f\u093e \u091c\u094b\u0921\u093c\u094b\u0902 \u092e\u0947\u0902 \u091c\u094d\u092f\u093e\u0926\u093e \u0926\u0930\u094d\u0926 \u0939\u094b'
+  + '\n\u2022 \u0938\u093e\u0902\u0938 \u0932\u0947\u0928\u0947 \u092e\u0947\u0902 \u0924\u0915\u0932\u0940\u092b \u0939\u094b';
+
 function renderRaTab(p) {
   const ra = p.ra;
   const mon = ra.monitoring || { cbc:'', lft:'', creatinine:'' };
@@ -6853,6 +6860,7 @@ function renderRaTab(p) {
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="ra-cancel-add-visit">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ra-submit-visit">Save visit</button></div>'
       + '</div>';
   }
+  const raMedReminderLink = homeCareInstructionsLink(p, RA_MEDICATION_REMINDER_MESSAGE);
   [...ra.visits].reverse().forEach(v => {
     const sc = computeRaVisitScores(v);
     html += '<div class="fu-card"><div class="row between"><span style="font-weight:800;">'+fmtDate(v.date)+'</span>'+confirmBtn('ra-delete-visit', v.id)+'</div>'
@@ -6862,6 +6870,10 @@ function renderRaTab(p) {
       + raScoreBadgeHtml('CDAI', sc.cdai, bandCDAI(sc.cdai)) + raScoreBadgeHtml('SDAI', sc.sdai, bandSDAI(sc.sdai)) + '</div>'
       + (v.treatmentNote?'<p style="font-size:12px;color:#5b21b6;margin-top:6px;font-weight:600;">'+ic('pill')+' '+esc(v.treatmentNote)+'</p>':'')
       + (v.notes?'<p style="font-size:12px;color:#64748b;margin-top:4px;">'+esc(v.notes)+'</p>':'')
+      + '<div class="row gap2" style="margin-top:8px;flex-wrap:wrap;">'
+      + '<button type="button" class="btn" style="flex:1;font-size:11.5px;padding:8px;" data-action="ctev-jump-followup">'+ic('plus')+' Follow-up</button>'
+      + (raMedReminderLink ? '<a href="'+esc(raMedReminderLink)+'" target="_blank" rel="noopener" class="btn" style="flex:1;font-size:11.5px;padding:8px;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;text-align:center;">'+ic('message')+' Medication reminder</a>' : '')
+      + '</div>'
       + '</div>';
   });
 
@@ -6890,6 +6902,14 @@ function renderRaTab(p) {
   return html;
 }
 
+
+const DEXA_BONE_HEALTH_MESSAGE = '\u0906\u092a\u0915\u0940 \u0939\u0921\u094d\u0921\u0940 (\u092c\u094b\u0928) \u0915\u0940 \u0938\u0947\u0939\u0924 \u0915\u094b \u0932\u0947\u0915\u0930 \u0915\u0941\u091b \u091c\u093c\u0930\u0942\u0930\u0940 \u092c\u093e\u0924\u0947\u0902:'
+  + '\n\n\u2705 Calcium/Vitamin D \u0930\u094b\u091c\u093c\u093e\u0928\u093e \u0932\u0947\u0902, \u0921\u0949\u0915\u094d\u091f\u0930 \u0915\u0940 \u092c\u0924\u093e\u0908 \u0939\u0941\u0908 \u0926\u0935\u093e\u0908 \u092c\u0940\u091a \u092e\u0947\u0902 \u092c\u0902\u0926 \u0928\u093e \u0915\u0930\u0947\u0902'
+  + '\n\u2705 \u0918\u0930 \u092e\u0947\u0902 \u0917\u093f\u0930\u0928\u0947 (fall) \u0938\u0947 \u092c\u091a\u0947\u0902 \u2014 \u092b\u0930\u094d\u0936 \u0938\u093e\u092b \u0930\u0916\u0947\u0902, \u0917\u0940\u0932\u0947 \u092b\u0930\u094d\u0936 \u092a\u0930 \u0938\u0902\u092d\u0932\u0915\u0930 \u091a\u0932\u0947\u0902, \u0930\u093e\u0924 \u0915\u094b \u0930\u094c\u0936\u0928\u0940 \u0930\u0916\u0947\u0902'
+  + '\n\u2705 \u0939\u0932\u094d\u0915\u0940 \u0935\u091c\u0928-\u0938\u0939\u0928\u0940 \u0935\u094d\u092f\u093e\u092f\u093e\u092e / \u091a\u0932\u0928\u093e \u091c\u093e\u0930\u0940 \u0930\u0916\u0947\u0902 \u2014 \u0939\u0921\u094d\u0921\u093f\u092f\u094b\u0902 \u0915\u0940 \u092e\u091c\u092c\u0942\u0924\u0940 \u0915\u0947 \u0932\u093f\u090f \u0905\u091a\u094d\u091b\u093e \u0939\u0948'
+  + '\n\n\u26a0\ufe0f \u0924\u0941\u0930\u0902\u0924 \u0921\u0949\u0915\u094d\u091f\u0930 \u0938\u0947 \u0938\u0902\u092a\u0930\u094d\u0915 \u0915\u0930\u0947\u0902 \u0905\u0917\u0930:'
+  + '\n\u2022 \u0915\u094b\u0908 \u0917\u093f\u0930\u0928\u093e/\u091a\u094b\u091f \u0932\u0917\u0947 \u0914\u0930 \u0939\u0921\u094d\u0921\u0940 \u092e\u0947\u0902 \u0926\u0930\u094d\u0926/\u0938\u0942\u091c\u0928 \u0939\u094b'
+  + '\n\u2022 \u0905\u091a\u093e\u0928\u0915 \u092a\u0940\u0920 \u092f\u093e \u0915\u092e\u0930 \u092e\u0947\u0902 \u0926\u0930\u094d\u0926 \u0939\u094b \u092c\u093f\u0928\u093e \u0915\u093f\u0938\u0940 \u091a\u094b\u091f \u0915\u0947 (compression fracture \u0915\u093e \u0938\u0902\u0915\u0947\u0924 \u0939\u094b \u0938\u0915\u0924\u093e \u0939\u0948)';
 
 let ADD_DEXA_OPEN = false;
 let COMPARE_SELECTED = [];
@@ -7020,10 +7040,12 @@ function renderCompareView() {
 let DEXA_TEMP = null;
 function initDexaTemp() { DEXA_TEMP = { date: todayStr(), tScoreSpine:'', tScoreHip:'', tScoreWrist:'', notes:'' }; }
 
-function renderOsteoTab(p) {
+async function renderOsteoTab(p) {
   const o = p.osteo;
   const riskCount = OSTEO_RISK_FACTORS.filter(([k]) => o.riskFactors[k]).length;
   const overdueDexa = isOverdue(o.nextDexaDate);
+  const allImages = await dbGetAllImages();
+  revokeActiveUrls();
   let html = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
 
   html += '<div class="card" style="margin-bottom:12px;">'
@@ -7064,12 +7086,22 @@ function renderOsteoTab(p) {
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="osteo-cancel-add-dexa">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="osteo-submit-dexa">Save</button></div>'
       + '</div>';
   }
+  const dexaBoneHealthLink = homeCareInstructionsLink(p, DEXA_BONE_HEALTH_MESSAGE);
   [...o.dexaScans].reverse().forEach(scan => {
     const cat = worstDexaCategory(scan);
+    const scanImages = allImages.filter(im => im.dexaScanId === scan.id);
     html += '<div class="fu-card"><div class="row between"><span style="font-weight:800;">'+fmtDate(scan.date)+'</span>'+confirmBtn('osteo-delete-dexa', scan.id)+'</div>'
       + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">Spine '+(scan.tScoreSpine!==''&&scan.tScoreSpine!=null?scan.tScoreSpine:'\u2014')+' \u00b7 Hip '+(scan.tScoreHip!==''&&scan.tScoreHip!=null?scan.tScoreHip:'\u2014')+' \u00b7 Wrist '+(scan.tScoreWrist!==''&&scan.tScoreWrist!=null?scan.tScoreWrist:'\u2014')+'</p>'
       + (cat ? '<span class="badge '+cat.cls+'" style="margin-top:6px;display:inline-block;">'+cat.label+'</span>' : '')
       + (scan.notes ? '<p style="font-size:12px;color:#64748b;margin-top:6px;">'+esc(scan.notes)+'</p>' : '')
+      + '<div class="thumb-grid" style="margin-top:8px;">'
+      + scanImages.map(im => { const url = trackUrl(URL.createObjectURL(im.blob)); return '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>'; }).join('')
+      + '<label class="add-photo-tile" title="Attach scan report">'+ic('camera')+'<span>Scan report</span><input type="file" accept="image/*" multiple data-dexa-input="'+scan.id+'" style="display:none;"></label>'
+      + '</div>'
+      + '<div class="row gap2" style="margin-top:8px;flex-wrap:wrap;">'
+      + '<button type="button" class="btn" style="flex:1;font-size:11.5px;padding:8px;" data-action="ctev-jump-followup">'+ic('plus')+' Follow-up</button>'
+      + (dexaBoneHealthLink ? '<a href="'+esc(dexaBoneHealthLink)+'" target="_blank" rel="noopener" class="btn" style="flex:1;font-size:11.5px;padding:8px;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;text-align:center;">'+ic('message')+' Bone health tips</a>' : '')
+      + '</div>'
       + '</div>';
   });
 
@@ -8892,7 +8924,6 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'ov-switch-tab') { OV_SUBTAB = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-toggle-section') {
     const key = el.dataset.value;
     if (OV_EXPANDED.has(key)) OV_EXPANDED.delete(key); else OV_EXPANDED.add(key);
@@ -10881,6 +10912,20 @@ document.addEventListener('change', async (e) => {
   if (t.dataset && t.dataset.cbPhotoInput) {
     const val = t.dataset.cbPhotoInput;
     await handleCbPhotoInputChange(t, val === 'new' ? null : val);
+    return;
+  }
+  if (t.dataset && t.dataset.dexaInput) {
+    const dexaScanId = t.dataset.dexaInput;
+    const files = Array.from(t.files || []);
+    if (!files.length) return;
+    const p = getPatient(SELECTED_ID);
+    toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
+    for (const file of files) {
+      const blob = await resizeImageFile(file);
+      await dbAddImage({ id: uid(), patientId: p.id, dexaScanId, blob, createdAt: Date.now(), imageCategory: 'dexa-report' });
+    }
+    await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
   if (t.dataset && t.dataset.ctevInput) {
