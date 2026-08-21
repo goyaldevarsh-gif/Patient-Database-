@@ -12,6 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="OrthoVault">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.1/index.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
@@ -364,6 +365,12 @@
 
   .toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%) translateY(0); z-index:40; background:rgba(15,23,42,0.94); color:#fff; font-size:12px; font-weight:600; padding:8px 16px; border-radius:999px; opacity:1; transition:opacity 200ms ease, transform 200ms ease; max-width:90vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .toast.toast-hidden { opacity:0; transform:translateX(-50%) translateY(6px); pointer-events:none; }
+
+  .ocr-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); z-index:60; display:flex; align-items:flex-end; justify-content:center; }
+  .ocr-card { background:var(--bg,#fff); width:100%; max-width:520px; max-height:88vh; overflow-y:auto; border-radius:20px 20px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); box-shadow:0 -8px 30px rgba(0,0,0,0.25); }
+  [data-theme="dark"] .ocr-card { background:#1e293b; }
+  .ocr-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); }
+  .ocr-row:last-of-type { border-bottom:none; }
 
   .rx-sheet { max-width:520px; margin:0 auto; padding:22px 18px 40px; font-family:'Inter',sans-serif; color:#111827; }
   .rx-letterhead { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #1e293b; padding-bottom:12px; margin-bottom:14px; }
@@ -1998,6 +2005,161 @@ const LAB_PARAMETERS = [
   ['RBS','mg/dL'], ['Calcium','mg/dL'], ['Vitamin D3','ng/mL'], ['D-dimer','ng/mL'],
   ['Uric Acid','mg/dL'], ['ALP','U/L'], ['PTH','pg/mL'],
 ];
+
+/* ================= OCR: Lab report + demographic sticker scanning (Tesseract.js, on-device) ================= */
+let OCR_BUSY = false;
+let OCR_LAB_STAGE = null;     // { date, photoBlob, items:[{label,unit,value,checked}] }
+let OCR_STICKER_STAGE = null; // { name, age, sex, mobile }
+
+// Each pattern looks for a label word/phrase followed (within a short gap, allowing for
+// stray OCR punctuation) by a number. Kept intentionally loose \u2014 real lab report layouts
+// vary a lot, and the result is always shown to the user for review before anything saves.
+const OCR_LAB_PATTERNS = [
+  { label:'ESR', unit:'mm/hr', re:/\bESR\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'CRP', unit:'mg/L', re:/\bCRP\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'Hemoglobin', unit:'g/dL', re:/\b(?:Hemoglobin|Haemoglobin|Hb)\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'TLC/WBC', unit:'cells/\u00b5L', re:/\b(?:TLC|WBC|Total\s*Leu[ck]ocyte\s*Count)\b[^\d\-]{0,30}(\d+(?:\.\d+)?)/i },
+  { label:'Platelet Count', unit:'lakh/\u00b5L', re:/\bPlatelet(?:s)?(?:\s*Count)?\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'RBS', unit:'mg/dL', re:/\bRBS\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'Calcium', unit:'mg/dL', re:/\bCalcium\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'Vitamin D3', unit:'ng/mL', re:/\bVitamin\s*D3?\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'D-dimer', unit:'ng/mL', re:/\bD[\s\-]?dimer\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'Uric Acid', unit:'mg/dL', re:/\bUric\s*Acid\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'ALP', unit:'U/L', re:/\bALP\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'PTH', unit:'pg/mL', re:/\bPTH\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'Creatinine', unit:'mg/dL', re:/\bCreatinine\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'PT/INR', unit:'', re:/\bINR\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
+  { label:'T-score', unit:'', re:/\bT[\s\-]?score\b[^\d\-]{0,25}(-?\d+(?:\.\d+)?)/i },
+  { label:'Z-score', unit:'', re:/\bZ[\s\-]?score\b[^\d\-]{0,25}(-?\d+(?:\.\d+)?)/i },
+];
+function parseLabValuesFromOcrText(text) {
+  const found = [];
+  OCR_LAB_PATTERNS.forEach(p => {
+    const m = text.match(p.re);
+    if (m && m[1]) found.push({ label:p.label, unit:p.unit, value:m[1], checked:true });
+  });
+  return found;
+}
+function parseStickerFromOcrText(text) {
+  const nameM = text.match(/\bName\b\s*[:\-]?\s*([A-Za-z][A-Za-z .]{1,40})/i);
+  const ageM = text.match(/\bAge\b\s*[:\-]?\s*(\d{1,3})/i);
+  const sexM = text.match(/\bSex\b\s*[:\-]?\s*(Male|Female|M|F)\b/i);
+  const mobM = text.match(/\b(?:Mobile|Contact|Phone|Ph)\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*(\+?\d[\d\s\-]{8,14}\d)/i)
+            || text.match(/\b(\d{10})\b/);
+  return {
+    name: nameM ? nameM[1].trim().replace(/\s+/g,' ') : '',
+    age: ageM ? ageM[1] : '',
+    sex: sexM ? (sexM[1][0].toUpperCase()==='M' ? 'M' : 'F') : '',
+    mobile: mobM ? mobM[1].replace(/[\s\-]/g,'') : '',
+  };
+}
+async function runTesseractOcr(file) {
+  if (typeof Tesseract === 'undefined') throw new Error('OCR library did not load \u2014 check your internet connection and try again.');
+  const result = await Tesseract.recognize(file, 'eng', { logger: () => {} });
+  return (result && result.data && result.data.text) ? result.data.text : '';
+}
+function renderOcrOverlay() {
+  let root = document.getElementById('ocr-overlay-root');
+  if (!root) { root = document.createElement('div'); root.id = 'ocr-overlay-root'; document.body.appendChild(root); }
+  if (OCR_BUSY) {
+    root.innerHTML = '<div class="ocr-overlay"><div class="ocr-card" style="text-align:center;padding:36px 24px;border-radius:20px;max-width:320px;">'
+      + '<span class="spinner" style="width:22px;height:22px;border-width:3px;color:var(--accent);"></span>'
+      + '<p style="margin-top:14px;font-size:13px;font-weight:700;">Reading photo\u2026</p>'
+      + '<p style="font-size:11px;color:var(--muted);margin-top:4px;">Takes a few seconds</p>'
+      + '</div></div>';
+    return;
+  }
+  if (OCR_LAB_STAGE) { root.innerHTML = ocrLabModalHtml(); return; }
+  if (OCR_STICKER_STAGE) { root.innerHTML = ocrStickerModalHtml(); return; }
+  root.innerHTML = '';
+}
+function ocrLabScanButtonHtml() {
+  return '<label class="btn btn-outline-dashed btn-block" style="margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">'
+    + ic('camera') + ' Scan Lab Report (auto-fill)'
+    + '<input type="file" accept="image/*" id="ocr-labs-input" style="display:none;">'
+    + '</label>';
+}
+function ocrStickerScanButtonHtml() {
+  return '<label class="btn btn-outline-dashed btn-block" style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">'
+    + ic('camera') + ' Scan Sticker (auto-fill name/age/sex/mobile)'
+    + '<input type="file" accept="image/*" id="ocr-sticker-input" style="display:none;">'
+    + '</label>';
+}
+function ocrLabModalHtml() {
+  const s = OCR_LAB_STAGE;
+  const rows = s.items.map((it, idx) =>
+    '<div class="ocr-row">'
+    + '<label class="row gap2" style="align-items:center;flex:1;min-width:0;">'
+    + '<input type="checkbox" data-ocr-lab-check="'+idx+'"'+(it.checked?' checked':'')+' style="width:18px;height:18px;flex-shrink:0;">'
+    + '<span style="font-weight:700;font-size:12.5px;">'+esc(it.label)+'</span>'
+    + '</label>'
+    + '<input class="input" data-ocr-lab-value="'+idx+'" value="'+esc(it.value)+'" style="width:64px;flex-shrink:0;padding:6px 8px;" inputmode="decimal">'
+    + '<input class="input" data-ocr-lab-unit="'+idx+'" value="'+esc(it.unit)+'" style="width:70px;flex-shrink:0;padding:6px 8px;" placeholder="unit">'
+    + '</div>'
+  ).join('');
+  return '<div class="ocr-overlay">'
+    + '<div class="ocr-card">'
+    + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('camera')+' Lab Report Scanned</h3><button class="icon-btn" data-action="ocr-lab-cancel">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Found '+s.items.length+' value(s). Uncheck any you don\u2019t want, edit anything OCR misread.</p>'
+    + '<div style="margin-bottom:10px;"><label class="field-label">Date</label><input class="input" type="date" id="ocr-lab-date" value="'+esc(s.date)+'"></div>'
+    + rows
+    + '<div class="row gap2" style="margin-top:16px;"><button class="btn" style="flex:1;" data-action="ocr-lab-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ocr-lab-confirm">Add to Investigations</button></div>'
+    + '</div></div>';
+}
+function ocrStickerModalHtml() {
+  const s = OCR_STICKER_STAGE;
+  return '<div class="ocr-overlay">'
+    + '<div class="ocr-card">'
+    + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('camera')+' Sticker Scanned</h3><button class="icon-btn" data-action="ocr-sticker-cancel">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Review before filling the form \u2014 edit anything OCR misread.</p>'
+    + '<div style="display:flex;flex-direction:column;gap:10px;">'
+    + '<div><label class="field-label">Name</label><input class="input" id="ocr-sticker-name" value="'+esc(s.name)+'"></div>'
+    + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
+    + '<div><label class="field-label">Age</label><input class="input" type="number" min="0" id="ocr-sticker-age" value="'+esc(s.age)+'"></div>'
+    + '<div><label class="field-label">Sex</label><div class="seg">' + ['M','F'].map(v=>'<button type="button" class="seg-btn'+(s.sex===v?' active':'')+'" data-action="ocr-sticker-set-sex" data-value="'+v+'">'+v+'</button>').join('') + '</div></div>'
+    + '</div>'
+    + '<div><label class="field-label">Mobile</label><input class="input" type="tel" id="ocr-sticker-mobile" value="'+esc(s.mobile)+'"></div>'
+    + '</div>'
+    + '<div class="row gap2" style="margin-top:16px;"><button class="btn" style="flex:1;" data-action="ocr-sticker-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ocr-sticker-confirm">Use These Details</button></div>'
+    + '</div></div>';
+}
+async function handleOcrLabsScan(file) {
+  OCR_BUSY = true; renderOcrOverlay();
+  try {
+    const text = await runTesseractOcr(file);
+    const items = parseLabValuesFromOcrText(text);
+    if (!items.length) {
+      OCR_BUSY = false; renderOcrOverlay();
+      toast('No lab values found \u2014 try a clearer photo, or enter manually.');
+      return;
+    }
+    const photoBlob = await resizeImageFile(file);
+    OCR_BUSY = false;
+    OCR_LAB_STAGE = { date: todayStr(), photoBlob, items };
+    renderOcrOverlay();
+  } catch (err) {
+    OCR_BUSY = false; renderOcrOverlay();
+    toast('OCR failed: ' + (err && err.message ? err.message : 'unknown error'));
+  }
+}
+async function handleOcrStickerScan(file) {
+  OCR_BUSY = true; renderOcrOverlay();
+  try {
+    const text = await runTesseractOcr(file);
+    const data = parseStickerFromOcrText(text);
+    if (!data.name && !data.age && !data.sex && !data.mobile) {
+      OCR_BUSY = false; renderOcrOverlay();
+      toast('Could not read the sticker \u2014 try a clearer photo, or enter manually.');
+      return;
+    }
+    OCR_BUSY = false;
+    OCR_STICKER_STAGE = data;
+    renderOcrOverlay();
+  } catch (err) {
+    OCR_BUSY = false; renderOcrOverlay();
+    toast('OCR failed: ' + (err && err.message ? err.message : 'unknown error'));
+  }
+}
 const INJECTION_LIB_KEY = 'surgical-case-log-injection-lib-v1';
 function ageFieldHtml(p) {
   return '<div><label class="field-label">Age</label><div class="row gap2">'
@@ -4542,6 +4704,7 @@ function renderAddView() {
   const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
 
   const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
+      + ocrStickerScanButtonHtml()
       + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label><div class="row gap2">'
@@ -5878,7 +6041,7 @@ async function renderInvestigationsTab(p) {
       + '</div>';
   });
 
-  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+investigationTrendGraphsHtml(p)+addBlock+list+'</div>';
+  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+investigationTrendGraphsHtml(p)+ocrLabScanButtonHtml()+addBlock+list+'</div>';
 }
 
 function initRxTemp(prefillFollowUpDate) {
@@ -8081,6 +8244,71 @@ document.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.dataset.action;
+
+  if (action === 'ocr-lab-cancel') { OCR_LAB_STAGE = null; renderOcrOverlay(); return; }
+  if (action === 'ocr-sticker-cancel') { OCR_STICKER_STAGE = null; renderOcrOverlay(); return; }
+  if (action === 'ocr-sticker-set-sex') { OCR_STICKER_STAGE.sex = el.dataset.value; renderOcrOverlay(); return; }
+
+  if (action === 'ocr-sticker-confirm') {
+    const nameEl = document.getElementById('ocr-sticker-name');
+    const ageEl = document.getElementById('ocr-sticker-age');
+    const mobileEl = document.getElementById('ocr-sticker-mobile');
+    if (nameEl) OCR_STICKER_STAGE.name = nameEl.value;
+    if (ageEl) OCR_STICKER_STAGE.age = ageEl.value;
+    if (mobileEl) OCR_STICKER_STAGE.mobile = mobileEl.value;
+    if (VIEW === 'add') {
+      syncApTempFromDom();
+      if (OCR_STICKER_STAGE.name) AP_TEMP.name = OCR_STICKER_STAGE.name;
+      if (OCR_STICKER_STAGE.age) AP_TEMP.age = OCR_STICKER_STAGE.age;
+      if (OCR_STICKER_STAGE.sex) AP_TEMP.sex = OCR_STICKER_STAGE.sex;
+      if (OCR_STICKER_STAGE.mobile) AP_TEMP.whatsapp = OCR_STICKER_STAGE.mobile;
+      OCR_STICKER_STAGE = null;
+      renderOcrOverlay();
+      render();
+      toast('Patient details filled from sticker');
+    } else {
+      OCR_STICKER_STAGE = null;
+      renderOcrOverlay();
+    }
+    return;
+  }
+
+  if (action === 'ocr-lab-confirm') {
+    const p = getPatient(SELECTED_ID);
+    if (!p || !OCR_LAB_STAGE) { OCR_LAB_STAGE = null; renderOcrOverlay(); return; }
+    const dateEl = document.getElementById('ocr-lab-date');
+    const date = dateEl ? dateEl.value : OCR_LAB_STAGE.date;
+    const checkedItems = [];
+    OCR_LAB_STAGE.items.forEach((it, idx) => {
+      const checkEl = document.querySelector('[data-ocr-lab-check="'+idx+'"]');
+      const valueEl = document.querySelector('[data-ocr-lab-value="'+idx+'"]');
+      const unitEl = document.querySelector('[data-ocr-lab-unit="'+idx+'"]');
+      if (checkEl && checkEl.checked) {
+        checkedItems.push({
+          label: it.label,
+          value: valueEl ? valueEl.value.trim() : it.value,
+          unit: unitEl ? unitEl.value.trim() : it.unit,
+        });
+      }
+    });
+    if (!checkedItems.length) { toast('Nothing selected'); return; }
+    const photoBlob = OCR_LAB_STAGE.photoBlob;
+    p.investigations = p.investigations || [];
+    const newInvs = checkedItems.map(item => ({ id: uid(), label: item.label, date, notes: '', value: item.value, unit: item.unit, imageCount: photoBlob ? 1 : 0 }));
+    newInvs.forEach(inv => { p.investigations.push(inv); recordTextUsed(INVESTIGATION_LIB_KEY, inv.label); });
+    await dbPutPatient(p);
+    if (photoBlob) {
+      for (const inv of newInvs) {
+        await dbAddImage({ id: uid(), patientId: p.id, investigationId: inv.id, blob: photoBlob, createdAt: Date.now() });
+      }
+    }
+    await refreshPatients();
+    OCR_LAB_STAGE = null;
+    renderOcrOverlay();
+    toast('Added ' + checkedItems.length + ' investigation(s)');
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
 
   if (action === 'restore-from-cloud') {
     if (!CURRENT_USER) { toast('Sign in first'); return; }
@@ -10751,6 +10979,21 @@ document.addEventListener('change', async (e) => {
     const file = t.files && t.files[0];
     if (file) await importBackup(file);
     t.value = '';
+    return;
+  }
+
+  if (t.id === 'ocr-labs-input') {
+    const file = t.files && t.files[0];
+    t.value = '';
+    if (!file) return;
+    await handleOcrLabsScan(file);
+    return;
+  }
+  if (t.id === 'ocr-sticker-input') {
+    const file = t.files && t.files[0];
+    t.value = '';
+    if (!file) return;
+    await handleOcrStickerScan(file);
     return;
   }
 
