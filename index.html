@@ -3841,8 +3841,8 @@ function renderDashboardSection() {
   html += '</div>';
 
   /* 📅 TODAY — TODAY'S SCHEDULE */
-  const todayStr = new Date().toISOString().slice(0,10);
-  const patientsToday = PATIENTS.filter(p => p.nextFollowUpDate === todayStr || (p.surgeryDate && p.surgeryDate === todayStr)).length;
+  const todayDateStr = new Date().toISOString().slice(0,10);
+  const patientsToday = PATIENTS.filter(p => p.nextFollowUpDate === todayDateStr || (p.surgeryDate && p.surgeryDate === todayDateStr)).length;
   
   html += '<div class="card" style="margin-bottom:12px;padding:14px;border-color:var(--accent-border);background:var(--accent-bg);">'
     + '<div class="row between" style="margin-bottom:8px;">'
@@ -3858,7 +3858,7 @@ function renderDashboardSection() {
   const weekStr = weekFromNow.toISOString().slice(0,10);
   const patientsThisWeek = PATIENTS.filter(p => {
     const d = p.nextFollowUpDate || '';
-    return d > todayStr && d <= weekStr;
+    return d > todayDateStr && d <= weekStr;
   }).length;
 
   html += '<div class="card" style="margin-bottom:12px;padding:14px;border-color:var(--border);background:var(--bg-soft);">'
