@@ -925,6 +925,37 @@ function displayDiagnosis(s) {
 }
 function fmtDate(d) { if (!d) return '\u2014'; const dt = new Date(d); if (isNaN(dt)) return '\u2014'; return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function fmtDateShort(d) { if (!d) return '\u2014'; const dt = new Date(d); if (isNaN(dt)) return '\u2014'; return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}); }
+
+/* ============ Relative follow-up date picker (Number + Days/Weeks/Months → auto-locked date) ============ */
+function computeRelativeFollowupDate(num, unit) {
+  const n = parseInt(num, 10);
+  if (!n || n < 1) return '';
+  const d = new Date();
+  if (unit === 'weeks') d.setDate(d.getDate() + n * 7);
+  else if (unit === 'months') d.setMonth(d.getMonth() + n);
+  else d.setDate(d.getDate() + n); // days
+  return d.toISOString().slice(0,10);
+}
+function relfuPreviewText(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return '';
+  return '\ud83d\udd12 ' + fmtDate(dateStr) + ' (' + d.toLocaleDateString('en-IN',{weekday:'short'}) + ')';
+}
+function relativeFollowupPickerHtml(idPrefix, currentDate, autoMode) {
+  const autoAttr = autoMode ? ' data-relfu-mode="auto"' : '';
+  return '<div class="row gap2" style="align-items:flex-end;">'
+    + '<div style="flex:1;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">In</label>'
+    + '<input class="input" type="number" min="1" max="365" inputmode="numeric" placeholder="e.g. 2" id="'+idPrefix+'-num" data-relfu="num" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
+    + '</div>'
+    + '<div style="flex:1.3;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Unit</label>'
+    + '<select class="select" id="'+idPrefix+'-unit" data-relfu="unit" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
+    + '<option value="days">Days</option><option value="weeks" selected>Weeks</option><option value="months">Months</option>'
+    + '</select></div>'
+    + '</div>'
+    + '<div id="'+idPrefix+'-preview" style="font-size:12px;font-weight:800;color:var(--accent);margin-top:6px;min-height:16px;">'+relfuPreviewText(currentDate)+'</div>'
+    + '<input type="hidden" id="'+idPrefix+'" value="'+esc(currentDate||'')+'">';
+}
 function todayStr() { return new Date().toISOString().slice(0,10); }
 
 const SURGERY_TYPES = ['Arthroplasty','Arthroscopy','Trauma','Spine','Other'];
@@ -3936,13 +3967,11 @@ function renderQuickFuModal() {
   if (!QUICK_FU_PATIENT_ID) { root.innerHTML = ''; return; }
   const p = getPatient(QUICK_FU_PATIENT_ID);
   if (!p) { root.innerHTML = ''; QUICK_FU_PATIENT_ID = null; return; }
-  const d = new Date(); d.setDate(d.getDate()+7);
-  const defaultDate = d.toISOString().slice(0,10);
   root.innerHTML = '<div class="ocr-overlay">'
     + '<div class="ocr-card">'
     + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('calendar')+' Follow-up for '+esc(p.name)+'</h3><button class="icon-btn" data-action="quick-fu-cancel">'+ic('x')+'</button></div>'
     + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Sets this patient\u2019s next follow-up date \u2014 shows up on Dashboard\u2019s Needs Attention when due.</p>'
-    + '<div style="margin-bottom:14px;"><label class="field-label">Date</label><input class="input" type="date" id="quick-fu-date" value="'+esc(p.nextFollowUpDate || defaultDate)+'"></div>'
+    + '<div style="margin-bottom:14px;">'+relativeFollowupPickerHtml('quick-fu-date', p.nextFollowUpDate || '', false)+'</div>'
     + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="quick-fu-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="quick-fu-save" data-patient-id="'+p.id+'">Save</button></div>'
     + '</div></div>';
 }
@@ -4989,7 +5018,7 @@ function renderOverviewTab(p) {
     + '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up'+(overdue?' \u2014 OVERDUE':(p.nextFollowUpDate?'':' \u2014 not scheduled'))+'</label>'
     + (!p.nextFollowUpDate && !OV_SHOW_SCHEDULE ? '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>' : '')
     + '</div>'
-    + (p.nextFollowUpDate || OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" value="'+esc(p.nextFollowUpDate)+'" style="margin-top:6px;">' : '')
+    + (p.nextFollowUpDate || OV_SHOW_SCHEDULE ? '<div style="margin-top:6px;">'+relativeFollowupPickerHtml('ov-fu', p.nextFollowUpDate, true)+'</div>' : '')
     + (overdue && overdueDays(p.nextFollowUpDate) >= 3 ? '<div class="row" style="gap:6px;margin-top:8px;">'
         + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-followup" data-id="'+p.id+'">'+ic('clock')+' Snooze 7d</button>'
         + (ARMED_DELETE === 'attn-mark-lost:'+p.id
@@ -5047,7 +5076,7 @@ function renderOverviewTab(p) {
     + ovSnapCell('clock', 'Next Follow-up', overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'Not scheduled'), fuColor)
     + '</div>'
     + (p.nextFollowUpDate ? '<div style="text-align:right;font-size:11px;color:'+fuColor+';font-style:italic;">('+relativeDaysUntil(p.nextFollowUpDate)+')</div>'
-        : '<div style="text-align:right;">'+(OV_SHOW_SCHEDULE ? '<input class="input" type="date" data-field="nextFollowUpDate" style="max-width:160px;display:inline-block;">' : '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>')+'</div>')
+        : '<div style="text-align:right;">'+(OV_SHOW_SCHEDULE ? '<div style="display:inline-block;max-width:220px;text-align:left;">'+relativeFollowupPickerHtml('ov-fu-snap', '', true)+'</div>' : '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>')+'</div>')
     + (isSurgical && p.procedure ? '<div style="padding-top:8px;border-top:1px solid var(--border);">'+ovSnapCell('clipboard','Procedure', p.procedure)+'</div>' : '')
     + (isSurgical && (p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+ovSnapCell('clipboard','Hospital', p.hospital)+ovSnapCell('shield','Anaesthesia', p.anaesthesiaType)+'</div>' : '')
     + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '');
@@ -5106,6 +5135,7 @@ function renderOverviewTab(p) {
       ) : '')
     + '<div class="row" style="justify-content:flex-end;gap:8px;">'
     + '<button class="icon-btn" data-action="open-export-summary" title="Export / Share Case Summary">'+ic('printer')+'</button>'
+    + '<button class="icon-btn" data-action="download-case-zip" data-id="'+p.id+'" title="Download all photos + labs (zip)">'+ic('download')+'</button>'
     + (isAiTier() ? '<button class="icon-btn" data-action="open-patient-ai-tools" title="AI Tools">'+ic('sparkle')+'</button>' : '')
     + '<button class="icon-btn" data-action="duplicate-case" title="Duplicate Case">'+ic('copy')+'</button>'
     + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
@@ -5787,16 +5817,28 @@ const XRAY_SUBTYPES = ['General OPD','Pre-Reduction','Post-Reduction','Pre-op','
 const FU_XRAY_SUBTYPES = XRAY_SUBTYPES.filter(s => s !== 'Pre-Reduction' && s !== 'Pre-op').concat('Follow-up');
 const ALL_XRAY_SUBTYPES = XRAY_SUBTYPES.concat('Follow-up'); // for manually relabeling any x-ray in the viewer
 
+function thumbWrapHtml(im) {
+  const url = trackUrl(URL.createObjectURL(im.blob));
+  const isVid = im.blob && im.blob.type && im.blob.type.indexOf('video/') === 0;
+  const inner = isVid ? '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1e293b;color:#fff;">'+ic('video')+'</div>' : '<img src="'+url+'">';
+  if (IMGREC_SELECT_MODE) {
+    const selected = IMGREC_SELECTED_IDS.has(im.id);
+    return '<div class="thumb-wrap" data-action="toggle-select-image" data-imgid="'+im.id+'" style="cursor:pointer;'+(selected?'outline:3px solid var(--accent);outline-offset:-3px;':'')+'">'
+      + inner
+      + '<span class="thumb-date">'+fmtDate(im.createdAt)+'</span>'
+      + '<span style="position:absolute;top:5px;left:5px;width:20px;height:20px;border-radius:50%;background:'+(selected?'var(--accent)':'rgba(255,255,255,0.85)')+';border:2px solid '+(selected?'var(--accent)':'#94a3b8')+';display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:900;">'+(selected?'\u2713':'')+'</span>'
+      + '</div>';
+  }
+  return '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'">'
+    + inner
+    + '<span class="thumb-date">'+fmtDate(im.createdAt)+'</span></div>';
+}
 function imageBucketGridHtml(images, uploadAttrs, isVideo) {
   let grid = '<div class="thumb-grid">';
-  images.forEach(im => {
-    const url = trackUrl(URL.createObjectURL(im.blob));
-    const isVid = im.blob && im.blob.type && im.blob.type.indexOf('video/') === 0;
-    grid += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'">'
-      + (isVid ? '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1e293b;color:#fff;">'+ic('video')+'</div>' : '<img src="'+url+'">')
-      + '<span class="thumb-date">'+fmtDate(im.createdAt)+'</span></div>';
-  });
-  grid += '<label class="add-photo-tile">'+ic(isVideo?'video':'camera')+'<span>Add</span><input type="file" accept="'+(isVideo?'video/*':'image/*')+'" multiple '+uploadAttrs+' style="display:none;"></label>';
+  images.forEach(im => { grid += thumbWrapHtml(im); });
+  if (!IMGREC_SELECT_MODE) {
+    grid += '<label class="add-photo-tile">'+ic(isVideo?'video':'camera')+'<span>Add</span><input type="file" accept="'+(isVideo?'video/*':'image/*')+'" multiple '+uploadAttrs+' style="display:none;"></label>';
+  }
   grid += '</div>';
   return grid;
 }
@@ -5807,8 +5849,8 @@ function imageBucketCardHtml(title, images, category, subtype, readonly) {
     + '<label class="field-label">'+esc(title)+' <span style="color:var(--muted);font-weight:500;">('+images.length+')</span></label>'
     + (isVideo ? '<p style="font-size:10.5px;color:var(--muted);margin:2px 0 8px;">Keep clips short (a few seconds) \u2014 video takes up much more space than photos, on this device and in cloud backup.</p>' : '')
     + (readonly
-        ? (images.length ? '<div class="thumb-grid">'+images.map(im=>{const url=trackUrl(URL.createObjectURL(im.blob));return '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"><span class="thumb-date">'+fmtDate(im.createdAt)+'</span></div>';}).join('')+'</div>' : '<p style="font-size:11.5px;color:var(--muted);margin:0;">Added automatically from Follow-Up visit photos.</p>')
-        : '<div style="position:relative;">'+imageBucketGridHtml(images, uploadAttrs, isVideo)+(isVideo?'':cameraFabHtml(uploadAttrs))+'</div>')
+        ? (images.length ? '<div class="thumb-grid">'+images.map(im=>thumbWrapHtml(im)).join('')+'</div>' : '<p style="font-size:11.5px;color:var(--muted);margin:0;">Added automatically from Follow-Up visit photos.</p>')
+        : '<div style="position:relative;">'+imageBucketGridHtml(images, uploadAttrs, isVideo)+(isVideo||IMGREC_SELECT_MODE?'':cameraFabHtml(uploadAttrs))+'</div>')
     + '</div>';
 }
 
@@ -5817,10 +5859,25 @@ const IMGREC_GROUPS = [
   { key:'clinical', label:'Clinical / Wound', categories:['clinical','wound'] },
   { key:'labs', label:'Labs / Reports', categories:['investigations'] },
 ];
+let IMGREC_SELECT_MODE = false;
+let IMGREC_SELECTED_IDS = new Set();
 function imgrecCatLabel(k) { const f = IMAGES_RECORDS_SECTIONS.find(s=>s[0]===k); return f?f[1]:k; }
 async function renderImagesRecordsTab(p) {
   const activeGroup = IMGREC_GROUPS.find(g => g.categories.includes(IMAGES_RECORDS_SUBVIEW));
   const segHtml = '<div class="px" style="padding-top:12px;padding-bottom:0;">'
+    + (IMGREC_SELECT_MODE
+        ? '<div class="row between" style="margin-bottom:8px;align-items:center;">'
+          + '<span style="font-size:12px;font-weight:700;color:var(--ink);">'+IMGREC_SELECTED_IDS.size+' selected</span>'
+          + '<div class="row gap2">'
+          + '<button class="btn btn-sm" data-action="imgrec-cancel-select">Cancel</button>'
+          + '<button class="btn btn-sm"'+(IMGREC_SELECTED_IDS.size?' style="background:#25D366;border-color:#25D366;color:#fff;"':' disabled style="opacity:0.4;"')+' data-action="imgrec-share-selected" data-id="'+p.id+'">'+ic('upload')+' Share</button>'
+          + '</div></div>'
+        : '<div class="row between" style="margin-bottom:8px;">'
+          + '<span style="font-size:11px;color:var(--muted);">All photos, X-rays &amp; labs for this case</span>'
+          + '<div class="row gap2">'
+          + '<button class="btn btn-sm" data-action="imgrec-enter-select">'+ic('check')+' Select</button>'
+          + '<button class="btn btn-sm" data-action="download-case-zip" data-id="'+p.id+'">'+ic('download')+' Download all</button>'
+          + '</div></div>')
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
     + IMGREC_GROUPS.map(g => '<button class="chip'+(activeGroup && activeGroup.key===g.key?' active':'')+'" data-action="imgrec-set-subview" data-value="'+g.categories[0]+'">'+g.label+'</button>').join('')
     + '<button class="chip'+(IMAGES_RECORDS_SUBVIEW==='injections'?' active':'')+'" data-action="imgrec-set-subview" data-value="injections">Injections</button>'
@@ -5913,12 +5970,9 @@ async function renderFollowupsTab(p) {
       + '<div class="row between" style="margin-top:10px;"><label class="field-label" style="margin-bottom:0;">Next follow-up date (optional)</label>'
       + (isAiTier() ? '<span style="display:inline-block;transform:scale(0.85);transform-origin:left center;">'+aiButtonHtml('ai-suggest-followup','AI suggest',false,null,'gemini')+'</span>' : '')
       + '</div>'
-      + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
-      + [['3d','+3 Days'],['1w','+1 Week'],['2w','+2 Weeks'],['3w','+3 Weeks'],['1m','+1 Month']].map(([v,l])=>'<button type="button" class="chip" data-action="fu-set-next-followup" data-value="'+v+'">'+l+'</button>').join('')
-      + '</div>'
-      + '<input class="input" id="fu-next-followup" type="date" value="">'
+      + relativeFollowupPickerHtml('fu-next-followup', '', false)
       + '<div id="ai-followup-suggestion" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
-      + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">This replaces the patient\u2019s \u201cnext follow-up due\u201d date. Starts blank \u2014 pick a preset above or a date if another visit is needed, otherwise it\u2019s cleared (no longer overdue) once you save.</p>'
+      + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">This replaces the patient\u2019s \u201cnext follow-up due\u201d date. Leave blank if no further visit is needed \u2014 it\u2019ll be cleared (no longer overdue) once you save.</p>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-fu">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-fu">Save visit</button></div>'
       + '</div>';
   }
@@ -6721,7 +6775,7 @@ async function renderTabBody(p) {
   if (!el) return;
   if (TAB === 'overview') { el.innerHTML = renderOverviewTab(p); return; }
   if (TAB === 'ctev') { el.innerHTML = await renderCtevTab(p); return; }
-  if (TAB === 'timeline') { el.innerHTML = renderTimelineTab(p); return; }
+  if (TAB === 'timeline') { el.innerHTML = await renderTimelineTab(p); return; }
   if (TAB === 'ra') { el.innerHTML = renderRaTab(p); return; }
   if (TAB === 'osteo') { el.innerHTML = await renderOsteoTab(p); return; }
   el.innerHTML = '<div class="px" style="padding-top:14px;">'
@@ -6741,7 +6795,7 @@ async function renderTabBody(p) {
   else if (TAB === 'photos') el.innerHTML = await renderPhotoOrganiserTab(p);
 }
 
-function renderTimelineTab(p) {
+async function renderTimelineTab(p) {
   let events = [];
   if (p.caseType === 'surgical' && p.surgeryDate) {
     events.push({ date: p.surgeryDate, icon:'clipboard', color:'var(--accent)', bg:'#eef2ff', title: 'Surgery: ' + (p.procedure || p.surgeryType), sub: (p.side && p.side !== 'N/A') ? p.side : null, jumpTab: 'overview' });
@@ -6751,10 +6805,23 @@ function renderTimelineTab(p) {
   (p.followUps||[]).forEach(f => events.push({ date: f.date, icon:'calendar', color:'#0d9488', bg:'#ccfbf1', title: 'Follow-up: ' + f.label, sub: (f.woundStatus && f.woundStatus!=='N/A') ? ('Wound: ' + f.woundStatus) : (f.notes || null), jumpTab: 'followups', jumpId: f.id }));
   (p.investigations||[]).forEach(inv => events.push({ date: inv.date, icon:'file', color:'#7c3aed', bg:'#f3e8ff', title: 'Investigation: ' + inv.label, sub: inv.notes || null, jumpTab: 'investigations', jumpId: inv.id }));
   (p.prescriptions||[]).forEach(rx => events.push({ date: rx.date, icon:'printer', color:'#c2410c', bg:'#ffedd5', title: 'Prescription', sub: (rx.medicines||[]).map(m=>m.name).filter(Boolean).join(', ') || null, jumpTab: 'prescriptions', jumpId: rx.id }));
+  (p.activityLog||[]).forEach(a => events.push({ date: a.createdAt, icon:'pencil', color:'#b45309', bg:'#fef3c7', title: a.text, sub: null, jumpTab: 'overview' }));
+  try {
+    const images = await dbGetImagesByPatient(p.id);
+    images.forEach(im => {
+      const catLabel = im.imageCategory === 'xray' ? 'X-ray added' + (im.xraySubtype ? ' (' + im.xraySubtype + ')' : '')
+        : im.imageCategory === 'wound' || im.isWoundPhoto ? 'Wound photo added'
+        : im.imageCategory === 'clinical-bank' ? 'Clinical Bank photo added'
+        : im.imageCategory === 'clinical' ? 'Clinical photo added'
+        : 'Photo added';
+      const icon = im.imageCategory === 'xray' ? 'file' : im.imageCategory === 'wound' || im.isWoundPhoto ? 'heart' : 'camera';
+      events.push({ date: im.createdAt, icon, color:'#0369a1', bg:'#e0f2fe', title: catLabel, sub: null, jumpTab: 'imagesrecords' });
+    });
+  } catch (e) { /* images not available offline-safe skip */ }
   events = events.filter(e => e.date).sort((a,b) => new Date(a.date) - new Date(b.date));
 
   if (!events.length) {
-    return '<div class="px" style="padding-top:14px;padding-bottom:20px;"><div style="text-align:center;color:var(--muted);font-size:12px;padding:30px 0;">No timeline events yet \u2014 they\u2019ll show up here as soon as you add follow-ups, investigations, or a prescription.</div></div>';
+    return '<div class="px" style="padding-top:14px;padding-bottom:20px;"><div style="text-align:center;color:var(--muted);font-size:12px;padding:30px 0;">No timeline events yet \u2014 they\u2019ll show up here as soon as you add follow-ups, investigations, photos, or a prescription.</div></div>';
   }
   const rows = events.map(e => '<div class="tl-row">'
     + '<div class="tl-dot" style="background:'+e.bg+';color:'+e.color+';"><svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px;stroke:'+e.color+';">'+ICONS[e.icon]+'</svg></div>'
@@ -7754,6 +7821,7 @@ async function renderImageViewerFrame(url, imgId) {
     + (hasGallery ? '<span style="color:#fff;font-size:12px;opacity:0.75;">'+(IMG_GALLERY_IDX+1)+' / '+IMG_GALLERY.length+'</span>' : '<span></span>')
     + '<div class="row gap2">'
     + (isVid ? '' : '<button class="modal-btn" data-action="viewer-zoom-out" title="Zoom out" style="font-weight:800;font-size:18px;">\u2212</button><button class="modal-btn" data-action="viewer-zoom-in" title="Zoom in" style="font-weight:800;font-size:16px;">+</button>')
+    + '<button class="modal-btn" data-action="viewer-share" data-imgid="'+imgId+'" title="Share">'+ic('upload')+'</button>'
     + '<button class="modal-btn" data-action="viewer-download" data-url="'+esc(url)+'" data-filename="'+esc(downloadName)+'" title="Download">'+ic('download')+'</button>'
     + '<button class="modal-btn" data-action="viewer-delete" data-imgid="'+imgId+'">'+ic('trash')+'</button>'
     + '<button class="modal-btn" data-action="viewer-close">'+ic('x')+'</button>'
@@ -7853,6 +7921,120 @@ function exportCaseLogCsv() {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   toast('Case log exported \u2014 ' + PATIENTS.length + ' cases');
+}
+
+/* Share multiple selected images at once (native share sheet). Falls back to a small zip download
+   if the device/browser doesn't support multi-file sharing. */
+async function shareSelectedImages(patientId) {
+  if (!IMGREC_SELECTED_IDS.size) return;
+  const p = getPatient(patientId);
+  const ids = Array.from(IMGREC_SELECTED_IDS);
+  toast('Preparing ' + ids.length + ' image' + (ids.length!==1?'s':'') + '\u2026');
+  try {
+    const files = [];
+    for (const id of ids) {
+      const rec = await dbGetImage(id);
+      if (!rec || !rec.blob) continue;
+      const isVid = rec.blob.type && rec.blob.type.indexOf('video/') === 0;
+      const ext = isVid ? '.mp4' : '.jpg';
+      const dateTag = rec.createdAt ? new Date(rec.createdAt).toISOString().slice(0,10) : 'undated';
+      const name = (p ? p.name.replace(/[^a-zA-Z0-9]+/g,'-') : 'photo') + '-' + dateTag + '-' + (files.length+1) + ext;
+      files.push(new File([rec.blob], name, { type: rec.blob.type || (isVid ? 'video/mp4' : 'image/jpeg') }));
+    }
+    if (!files.length) { toast('No images found to share'); return; }
+
+    if (navigator.canShare && navigator.canShare({ files })) {
+      await navigator.share({ files, title: (p ? p.name + ' \u2014 ' : '') + files.length + ' photo' + (files.length!==1?'s':'') });
+    } else if (typeof JSZip !== 'undefined') {
+      const zip = new JSZip();
+      files.forEach(f => zip.file(f.name, f));
+      const blob = await zip.generateAsync({type:'blob'});
+      const filename = 'OrthoVault-selected-photos-' + todayStr() + '.zip';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      toast('Direct share isn\u2019t supported here \u2014 downloaded as a zip instead');
+    } else {
+      toast('Sharing isn\u2019t supported on this device');
+      return;
+    }
+    IMGREC_SELECT_MODE = false;
+    IMGREC_SELECTED_IDS = new Set();
+    await renderTabBody(getPatient(patientId));
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;
+    toast('Share failed: ' + (err.message || 'unknown error'));
+  }
+}
+
+/* Download everything for one case \u2014 images (X-rays, clinical, wound) + a readable text summary of
+   investigations/follow-ups/prescriptions \u2014 as a single zip. Uses the same JSZip already loaded for backups. */
+async function exportCaseZip(patientId) {
+  if (typeof JSZip === 'undefined') { toast('Download tool failed to load \u2014 check your internet connection'); return; }
+  const p = getPatient(patientId);
+  if (!p) { toast('Patient not found'); return; }
+  toast('Preparing case download\u2026');
+  try {
+    const zip = new JSZip();
+
+    let summary = 'OrthoVault Case Summary\n========================\n\n';
+    summary += 'Name: ' + (p.name||'') + '\n';
+    summary += 'Age / Sex: ' + formatAge(p) + ' / ' + (p.sex||'') + '\n';
+    summary += 'Diagnosis: ' + (displayDiagnosis(p.diagnosis) || p.chiefComplaints || '') + '\n';
+    if (p.caseType === 'surgical') {
+      summary += 'Procedure: ' + (p.procedure || p.surgeryType || '') + '\n';
+      summary += 'Surgery Date: ' + fmtDate(p.surgeryDate) + '\n';
+    }
+    summary += '\n--- Investigations / Labs ---\n';
+    (p.investigations||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(inv => {
+      summary += fmtDate(inv.date) + '  ' + inv.label + (inv.value ? (': ' + inv.value + ' ' + (inv.unit||'')) : '') + (inv.notes ? (' \u2014 ' + inv.notes) : '') + '\n';
+    });
+    if (!(p.investigations||[]).length) summary += '(none)\n';
+    summary += '\n--- Follow-ups ---\n';
+    (p.followUps||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(f => {
+      summary += fmtDate(f.date) + '  ' + f.label + (f.notes ? (' \u2014 ' + f.notes) : '') + '\n';
+    });
+    if (!(p.followUps||[]).length) summary += '(none)\n';
+    summary += '\n--- Prescriptions ---\n';
+    (p.prescriptions||[]).slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(rx => {
+      summary += fmtDate(rx.date) + '  ' + (rx.medicines||[]).map(m=>m.name).filter(Boolean).join(', ') + '\n';
+    });
+    if (!(p.prescriptions||[]).length) summary += '(none)\n';
+    zip.file('case-summary.txt', summary);
+
+    const images = await dbGetImagesByPatient(patientId);
+    let idx = 1;
+    for (const im of images) {
+      const folder = im.imageCategory === 'xray' ? 'xrays'
+        : (im.imageCategory === 'wound' || im.isWoundPhoto) ? 'wound-photos'
+        : im.followUpId ? 'followup-photos'
+        : im.investigationId ? 'investigation-photos'
+        : 'clinical-photos';
+      const dateTag = im.createdAt ? new Date(im.createdAt).toISOString().slice(0,10) : 'undated';
+      zip.file(folder + '/' + dateTag + '_' + String(idx).padStart(3,'0') + '.jpg', im.blob);
+      idx++;
+    }
+
+    const blob = await zip.generateAsync({type:'blob'});
+    const safeName = (p.name||'patient').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'patient';
+    const filename = 'OrthoVault-' + safeName + '-' + todayStr() + '.zip';
+    const file = new File([blob], filename, { type: 'application/zip' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+    toast('\u2713 Case downloaded \u2014 ' + images.length + ' image' + (images.length!==1?'s':'') + ' + summary');
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;
+    toast('Download failed: ' + (err.message || 'unknown error'));
+  }
 }
 
 async function exportBackup(auto) {
@@ -9839,7 +10021,11 @@ async function generatePersonalizedReminderMessage(p) {
       raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
       const parsed = JSON.parse(raw);
       const dateEl = document.getElementById('fu-next-followup');
-      if (dateEl && parsed.date) dateEl.value = parsed.date;
+      if (dateEl && parsed.date) {
+        dateEl.value = parsed.date;
+        const prev = document.getElementById('fu-next-followup-preview');
+        if (prev) prev.textContent = relfuPreviewText(parsed.date);
+      }
       if (statusEl) statusEl.textContent = parsed.reason ? ('Suggested: ' + fmtDate(parsed.date) + ' \u2014 ' + parsed.reason) : '';
     } catch (err) {
       console.error('AI follow-up suggestion failed:', err);
@@ -9847,16 +10033,6 @@ async function generatePersonalizedReminderMessage(p) {
     }
     el.innerHTML = originalHtml;
     el.disabled = false;
-    return;
-  }
-  if (action === 'fu-set-next-followup') {
-    const inp = document.getElementById('fu-next-followup');
-    if (!inp) return;
-    const map = { '3d':3, '1w':7, '2w':14, '3w':21, '1m':30 };
-    const days = map[el.dataset.value] || 0;
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    inp.value = d.toISOString().slice(0,10);
     return;
   }
   if (action === 'submit-fu') {
@@ -10039,6 +10215,26 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'viewer-close') { closeImageViewer(); return; }
   if (action === 'viewer-zoom-in') { ensureViewerBaseSize(); ZOOM_SCALE = Math.min(4, ZOOM_SCALE + 0.5); clampPan(); applyZoomTransform(); return; }
   if (action === 'viewer-zoom-out') { ensureViewerBaseSize(); ZOOM_SCALE = Math.max(1, ZOOM_SCALE - 0.5); if (ZOOM_SCALE === 1) { ZOOM_TX = 0; ZOOM_TY = 0; } else { clampPan(); } applyZoomTransform(); return; }
+  if (action === 'viewer-share') {
+    const imgId = el.dataset.imgid;
+    const rec = await dbGetImage(imgId);
+    if (!rec || !rec.blob) { toast('Image not found'); return; }
+    const isVid = rec.blob.type && rec.blob.type.indexOf('video/') === 0;
+    const patient = rec.patientId ? getPatient(rec.patientId) : null;
+    const name = (patient ? patient.name.replace(/[^a-zA-Z0-9]+/g,'-') : 'photo') + '-' + todayStr() + (isVid ? '.mp4' : '.jpg');
+    const file = new File([rec.blob], name, { type: rec.blob.type || (isVid ? 'video/mp4' : 'image/jpeg') });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: name });
+      } else {
+        toast('Direct share isn\u2019t supported on this device \u2014 use Download instead');
+      }
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      toast('Share failed: ' + (err.message || 'unknown error'));
+    }
+    return;
+  }
   if (action === 'viewer-download') {
     const a = document.createElement('a');
     a.href = el.dataset.url;
@@ -10072,6 +10268,42 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
 
+  if (action === 'imgrec-enter-select') {
+    IMGREC_SELECT_MODE = true;
+    IMGREC_SELECTED_IDS = new Set();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'imgrec-cancel-select') {
+    IMGREC_SELECT_MODE = false;
+    IMGREC_SELECTED_IDS = new Set();
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'toggle-select-image') {
+    const imgId = el.dataset.imgid;
+    if (IMGREC_SELECTED_IDS.has(imgId)) IMGREC_SELECTED_IDS.delete(imgId);
+    else IMGREC_SELECTED_IDS.add(imgId);
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'imgrec-share-selected') {
+    const patientId = el.dataset.id;
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span>';
+    el.disabled = true;
+    await shareSelectedImages(patientId);
+    if (IMGREC_SELECT_MODE) { el.innerHTML = originalHtml; el.disabled = false; }
+    return;
+  }
+  if (action === 'download-case-zip') {
+    const patientId = el.dataset.id;
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span>';
+    el.disabled = true;
+    try { await exportCaseZip(patientId); } finally { el.innerHTML = originalHtml; el.disabled = false; }
+    return;
+  }
   if (action === 'export-backup') {
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Exporting\u2026';
@@ -10951,6 +11183,23 @@ async function render_only_current_view() {
 document.addEventListener('change', async (e) => {
   const t = e.target;
 
+  if (t.dataset && t.dataset.relfu) {
+    const target = t.dataset.relfuTarget;
+    const numEl = document.getElementById(target+'-num');
+    const unitEl = document.getElementById(target+'-unit');
+    const date = computeRelativeFollowupDate(numEl ? numEl.value : '', unitEl ? unitEl.value : 'weeks');
+    const hidden = document.getElementById(target);
+    if (hidden) hidden.value = date;
+    const prev = document.getElementById(target+'-preview');
+    if (prev) prev.textContent = relfuPreviewText(date);
+    if (t.dataset.relfuMode === 'auto' && date) {
+      await patchField('nextFollowUpDate', date);
+      toast('\u2713 Follow-up set for ' + fmtDate(date));
+      await render();
+    }
+    return;
+  }
+
   if (t.id === 'ap-condition') { 
     if (['ctev','ra','osteoporosis'].includes(t.value) && !isProOrAbove()) {
       toast('Special Tracking is a Pro feature. Upgrade to use this.');
@@ -11146,6 +11395,11 @@ document.addEventListener('change', async (e) => {
     if (t.dataset.field === 'diagnosis') {
       recordTextUsed(DIAGNOSIS_LIB_KEY, t.value);
       const p = getPatient(SELECTED_ID);
+      if (p && t.value && t.value.trim()) {
+        p.activityLog = p.activityLog || [];
+        p.activityLog.push({ id: uid(), type: 'diagnosis', text: 'Diagnosis updated: ' + t.value.trim(), createdAt: Date.now() });
+        await dbPutPatient(p); await refreshPatients();
+      }
       if (p && p.caseType === 'opd' && !p.condition) {
         const guess = autoDetectCondition(t.value + ' ' + (p.chiefComplaints||''));
         if (guess) {
@@ -11303,6 +11557,15 @@ document.addEventListener('change', async (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  if (e.target.dataset && e.target.dataset.relfu === 'num') {
+    const target = e.target.dataset.relfuTarget;
+    const unitEl = document.getElementById(target+'-unit');
+    const date = computeRelativeFollowupDate(e.target.value, unitEl ? unitEl.value : 'weeks');
+    const hidden = document.getElementById(target);
+    if (hidden) hidden.value = date;
+    const prev = document.getElementById(target+'-preview');
+    if (prev) prev.textContent = relfuPreviewText(date);
+  }
   if (e.target.id === 'ov-soap-dictate-input') { OV_SOAP_DICTATE_TEXT = e.target.value; }
   if (e.target.id === 'ai-referral-specialist') { AI_REFERRAL_SPECIALIST = e.target.value; }
   if (e.target.id === 'ai-referral-reason') { AI_REFERRAL_REASON = e.target.value; }
