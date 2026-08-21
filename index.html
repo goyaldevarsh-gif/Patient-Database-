@@ -4890,6 +4890,19 @@ function renderOverviewTab(p) {
     + reminderMiniCardHtml(p);
 
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
+    + (isAiTier() ? (
+        AI_PATIENT_SUMMARY
+          ? '<div class="card" style="padding:11px 14px;">'
+              + '<span style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.02em;display:flex;align-items:center;gap:5px;margin-bottom:4px;"><span style="transform:scale(0.75);display:inline-flex;">'+ic('sparkle')+'</span>AI Summary</span>'
+              + '<p style="font-size:12.5px;color:var(--ink);margin:0 0 6px;line-height:1.5;">'+esc(AI_PATIENT_SUMMARY)+'</p>'
+              + '<button type="button" class="chip" style="font-size:10.5px;padding:3px 9px;" data-action="ai-summarize-patient">Regenerate</button>'
+              + '</div>'
+          : '<button type="button" class="card" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;" data-action="ai-summarize-patient">'
+              + '<span style="width:26px;height:26px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent);">'+ic('sparkle')+'</span>'
+              + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12.5px;font-weight:700;color:var(--ink);">AI Summary</span><span style="display:block;font-size:11px;color:var(--muted);">Tap for a 10-second recap</span></span>'
+              + '<span style="color:var(--muted);flex-shrink:0;">'+ic('chevron')+'</span>'
+              + '</button>'
+      ) : '')
     + '<div class="row" style="justify-content:flex-end;gap:8px;">'
     + '<button class="icon-btn" data-action="open-export-summary" title="Export / Share Case Summary">'+ic('printer')+'</button>'
     + (isAiTier() ? '<button class="icon-btn" data-action="open-patient-ai-tools" title="AI Tools">'+ic('sparkle')+'</button>' : '')
