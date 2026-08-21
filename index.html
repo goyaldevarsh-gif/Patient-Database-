@@ -12,7 +12,6 @@
 <meta name="apple-mobile-web-app-title" content="OrthoVault">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.1/index.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
@@ -365,12 +364,6 @@
 
   .toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%) translateY(0); z-index:40; background:rgba(15,23,42,0.94); color:#fff; font-size:12px; font-weight:600; padding:8px 16px; border-radius:999px; opacity:1; transition:opacity 200ms ease, transform 200ms ease; max-width:90vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .toast.toast-hidden { opacity:0; transform:translateX(-50%) translateY(6px); pointer-events:none; }
-
-  .ocr-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); z-index:60; display:flex; align-items:flex-end; justify-content:center; }
-  .ocr-card { background:var(--bg,#fff); width:100%; max-width:520px; max-height:88vh; overflow-y:auto; border-radius:20px 20px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); box-shadow:0 -8px 30px rgba(0,0,0,0.25); }
-  [data-theme="dark"] .ocr-card { background:#1e293b; }
-  .ocr-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); }
-  .ocr-row:last-of-type { border-bottom:none; }
 
   .rx-sheet { max-width:520px; margin:0 auto; padding:22px 18px 40px; font-family:'Inter',sans-serif; color:#111827; }
   .rx-letterhead { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #1e293b; padding-bottom:12px; margin-bottom:14px; }
@@ -2005,161 +1998,6 @@ const LAB_PARAMETERS = [
   ['RBS','mg/dL'], ['Calcium','mg/dL'], ['Vitamin D3','ng/mL'], ['D-dimer','ng/mL'],
   ['Uric Acid','mg/dL'], ['ALP','U/L'], ['PTH','pg/mL'],
 ];
-
-/* ================= OCR: Lab report + demographic sticker scanning (Tesseract.js, on-device) ================= */
-let OCR_BUSY = false;
-let OCR_LAB_STAGE = null;     // { date, photoBlob, items:[{label,unit,value,checked}] }
-let OCR_STICKER_STAGE = null; // { name, age, sex, mobile }
-
-// Each pattern looks for a label word/phrase followed (within a short gap, allowing for
-// stray OCR punctuation) by a number. Kept intentionally loose \u2014 real lab report layouts
-// vary a lot, and the result is always shown to the user for review before anything saves.
-const OCR_LAB_PATTERNS = [
-  { label:'ESR', unit:'mm/hr', re:/\bESR\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'CRP', unit:'mg/L', re:/\bCRP\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'Hemoglobin', unit:'g/dL', re:/\b(?:Hemoglobin|Haemoglobin|Hb)\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'TLC/WBC', unit:'cells/\u00b5L', re:/\b(?:TLC|WBC|Total\s*Leu[ck]ocyte\s*Count)\b[^\d\-]{0,30}(\d+(?:\.\d+)?)/i },
-  { label:'Platelet Count', unit:'lakh/\u00b5L', re:/\bPlatelet(?:s)?(?:\s*Count)?\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'RBS', unit:'mg/dL', re:/\bRBS\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'Calcium', unit:'mg/dL', re:/\bCalcium\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'Vitamin D3', unit:'ng/mL', re:/\bVitamin\s*D3?\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'D-dimer', unit:'ng/mL', re:/\bD[\s\-]?dimer\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'Uric Acid', unit:'mg/dL', re:/\bUric\s*Acid\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'ALP', unit:'U/L', re:/\bALP\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'PTH', unit:'pg/mL', re:/\bPTH\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'Creatinine', unit:'mg/dL', re:/\bCreatinine\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'PT/INR', unit:'', re:/\bINR\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'T-score', unit:'', re:/\bT[\s\-]?score\b[^\d\-]{0,25}(-?\d+(?:\.\d+)?)/i },
-  { label:'Z-score', unit:'', re:/\bZ[\s\-]?score\b[^\d\-]{0,25}(-?\d+(?:\.\d+)?)/i },
-];
-function parseLabValuesFromOcrText(text) {
-  const found = [];
-  OCR_LAB_PATTERNS.forEach(p => {
-    const m = text.match(p.re);
-    if (m && m[1]) found.push({ label:p.label, unit:p.unit, value:m[1], checked:true });
-  });
-  return found;
-}
-function parseStickerFromOcrText(text) {
-  const nameM = text.match(/\bName\b\s*[:\-]?\s*([A-Za-z][A-Za-z .]{1,40})/i);
-  const ageM = text.match(/\bAge\b\s*[:\-]?\s*(\d{1,3})/i);
-  const sexM = text.match(/\bSex\b\s*[:\-]?\s*(Male|Female|M|F)\b/i);
-  const mobM = text.match(/\b(?:Mobile|Contact|Phone|Ph)\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*(\+?\d[\d\s\-]{8,14}\d)/i)
-            || text.match(/\b(\d{10})\b/);
-  return {
-    name: nameM ? nameM[1].trim().replace(/\s+/g,' ') : '',
-    age: ageM ? ageM[1] : '',
-    sex: sexM ? (sexM[1][0].toUpperCase()==='M' ? 'M' : 'F') : '',
-    mobile: mobM ? mobM[1].replace(/[\s\-]/g,'') : '',
-  };
-}
-async function runTesseractOcr(file) {
-  if (typeof Tesseract === 'undefined') throw new Error('OCR library did not load \u2014 check your internet connection and try again.');
-  const result = await Tesseract.recognize(file, 'eng', { logger: () => {} });
-  return (result && result.data && result.data.text) ? result.data.text : '';
-}
-function renderOcrOverlay() {
-  let root = document.getElementById('ocr-overlay-root');
-  if (!root) { root = document.createElement('div'); root.id = 'ocr-overlay-root'; document.body.appendChild(root); }
-  if (OCR_BUSY) {
-    root.innerHTML = '<div class="ocr-overlay"><div class="ocr-card" style="text-align:center;padding:36px 24px;border-radius:20px;max-width:320px;">'
-      + '<span class="spinner" style="width:22px;height:22px;border-width:3px;color:var(--accent);"></span>'
-      + '<p style="margin-top:14px;font-size:13px;font-weight:700;">Reading photo\u2026</p>'
-      + '<p style="font-size:11px;color:var(--muted);margin-top:4px;">Takes a few seconds</p>'
-      + '</div></div>';
-    return;
-  }
-  if (OCR_LAB_STAGE) { root.innerHTML = ocrLabModalHtml(); return; }
-  if (OCR_STICKER_STAGE) { root.innerHTML = ocrStickerModalHtml(); return; }
-  root.innerHTML = '';
-}
-function ocrLabScanButtonHtml() {
-  return '<label class="btn btn-outline-dashed btn-block" style="margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">'
-    + ic('camera') + ' Scan Lab Report (auto-fill)'
-    + '<input type="file" accept="image/*" id="ocr-labs-input" style="display:none;">'
-    + '</label>';
-}
-function ocrStickerScanButtonHtml() {
-  return '<label class="btn btn-outline-dashed btn-block" style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">'
-    + ic('camera') + ' Scan Sticker (auto-fill name/age/sex/mobile)'
-    + '<input type="file" accept="image/*" id="ocr-sticker-input" style="display:none;">'
-    + '</label>';
-}
-function ocrLabModalHtml() {
-  const s = OCR_LAB_STAGE;
-  const rows = s.items.map((it, idx) =>
-    '<div class="ocr-row">'
-    + '<label class="row gap2" style="align-items:center;flex:1;min-width:0;">'
-    + '<input type="checkbox" data-ocr-lab-check="'+idx+'"'+(it.checked?' checked':'')+' style="width:18px;height:18px;flex-shrink:0;">'
-    + '<span style="font-weight:700;font-size:12.5px;">'+esc(it.label)+'</span>'
-    + '</label>'
-    + '<input class="input" data-ocr-lab-value="'+idx+'" value="'+esc(it.value)+'" style="width:64px;flex-shrink:0;padding:6px 8px;" inputmode="decimal">'
-    + '<input class="input" data-ocr-lab-unit="'+idx+'" value="'+esc(it.unit)+'" style="width:70px;flex-shrink:0;padding:6px 8px;" placeholder="unit">'
-    + '</div>'
-  ).join('');
-  return '<div class="ocr-overlay">'
-    + '<div class="ocr-card">'
-    + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('camera')+' Lab Report Scanned</h3><button class="icon-btn" data-action="ocr-lab-cancel">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Found '+s.items.length+' value(s). Uncheck any you don\u2019t want, edit anything OCR misread.</p>'
-    + '<div style="margin-bottom:10px;"><label class="field-label">Date</label><input class="input" type="date" id="ocr-lab-date" value="'+esc(s.date)+'"></div>'
-    + rows
-    + '<div class="row gap2" style="margin-top:16px;"><button class="btn" style="flex:1;" data-action="ocr-lab-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ocr-lab-confirm">Add to Investigations</button></div>'
-    + '</div></div>';
-}
-function ocrStickerModalHtml() {
-  const s = OCR_STICKER_STAGE;
-  return '<div class="ocr-overlay">'
-    + '<div class="ocr-card">'
-    + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('camera')+' Sticker Scanned</h3><button class="icon-btn" data-action="ocr-sticker-cancel">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Review before filling the form \u2014 edit anything OCR misread.</p>'
-    + '<div style="display:flex;flex-direction:column;gap:10px;">'
-    + '<div><label class="field-label">Name</label><input class="input" id="ocr-sticker-name" value="'+esc(s.name)+'"></div>'
-    + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
-    + '<div><label class="field-label">Age</label><input class="input" type="number" min="0" id="ocr-sticker-age" value="'+esc(s.age)+'"></div>'
-    + '<div><label class="field-label">Sex</label><div class="seg">' + ['M','F'].map(v=>'<button type="button" class="seg-btn'+(s.sex===v?' active':'')+'" data-action="ocr-sticker-set-sex" data-value="'+v+'">'+v+'</button>').join('') + '</div></div>'
-    + '</div>'
-    + '<div><label class="field-label">Mobile</label><input class="input" type="tel" id="ocr-sticker-mobile" value="'+esc(s.mobile)+'"></div>'
-    + '</div>'
-    + '<div class="row gap2" style="margin-top:16px;"><button class="btn" style="flex:1;" data-action="ocr-sticker-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ocr-sticker-confirm">Use These Details</button></div>'
-    + '</div></div>';
-}
-async function handleOcrLabsScan(file) {
-  OCR_BUSY = true; renderOcrOverlay();
-  try {
-    const text = await runTesseractOcr(file);
-    const items = parseLabValuesFromOcrText(text);
-    if (!items.length) {
-      OCR_BUSY = false; renderOcrOverlay();
-      toast('No lab values found \u2014 try a clearer photo, or enter manually.');
-      return;
-    }
-    const photoBlob = await resizeImageFile(file);
-    OCR_BUSY = false;
-    OCR_LAB_STAGE = { date: todayStr(), photoBlob, items };
-    renderOcrOverlay();
-  } catch (err) {
-    OCR_BUSY = false; renderOcrOverlay();
-    toast('OCR failed: ' + (err && err.message ? err.message : 'unknown error'));
-  }
-}
-async function handleOcrStickerScan(file) {
-  OCR_BUSY = true; renderOcrOverlay();
-  try {
-    const text = await runTesseractOcr(file);
-    const data = parseStickerFromOcrText(text);
-    if (!data.name && !data.age && !data.sex && !data.mobile) {
-      OCR_BUSY = false; renderOcrOverlay();
-      toast('Could not read the sticker \u2014 try a clearer photo, or enter manually.');
-      return;
-    }
-    OCR_BUSY = false;
-    OCR_STICKER_STAGE = data;
-    renderOcrOverlay();
-  } catch (err) {
-    OCR_BUSY = false; renderOcrOverlay();
-    toast('OCR failed: ' + (err && err.message ? err.message : 'unknown error'));
-  }
-}
 const INJECTION_LIB_KEY = 'surgical-case-log-injection-lib-v1';
 function ageFieldHtml(p) {
   return '<div><label class="field-label">Age</label><div class="row gap2">'
@@ -3907,45 +3745,6 @@ function followUpReminderLink(patient) {
   if (!digits || !patient.nextFollowUpDate) return null;
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(followUpReminderMessage(patient));
 }
-
-/* ================= Dashboard quick-action patient cards ================= */
-let QUICK_FU_PATIENT_ID = null;
-function patientQuickActionsRowHtml(p) {
-  const wa = waLink(p);
-  const telHref = p.whatsapp ? 'tel:+' + toWaNumber(p.whatsapp) : null;
-  return '<div class="row gap2" style="margin-top:8px;">'
-    + '<button class="btn btn-sm" style="flex:1;" data-action="quick-fu-open" data-patient-id="'+p.id+'">'+ic('calendar')+' Follow-up</button>'
-    + (wa ? '<a href="'+esc(wa)+'" target="_blank" rel="noopener" class="btn btn-sm" data-action="qa-noop" style="flex:1;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;text-align:center;">'+ic('message')+' Message</a>' : '<span class="btn btn-sm" style="flex:1;opacity:0.35;text-align:center;">'+ic('message')+' Message</span>')
-    + (telHref ? '<a href="'+esc(telHref)+'" class="btn btn-sm" data-action="qa-noop" style="flex:0 0 42px;text-decoration:none;text-align:center;" title="Call">'+ic('phone')+'</a>' : '')
-    + '</div>';
-}
-function renderDashboardPatientQuickCard(p) {
-  const initials = esc((p.name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase());
-  return '<div class="card" style="padding:10px 12px;margin-bottom:8px;">'
-    + '<div class="row gap2" style="align-items:center;cursor:pointer;" data-action="open-patient" data-id="'+p.id+'">'
-    + '<span style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+initials+'</span>'
-    + '<span style="font-size:13px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.name)+'</span>'
-    + '<span style="font-size:11px;color:var(--muted);flex-shrink:0;">'+esc(formatAge(p))+'/'+esc(p.sex)+'</span>'
-    + '</div>'
-    + patientQuickActionsRowHtml(p)
-    + '</div>';
-}
-function renderQuickFuModal() {
-  let root = document.getElementById('quick-modal-root');
-  if (!root) { root = document.createElement('div'); root.id = 'quick-modal-root'; document.body.appendChild(root); }
-  if (!QUICK_FU_PATIENT_ID) { root.innerHTML = ''; return; }
-  const p = getPatient(QUICK_FU_PATIENT_ID);
-  if (!p) { root.innerHTML = ''; QUICK_FU_PATIENT_ID = null; return; }
-  const d = new Date(); d.setDate(d.getDate()+7);
-  const defaultDate = d.toISOString().slice(0,10);
-  root.innerHTML = '<div class="ocr-overlay">'
-    + '<div class="ocr-card">'
-    + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('calendar')+' Follow-up for '+esc(p.name)+'</h3><button class="icon-btn" data-action="quick-fu-cancel">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Sets this patient\u2019s next follow-up date \u2014 shows up on Dashboard\u2019s Needs Attention when due.</p>'
-    + '<div style="margin-bottom:14px;"><label class="field-label">Date</label><input class="input" type="date" id="quick-fu-date" value="'+esc(p.nextFollowUpDate || defaultDate)+'"></div>'
-    + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="quick-fu-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="quick-fu-save" data-patient-id="'+p.id+'">Save</button></div>'
-    + '</div></div>';
-}
 function rxWaMessage(patient, rx, profile) {
   let lines = [];
   lines.push('*Prescription \u2014 ' + (profile.clinicName || '') + '*');
@@ -4006,96 +3805,87 @@ function toast(msg) {
 function renderDashboardSection() {
   if (!PATIENTS.length) return '';
   const s = computeDashboardStats();
-  const daysBack = daysSinceLastBackup();
-  const ownerProfileForGreeting = loadProfile();
   let html = '';
 
-  const firstName = (ownerProfileForGreeting.doctorName||'').replace(/^Dr\.?\s*/i,'').split(' ')[0];
-  const greetingDate = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
-  const statusBadge = s.important.length
-    ? '<span class="badge badge-red" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+s.important.length+' to review</span>'
-    : '<span class="badge badge-emerald" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+ic('check')+' all clear</span>';
-  html += '<div class="row between" style="margin-bottom:'+(s.dueTomorrowList.length ? '2px' : '12px')+';align-items:center;">'
-    + '<p style="font-size:13px;color:var(--muted);margin:0;display:flex;align-items:center;gap:3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.78);transform-origin:center;flex-shrink:0;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+' \u2014 '+greetingDate+'</p>'
-    + statusBadge
+  /* ═══════════════════════════════════════════════════════════
+     RUTHLESSLY SIMPLE DASHBOARD
+     One question: "Aaj mujhe kya karna hai?"
+     Four answers: Urgent → Today → This Week → Stats
+     ═══════════════════════════════════════════════════════════ */
+
+  /* 🔴 NEEDS ATTENTION — THE ACTION ITEM */
+  const urgentCount = s.important.length;
+  const overdueCount = s.overdue.length;
+  const raLabsOverdue = s.raOverdue.length;
+  const dexaOverdue = s.dexaOverdue.length;
+  
+  html += '<div class="card" style="margin-bottom:12px;padding:14px;'+(urgentCount?'border-color:var(--red-border);background:var(--red-bg);':'border-color:var(--border);background:var(--bg-soft);')+'">'
+    + '<div class="row between" style="margin-bottom:8px;">'
+    + '<span style="font-size:13px;font-weight:800;color:'+(urgentCount?'var(--red)':'var(--ink)')+';">🔴 '+ic('alert')+' Needs Attention</span>'
+    + '<span style="font-size:16px;font-weight:900;color:'+(urgentCount?'var(--red)':'var(--emerald)')+';">'+urgentCount+'</span>'
     + '</div>';
-  if (s.dueTomorrowList.length) {
-    html += '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:0;margin:0 0 12px;cursor:pointer;" data-action="toggle-tomorrow-list">'
-      + '<span style="font-size:11px;color:var(--muted);">'+s.dueTomorrowList.length+' follow-up'+(s.dueTomorrowList.length>1?'s':'')+' due tomorrow</span>'
-      + '<span style="color:var(--muted);transform:scale(0.7);'+(SHOW_TOMORROW_LIST?'transform:scale(0.7) rotate(180deg);':'')+'">'+ic('chevron')+'</span>'
-      + '</button>';
-    if (SHOW_TOMORROW_LIST) {
-      html += '<div class="card" style="margin-bottom:12px;padding:6px 0;">'
-        + s.dueTomorrowList.map(p => {
-            const waLink = p.whatsapp ? followUpReminderLink(p) : null;
-            return '<div class="row between" style="padding:7px 14px;border-bottom:1px solid var(--border);">'
-              + '<span data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;font-size:12.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.name)+'</span>'
-              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+p.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
-              + '</div>';
-          }).join('')
-        + '</div>';
-    }
-  }
-
-  if (isAiTier()) {
-    html += '<button type="button" class="card" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;padding:11px 14px;margin-bottom:12px;cursor:pointer;" data-action="open-ai-digest">'
-      + '<span style="width:26px;height:26px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent);">'+ic('sparkle')+'</span>'
-      + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12.5px;font-weight:700;color:var(--ink);">AI Practice Briefing</span><span style="display:block;font-size:11px;color:var(--muted);">Tap for today\u2019s summary</span></span>'
-      + '<span style="color:var(--muted);flex-shrink:0;">'+ic('chevron')+'</span>'
-      + '</button>';
-  }
-
-  const pinnedPatients = PATIENTS.filter(p => p.pinned);
-  if (pinnedPatients.length) {
-    html += '<div style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:6px;">Quick Access</label></div>'
-      + '<div style="margin-bottom:8px;">'
-      + pinnedPatients.map(p => renderDashboardPatientQuickCard(p)).join('')
-      + '</div>';
-  }
-
-  if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 14)) {
-    html += '<div class="backup-banner">'
-      + ic('download')
-      + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+(daysBack===null ? 'No backup has been saved yet.' : 'Last backup was '+daysBack+' days ago \u2014 the automatic 3-day backup may not be working on this device.')+' Back up now to keep your data safe.</span>'
-      + '<button class="btn btn-sm" data-action="export-backup">Export</button>'
-      + '<button class="icon-btn" style="width:28px;height:28px;" data-action="dismiss-backup-banner">'+ic('x')+'</button>'
-      + '</div>';
-  }
-
-  const pendingCount = CURRENT_USER ? pendingSyncCount() : 0;
-  if (pendingCount > 0) {
-    html += '<div class="backup-banner">'
-      + ic('shield')
-      + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+pendingCount+' item'+(pendingCount>1?'s':'')+' not yet backed up to cloud (weak/no connection when saved) \u2014 retrying automatically. Keep this device online for a bit, or tap Retry.</span>'
-      + '<button class="btn btn-sm" data-action="retry-pending-sync">Retry</button>'
-      + '</div>';
-  }
-
-  html += '<div class="row gap2" style="margin-bottom:12px;">'
-    + '<button type="button" class="dash-tile" data-action="dash-tile-attention" style="'+(s.important.length ? 'border-color:var(--red-border);background:var(--red-bg);' : 'border-color:var(--border);background:#fff;')+'cursor:pointer;"><div class="di" style="color:'+(s.important.length?'var(--red)':'var(--emerald)')+';">'+ic(s.important.length?'alert':'check')+'</div><div class="dv" style="color:'+(s.important.length?'var(--red)':'var(--ink)')+';">'+s.important.length+'</div><div class="dl" style="color:'+(s.important.length?'var(--red)':'var(--muted)')+';">Important today</div></button>'
-    + '<button type="button" class="dash-tile" style="border-color:var(--border);cursor:pointer;" data-action="dash-tile-calendar"><div class="di" style="color:var(--accent);">'+ic('calendar')+'</div><div class="dv">'+s.surgeriesThisWeek+'</div><div class="dl" style="color:var(--muted);">Surgeries (7 days)</div></button>'
-    + '<div class="dash-tile" style="border-color:var(--border);"><div class="di" style="color:var(--emerald);">'+ic('shield')+'</div><div class="dv">'+s.activeCases+'</div><div class="dl" style="color:var(--muted);">Active cases</div></div>'
-    + '</div>';
-
-  if (s.weekTrend && s.weekTrend.some(d => d.count > 0)) {
-    const maxDay = Math.max(...s.weekTrend.map(d => d.count), 1);
-    html += '<div class="card" style="margin-bottom:12px;padding:12px 14px;">'
-      + '<div class="row between" style="margin-bottom:8px;"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:5px;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.75);">'+ic('trending')+'</span>This week</span><span style="font-size:12px;font-weight:800;color:var(--ink);">'+s.weekNewCases+' new case'+(s.weekNewCases!==1?'s':'')+'</span></div>'
-      + '<div style="display:flex;align-items:flex-end;gap:5px;height:44px;">'
-        + s.weekTrend.map(d => '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">'
-            + '<div style="width:100%;max-width:22px;border-radius:4px 4px 2px 2px;background:'+(d.count?'var(--accent)':'var(--border)')+';height:'+Math.max(4,Math.round(d.count/maxDay*32))+'px;"></div>'
-            + '<span style="font-size:9px;color:var(--muted);margin-top:3px;">'+esc(d.day)+'</span>'
-          + '</div>').join('')
+  
+  if (urgentCount) {
+    const items = [];
+    if (overdueCount) items.push(overdueCount + ' follow-up' + (overdueCount>1?'s':'') + ' overdue');
+    if (raLabsOverdue) items.push(raLabsOverdue + ' RA lab' + (raLabsOverdue>1?'s':'') + ' due');
+    if (dexaOverdue) items.push(dexaOverdue + ' DEXA scan due');
+    
+    html += '<div style="font-size:12px;color:'+(urgentCount?'var(--red)':'var(--ink)')+';margin-bottom:8px;">'
+      + items.map(item => '<span style="display:block;margin:3px 0;">• ' + item + '</span>').join('')
       + '</div>'
-      + '</div>';
+      + '<button class="btn btn-sm" style="width:100%;'+(urgentCount?'background:var(--red);border-color:var(--red);color:#fff;':'')+'margin-top:4px;" data-action="dash-tile-attention">Review →</button>';
+  } else {
+    html += '<p style="font-size:12px;color:var(--muted);margin:0;">No urgent items. Great day ahead!';
   }
+  html += '</div>';
 
-  if (!s.important.length) {
-    html += '<div class="card" style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:12px;">'
-      + '<span style="width:26px;height:26px;border-radius:50%;background:var(--emerald-bg);color:var(--emerald);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ic('check')+'</span>'
-      + '<div><p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:0;">All caught up</p><p style="font-size:11px;color:var(--muted);margin:1px 0 0;">No overdue follow-ups, RA labs, or DEXA scans today.</p></div>'
-      + '</div>';
-  }
+  /* 📅 TODAY — TODAY'S SCHEDULE */
+  const todayStr = new Date().toISOString().slice(0,10);
+  const patientsToday = PATIENTS.filter(p => p.nextFollowUpDate === todayStr || (p.surgeryDate && p.surgeryDate === todayStr)).length;
+  
+  html += '<div class="card" style="margin-bottom:12px;padding:14px;border-color:var(--accent-border);background:var(--accent-bg);">'
+    + '<div class="row between" style="margin-bottom:8px;">'
+    + '<span style="font-size:13px;font-weight:800;color:var(--accent);">📅 Today</span>'
+    + '<span style="font-size:16px;font-weight:900;color:var(--accent);">'+patientsToday+'</span>'
+    + '</div>'
+    + '<p style="font-size:11.5px;color:var(--muted);margin:0;">Patient'+(patientsToday!==1?'s':'')+' scheduled for today</p>'
+    + (patientsToday ? '<button class="btn btn-sm" style="width:100%;margin-top:8px;background:var(--accent);border-color:var(--accent);color:#fff;" data-action="open-calendar">View Schedule →</button>' : '')
+    + '</div>';
+
+  /* 🟡 UPCOMING — THIS WEEK */
+  const weekFromNow = new Date(); weekFromNow.setDate(weekFromNow.getDate() + 7);
+  const weekStr = weekFromNow.toISOString().slice(0,10);
+  const patientsThisWeek = PATIENTS.filter(p => {
+    const d = p.nextFollowUpDate || '';
+    return d > todayStr && d <= weekStr;
+  }).length;
+
+  html += '<div class="card" style="margin-bottom:12px;padding:14px;border-color:var(--border);background:var(--bg-soft);">'
+    + '<div class="row between" style="margin-bottom:8px;">'
+    + '<span style="font-size:13px;font-weight:800;color:var(--ink);">🟡 Upcoming</span>'
+    + '<span style="font-size:16px;font-weight:900;color:var(--ink);">'+patientsThisWeek+'</span>'
+    + '</div>'
+    + '<p style="font-size:11.5px;color:var(--muted);margin:0;">Patient'+(patientsThisWeek!==1?'s':'')+' this week</p>'
+    + (patientsThisWeek ? '<button class="btn btn-sm" style="width:100%;margin-top:8px;" data-action="toggle-patient-list-expanded">View List →</button>' : '')
+    + '</div>';
+
+  /* 📊 PRACTICE STATS — JUST 5 NUMBERS */
+  const activeCases = PATIENTS.filter(p => !p.status || p.status === 'Active' || p.status === 'Active follow-up').length;
+  const opdCases = PATIENTS.filter(p => p.caseType === 'opd' && (!p.status || p.status === 'Active' || p.status === 'Active follow-up')).length;
+  const surgicalCases = PATIENTS.filter(p => p.caseType === 'surgical' && (!p.status || p.status === 'Active' || p.status === 'Active follow-up')).length;
+  const pendingFollowUps = PATIENTS.filter(p => p.nextFollowUpDate && !isOverdue(p.nextFollowUpDate) && new Date(p.nextFollowUpDate) >= new Date(todayStr())).length;
+  
+  html += '<div style="padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--bg-soft);margin-bottom:12px;">'
+    + '<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;margin-bottom:10px;">📊 Practice</div>'
+    + '<div class="row gap3" style="font-size:13px;font-weight:700;flex-wrap:wrap;">'
+    + '<span>OPD '+opdCases+'</span>'
+    + '<span style="color:var(--muted);">·</span>'
+    + '<span>Surgeries '+surgicalCases+'</span>'
+    + '<span style="color:var(--muted);">·</span>'
+    + '<span>Pending '+pendingFollowUps+'</span>'
+    + '</div>'
+    + '</div>';
 
   if (s.important.length) {
     const queueEligible = s.important.filter(item => item.type === 'Follow-up' && item.patient.whatsapp);
@@ -4392,7 +4182,6 @@ const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today
         + (summaryText ? '<span style="font-weight:600;">'+esc(summaryText)+'</span>' : '<span style="color:var(--muted);">No diagnosis yet</span>')
         + '</div>'
         + '<div style="font-size:11px;margin-top:4px;">'+followUpLine+'</div>'
-        + patientQuickActionsRowHtml(p)
         + '</div>'
         + '<span style="color:var(--muted);margin-left:8px;">'+ic('chevron')+'</span>'
         + '</div>';
@@ -4742,7 +4531,6 @@ function renderAddView() {
   const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
 
   const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + ocrStickerScanButtonHtml()
       + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label><div class="row gap2">'
@@ -6079,7 +5867,7 @@ async function renderInvestigationsTab(p) {
       + '</div>';
   });
 
-  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+investigationTrendGraphsHtml(p)+ocrLabScanButtonHtml()+addBlock+list+'</div>';
+  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+investigationTrendGraphsHtml(p)+addBlock+list+'</div>';
 }
 
 function initRxTemp(prefillFollowUpDate) {
@@ -8282,92 +8070,6 @@ document.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.dataset.action;
-
-  if (action === 'qa-noop') { return; }
-  if (action === 'quick-fu-open') { QUICK_FU_PATIENT_ID = el.dataset.patientId; renderQuickFuModal(); return; }
-  if (action === 'quick-fu-cancel') { QUICK_FU_PATIENT_ID = null; renderQuickFuModal(); return; }
-  if (action === 'quick-fu-save') {
-    const p = getPatient(el.dataset.patientId);
-    if (!p) { QUICK_FU_PATIENT_ID = null; renderQuickFuModal(); return; }
-    const dateEl = document.getElementById('quick-fu-date');
-    const date = dateEl ? dateEl.value : '';
-    if (!date) { toast('Pick a date first'); return; }
-    p.nextFollowUpDate = date;
-    p.followUpSnoozeCount = 0;
-    p.lastReminderSentAt = null;
-    await dbPutPatient(p);
-    await refreshPatients();
-    QUICK_FU_PATIENT_ID = null;
-    renderQuickFuModal();
-    render();
-    toast('\u2713 Follow-up set for ' + fmtDate(date));
-    return;
-  }
-
-  if (action === 'ocr-lab-cancel') { OCR_LAB_STAGE = null; renderOcrOverlay(); return; }
-  if (action === 'ocr-sticker-cancel') { OCR_STICKER_STAGE = null; renderOcrOverlay(); return; }
-  if (action === 'ocr-sticker-set-sex') { OCR_STICKER_STAGE.sex = el.dataset.value; renderOcrOverlay(); return; }
-
-  if (action === 'ocr-sticker-confirm') {
-    const nameEl = document.getElementById('ocr-sticker-name');
-    const ageEl = document.getElementById('ocr-sticker-age');
-    const mobileEl = document.getElementById('ocr-sticker-mobile');
-    if (nameEl) OCR_STICKER_STAGE.name = nameEl.value;
-    if (ageEl) OCR_STICKER_STAGE.age = ageEl.value;
-    if (mobileEl) OCR_STICKER_STAGE.mobile = mobileEl.value;
-    if (VIEW === 'add') {
-      syncApTempFromDom();
-      if (OCR_STICKER_STAGE.name) AP_TEMP.name = OCR_STICKER_STAGE.name;
-      if (OCR_STICKER_STAGE.age) AP_TEMP.age = OCR_STICKER_STAGE.age;
-      if (OCR_STICKER_STAGE.sex) AP_TEMP.sex = OCR_STICKER_STAGE.sex;
-      if (OCR_STICKER_STAGE.mobile) AP_TEMP.whatsapp = OCR_STICKER_STAGE.mobile;
-      OCR_STICKER_STAGE = null;
-      renderOcrOverlay();
-      render();
-      toast('Patient details filled from sticker');
-    } else {
-      OCR_STICKER_STAGE = null;
-      renderOcrOverlay();
-    }
-    return;
-  }
-
-  if (action === 'ocr-lab-confirm') {
-    const p = getPatient(SELECTED_ID);
-    if (!p || !OCR_LAB_STAGE) { OCR_LAB_STAGE = null; renderOcrOverlay(); return; }
-    const dateEl = document.getElementById('ocr-lab-date');
-    const date = dateEl ? dateEl.value : OCR_LAB_STAGE.date;
-    const checkedItems = [];
-    OCR_LAB_STAGE.items.forEach((it, idx) => {
-      const checkEl = document.querySelector('[data-ocr-lab-check="'+idx+'"]');
-      const valueEl = document.querySelector('[data-ocr-lab-value="'+idx+'"]');
-      const unitEl = document.querySelector('[data-ocr-lab-unit="'+idx+'"]');
-      if (checkEl && checkEl.checked) {
-        checkedItems.push({
-          label: it.label,
-          value: valueEl ? valueEl.value.trim() : it.value,
-          unit: unitEl ? unitEl.value.trim() : it.unit,
-        });
-      }
-    });
-    if (!checkedItems.length) { toast('Nothing selected'); return; }
-    const photoBlob = OCR_LAB_STAGE.photoBlob;
-    p.investigations = p.investigations || [];
-    const newInvs = checkedItems.map(item => ({ id: uid(), label: item.label, date, notes: '', value: item.value, unit: item.unit, imageCount: photoBlob ? 1 : 0 }));
-    newInvs.forEach(inv => { p.investigations.push(inv); recordTextUsed(INVESTIGATION_LIB_KEY, inv.label); });
-    await dbPutPatient(p);
-    if (photoBlob) {
-      for (const inv of newInvs) {
-        await dbAddImage({ id: uid(), patientId: p.id, investigationId: inv.id, blob: photoBlob, createdAt: Date.now() });
-      }
-    }
-    await refreshPatients();
-    OCR_LAB_STAGE = null;
-    renderOcrOverlay();
-    toast('Added ' + checkedItems.length + ' investigation(s)');
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
 
   if (action === 'restore-from-cloud') {
     if (!CURRENT_USER) { toast('Sign in first'); return; }
@@ -11038,21 +10740,6 @@ document.addEventListener('change', async (e) => {
     const file = t.files && t.files[0];
     if (file) await importBackup(file);
     t.value = '';
-    return;
-  }
-
-  if (t.id === 'ocr-labs-input') {
-    const file = t.files && t.files[0];
-    t.value = '';
-    if (!file) return;
-    await handleOcrLabsScan(file);
-    return;
-  }
-  if (t.id === 'ocr-sticker-input') {
-    const file = t.files && t.files[0];
-    t.value = '';
-    if (!file) return;
-    await handleOcrStickerScan(file);
     return;
   }
 
