@@ -3907,6 +3907,45 @@ function followUpReminderLink(patient) {
   if (!digits || !patient.nextFollowUpDate) return null;
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(followUpReminderMessage(patient));
 }
+
+/* ================= Dashboard quick-action patient cards ================= */
+let QUICK_FU_PATIENT_ID = null;
+function patientQuickActionsRowHtml(p) {
+  const wa = waLink(p);
+  const telHref = p.whatsapp ? 'tel:+' + toWaNumber(p.whatsapp) : null;
+  return '<div class="row gap2" style="margin-top:8px;">'
+    + '<button class="btn btn-sm" style="flex:1;" data-action="quick-fu-open" data-patient-id="'+p.id+'">'+ic('calendar')+' Follow-up</button>'
+    + (wa ? '<a href="'+esc(wa)+'" target="_blank" rel="noopener" class="btn btn-sm" data-action="qa-noop" style="flex:1;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;text-align:center;">'+ic('message')+' Message</a>' : '<span class="btn btn-sm" style="flex:1;opacity:0.35;text-align:center;">'+ic('message')+' Message</span>')
+    + (telHref ? '<a href="'+esc(telHref)+'" class="btn btn-sm" data-action="qa-noop" style="flex:0 0 42px;text-decoration:none;text-align:center;" title="Call">'+ic('phone')+'</a>' : '')
+    + '</div>';
+}
+function renderDashboardPatientQuickCard(p) {
+  const initials = esc((p.name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase());
+  return '<div class="card" style="padding:10px 12px;margin-bottom:8px;">'
+    + '<div class="row gap2" style="align-items:center;cursor:pointer;" data-action="open-patient" data-id="'+p.id+'">'
+    + '<span style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+initials+'</span>'
+    + '<span style="font-size:13px;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.name)+'</span>'
+    + '<span style="font-size:11px;color:var(--muted);flex-shrink:0;">'+esc(formatAge(p))+'/'+esc(p.sex)+'</span>'
+    + '</div>'
+    + patientQuickActionsRowHtml(p)
+    + '</div>';
+}
+function renderQuickFuModal() {
+  let root = document.getElementById('quick-modal-root');
+  if (!root) { root = document.createElement('div'); root.id = 'quick-modal-root'; document.body.appendChild(root); }
+  if (!QUICK_FU_PATIENT_ID) { root.innerHTML = ''; return; }
+  const p = getPatient(QUICK_FU_PATIENT_ID);
+  if (!p) { root.innerHTML = ''; QUICK_FU_PATIENT_ID = null; return; }
+  const d = new Date(); d.setDate(d.getDate()+7);
+  const defaultDate = d.toISOString().slice(0,10);
+  root.innerHTML = '<div class="ocr-overlay">'
+    + '<div class="ocr-card">'
+    + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('calendar')+' Follow-up for '+esc(p.name)+'</h3><button class="icon-btn" data-action="quick-fu-cancel">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Sets this patient\u2019s next follow-up date \u2014 shows up on Dashboard\u2019s Needs Attention when due.</p>'
+    + '<div style="margin-bottom:14px;"><label class="field-label">Date</label><input class="input" type="date" id="quick-fu-date" value="'+esc(p.nextFollowUpDate || defaultDate)+'"></div>'
+    + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="quick-fu-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="quick-fu-save" data-patient-id="'+p.id+'">Save</button></div>'
+    + '</div></div>';
+}
 function rxWaMessage(patient, rx, profile) {
   let lines = [];
   lines.push('*Prescription \u2014 ' + (profile.clinicName || '') + '*');
@@ -4008,11 +4047,9 @@ function renderDashboardSection() {
 
   const pinnedPatients = PATIENTS.filter(p => p.pinned);
   if (pinnedPatients.length) {
-    html += '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;margin-bottom:12px;">'
-      + pinnedPatients.map(p => '<button type="button" class="chip" data-action="open-patient" data-id="'+p.id+'" style="flex-shrink:0;display:flex;align-items:center;gap:6px;padding:7px 12px 7px 8px;cursor:pointer;">'
-          + '<span style="width:24px;height:24px;border-radius:50%;background:var(--accent);color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+esc((p.name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase())+'</span>'
-          + '<span style="font-size:12px;font-weight:700;white-space:nowrap;">'+esc(p.name)+'</span>'
-          + '</button>').join('')
+    html += '<div style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:6px;">Quick Access</label></div>'
+      + '<div style="margin-bottom:8px;">'
+      + pinnedPatients.map(p => renderDashboardPatientQuickCard(p)).join('')
       + '</div>';
   }
 
@@ -4355,6 +4392,7 @@ const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today
         + (summaryText ? '<span style="font-weight:600;">'+esc(summaryText)+'</span>' : '<span style="color:var(--muted);">No diagnosis yet</span>')
         + '</div>'
         + '<div style="font-size:11px;margin-top:4px;">'+followUpLine+'</div>'
+        + patientQuickActionsRowHtml(p)
         + '</div>'
         + '<span style="color:var(--muted);margin-left:8px;">'+ic('chevron')+'</span>'
         + '</div>';
@@ -8244,6 +8282,27 @@ document.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.dataset.action;
+
+  if (action === 'qa-noop') { return; }
+  if (action === 'quick-fu-open') { QUICK_FU_PATIENT_ID = el.dataset.patientId; renderQuickFuModal(); return; }
+  if (action === 'quick-fu-cancel') { QUICK_FU_PATIENT_ID = null; renderQuickFuModal(); return; }
+  if (action === 'quick-fu-save') {
+    const p = getPatient(el.dataset.patientId);
+    if (!p) { QUICK_FU_PATIENT_ID = null; renderQuickFuModal(); return; }
+    const dateEl = document.getElementById('quick-fu-date');
+    const date = dateEl ? dateEl.value : '';
+    if (!date) { toast('Pick a date first'); return; }
+    p.nextFollowUpDate = date;
+    p.followUpSnoozeCount = 0;
+    p.lastReminderSentAt = null;
+    await dbPutPatient(p);
+    await refreshPatients();
+    QUICK_FU_PATIENT_ID = null;
+    renderQuickFuModal();
+    render();
+    toast('\u2713 Follow-up set for ' + fmtDate(date));
+    return;
+  }
 
   if (action === 'ocr-lab-cancel') { OCR_LAB_STAGE = null; renderOcrOverlay(); return; }
   if (action === 'ocr-sticker-cancel') { OCR_STICKER_STAGE = null; renderOcrOverlay(); return; }
