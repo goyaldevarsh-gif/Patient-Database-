@@ -4013,12 +4013,36 @@ function toast(msg) {
 
 /* ================= List view ================= */
 
+/* ================= Dashboard motivational quote =================
+   HOW TO UPDATE: upload your quote image to a "quotes/" folder in the
+   GitHub repo (same place as icons/), then add its filename below.
+   e.g. 'quotes/quote1.jpg'. Rotates automatically \u2014 one per day,
+   cycling back to the start once the list is exhausted. Just add more
+   filenames whenever you have new ones ready, then redeploy as usual. */
+const DASHBOARD_QUOTES = [
+  // 'quotes/quote1.jpg',
+  // 'quotes/quote2.jpg',
+];
+function getTodaysQuoteImage() {
+  if (!DASHBOARD_QUOTES.length) return null;
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000);
+  return DASHBOARD_QUOTES[dayOfYear % DASHBOARD_QUOTES.length];
+}
+function dashboardQuoteHtml() {
+  const src = getTodaysQuoteImage();
+  if (!src) return '';
+  return '<div style="margin-bottom:12px;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.08);">'
+    + '<img src="'+esc(src)+'" alt="" onerror="this.closest(\'div\').style.display=\'none\';" style="width:100%;display:block;max-height:220px;object-fit:contain;background:#f8fafc;">'
+    + '</div>';
+}
+
 function renderDashboardSection() {
   if (!PATIENTS.length) return '';
   const s = computeDashboardStats();
   const daysBack = daysSinceLastBackup();
   const ownerProfileForGreeting = loadProfile();
   let html = '';
+  html += dashboardQuoteHtml();
 
   const firstName = (ownerProfileForGreeting.doctorName||'').replace(/^Dr\.?\s*/i,'').split(' ')[0];
   const greetingDate = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
@@ -8857,7 +8881,7 @@ async function generatePersonalizedReminderMessage(p) {
     const purpose = QUICK_PICKER_PURPOSE;
     closeQuickPicker();
     SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW = 'detail'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH = null;
-    if (purpose === 'followup') { TAB = 'followups'; FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = true; }
+    if (purpose === 'followup') { TAB = 'followups'; FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'General OPD'; ADD_FOLLOWUP_OPEN = true; }
     else if (purpose === 'investigation') { TAB = 'imagesrecords'; IMAGES_RECORDS_SUBVIEW = 'investigations'; ADD_INVESTIGATION_OPEN = true; INV_PHOTOS = []; }
     else { TAB = 'overview'; REMINDER_FORM_OPEN = true; REMINDER_FORM_PATIENT_ID = el.dataset.id; REMINDER_FORM_CATEGORY = 'General'; REMINDER_FORM_DATE = ''; }
     await render();
@@ -9117,7 +9141,7 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'ctev-jump-followup') { TAB = 'followups'; FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); window.scrollTo(0,0); return; }
+  if (action === 'ctev-jump-followup') { TAB = 'followups'; FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'General OPD'; ADD_FOLLOWUP_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); window.scrollTo(0,0); return; }
   if (action === 'ctev-open-add-brace-log') { ADD_CTEV_BRACELOG_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-cancel-add-bracelog') { ADD_CTEV_BRACELOG_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-submit-bracelog') {
@@ -9915,7 +9939,7 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
 
-  if (action === 'open-add-fu') { FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'open-add-fu') { FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'General OPD'; ADD_FOLLOWUP_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
   if (action === 'cancel-add-fu') {
     await discardStagedPhotos(FU_INV_PHOTOS);
     FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return;
