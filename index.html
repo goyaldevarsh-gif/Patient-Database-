@@ -1514,28 +1514,6 @@ async function callGeminiDirect(payload) {
   
   return { data: json.result };
 }
-/* Routes an AI call to Gemini (fast/cheap, for suggestion-type/organizational tasks) or Claude
-   (higher-trust clinical reasoning — investigations, exam findings, summaries, prescriptions,
-   sanity checks). Same call signature/response shape as calling askClaude directly. */
-async function callAI(provider, systemPrompt, userMessage, maxTokens) {
-  const user = firebase.auth().currentUser;
-  if (!user) throw new Error('Sign in first.');
-  
-  // Check token limit before calling
-  if (!await canUseAI()) throw new Error('Token limit reached');
-  
-  const fnName = provider === 'gemini' ? 'askGemini' : 'askClaude';
-  const fn = firebaseFunctions.httpsCallable(fnName);
-  const result = await fn({ systemPrompt, userMessage, maxTokens });
-  
-  // Log token usage if response includes it
-  if (result.data && (result.data.inputTokens || result.data.outputTokens)) {
-    await logTokenUsage(user.uid, result.data.inputTokens, result.data.outputTokens);
-  }
-  
-  return result;
-}
-
 /* ================= State ================= */
 
 let PATIENTS = [];
@@ -1549,9 +1527,6 @@ const FILTER_STATE_KEY = 'surgical-case-log-filter-state-v1';
 const TAB_STATE_KEY = 'surgical-case-log-tab-state-v1';
 function saveTabState() { try { localStorage.setItem(TAB_STATE_KEY, TAB); } catch(e) {} }
 function loadTabState() { try { const t = localStorage.getItem(TAB_STATE_KEY); if (t) TAB = t; } catch(e) {} }
-const SCROLL_POSITION_KEY = 'surgical-case-log-scroll-pos-v1';
-function saveScrollPosition() { try { const app = document.getElementById('app'); if (app) localStorage.setItem(SCROLL_POSITION_KEY, String(app.scrollTop || 0)); } catch(e) {} }
-function restoreScrollPosition() { try { const app = document.getElementById('app'); if (app) { setTimeout(() => { app.scrollTop = Number(localStorage.getItem(SCROLL_POSITION_KEY) || 0); }, 50); } } catch(e) {} }
 function setTab(newTab) { TAB = newTab; saveTabState(); }
 function saveFilterState() { try { localStorage.setItem(FILTER_STATE_KEY, JSON.stringify({ search: SEARCH, filterType: FILTER_TYPE, tagFilter: TAG_FILTER })); } catch(e) {} }
 function loadFilterState() { try { const s = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || '{}'); SEARCH = s.search || ''; FILTER_TYPE = s.filterType || 'all'; TAG_FILTER = s.tagFilter || ''; } catch(e) {} }
@@ -1654,7 +1629,6 @@ function resetPerPatientUiState() {
   AI_TAG_SUGGESTIONS = null;
   AI_INVESTIGATION_SUGGESTIONS = null;
   AI_EXAM_SUGGESTIONS = null;
-  AI_PERSONALIZED_REMINDER = null;
 }
 let ADD_FOLLOWUP_OPEN = false;
 let EXPANDED_FOLLOWUP = new Set();
@@ -4297,6 +4271,7 @@ function updateUsearchFabVisibility() {
 }
 
 function renderListView() {
+  saveFilterState();
   const counts = { all: PATIENTS.length };
   CASE_REGIONS.forEach(r => counts[r.key] = PATIENTS.filter(p => (p.regions||[]).includes(r.key)).length);
   const ownerProfile = loadProfile();
@@ -4673,27 +4648,6 @@ function renderAiQueryView() {
     + '</div>';
 }
 
-function renderAddTypePickerView() {
-  return '<div style="min-height:100vh;display:flex;flex-direction:column;">'
-    + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
-    + '<button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button>'
-    + '<h2 style="font-size:16px;font-weight:800;margin:0;">New case</h2>'
-    + '</div></div></div>'
-    + '<div class="px" style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:14px;padding-bottom:60px;">'
-    + '<p style="text-align:center;font-size:12px;color:var(--muted);margin:0 0 4px;">What kind of case is this?</p>'
-    + '<button type="button" class="card" style="text-align:left;display:flex;align-items:center;gap:14px;padding:18px;" data-action="go-add-with-type" data-value="surgical">'
-    + '<span style="flex:none;width:46px;height:46px;border-radius:12px;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic('clipboard')+'</span>'
-    + '<span style="flex:1;"><span style="display:block;font-weight:800;font-size:15px;">Surgical Case</span><span style="display:block;font-size:12px;color:var(--muted);margin-top:2px;">Procedure, surgery date, payment, intra-op tracking</span></span>'
-    + '<span style="color:var(--muted);">'+ic('chevron')+'</span>'
-    + '</button>'
-    + '<button type="button" class="card" style="text-align:left;display:flex;align-items:center;gap:14px;padding:18px;" data-action="go-add-with-type" data-value="opd">'
-    + '<span style="flex:none;width:46px;height:46px;border-radius:12px;background:var(--emerald-bg);color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('userPlus')+'</span>'
-    + '<span style="flex:1;"><span style="display:block;font-weight:800;font-size:15px;">OPD Case</span><span style="display:block;font-size:12px;color:var(--muted);margin-top:2px;">Complaints, diagnosis, follow-up-based tracking</span></span>'
-    + '<span style="color:var(--muted);">'+ic('chevron')+'</span>'
-    + '</button>'
-    + '</div>'
-    + '</div>';
-}
 function findSimilarCases(diagnosisText, limit) {
   const q = (diagnosisText || '').toLowerCase().trim();
   if (!q) return [];
@@ -5189,7 +5143,6 @@ let AI_FITNESS_CERT = null;
 let AI_REFERRAL_LETTER = null;
 let AI_REFERRAL_SPECIALIST = '';
 let AI_REFERRAL_REASON = '';
-let AI_PERSONALIZED_REMINDER = null;
 let AI_DIGEST_SUMMARY = null;
 let AI_SANITY_CHECK_RESULT = null;
 let MASTER_VOICE_STATE = 'idle'; // idle | listening | thinking | confirming
@@ -6773,6 +6726,7 @@ const EDU_LIBRARY = [
 async function renderTabBody(p) {
   const el = document.getElementById('tab-body');
   if (!el) return;
+  saveTabState();
   if (TAB === 'overview') { el.innerHTML = renderOverviewTab(p); return; }
   if (TAB === 'ctev') { el.innerHTML = await renderCtevTab(p); return; }
   if (TAB === 'timeline') { el.innerHTML = await renderTimelineTab(p); return; }
@@ -7615,7 +7569,6 @@ async function render() {
 async function renderCurrentView(app) {
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
-  if (VIEW === 'add-type-picker') { app.innerHTML = renderAddTypePickerView(); return; }
   if (VIEW === 'ai-query') { app.innerHTML = renderAiQueryView(); return; }
   if (VIEW === 'ai-digest') { app.innerHTML = renderAiDigestView(); return; }
   if (VIEW === 'ai-knowledge') { app.innerHTML = renderAiKnowledgeView(); return; }
@@ -8646,25 +8599,6 @@ async function generatePersonalizedReminderMessage(p) {
   const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 300 });
   return (result.data.text || '').trim();
 }
-  if (action === 'ai-personalize-reminder') {
-    const p = getPatient(SELECTED_ID);
-    if (!p) return;
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span> Writing\u2026';
-    el.disabled = true;
-    try {
-      AI_PERSONALIZED_REMINDER = await generatePersonalizedReminderMessage(p);
-      el.innerHTML = '✓ Done'; el.style.background = 'var(--emerald)'; el.style.color = '#fff';
-      setTimeout(() => { el.innerHTML = originalHtml; el.disabled = false; el.style.background = ''; el.style.color = ''; }, 2000);
-      await renderTabBody(getPatient(SELECTED_ID));
-    } catch (err) {
-      console.error('AI personalized reminder failed:', err);
-      toast('AI draft failed: ' + (err && err.message ? err.message : 'try again'));
-      el.innerHTML = originalHtml;
-      el.disabled = false;
-    }
-    return;
-  }
   if (action === 'ai-suggest-investigations') {
     const p = AP_TEMP || getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
@@ -8906,7 +8840,6 @@ async function generatePersonalizedReminderMessage(p) {
     el.disabled = false;
     return;
   }
-  if (action === 'go-add') { VIEW = 'add-type-picker'; render(); return; }
   if (action === 'toggle-add-menu') { SHOW_ADD_MENU = !SHOW_ADD_MENU; render(); return; }
   if (action === 'add-menu-new-opd') { SHOW_ADD_MENU = false; initApTemp(); AP_TEMP.caseType = 'opd'; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW = 'add'; render(); return; }
   if (action === 'add-menu-new-surgical') { SHOW_ADD_MENU = false; initApTemp(); AP_TEMP.caseType = 'surgical'; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW = 'add'; render(); return; }
@@ -8923,7 +8856,6 @@ async function generatePersonalizedReminderMessage(p) {
     window.scrollTo(0,0);
     return;
   }
-  if (action === 'go-add-with-type') { initApTemp(); AP_TEMP.caseType = el.dataset.value; AP_PHOTOS = []; AP_INVESTIGATIONS = []; AP_INV_CATEGORY = 'xray'; AP_DUPLICATE_FROM = null; VIEW='add'; render(); return; }
   if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
   if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; VIEW = 'ai-digest'; render(); return; }
   if (action === 'open-ai-knowledge') { AI_KNOWLEDGE_ANSWER = null; VIEW = 'ai-knowledge'; render(); return; }
@@ -9296,7 +9228,6 @@ async function generatePersonalizedReminderMessage(p) {
     window.scrollTo(0,0);
     return;
   }
-  if (action === 'open-patient-followup') { SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='followups'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null; await render(); return; }
   if (action === 'open-universal-search') { openUniversalSearch(); return; }
   if (action === 'close-usearch') { closeUniversalSearch(); return; }
   if (action === 'usearch-open-patient') {
@@ -9876,16 +9807,6 @@ async function generatePersonalizedReminderMessage(p) {
     ARMED_DELETE = null;
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'ov-set-special') {
-    const p = getPatient(SELECTED_ID);
-    p.condition = el.dataset.value;
-    if (p.condition === 'ctev' && !p.ctev) p.ctev = newCtevShape();
-    if (p.condition === 'ra' && !p.ra) p.ra = newRaShape();
-    if (p.condition === 'osteoporosis' && !p.osteo) p.osteo = newOsteoShape();
-    await dbPutPatient(p); await refreshPatients();
-    await render();
     return;
   }
   if (action === 'log-reminder-sent') {
