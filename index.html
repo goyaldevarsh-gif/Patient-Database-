@@ -1626,7 +1626,6 @@ let EDITING_PATIENT_CODE = false;
 function resetPerPatientUiState() {
   EDITING_PATIENT_CODE = false;
   OV_EXPANDED = new Set(['snapshot']);
-  OV_SHOW_SCHEDULE = false;
   OV_SHOW_PAYMENT = false;
   OV_SHOW_TRACKING_PICK = false;
   OV_EDIT_SECTIONS = new Set();
@@ -4926,7 +4925,6 @@ function ovRow(label, value) {
   if (!value) return '';
   return '<div style="font-size:12.5px;line-height:1.6;"><span style="color:var(--muted);">'+esc(label)+':</span> <b style="color:#1e293b;font-weight:700;">'+esc(value)+'</b></div>';
 }
-let OV_SHOW_SCHEDULE = false;
 let OV_SHOW_PAYMENT = false;
 let OV_SHOW_TRACKING_PICK = false;
 /* Each Overview section is independently collapsible AND independently editable \u2014 no
@@ -5015,10 +5013,11 @@ function renderOverviewTab(p) {
     + [['Left','L'],['Right','R'],['Ambidextrous','Ambi']].map(([v,l])=>'<button class="seg-btn'+((p.handDominance||'')===v?' active':'')+'" data-action="ov-set-hand" data-value="'+v+'">'+l+'</button>').join('')
     + '</div></div>' : '')
     + '<div style="'+(overdue?'padding:10px;border-radius:12px;background:var(--red-bg);':'')+'">'
-    + '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up'+(overdue?' \u2014 OVERDUE':(p.nextFollowUpDate?'':' \u2014 not scheduled'))+'</label>'
-    + (!p.nextFollowUpDate && !OV_SHOW_SCHEDULE ? '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>' : '')
-    + '</div>'
-    + (p.nextFollowUpDate || OV_SHOW_SCHEDULE ? '<div style="margin-top:6px;">'+relativeFollowupPickerHtml('ov-fu', p.nextFollowUpDate, true)+'</div>' : '')
+    + '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up'+(overdue?' \u2014 OVERDUE':'')+'</label></div>'
+    + '<button type="button" class="btn btn-sm btn-block" style="margin-top:6px;justify-content:space-between;" data-action="quick-fu-open" data-patient-id="'+p.id+'">'
+    + '<span>'+(p.nextFollowUpDate ? (ic('calendar')+' '+fmtDate(p.nextFollowUpDate)) : (ic('plus')+' Set follow-up date'))+'</span>'
+    + ic('chevron')
+    + '</button>'
     + (overdue && overdueDays(p.nextFollowUpDate) >= 3 ? '<div class="row" style="gap:6px;margin-top:8px;">'
         + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-followup" data-id="'+p.id+'">'+ic('clock')+' Snooze 7d</button>'
         + (ARMED_DELETE === 'attn-mark-lost:'+p.id
@@ -5076,7 +5075,7 @@ function renderOverviewTab(p) {
     + ovSnapCell('clock', 'Next Follow-up', overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'Not scheduled'), fuColor)
     + '</div>'
     + (p.nextFollowUpDate ? '<div style="text-align:right;font-size:11px;color:'+fuColor+';font-style:italic;">('+relativeDaysUntil(p.nextFollowUpDate)+')</div>'
-        : '<div style="text-align:right;">'+(OV_SHOW_SCHEDULE ? '<div style="display:inline-block;max-width:220px;text-align:left;">'+relativeFollowupPickerHtml('ov-fu-snap', '', true)+'</div>' : '<button class="btn btn-sm" data-action="ov-show-schedule">'+ic('plus')+' Schedule</button>')+'</div>')
+        : '<div style="text-align:right;"><button class="btn btn-sm" data-action="quick-fu-open" data-patient-id="'+p.id+'">'+ic('plus')+' Schedule</button></div>')
     + (isSurgical && p.procedure ? '<div style="padding-top:8px;border-top:1px solid var(--border);">'+ovSnapCell('clipboard','Procedure', p.procedure)+'</div>' : '')
     + (isSurgical && (p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+ovSnapCell('clipboard','Hospital', p.hospital)+ovSnapCell('shield','Anaesthesia', p.anaesthesiaType)+'</div>' : '')
     + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '');
@@ -6195,7 +6194,8 @@ async function renderPrescriptionsTab(p) {
       + '<button class="btn btn-outline-dashed btn-block" data-action="rx-add-med" style="margin-bottom:12px;">'+ic('plus')+' Add another medicine</button>'
       + '<label class="field-label">Advice</label><textarea class="textarea" rows="2" id="rx-advice" placeholder="General advice, activity restriction\u2026">'+esc(RX_TEMP.advice)+'</textarea>'
       + '<label class="field-label" style="margin-top:10px;">Photos (optional \u2014 old prescriptions, referral notes)</label><div id="rx-thumbs">'+thumbGridHtml(RX_PHOTOS,'rx-remove-photo')+'</div>'
-      + '<label class="field-label" style="margin-top:10px;">Follow-up date (optional)</label><input class="input" type="date" id="rx-followUpDate" value="'+esc(RX_TEMP.followUpDate)+'" style="margin-bottom:10px;">'
+      + '<label class="field-label" style="margin-top:10px;">Follow-up date (optional)</label>'
+      + relativeFollowupPickerHtml('rx-followUpDate', RX_TEMP.followUpDate, false)
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-rx">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-rx">Save prescription</button></div>'
       + '</div>';
   }
@@ -9412,7 +9412,6 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'ov-show-schedule') { OV_SHOW_SCHEDULE = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-toggle-payment') { OV_SHOW_PAYMENT = !OV_SHOW_PAYMENT; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-show-tracking-pick') { OV_SHOW_TRACKING_PICK = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-toggle-section-edit') {
