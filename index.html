@@ -3700,12 +3700,20 @@ function renderTermsView() {
 
 function renderSettingsView() {
   const pr = loadProfile();
+  const userEmail = CURRENT_USER ? CURRENT_USER.email : 'Not signed in';
+  const userPlan = CURRENT_PLAN === 'ai' ? 'AI Tier' : CURRENT_PLAN === 'pro' ? 'Pro' : 'Free';
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="close-settings">'+ic('back')+'</button>'
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">Doctor / clinic profile</h2>'
     + '</div></div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
+    + '<div class="card" style="background:var(--slate-bg);padding:12px;border-radius:8px;margin-bottom:4px;">'
+    + '<div style="font-size:11px;color:var(--muted);font-weight:600;">Cloud account</div>'
+    + '<div style="font-size:13px;font-weight:700;margin-top:4px;">'+esc(userEmail)+'</div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">Plan: '+esc(userPlan)+'</div>'
+    + (CURRENT_USER ? '<button class="btn" style="font-size:11px;padding:6px 10px;margin-top:8px;background:var(--red-bg);color:var(--red);border-color:var(--red);" data-action="logout">Sign out</button>' : '<div style="font-size:11px;color:var(--muted);margin-top:8px;">Sign in to sync data across devices</div>')
+    + '</div>'
     + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.02em;margin:0 0 -4px;">OrthoVault \u2014 Built for Orthopaedic Surgeons</p>'
     + '<p style="font-size:12px;color:var(--muted);margin:0;">These details print on the prescription letterhead. Fill them in once, edit anytime.</p>'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="e.g. Dr. Jane Smith"></div>'
@@ -10475,6 +10483,20 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); updateStorageIndicator(); return; }
   if (action === 'close-settings') { VIEW = 'more'; render(); return; }
   if (action === 'close-app-settings') { VIEW = 'more'; render(); return; }
+  if (action === 'logout') {
+    if (confirm('Sign out? All local data stays, only the cloud sync account will be disconnected.')) {
+      firebase.auth().signOut().then(() => {
+        CURRENT_USER = null;
+        CURRENT_PLAN = 'free';
+        toast('Signed out');
+        render();
+      }).catch(err => {
+        console.error('Logout error:', err);
+        toast('Error signing out: ' + err.message);
+      });
+    }
+    return;
+  }
   if (action === 'close-cloud-sync') { VIEW = 'more'; render(); return; }
   if (action === 'close-drive-backup') { VIEW = 'more'; render(); return; }
   if (action === 'open-app-settings') { VIEW = 'app-settings'; render(); return; }
