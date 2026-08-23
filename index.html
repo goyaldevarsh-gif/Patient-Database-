@@ -1549,6 +1549,7 @@ const MONTHLY_LIMIT = 100000;
 let SHOW_INSIGHTS = false;
 let SHOW_ALL_ATTENTION = false;
 let DASH_CASE_TAB = 'total'; // 'total' | 'opd' | 'surgical'
+let SHOW_TOMORROW_LIST = true;
 let SHOW_ADD_MENU = false;
 let SHOW_AI_MENU = false;
 let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
@@ -5153,6 +5154,7 @@ let AI_SANITY_CHECK_RESULT = null;
 let MASTER_VOICE_STATE = 'idle'; // idle | listening | thinking | confirming
 let MASTER_VOICE_TRANSCRIPT = '';
 let MASTER_VOICE_RESULT = null;
+let MASTER_VOICE_EDITING = false;
 let AI_KNOWLEDGE_LEVEL = 'colleague';
 let AI_KNOWLEDGE_QUESTION = '';
 let AI_KNOWLEDGE_ANSWER = null;
@@ -7545,9 +7547,28 @@ function renderUpcomingFollowUpsList() {
 
 function renderCalendarView() {
   const s = computeDashboardStats();
+  let tomorrowHtml = '';
+  if (s.dueTomorrowList.length) {
+    tomorrowHtml = '<button type="button" class="row between" style="width:100%;background:var(--amber-bg,#fffbeb);border:1px solid var(--amber-border,#fde68a);border-radius:10px;padding:9px 12px;margin-bottom:10px;cursor:pointer;" data-action="toggle-tomorrow-list">'
+      + '<span style="font-size:12px;font-weight:700;color:#b45309;display:flex;align-items:center;gap:6px;">'+ic('clock')+' Tomorrow \u2014 '+s.dueTomorrowList.length+' follow-up'+(s.dueTomorrowList.length>1?'s':'')+' due</span>'
+      + '<span style="color:#b45309;transform:scale(0.75)'+(SHOW_TOMORROW_LIST?' rotate(180deg)':'')+';">'+ic('chevron')+'</span>'
+      + '</button>';
+    if (SHOW_TOMORROW_LIST) {
+      tomorrowHtml += '<div class="card" style="margin-bottom:12px;padding:6px 0;">'
+        + s.dueTomorrowList.map(p => {
+            const waLink = p.whatsapp ? followUpReminderLink(p) : null;
+            return '<div class="row between" style="padding:7px 14px;border-bottom:1px solid var(--border);">'
+              + '<span data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;font-size:12.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.name)+'</span>'
+              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+p.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '<span class="badge badge-slate" style="font-size:9px;">No WhatsApp</span>')
+              + '</div>';
+          }).join('')
+        + '</div>';
+    }
+  }
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row gap3" style="margin-bottom:10px;"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Follow-ups</h2></div>'
+    + tomorrowHtml
     + '<div class="seg">'
     + '<button class="seg-btn'+(CAL_SUBVIEW==='due'?' active':'')+'" data-action="cal-set-subview" data-value="due">Due'+(s.important.length?' ('+s.important.length+')':'')+'</button>'
     + '<button class="seg-btn'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming</button>'
@@ -8375,6 +8396,12 @@ function renderMasterVoiceOverlay() {
     body = '<div style="text-align:center;padding:24px 16px;"><div style="width:64px;height:64px;margin:0 auto 12px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;animation:mic-pulse 1.1s infinite;">'+ic('mic')+'</div><p style="font-size:13px;color:var(--muted);margin:0;">Sun raha hoon\u2026</p><button class="btn btn-sm" style="margin-top:16px;" data-action="master-voice-cancel">Cancel</button></div>';
   } else if (MASTER_VOICE_STATE === 'thinking') {
     body = '<div style="text-align:center;padding:24px 16px;"><span class="spinner"></span><p style="font-size:13px;color:var(--ink);margin-top:12px;font-style:italic;">\u201c'+esc(MASTER_VOICE_TRANSCRIPT)+'\u201d</p><p style="font-size:12px;color:var(--muted);margin-top:4px;">Samajh raha hoon\u2026</p></div>';
+  } else if (MASTER_VOICE_STATE === 'confirming' && MASTER_VOICE_EDITING) {
+    body = '<div style="padding:20px 16px;">'
+      + '<label class="field-label">Edit what you said</label>'
+      + '<textarea class="textarea" id="master-voice-edit-text" rows="3" style="margin-top:6px;">'+esc(MASTER_VOICE_TRANSCRIPT)+'</textarea>'
+      + '<div class="row gap2" style="margin-top:12px;"><button class="btn" style="flex:1;" data-action="master-voice-edit-cancel">Cancel</button><button class="btn btn-primary" style="flex:1;" data-action="master-voice-edit-submit">Re-interpret</button></div>'
+      + '</div>';
   } else if (MASTER_VOICE_STATE === 'confirming' && MASTER_VOICE_RESULT) {
     const r = MASTER_VOICE_RESULT;
     const actionable = r.action && r.action !== 'unclear';
@@ -8382,8 +8409,10 @@ function renderMasterVoiceOverlay() {
       + '<p style="font-size:11px;color:var(--muted);margin:0 0 10px;">\u201c'+esc(MASTER_VOICE_TRANSCRIPT)+'\u201d</p>'
       + '<p style="font-size:15px;font-weight:700;margin:0 0 18px;line-height:1.4;">'+esc(r.confirmationText||'Samajh nahi aaya, dobara try karein.')+'</p>'
       + (actionable
-          ? '<div class="row gap2"><button class="btn" style="flex:1;" data-action="master-voice-cancel">Cancel</button><button class="btn btn-primary" style="flex:1;" data-action="master-voice-confirm">'+ic('check')+' Confirm</button></div>'
-          : '<button class="btn btn-block" data-action="master-voice-cancel">OK</button>');
+          ? '<div class="row gap2" style="margin-bottom:8px;"><button class="btn" style="flex:1;" data-action="master-voice-cancel">Cancel</button><button class="btn btn-primary" style="flex:1;" data-action="master-voice-confirm">'+ic('check')+' Confirm</button></div>'
+            + '<button class="btn btn-block btn-sm" data-action="master-voice-edit-start">'+ic('pencil')+' Not quite right \u2014 edit</button>'
+          : '<div class="row gap2"><button class="btn" style="flex:1;" data-action="master-voice-cancel">OK</button><button class="btn" style="flex:1;" data-action="master-voice-edit-start">'+ic('pencil')+' Edit &amp; retry</button></div>')
+      + '</div>';
   }
   return '<div style="position:fixed;inset:0;background:rgba(15,23,42,0.5);z-index:100;display:flex;align-items:flex-end;justify-content:center;">'
     + '<div style="background:#fff;width:100%;max-width:520px;border-radius:20px 20px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,0.2);">'
@@ -8696,8 +8725,21 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'master-voice-start') { startMasterVoice(); return; }
-  if (action === 'master-voice-cancel') { MASTER_VOICE_STATE = 'idle'; MASTER_VOICE_TRANSCRIPT = ''; MASTER_VOICE_RESULT = null; updateMasterVoiceUI(); return; }
+  if (action === 'master-voice-cancel') { MASTER_VOICE_STATE = 'idle'; MASTER_VOICE_TRANSCRIPT = ''; MASTER_VOICE_RESULT = null; MASTER_VOICE_EDITING = false; updateMasterVoiceUI(); return; }
   if (action === 'master-voice-confirm') { await executeMasterVoiceAction(); return; }
+  if (action === 'master-voice-edit-start') { MASTER_VOICE_EDITING = true; updateMasterVoiceUI(); return; }
+  if (action === 'master-voice-edit-cancel') { MASTER_VOICE_EDITING = false; updateMasterVoiceUI(); return; }
+  if (action === 'master-voice-edit-submit') {
+    const editEl = document.getElementById('master-voice-edit-text');
+    const editedText = editEl ? editEl.value.trim() : '';
+    if (!editedText) { toast('Type what you meant to say'); return; }
+    MASTER_VOICE_TRANSCRIPT = editedText;
+    MASTER_VOICE_EDITING = false;
+    MASTER_VOICE_STATE = 'thinking';
+    updateMasterVoiceUI();
+    await classifyMasterVoiceIntent(editedText);
+    return;
+  }
   if (action === 'speak-text') {
     const sourceEl = document.getElementById(el.dataset.source);
     const text = sourceEl ? sourceEl.textContent : '';
@@ -8907,7 +8949,7 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; VIEW = 'ai-digest'; render(); return; }
   if (action === 'open-ai-knowledge') { AI_KNOWLEDGE_ANSWER = null; VIEW = 'ai-knowledge'; render(); return; }
   if (action === 'open-ai-assistant') { AI_ASSISTANT_ANSWER = null; VIEW = 'ai-assistant'; render(); return; }
-  if (action === 'close-ai-assistant') { VIEW = 'ai-hub'; render(); return; }
+  if (action === 'close-ai-assistant') { VIEW = 'list'; render(); return; }
   if (action === 'ask-ai-assistant') {
     const inputEl = document.getElementById('ai-assistant-input');
     AI_ASSISTANT_QUESTION = inputEl ? inputEl.value.trim() : '';
@@ -8929,7 +8971,7 @@ async function generatePersonalizedReminderMessage(p) {
     }
     return;
   }
-  if (action === 'close-ai-knowledge') { VIEW = 'ai-hub'; render(); return; }
+  if (action === 'close-ai-knowledge') { VIEW = 'list'; render(); return; }
   if (action === 'ai-knowledge-set-level') {
     const inputEl = document.getElementById('ai-knowledge-input');
     AI_KNOWLEDGE_QUESTION = inputEl ? inputEl.value : '';
@@ -8963,7 +9005,7 @@ async function generatePersonalizedReminderMessage(p) {
     }
     return;
   }
-  if (action === 'close-ai-digest') { VIEW = 'ai-hub'; render(); return; }
+  if (action === 'close-ai-digest') { VIEW = 'list'; render(); return; }
   if (action === 'ai-write-digest') {
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Writing\u2026';
@@ -8984,7 +9026,7 @@ async function generatePersonalizedReminderMessage(p) {
     }
     return;
   }
-  if (action === 'close-ai-query') { VIEW = 'ai-hub'; render(); return; }
+  if (action === 'close-ai-query') { VIEW = 'list'; render(); return; }
   if (action === 'ask-ai-query') {
     const inputEl = document.getElementById('ai-query-input');
     AI_QUERY_TEXT = inputEl ? inputEl.value.trim() : '';
@@ -10912,6 +10954,7 @@ async function generatePersonalizedReminderMessage(p) {
 
   if (action === 'close-calendar') { REMINDER_FORM_OPEN = false; VIEW = 'list'; render(); return; }
   if (action === 'cal-set-subview') { CAL_SUBVIEW = el.dataset.value; REMINDER_FORM_OPEN = false; render(); return; }
+  if (action === 'toggle-tomorrow-list') { SHOW_TOMORROW_LIST = !SHOW_TOMORROW_LIST; render(); return; }
   if (action === 'cal-prev-month') { CAL_MONTH--; if (CAL_MONTH<0) { CAL_MONTH=11; CAL_YEAR--; } render(); return; }
   if (action === 'cal-next-month') { CAL_MONTH++; if (CAL_MONTH>11) { CAL_MONTH=0; CAL_YEAR++; } render(); return; }
   if (action === 'cal-today') { const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t; render(); return; }
