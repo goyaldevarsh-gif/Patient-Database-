@@ -528,6 +528,12 @@
   .usearch-topbar { display:flex; align-items:center; gap:8px; padding:14px 16px; padding-top:calc(14px + env(safe-area-inset-top, 0px)); border-bottom:1px solid var(--border); }
   .usearch-results { flex:1; overflow-y:auto; padding:8px 16px 24px; }
   [data-theme="dark"] .reminder-check { background:#1e293b; }
+  .bottom-nav { display:flex; align-items:stretch; background:var(--bg,#fff); border-top:1px solid var(--border); padding:6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); box-shadow:0 -2px 10px rgba(15,23,42,0.06); }
+  .bottom-nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; background:none; border:none; padding:6px 2px; color:var(--muted); font-size:10px; font-weight:700; }
+  .bottom-nav-btn.active { color:var(--accent); }
+  .bottom-nav-btn .ic { width:20px; height:20px; }
+  .bottom-nav-add-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .bottom-nav-add-circle { width:38px; height:38px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(67,56,202,0.35); margin-top:-14px; }
 </style>
 </head>
 <body>
@@ -541,6 +547,7 @@
   <button id="master-voice-fab" class="usearch-fab" data-action="master-voice-start" title="AI voice command" style="pointer-events:auto;left:16px;right:auto;width:38px;height:38px;background:#0f172a;"><svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M12 3l1.4 4.3L18 9l-4.6 1.7L12 15l-1.4-4.3L6 9l4.6-1.7z"/><path d="M19 13l.6 1.9L21 16l-1.9.7L19 19l-.6-2.3L16 16l2.4-1.1z"/></svg></button>
 </div>
 <div id="master-voice-overlay-wrap"></div>
+<div id="bottom-nav-wrap" style="display:none;position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;z-index:44;"></div>
 <div id="side-back-wrap" style="display:none;position:fixed;inset:0;max-width:520px;margin:0 auto;pointer-events:none;z-index:45;">
   <button id="side-back-btn" class="side-back-btn" title="Back" style="pointer-events:auto;"><svg class="ic" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
 </div>
@@ -1541,7 +1548,6 @@ const MONTHLY_LIMIT = 100000;
 let SHOW_INSIGHTS = false;
 let SHOW_ALL_ATTENTION = false;
 let ATTENTION_EXPANDED = true;
-let SHOW_TOMORROW_LIST = false;
 let PATIENT_LIST_EXPANDED = false;
 let SHOW_ADD_MENU = false;
 let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
@@ -1557,12 +1563,12 @@ function addMenuDropdownHtml() {
     ['clock', 'Add Reminder', 'add-menu-pick-patient', 'reminder'],
     ['camera', 'Add Investigation', 'add-menu-pick-patient', 'investigation'],
   ];
-  return '<div style="position:absolute;top:44px;right:0;z-index:30;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.15);padding:6px;display:flex;flex-direction:column;gap:2px;min-width:200px;">'
+  return '<div style="position:fixed;bottom:78px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:340px;z-index:47;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:6px;display:flex;flex-direction:column;gap:2px;">'
     + items.map(([icon,label,action,value]) => '<button type="button" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="'+action+'"'+(value?' data-value="'+value+'"':'')+'>'
       + '<span style="flex:none;width:28px;height:28px;border-radius:50%;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic(icon)+'</span>'
       + label + '</button>').join('')
     + '</div>'
-    + '<div style="position:fixed;inset:0;z-index:29;" data-action="toggle-add-menu"></div>';
+    + '<div style="position:fixed;inset:0;z-index:46;" data-action="toggle-add-menu"></div>';
 }
 function openQuickPicker(purpose) {
   QUICK_PICKER_PURPOSE = purpose;
@@ -3224,7 +3230,7 @@ async function renderMoreView() {
         + moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new')
     },
   ];
-  return '<div style="padding-bottom:40px;">'
+  return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row gap3"><button class="icon-btn" data-action="close-more">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">More</h2></div>'
     + '</div>'
@@ -4019,34 +4025,16 @@ function renderDashboardSection() {
   const daysBack = daysSinceLastBackup();
   const ownerProfileForGreeting = loadProfile();
   let html = '';
-  html += dashboardQuoteHtml();
 
   const firstName = (ownerProfileForGreeting.doctorName||'').replace(/^Dr\.?\s*/i,'').split(' ')[0];
   const greetingDate = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
   const statusBadge = s.important.length
-    ? '<span class="badge badge-red" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+s.important.length+' to review</span>'
-    : '<span class="badge badge-emerald" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+ic('check')+' all clear</span>';
-  html += '<div class="row between" style="margin-bottom:'+(s.dueTomorrowList.length ? '2px' : '12px')+';align-items:center;">'
-    + '<p style="font-size:13px;color:var(--muted);margin:0;display:flex;align-items:center;gap:3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.78);transform-origin:center;flex-shrink:0;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+' \u2014 '+greetingDate+'</p>'
+    ? '<span class="badge badge-red" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+s.important.length+' need'+(s.important.length===1?'s':'')+' attention</span>'
+    : '<span class="badge badge-emerald" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+ic('check')+' All caught up</span>';
+  html += '<div class="row between" style="margin-bottom:12px;align-items:center;">'
+    + '<p style="font-size:13px;color:var(--muted);margin:0;display:flex;align-items:center;gap:3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.78);transform-origin:center;flex-shrink:0;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+' \u00b7 '+greetingDate+'</p>'
     + statusBadge
     + '</div>';
-  if (s.dueTomorrowList.length) {
-    html += '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:0;margin:0 0 12px;cursor:pointer;" data-action="toggle-tomorrow-list">'
-      + '<span style="font-size:11px;color:var(--muted);">'+s.dueTomorrowList.length+' follow-up'+(s.dueTomorrowList.length>1?'s':'')+' due tomorrow</span>'
-      + '<span style="color:var(--muted);transform:scale(0.7);'+(SHOW_TOMORROW_LIST?'transform:scale(0.7) rotate(180deg);':'')+'">'+ic('chevron')+'</span>'
-      + '</button>';
-    if (SHOW_TOMORROW_LIST) {
-      html += '<div class="card" style="margin-bottom:12px;padding:6px 0;">'
-        + s.dueTomorrowList.map(p => {
-            const waLink = p.whatsapp ? followUpReminderLink(p) : null;
-            return '<div class="row between" style="padding:7px 14px;border-bottom:1px solid var(--border);">'
-              + '<span data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;font-size:12.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.name)+'</span>'
-              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+p.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
-              + '</div>';
-          }).join('')
-        + '</div>';
-    }
-  }
 
   if (isAiTier()) {
     html += '<button type="button" class="card" style="width:100%;text-align:left;display:flex;align-items:center;gap:8px;padding:7px 12px;margin-bottom:12px;cursor:pointer;" data-action="open-ai-digest">'
@@ -4266,6 +4254,21 @@ function updateUsearchFabVisibility() {
   wrap.style.display = (APP_LOCKED || USEARCH_FAB_HIDDEN_VIEWS.includes(VIEW)) ? 'none' : 'block';
 }
 
+const BOTTOM_NAV_VIEWS = ['list', 'calendar', 'more'];
+function updateBottomNavVisibility() {
+  const wrap = document.getElementById('bottom-nav-wrap');
+  if (!wrap) return;
+  if (APP_LOCKED || !BOTTOM_NAV_VIEWS.includes(VIEW)) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  wrap.style.display = 'block';
+  wrap.innerHTML = '<div class="bottom-nav">'
+    + '<button type="button" class="bottom-nav-btn'+(VIEW==='list' && PATIENT_LIST_EXPANDED ? ' active' : '')+'" data-action="nav-patients">'+ic('userPlus')+'<span>Patients</span></button>'
+    + '<button type="button" class="bottom-nav-add-btn" data-action="toggle-add-menu"><span class="bottom-nav-add-circle">'+ic(SHOW_ADD_MENU?'x':'plus')+'</span></button>'
+    + '<button type="button" class="bottom-nav-btn'+(VIEW==='calendar' ? ' active' : '')+'" data-action="open-calendar">'+ic('calendar')+'<span>Calendar</span></button>'
+    + '<button type="button" class="bottom-nav-btn'+(VIEW==='more' ? ' active' : '')+'" data-action="open-more">'+ic('menu')+'<span>More</span></button>'
+    + '</div>'
+    + (SHOW_ADD_MENU ? addMenuDropdownHtml() : '');
+}
+
 function renderListView() {
   saveFilterState();
   const counts = { all: PATIENTS.length };
@@ -4405,18 +4408,14 @@ const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today
     + '<div class="row gap2"><img src="icons/icon-192.png" style="width:38px;height:38px;border-radius:10px;flex:none;box-shadow:0 2px 8px rgba(67,56,202,0.25);"><div><h1 style="font-size:21px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1>'
     + (ownerProfile.doctorName ? '<p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:3px 0 0;">'+esc(ownerProfile.doctorName)+'</p>' : '')
     + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;"><span style="font-weight:800;color:var(--accent);font-size:13px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p></div></div>'
-    + '<div class="row gap2" style="position:relative;">'
-    + '<button class="icon-btn" data-action="open-calendar" title="Calendar & reminders">'+ic('calendar')+'</button>'
-    + '<button class="icon-btn" data-action="open-more" title="More">'+ic('menu')+'</button>'
-    + '<button class="btn btn-primary" style="display:flex;align-items:center;gap:4px;padding:9px 12px;" data-action="toggle-add-menu">'+ic(SHOW_ADD_MENU?'x':'plus')+' Add</button>'
-    + (SHOW_ADD_MENU ? addMenuDropdownHtml() : '')
-    + '</div></div>'
+    + '</div>'
     + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
     + tagChips
     + recencyNote
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'+renderDashboardSection()
+    + '<div id="patient-list-anchor"></div>'
     + (SEARCH || FILTER_TYPE !== 'all' || TAG_FILTER || PATIENT_LIST_EXPANDED
         ? ((PATIENT_LIST_EXPANDED ? '<button type="button" class="chip" style="margin-bottom:10px;" data-action="toggle-patient-list-expanded">\u2212 Show recent only</button>' : '')
           + (PATIENTS.length ? (SHOW_LEGEND
@@ -7559,6 +7558,7 @@ async function render() {
   app.classList.remove('view-transition'); void app.offsetWidth; app.classList.add('view-transition');
   await renderCurrentView(app);
   updateUsearchFabVisibility();
+  updateBottomNavVisibility();
   updateSideBackVisibility();
   updateMasterVoiceUI();
 }
@@ -9242,7 +9242,6 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'toggle-insights') { SHOW_INSIGHTS = !SHOW_INSIGHTS; render(); return; }
   if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
   if (action === 'toggle-attention-expanded') { ATTENTION_EXPANDED = !ATTENTION_EXPANDED; render(); return; }
-  if (action === 'toggle-tomorrow-list') { SHOW_TOMORROW_LIST = !SHOW_TOMORROW_LIST; render(); return; }
   if (action === 'dash-tile-attention') {
     ATTENTION_EXPANDED = true;
     render();
@@ -10710,6 +10709,13 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'open-more') { VIEW = 'more'; render(); return; }
+  if (action === 'nav-patients') {
+    VIEW = 'list'; PATIENT_LIST_EXPANDED = true;
+    await render();
+    const anchor = document.getElementById('patient-list-anchor');
+    if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
   if (action === 'open-ai-hub') { VIEW = 'ai-hub'; render(); return; }
   if (action === 'open-cash-audit') { VIEW = 'cash-audit'; render(); return; }
   if (action === 'close-cash-audit') { VIEW = 'more'; render(); return; }
