@@ -1547,8 +1547,7 @@ const DAILY_LIMIT = 15000;
 const MONTHLY_LIMIT = 100000;
 let SHOW_INSIGHTS = false;
 let SHOW_ALL_ATTENTION = false;
-let ATTENTION_EXPANDED = true;
-let PATIENT_LIST_EXPANDED = false;
+let DASH_CASE_TAB = 'total'; // 'total' | 'opd' | 'surgical'
 let SHOW_ADD_MENU = false;
 let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
 let QUICK_PICKER_QUERY = '';
@@ -1828,7 +1827,7 @@ let REMINDERS = [];
 let CAL_YEAR = new Date().getFullYear();
 let CAL_MONTH = new Date().getMonth(); // 0-indexed
 let CAL_SELECTED_DATE = todayStr();
-let CAL_SUBVIEW = 'upcoming'; // 'calendar' | 'upcoming' | 'reminders'
+let CAL_SUBVIEW = 'due'; // 'due' | 'upcoming' | 'calendar'
 let REMINDER_FORM_OPEN = false;
 let REMINDER_FORM_PATIENT_ID = null; // set when adding a reminder from a patient's page
 let REMINDER_FORM_CATEGORY = 'General';
@@ -4029,28 +4028,12 @@ function renderDashboardSection() {
   const firstName = (ownerProfileForGreeting.doctorName||'').replace(/^Dr\.?\s*/i,'').split(' ')[0];
   const greetingDate = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
   const statusBadge = s.important.length
-    ? '<span class="badge badge-red" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+s.important.length+' need'+(s.important.length===1?'s':'')+' attention</span>'
-    : '<span class="badge badge-emerald" style="font-size:10px;padding:2px 8px;flex-shrink:0;">'+ic('check')+' All caught up</span>';
-  html += '<div class="row between" style="margin-bottom:12px;align-items:center;">'
-    + '<p style="font-size:13px;color:var(--muted);margin:0;display:flex;align-items:center;gap:3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.78);transform-origin:center;flex-shrink:0;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+' \u00b7 '+greetingDate+'</p>'
+    ? '<button type="button" data-action="dash-goto-followups" class="badge badge-red" style="font-size:10px;padding:3px 9px;flex-shrink:0;border:none;cursor:pointer;">'+s.important.length+' need'+(s.important.length===1?'s':'')+' attention</button>'
+    : '<span class="badge badge-emerald" style="font-size:10px;padding:3px 9px;flex-shrink:0;">'+ic('check')+' All caught up</span>';
+  html += '<div class="row between" style="margin-bottom:14px;align-items:center;background:rgba(67,56,202,0.07);border-radius:12px;padding:11px 13px;">'
+    + '<p style="font-size:14px;font-weight:800;color:var(--ink);margin:0;display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"><span style="color:var(--accent);display:inline-flex;flex-shrink:0;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+'<span style="font-weight:500;color:var(--muted);font-size:11.5px;"> \u00b7 '+greetingDate+'</span></p>'
     + statusBadge
     + '</div>';
-
-  if (isAiTier()) {
-    html += '<button type="button" class="card" style="width:100%;text-align:left;display:flex;align-items:center;gap:8px;padding:7px 12px;margin-bottom:12px;cursor:pointer;" data-action="open-ai-digest">'
-      + '<span style="color:var(--accent);display:flex;align-items:center;flex-shrink:0;transform:scale(0.8);">'+ic('sparkle')+'</span>'
-      + '<span style="flex:1;min-width:0;font-size:11.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">AI Practice Briefing</span>'
-      + '<span style="color:var(--muted);flex-shrink:0;transform:scale(0.8);">'+ic('chevron')+'</span>'
-      + '</button>';
-  }
-
-  const pinnedPatients = PATIENTS.filter(p => p.pinned);
-  if (pinnedPatients.length) {
-    html += '<div style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:6px;">Quick Access</label></div>'
-      + '<div style="margin-bottom:8px;">'
-      + pinnedPatients.map(p => renderDashboardPatientQuickCard(p)).join('')
-      + '</div>';
-  }
 
   if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 14)) {
     html += '<div class="backup-banner">'
@@ -4070,69 +4053,22 @@ function renderDashboardSection() {
       + '</div>';
   }
 
-  html += '<div class="row gap2" style="margin-bottom:12px;">'
-    + '<button type="button" class="dash-tile" data-action="dash-tile-attention" style="'+(s.important.length ? 'border-color:var(--red-border);background:var(--red-bg);' : 'border-color:var(--border);background:#fff;')+'cursor:pointer;"><div class="di" style="color:'+(s.important.length?'var(--red)':'var(--emerald)')+';">'+ic(s.important.length?'alert':'check')+'</div><div class="dv" style="color:'+(s.important.length?'var(--red)':'var(--ink)')+';">'+s.important.length+'</div><div class="dl" style="color:'+(s.important.length?'var(--red)':'var(--muted)')+';">Important today</div></button>'
-    + '<button type="button" class="dash-tile" style="border-color:var(--border);cursor:pointer;" data-action="dash-tile-calendar"><div class="di" style="color:var(--accent);">'+ic('calendar')+'</div><div class="dv">'+s.surgeriesThisWeek+'</div><div class="dl" style="color:var(--muted);">Surgeries (7 days)</div></button>'
-    + '<div class="dash-tile" style="border-color:var(--border);"><div class="di" style="color:var(--emerald);">'+ic('shield')+'</div><div class="dv">'+s.activeCases+'</div><div class="dl" style="color:var(--muted);">Active cases</div></div>'
+  const caseTabCounts = { total: PATIENTS.length, opd: PATIENTS.filter(p=>p.caseType!=='surgical').length, surgical: PATIENTS.filter(p=>p.caseType==='surgical').length };
+  const caseTabLabels = { total: 'Total Cases', opd: 'OPD Cases', surgical: 'Surgical Cases' };
+  html += '<div class="seg" style="margin-bottom:8px;">'
+    + ['total','opd','surgical'].map(k => '<button type="button" class="seg-btn'+(DASH_CASE_TAB===k?' active':'')+'" data-action="dash-case-tab-set" data-value="'+k+'">'+caseTabLabels[k]+'</button>').join('')
+    + '</div>'
+    + '<div class="card" style="text-align:center;padding:18px;margin-bottom:14px;">'
+    + '<div style="font-size:34px;font-weight:800;font-family:\'JetBrains Mono\',monospace;color:var(--accent);line-height:1;">'+caseTabCounts[DASH_CASE_TAB]+'</div>'
+    + '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.02em;margin-top:5px;">'+caseTabLabels[DASH_CASE_TAB]+'</div>'
     + '</div>';
 
-  if (!s.important.length) {
-    html += '<div class="card" style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:12px;">'
-      + '<span style="width:26px;height:26px;border-radius:50%;background:var(--emerald-bg);color:var(--emerald);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ic('check')+'</span>'
-      + '<div><p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:0;">All caught up</p><p style="font-size:11px;color:var(--muted);margin:1px 0 0;">No overdue follow-ups, RA labs, or DEXA scans today.</p></div>'
+  const pinnedPatients = PATIENTS.filter(p => p.pinned);
+  if (pinnedPatients.length) {
+    html += '<div style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:6px;">Quick Access</label></div>'
+      + '<div style="margin-bottom:8px;">'
+      + pinnedPatients.map(p => renderDashboardPatientQuickCard(p)).join('')
       + '</div>';
-  }
-
-  if (s.important.length) {
-    const queueEligible = s.important.filter(item => item.type === 'Follow-up' && item.patient.whatsapp);
-    html += '<button type="button" id="dash-attention-anchor" class="btn" style="width:100%;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-weight:800;background:var(--red-bg);border-color:var(--red-border);color:var(--red);" data-action="toggle-attention-expanded">'
-      + '<span>'+ic('alert')+' Needs Attention Today ('+s.important.length+')</span>'
-      + '<span style="font-size:16px;">'+(ATTENTION_EXPANDED?'\u2212':'+')+'</span>'
-      + '</button>';
-    if (queueEligible.length) {
-      html += '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>';
-    }
-    if (ATTENTION_EXPANDED) {
-      const showAll = SHOW_ALL_ATTENTION || s.important.length <= 3;
-      const shown = showAll ? s.important.slice(0,8) : s.important.slice(0,3);
-      const typeIcon = { 'Follow-up':'calendar', 'RA labs':'file', 'DEXA scan':'file' };
-      html += '<div class="card" style="margin-bottom:12px;padding:6px 0;border-left:3px solid var(--red);">'
-        + shown.map(item => {
-            const days = overdueDays(item.date);
-            const severityText = item.isOverdue ? (days > 0 ? days+' day'+(days>1?'s':'')+' overdue' : 'Overdue') : 'Due today';
-            const waLink = (item.type === 'Follow-up' && item.patient.whatsapp) ? followUpReminderLink(item.patient) : null;
-            const showEscalation = item.type === 'Follow-up' && item.isOverdue && days >= 3;
-            const showTrackingSnooze = (item.type === 'RA labs' || item.type === 'DEXA scan') && item.isOverdue && days >= 3;
-            const trackingField = item.type === 'RA labs' ? 'ra' : 'dexa';
-            const lostArmed = ARMED_DELETE === 'attn-mark-lost:'+item.patient.id;
-            const remindedDaysAgo = item.patient.lastReminderSentAt ? Math.floor((Date.now() - item.patient.lastReminderSentAt) / 86400000) : null;
-            const remindedText = remindedDaysAgo === null ? '' : (remindedDaysAgo === 0 ? ' \u00b7 reminded today' : ' \u00b7 reminded '+remindedDaysAgo+'d ago');
-            const snoozeCount = item.patient.followUpSnoozeCount || 0;
-            return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);">'
-              + '<div class="row between">'
-              + '<span data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px;min-width:0;">'
-                + '<span style="color:'+(item.isOverdue?'var(--red)':'#b45309')+';flex-shrink:0;">'+ic(typeIcon[item.type]||'calendar')+'</span>'
-                + '<span style="min-width:0;overflow:hidden;">'
-                  + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.patient.name)+'</span>'
-                  + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+esc(remindedText)+'</span>'
-                + '</span>'
-              + '</span>'
-              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+item.patient.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
-              + '</div>'
-              + (showEscalation ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;">'
-                  + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;'+(snoozeCount>0?'color:#b45309;border-color:var(--amber-border,#fde68a);background:var(--amber-bg,#fffbeb);':'')+'" data-action="attn-snooze-followup" data-id="'+item.patient.id+'" title="'+(snoozeCount>0?'Already snoozed '+snoozeCount+' time'+(snoozeCount>1?'s':''):'')+'">'+ic('clock')+' '+(snoozeCount>0?'Snooze again':'Snooze 7d')+'</button>'
-                  + (lostArmed
-                      ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+item.patient.id+'">'+ic('check')+' Confirm?</button>'
-                      : '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--muted);" data-action="arm-delete" data-arm="attn-mark-lost:'+item.patient.id+'">Lost to follow-up</button>')
-                  + '</div>' : '')
-              + (showTrackingSnooze ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;">'
-                  + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-tracking" data-id="'+item.patient.id+'" data-field="'+trackingField+'">'+ic('clock')+' Snooze 14d</button>'
-                  + '</div>' : '')
-              + '</div>';
-          }).join('')
-        + (!showAll ? '<div style="padding:8px 14px 2px;"><button class="chip" data-action="toggle-show-all-attention">Show all '+s.important.length+'</button></div>' : '')
-        + '</div>';
-    }
   }
 
   if (s.topProcedures.length || s.topConditions.length) {
@@ -4148,6 +4084,62 @@ function renderDashboardSection() {
         + '</div>';
     }
   }
+  return html;
+}
+
+/* Follow-up / RA-labs / DEXA overdue+due-today list \u2014 lives in the Followups tab's "Due" segment */
+function renderNeedsAttentionBlock(s) {
+  let html = '';
+  if (!s.important.length) {
+    html += '<div class="card" style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:12px;">'
+      + '<span style="width:26px;height:26px;border-radius:50%;background:var(--emerald-bg);color:var(--emerald);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ic('check')+'</span>'
+      + '<div><p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:0;">All caught up</p><p style="font-size:11px;color:var(--muted);margin:1px 0 0;">No overdue follow-ups, RA labs, or DEXA scans today.</p></div>'
+      + '</div>';
+    return html;
+  }
+  const queueEligible = s.important.filter(item => item.type === 'Follow-up' && item.patient.whatsapp);
+  if (queueEligible.length) {
+    html += '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>';
+  }
+  const showAll = SHOW_ALL_ATTENTION || s.important.length <= 3;
+  const shown = showAll ? s.important.slice(0,8) : s.important.slice(0,3);
+  const typeIcon = { 'Follow-up':'calendar', 'RA labs':'file', 'DEXA scan':'file' };
+  html += '<div class="card" style="margin-bottom:12px;padding:6px 0;border-left:3px solid var(--red);">'
+    + shown.map(item => {
+        const days = overdueDays(item.date);
+        const severityText = item.isOverdue ? (days > 0 ? days+' day'+(days>1?'s':'')+' overdue' : 'Overdue') : 'Due today';
+        const waLink = (item.type === 'Follow-up' && item.patient.whatsapp) ? followUpReminderLink(item.patient) : null;
+        const showEscalation = item.type === 'Follow-up' && item.isOverdue && days >= 3;
+        const showTrackingSnooze = (item.type === 'RA labs' || item.type === 'DEXA scan') && item.isOverdue && days >= 3;
+        const trackingField = item.type === 'RA labs' ? 'ra' : 'dexa';
+        const lostArmed = ARMED_DELETE === 'attn-mark-lost:'+item.patient.id;
+        const remindedDaysAgo = item.patient.lastReminderSentAt ? Math.floor((Date.now() - item.patient.lastReminderSentAt) / 86400000) : null;
+        const remindedText = remindedDaysAgo === null ? '' : (remindedDaysAgo === 0 ? ' \u00b7 reminded today' : ' \u00b7 reminded '+remindedDaysAgo+'d ago');
+        const snoozeCount = item.patient.followUpSnoozeCount || 0;
+        return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);">'
+          + '<div class="row between">'
+          + '<span data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px;min-width:0;">'
+            + '<span style="color:'+(item.isOverdue?'var(--red)':'#b45309')+';flex-shrink:0;">'+ic(typeIcon[item.type]||'calendar')+'</span>'
+            + '<span style="min-width:0;overflow:hidden;">'
+              + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.patient.name)+'</span>'
+              + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+esc(remindedText)+'</span>'
+            + '</span>'
+          + '</span>'
+          + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+item.patient.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
+          + '</div>'
+          + (showEscalation ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;">'
+              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;'+(snoozeCount>0?'color:#b45309;border-color:var(--amber-border,#fde68a);background:var(--amber-bg,#fffbeb);':'')+'" data-action="attn-snooze-followup" data-id="'+item.patient.id+'" title="'+(snoozeCount>0?'Already snoozed '+snoozeCount+' time'+(snoozeCount>1?'s':''):'')+'">'+ic('clock')+' '+(snoozeCount>0?'Snooze again':'Snooze 7d')+'</button>'
+              + (lostArmed
+                  ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+item.patient.id+'">'+ic('check')+' Confirm?</button>'
+                  : '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--muted);" data-action="arm-delete" data-arm="attn-mark-lost:'+item.patient.id+'">Lost to follow-up</button>')
+              + '</div>' : '')
+          + (showTrackingSnooze ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;">'
+              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-tracking" data-id="'+item.patient.id+'" data-field="'+trackingField+'">'+ic('clock')+' Snooze 14d</button>'
+              + '</div>' : '')
+          + '</div>';
+      }).join('')
+    + (!showAll ? '<div style="padding:8px 14px 2px;"><button class="chip" data-action="toggle-show-all-attention">Show all '+s.important.length+'</button></div>' : '')
+    + '</div>';
   return html;
 }
 
@@ -4247,40 +4239,65 @@ function usearchResultRowHtml(p, q) {
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
-const USEARCH_FAB_HIDDEN_VIEWS = ['list','add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','cash-audit','compare-picker','compare-view','print','settings','app-settings','cloud-sync','about','calendar','more','recently-deleted','unfiled-photos','onboarding'];
+const USEARCH_FAB_HIDDEN_VIEWS = ['list','patients','reminders-tab','add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','cash-audit','compare-picker','compare-view','print','settings','app-settings','cloud-sync','about','calendar','more','recently-deleted','unfiled-photos','onboarding'];
 function updateUsearchFabVisibility() {
   const wrap = document.getElementById('usearch-fab-wrap');
   if (!wrap) return;
   wrap.style.display = (APP_LOCKED || USEARCH_FAB_HIDDEN_VIEWS.includes(VIEW)) ? 'none' : 'block';
 }
 
-const BOTTOM_NAV_VIEWS = ['list', 'calendar', 'more'];
+const BOTTOM_NAV_VIEWS = ['list', 'patients', 'calendar', 'reminders-tab', 'more'];
 function updateBottomNavVisibility() {
   const wrap = document.getElementById('bottom-nav-wrap');
   if (!wrap) return;
   if (APP_LOCKED || !BOTTOM_NAV_VIEWS.includes(VIEW)) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
   wrap.style.display = 'block';
   wrap.innerHTML = '<div class="bottom-nav">'
-    + '<button type="button" class="bottom-nav-btn'+(VIEW==='list' && PATIENT_LIST_EXPANDED ? ' active' : '')+'" data-action="nav-patients">'+ic('userPlus')+'<span>Patients</span></button>'
+    + '<button type="button" class="bottom-nav-btn'+(VIEW==='patients' ? ' active' : '')+'" data-action="nav-patients">'+ic('userPlus')+'<span>Patients</span></button>'
+    + '<button type="button" class="bottom-nav-btn'+(VIEW==='calendar' ? ' active' : '')+'" data-action="open-followups">'+ic('clock')+'<span>Followups</span></button>'
     + '<button type="button" class="bottom-nav-add-btn" data-action="toggle-add-menu"><span class="bottom-nav-add-circle">'+ic(SHOW_ADD_MENU?'x':'plus')+'</span></button>'
-    + '<button type="button" class="bottom-nav-btn'+(VIEW==='calendar' ? ' active' : '')+'" data-action="open-calendar">'+ic('calendar')+'<span>Calendar</span></button>'
+    + '<button type="button" class="bottom-nav-btn'+(VIEW==='reminders-tab' ? ' active' : '')+'" data-action="open-reminders-tab">'+ic('bookmark')+'<span>Reminders</span></button>'
     + '<button type="button" class="bottom-nav-btn'+(VIEW==='more' ? ' active' : '')+'" data-action="open-more">'+ic('menu')+'<span>More</span></button>'
     + '</div>'
     + (SHOW_ADD_MENU ? addMenuDropdownHtml() : '');
 }
 
+
+function patientGroupKey(p) {
+  if (p.pinned) return 'pinned';
+  if (isOverdue(p.nextFollowUpDate)) return 'overdue';
+  const d = p.surgeryDate ? new Date(p.surgeryDate) : null;
+  if (!d || isNaN(d)) return 'older';
+  const diffDays = Math.floor((new Date() - d) / 86400000);
+  if (diffDays <= 0) return 'today';
+  if (diffDays <= 7) return 'week';
+  if (diffDays <= 30) return 'month';
+  return 'older';
+}
+const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today:'Today', week:'This Week', month:'This Month', older:'Older' };
+
 function renderListView() {
+  const ownerProfile = loadProfile();
+  return '<div style="padding-bottom:90px;">'
+    + '<div class="sticky-top px" style="padding:16px 16px 10px;">'
+    + '<div class="row between" style="align-items:center;">'
+    + '<div class="row gap2"><img src="icons/icon-192.png" style="width:36px;height:36px;border-radius:9px;flex:none;box-shadow:0 2px 8px rgba(67,56,202,0.25);"><h1 style="font-size:19px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1></div>'
+    + '<div style="text-align:right;">'
+    + (ownerProfile.doctorName ? '<p style="font-size:12px;font-weight:700;color:var(--ink);margin:0;">'+esc(ownerProfile.doctorName)+'</p>' : '')
+    + '<p style="font-size:10.5px;color:var(--muted);margin:1px 0 0;"><span style="font-weight:800;color:var(--accent);font-size:12px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p>'
+    + '</div>'
+    + '</div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:12px;">'+renderDashboardSection()+'</div>'
+    + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' Dr. Devarsh Goyal \u2014 OrthoVault, all rights reserved</p>'
+    + '</div>';
+}
+
+function renderPatientsView() {
   saveFilterState();
   const counts = { all: PATIENTS.length };
   CASE_REGIONS.forEach(r => counts[r.key] = PATIENTS.filter(p => (p.regions||[]).includes(r.key)).length);
-  const ownerProfile = loadProfile();
-
   const allTags = [...new Set(PATIENTS.flatMap(p => p.tags || []))].sort();
-
-  const CUTOFF_DAYS = 60;
-  const cutoffDate = new Date(); cutoffDate.setDate(cutoffDate.getDate() - CUTOFF_DAYS);
-  const isRecentOrPinned = (p) => p.pinned || (p.surgeryDate && new Date(p.surgeryDate) >= cutoffDate);
-  const olderCount = PATIENTS.filter(p => !isRecentOrPinned(p)).length;
 
   const filtered = PATIENTS.filter(p => {
     if (FILTER_TYPE !== 'all' && !(p.regions||[]).includes(FILTER_TYPE)) return false;
@@ -4289,8 +4306,6 @@ function renderListView() {
       const hit = matchCase(p, SEARCH);
       if (!hit) return false;
       p._searchMatchField = hit.field;
-    } else {
-      if (!PATIENT_LIST_EXPANDED && !isRecentOrPinned(p)) return false;
     }
     return true;
   }).sort((a,b) => {
@@ -4318,38 +4333,18 @@ function renderListView() {
     }
   }
 
-  const recencyNote = (!SEARCH && olderCount > 0)
-    ? '<p style="font-size:11px;color:var(--muted);margin:6px 2px 0;">Showing recent (last 2 months) + pinned. '+olderCount+' older patient'+(olderCount===1?'':'s')+' \u2014 search by name/ID to find them.</p>'
-    : '';
-
   let cards = '';
   if (!filtered.length) {
     const noCasesAtAll = PATIENTS.length === 0;
-    const noneRecent = !noCasesAtAll && !SEARCH && FILTER_TYPE === 'all' && !TAG_FILTER && olderCount > 0;
     cards = '<div class="empty-state">'
       + '<div class="empty-icon-wrap">'+ic(noCasesAtAll ? 'clipboard' : 'search')+'</div>'
       + (noCasesAtAll
           ? '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No cases yet</p><p style="font-size:12px;margin:2px 0 0;">Start your databook by adding your first patient.</p>'
-          : noneRecent
-            ? '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No recent patients</p><p style="font-size:12px;margin:2px 0 0;">You have '+olderCount+' older patient'+(olderCount===1?'':'s')+' \u2014 search by name or ID to find them.</p>'
-            : '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No matches</p><p style="font-size:12px;margin:2px 0 0;">Try a different search term or clear the filters.</p>')
-      + (noCasesAtAll ? '<p style="font-size:11px;color:var(--muted);margin-top:2px;">Tap "+ Add" above to get started.</p>'
-          : noneRecent ? ''
+          : '<p style="font-weight:700;font-size:14px;color:var(--ink);margin:0;">No matches</p><p style="font-size:12px;margin:2px 0 0;">Try a different search term or clear the filters.</p>')
+      + (noCasesAtAll ? '<p style="font-size:11px;color:var(--muted);margin-top:2px;">Tap the + button below to get started.</p>'
           : '<button class="btn" style="width:auto;padding:9px 18px;margin-top:4px;" data-action="clear-list-filters">Clear search &amp; filters</button>')
       + '</div>';
   } else {
-function patientGroupKey(p) {
-  if (p.pinned) return 'pinned';
-  if (isOverdue(p.nextFollowUpDate)) return 'overdue';
-  const d = p.surgeryDate ? new Date(p.surgeryDate) : null;
-  if (!d || isNaN(d)) return 'older';
-  const diffDays = Math.floor((new Date() - d) / 86400000);
-  if (diffDays <= 0) return 'today';
-  if (diffDays <= 7) return 'week';
-  if (diffDays <= 30) return 'month';
-  return 'older';
-}
-const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today:'Today', week:'This Week', month:'This Month', older:'Older' };
     cards = '<div style="display:flex;flex-direction:column;gap:8px;">';
     let lastGroupKey = null;
     filtered.forEach(p => {
@@ -4403,36 +4398,24 @@ const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today
   }
 
   return '<div style="padding-bottom:90px;">'
-    + '<div class="sticky-top px" style="padding-top:16px;padding-bottom:10px;">'
-    + '<div class="row between" style="margin-bottom:10px;">'
-    + '<div class="row gap2"><img src="icons/icon-192.png" style="width:38px;height:38px;border-radius:10px;flex:none;box-shadow:0 2px 8px rgba(67,56,202,0.25);"><div><h1 style="font-size:21px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1>'
-    + (ownerProfile.doctorName ? '<p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:3px 0 0;">'+esc(ownerProfile.doctorName)+'</p>' : '')
-    + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;"><span style="font-weight:800;color:var(--accent);font-size:13px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p></div></div>'
-    + '</div>'
+    + '<div class="sticky-top px" style="padding:14px 16px 10px;">'
+    + '<div class="row gap2" style="margin-bottom:10px;align-items:baseline;"><h2 style="font-size:17px;font-weight:800;margin:0;">Patients</h2><span style="font-size:12px;color:var(--muted);">'+PATIENTS.length+' total</span></div>'
     + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
     + tagChips
-    + recencyNote
     + '</div>'
-    + '<div class="px" style="padding-top:12px;">'+renderDashboardSection()
-    + '<div id="patient-list-anchor"></div>'
-    + (SEARCH || FILTER_TYPE !== 'all' || TAG_FILTER || PATIENT_LIST_EXPANDED
-        ? ((PATIENT_LIST_EXPANDED ? '<button type="button" class="chip" style="margin-bottom:10px;" data-action="toggle-patient-list-expanded">\u2212 Show recent only</button>' : '')
-          + (PATIENTS.length ? (SHOW_LEGEND
-            ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:var(--muted);cursor:pointer;" data-action="toggle-legend">'
-              + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
-              + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to follow-up</span>'
-              + '<span class="row gap1"><span class="status-dot" style="background:#16a34a;"></span> Complete</span>'
-              + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
-              + '</div>'
-            : '<button class="icon-btn" style="width:22px;height:22px;margin-bottom:10px;color:var(--muted);" data-action="toggle-legend" title="What do the dot colors mean?">'+ic('info')+'</button>'
-          ) : '') + cards)
-        : '<button type="button" class="btn" style="width:100%;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-weight:800;background:var(--accent);border-color:var(--accent);color:#fff;" data-action="toggle-patient-list-expanded">'
-          + '<span>'+ic('clipboard')+' Showing '+filtered.length+' recent'+(PATIENTS.length>filtered.length?' of '+PATIENTS.length+' total':'')+'</span>'
-          + '<span style="font-size:11px;font-weight:700;">See all \u2192</span>'
-          + '</button>')
+    + '<div class="px" style="padding-top:12px;">'
+    + (PATIENTS.length ? (SHOW_LEGEND
+        ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:var(--muted);cursor:pointer;" data-action="toggle-legend">'
+          + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
+          + '<span class="row gap1"><span class="status-dot" style="background:#1f2937;"></span> Lost to follow-up</span>'
+          + '<span class="row gap1"><span class="status-dot" style="background:#16a34a;"></span> Complete</span>'
+          + '<span class="row gap1"><span class="status-dot" style="background:#eab308;"></span> Follow-up due</span>'
+          + '</div>'
+        : '<button class="icon-btn" style="width:22px;height:22px;margin-bottom:10px;color:var(--muted);" data-action="toggle-legend" title="What do the dot colors mean?">'+ic('info')+'</button>'
+      ) : '')
+    + cards
     + '</div>'
-    + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' Dr. Devarsh Goyal \u2014 OrthoVault, all rights reserved</p>'
     + '</div>';
 }
 
@@ -7534,19 +7517,30 @@ function renderUpcomingFollowUpsList() {
 }
 
 function renderCalendarView() {
-  const openCount = REMINDERS.filter(r=>!r.done).length;
+  const s = computeDashboardStats();
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
-    + '<div class="row gap3" style="margin-bottom:10px;"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Calendar &amp; Reminders</h2></div>'
+    + '<div class="row gap3" style="margin-bottom:10px;"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Follow-ups</h2></div>'
     + '<div class="seg">'
-    + '<button class="seg-btn'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar</button>'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='due'?' active':'')+'" data-action="cal-set-subview" data-value="due">Due'+(s.important.length?' ('+s.important.length+')':'')+'</button>'
     + '<button class="seg-btn'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming</button>'
-    + '<button class="seg-btn'+(CAL_SUBVIEW==='reminders'?' active':'')+'" data-action="cal-set-subview" data-value="reminders">Reminders'+(openCount?' ('+openCount+')':'')+'</button>'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar</button>'
     + '</div>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
+    + (CAL_SUBVIEW==='due' ? renderNeedsAttentionBlock(s) : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : (renderCalendarGrid() + renderCalendarDayDetail()))
+    + '</div>'
+    + '</div>';
+}
+
+function renderRemindersTabView() {
+  return '<div style="padding-bottom:90px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-reminders-tab">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Reminders</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:12px;">'
     + (REMINDER_FORM_OPEN && !REMINDER_FORM_PATIENT_ID ? renderReminderForm() : '')
-    + (CAL_SUBVIEW==='calendar' ? (renderCalendarGrid() + renderCalendarDayDetail()) : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : renderRemindersList())
+    + renderRemindersList()
     + '</div>'
     + '</div>';
 }
@@ -7564,6 +7558,8 @@ async function render() {
 }
 async function renderCurrentView(app) {
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
+  if (VIEW === 'patients') { app.innerHTML = renderPatientsView(); return; }
+  if (VIEW === 'reminders-tab') { app.innerHTML = renderRemindersTabView(); return; }
   if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
   if (VIEW === 'ai-query') { app.innerHTML = renderAiQueryView(); return; }
   if (VIEW === 'ai-digest') { app.innerHTML = renderAiDigestView(); return; }
@@ -8331,7 +8327,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-fitness','close-print-referral','close-planned-surgeries','close-reminder-queue'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-fitness','close-print-referral','close-planned-surgeries','close-reminder-queue'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -9241,19 +9237,12 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'toggle-tag-filter-row') { SHOW_TAG_FILTER = !SHOW_TAG_FILTER; render(); return; }
   if (action === 'toggle-insights') { SHOW_INSIGHTS = !SHOW_INSIGHTS; render(); return; }
   if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
-  if (action === 'toggle-attention-expanded') { ATTENTION_EXPANDED = !ATTENTION_EXPANDED; render(); return; }
-  if (action === 'dash-tile-attention') {
-    ATTENTION_EXPANDED = true;
-    render();
-    setTimeout(() => { const el2 = document.getElementById('dash-attention-anchor'); if (el2) el2.scrollIntoView({ behavior:'smooth', block:'start' }); }, 50);
-    return;
-  }
-  if (action === 'dash-tile-calendar') {
+  if (action === 'dash-case-tab-set') { DASH_CASE_TAB = el.dataset.value; render(); return; }
+  if (action === 'dash-goto-followups') {
     const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
-    CAL_SUBVIEW = 'upcoming'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    CAL_SUBVIEW = 'due'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
     VIEW = 'calendar'; render(); return;
   }
-  if (action === 'toggle-patient-list-expanded') { PATIENT_LIST_EXPANDED = !PATIENT_LIST_EXPANDED; render(); return; }
   if (action === 'toggle-legend') { SHOW_LEGEND = !SHOW_LEGEND; render(); return; }
   if (action === 'tl-jump') {
     let target = el.dataset.value;
@@ -10709,13 +10698,14 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'open-more') { VIEW = 'more'; render(); return; }
-  if (action === 'nav-patients') {
-    VIEW = 'list'; PATIENT_LIST_EXPANDED = true;
-    await render();
-    const anchor = document.getElementById('patient-list-anchor');
-    if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    return;
+  if (action === 'nav-patients') { VIEW = 'patients'; render(); return; }
+  if (action === 'open-followups') {
+    const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
+    CAL_SUBVIEW = 'due'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    VIEW = 'calendar'; render(); return;
   }
+  if (action === 'open-reminders-tab') { REMINDER_FORM_OPEN = false; VIEW = 'reminders-tab'; render(); return; }
+  if (action === 'close-reminders-tab') { REMINDER_FORM_OPEN = false; VIEW = 'list'; render(); return; }
   if (action === 'open-ai-hub') { VIEW = 'ai-hub'; render(); return; }
   if (action === 'open-cash-audit') { VIEW = 'cash-audit'; render(); return; }
   if (action === 'close-cash-audit') { VIEW = 'more'; render(); return; }
@@ -10865,11 +10855,6 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
 
-  if (action === 'open-calendar') {
-    const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
-    CAL_SUBVIEW = 'upcoming'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
-    VIEW = 'calendar'; render(); return;
-  }
   if (action === 'close-calendar') { REMINDER_FORM_OPEN = false; VIEW = 'list'; render(); return; }
   if (action === 'cal-set-subview') { CAL_SUBVIEW = el.dataset.value; REMINDER_FORM_OPEN = false; render(); return; }
   if (action === 'cal-prev-month') { CAL_MONTH--; if (CAL_MONTH<0) { CAL_MONTH=11; CAL_YEAR--; } render(); return; }
