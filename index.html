@@ -519,7 +519,7 @@
   .reminder-check .ic { width:13px; height:13px; }
   .reminder-check.done { background:var(--emerald); border-color:var(--emerald); }
 
-  .usearch-fab { position:absolute; right:16px; bottom:calc(20px + env(safe-area-inset-bottom, 0px)); width:42px; height:42px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(67,56,202,0.3); border:none; opacity:0.82; }
+  .usearch-fab { position:absolute; right:16px; bottom:calc(78px + env(safe-area-inset-bottom, 0px)); width:42px; height:42px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(67,56,202,0.3); border:none; opacity:0.82; }
   .usearch-fab .ic { width:18px; height:18px; }
   .side-back-btn { position:absolute; left:8px; top:50%; transform:translateY(-50%); width:32px; height:32px; border-radius:50%; background:rgba(15,23,42,0.5); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.15); border:none; }
   .side-back-btn .ic { width:15px; height:15px; }
@@ -528,12 +528,13 @@
   .usearch-topbar { display:flex; align-items:center; gap:8px; padding:14px 16px; padding-top:calc(14px + env(safe-area-inset-top, 0px)); border-bottom:1px solid var(--border); }
   .usearch-results { flex:1; overflow-y:auto; padding:8px 16px 24px; }
   [data-theme="dark"] .reminder-check { background:#1e293b; }
-  .bottom-nav { display:flex; align-items:stretch; background:var(--bg,#fff); border-top:1px solid var(--border); padding:6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); box-shadow:0 -2px 10px rgba(15,23,42,0.06); }
+  .bottom-nav { display:flex; align-items:stretch; background:var(--bg,#fff); border-top:1px solid var(--border); padding:6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); box-shadow:0 -2px 10px rgba(15,23,42,0.06); position:relative; }
   .bottom-nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; background:none; border:none; padding:6px 2px; color:var(--muted); font-size:10px; font-weight:700; }
   .bottom-nav-btn.active { color:var(--accent); }
   .bottom-nav-btn .ic { width:20px; height:20px; }
   .bottom-nav-add-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  .bottom-nav-add-circle { width:38px; height:38px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(67,56,202,0.35); margin-top:-14px; }
+  .bottom-nav-add-circle { width:56px; height:56px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 16px rgba(67,56,202,0.4); margin-top:-30px; border:4px solid var(--bg,#fff); }
+  .bottom-nav-add-circle .ic { width:24px; height:24px; }
 </style>
 </head>
 <body>
@@ -544,7 +545,7 @@
   <button id="usearch-fab" class="usearch-fab" data-action="open-universal-search" title="Search everything" style="pointer-events:auto;"><svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
 </div>
 <div id="master-voice-fab-wrap" style="display:none;position:fixed;inset:0;max-width:520px;margin:0 auto;pointer-events:none;z-index:45;">
-  <button id="master-voice-fab" class="usearch-fab" data-action="master-voice-start" title="AI voice command" style="pointer-events:auto;left:16px;right:auto;width:38px;height:38px;background:#0f172a;"><svg class="ic" viewBox="0 0 24 24" style="width:16px;height:16px;"><path d="M12 3l1.4 4.3L18 9l-4.6 1.7L12 15l-1.4-4.3L6 9l4.6-1.7z"/><path d="M19 13l.6 1.9L21 16l-1.9.7L19 19l-.6-2.3L16 16l2.4-1.1z"/></svg></button>
+  <button id="master-voice-fab" class="usearch-fab" title="AI \u2014 tap for menu, hold for voice" style="pointer-events:auto;left:16px;right:auto;width:44px;height:44px;background:linear-gradient(135deg,#4338ca,#9333ea);box-shadow:0 4px 16px rgba(124,58,237,0.45);"><svg class="ic" viewBox="0 0 24 24" style="width:19px;height:19px;"><path d="M12 3l1.4 4.3L18 9l-4.6 1.7L12 15l-1.4-4.3L6 9l4.6-1.7z"/><path d="M19 13l.6 1.9L21 16l-1.9.7L19 19l-.6-2.3L16 16l2.4-1.1z"/></svg></button>
 </div>
 <div id="master-voice-overlay-wrap"></div>
 <div id="bottom-nav-wrap" style="display:none;position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;z-index:44;"></div>
@@ -1549,6 +1550,7 @@ let SHOW_INSIGHTS = false;
 let SHOW_ALL_ATTENTION = false;
 let DASH_CASE_TAB = 'total'; // 'total' | 'opd' | 'surgical'
 let SHOW_ADD_MENU = false;
+let SHOW_AI_MENU = false;
 let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
 let QUICK_PICKER_QUERY = '';
 let SEARCH_DEBOUNCE_TIMER = null;
@@ -1568,6 +1570,21 @@ function addMenuDropdownHtml() {
       + label + '</button>').join('')
     + '</div>'
     + '<div style="position:fixed;inset:0;z-index:46;" data-action="toggle-add-menu"></div>';
+}
+function aiMenuDropdownHtml() {
+  const items = [
+    ['mic', 'Voice command', 'master-voice-start'],
+    ['shield', 'Ask AI about your patients', 'open-ai-query'],
+    ['shield', 'This Week\u2019s Digest', 'open-ai-digest'],
+    ['book', 'Ortho Knowledge Engine', 'open-ai-knowledge'],
+    ['heart', 'Ask OrthoVault', 'open-ai-assistant'],
+  ];
+  return '<div style="position:fixed;bottom:78px;left:16px;width:calc(100% - 32px);max-width:280px;z-index:47;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:6px;display:flex;flex-direction:column;gap:2px;">'
+    + items.map(([icon,label,action]) => '<button type="button" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="'+action+'">'
+      + '<span style="flex:none;width:28px;height:28px;border-radius:50%;background:rgba(124,58,237,0.12);color:#7c3aed;display:flex;align-items:center;justify-content:center;">'+ic(icon)+'</span>'
+      + label + '</button>').join('')
+    + '</div>'
+    + '<div style="position:fixed;inset:0;z-index:46;" data-action="toggle-ai-menu"></div>';
 }
 function openQuickPicker(purpose) {
   QUICK_PICKER_PURPOSE = purpose;
@@ -2693,10 +2710,10 @@ function renderAiKnowledgeView() {
 
 function renderAiHubView() {
   const directAccess = [
-    ['shield', 'Ask AI about your patients', 'Plain-language question over your whole patient list', 'open-ai-query'],
-    ['shield', 'This Week\u2019s Digest', 'Surgeries, due follow-ups, overdue cases \u2014 summarized', 'open-ai-digest'],
-    ['book', 'Ortho Knowledge Engine', 'Ask "why", not just "what" \u2014 clinical reasoning', 'open-ai-knowledge'],
-    ['heart', 'Ask OrthoVault', 'Case vignette or surgical approach \u2014 considerations, technique reference', 'open-ai-assistant'],
+    ['shield', 'Ask AI about your patients', 'Plain-language question over your whole patient list'],
+    ['shield', 'This Week\u2019s Digest', 'Surgeries, due follow-ups, overdue cases \u2014 summarized'],
+    ['book', 'Ortho Knowledge Engine', 'Ask "why", not just "what" \u2014 clinical reasoning'],
+    ['heart', 'Ask OrthoVault', 'Case vignette or surgical approach \u2014 considerations, technique reference'],
   ];
   const elsewhere = [
     ['Fill fields from notes (or voice)', 'Add Case \u2192 AI Quick-Fill box, below Global Notes'],
@@ -2717,7 +2734,14 @@ function renderAiHubView() {
     + '<div class="row gap3"><button class="icon-btn" data-action="close-ai-hub">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">OrthoVault AI</h2></div>'
     + '</div>'
     + '<div class="px" style="padding-top:10px;display:flex;flex-direction:column;gap:10px;">'
-    + directAccess.map(([icon,title,sub,action]) => moreRowHtml(icon,title,sub,action)).join('')
+    + '<div class="card" style="background:rgba(124,58,237,0.06);border-color:#c4b5fd;display:flex;align-items:center;gap:10px;padding:11px 13px;">'
+    + '<span style="flex:none;color:#7c3aed;">'+ic('sparkle')+'</span>'
+    + '<span style="font-size:12px;color:var(--ink);">These run from the <b>floating AI button</b> (bottom-left) \u2014 tap it for the menu, or hold it for voice. They don\u2019t open from here.</span>'
+    + '</div>'
+    + directAccess.map(([icon,title,sub]) => '<div class="card" style="display:flex;align-items:center;gap:12px;">'
+        + '<span style="flex:none;color:var(--muted);">'+ic(icon)+'</span>'
+        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:700;color:var(--ink);">'+title+'</span><span style="display:block;font-size:11px;color:var(--muted);margin-top:2px;">'+sub+'</span></span>'
+        + '</div>').join('')
     + '<div style="margin-top:8px;padding-top:12px;border-top:1px dashed var(--border);">'
     + '<label class="field-label">Also built into the app, per-patient</label>'
     + '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">'
@@ -4028,11 +4052,14 @@ function renderDashboardSection() {
   const firstName = (ownerProfileForGreeting.doctorName||'').replace(/^Dr\.?\s*/i,'').split(' ')[0];
   const greetingDate = new Date().toLocaleDateString('en-IN',{weekday:'short',day:'numeric',month:'short'});
   const statusBadge = s.important.length
-    ? '<button type="button" data-action="dash-goto-followups" class="badge badge-red" style="font-size:10px;padding:3px 9px;flex-shrink:0;border:none;cursor:pointer;">'+s.important.length+' need'+(s.important.length===1?'s':'')+' attention</button>'
-    : '<span class="badge badge-emerald" style="font-size:10px;padding:3px 9px;flex-shrink:0;">'+ic('check')+' All caught up</span>';
-  html += '<div class="row between" style="margin-bottom:14px;align-items:center;background:rgba(67,56,202,0.07);border-radius:12px;padding:11px 13px;">'
-    + '<p style="font-size:14px;font-weight:800;color:var(--ink);margin:0;display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;"><span style="color:var(--accent);display:inline-flex;flex-shrink:0;">'+ic('sparkle')+'</span>'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+'<span style="font-weight:500;color:var(--muted);font-size:11.5px;"> \u00b7 '+greetingDate+'</span></p>'
+    ? '<button type="button" data-action="dash-goto-followups" class="badge badge-red" style="font-size:10px;padding:3px 9px;border:none;cursor:pointer;">'+s.important.length+' need'+(s.important.length===1?'s':'')+' attention</button>'
+    : '<span class="badge badge-emerald" style="font-size:10px;padding:3px 9px;">'+ic('check')+' All caught up</span>';
+  html += '<div style="margin-bottom:14px;background:rgba(67,56,202,0.07);border-radius:12px;padding:11px 13px;">'
+    + '<p style="font-size:14px;font-weight:800;color:var(--ink);margin:0;display:flex;align-items:center;gap:5px;"><span style="color:var(--accent);display:inline-flex;flex-shrink:0;">'+ic('sparkle')+'</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+greetingWord()+(firstName?', Dr. '+esc(firstName):'')+'</span></p>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">'
+    + '<span style="font-weight:500;color:var(--muted);font-size:11.5px;">'+greetingDate+'</span>'
     + statusBadge
+    + '</div>'
     + '</div>';
 
   if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 14)) {
@@ -4399,7 +4426,7 @@ function renderPatientsView() {
 
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px 10px;">'
-    + '<div class="row gap2" style="margin-bottom:10px;align-items:baseline;"><h2 style="font-size:17px;font-weight:800;margin:0;">Patients</h2><span style="font-size:12px;color:var(--muted);">'+PATIENTS.length+' total</span></div>'
+    + '<div class="row gap3" style="margin-bottom:10px;align-items:center;"><button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Patients</h2><span style="font-size:12px;color:var(--muted);">'+PATIENTS.length+' total</span></div>'
     + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
     + tagChips
@@ -7549,6 +7576,7 @@ function renderRemindersTabView() {
 
 async function render() {
   const app = document.getElementById('app');
+  SHOW_AI_MENU = false;
   app.classList.remove('view-transition'); void app.offsetWidth; app.classList.add('view-transition');
   await renderCurrentView(app);
   updateUsearchFabVisibility();
@@ -8366,8 +8394,34 @@ function updateMasterVoiceUI() {
   const fabWrap = document.getElementById('master-voice-fab-wrap');
   if (fabWrap) fabWrap.style.display = (isAiTier() && !APP_LOCKED) ? 'block' : 'none';
   const overlayWrap = document.getElementById('master-voice-overlay-wrap');
-  if (overlayWrap) overlayWrap.innerHTML = renderMasterVoiceOverlay();
+  if (overlayWrap) overlayWrap.innerHTML = renderMasterVoiceOverlay() + (SHOW_AI_MENU ? aiMenuDropdownHtml() : '');
 }
+(function setupAiFabPressHold() {
+  const btn = document.getElementById('master-voice-fab');
+  if (!btn) return;
+  let pressTimer = null;
+  let longPressed = false;
+  const start = () => {
+    longPressed = false;
+    pressTimer = setTimeout(() => {
+      longPressed = true;
+      SHOW_AI_MENU = false;
+      updateMasterVoiceUI();
+      startMasterVoice();
+    }, 500);
+  };
+  const end = () => {
+    clearTimeout(pressTimer);
+    if (!longPressed) { SHOW_AI_MENU = !SHOW_AI_MENU; updateMasterVoiceUI(); }
+  };
+  const cancel = () => { clearTimeout(pressTimer); };
+  btn.addEventListener('touchstart', start, { passive: true });
+  btn.addEventListener('touchend', end);
+  btn.addEventListener('touchcancel', cancel);
+  btn.addEventListener('mousedown', start);
+  btn.addEventListener('mouseup', end);
+  btn.addEventListener('mouseleave', cancel);
+})();
 document.getElementById('side-back-btn').addEventListener('click', () => {
   const btn = findBackActionBtn();
   if (btn) btn.click();
@@ -8833,6 +8887,7 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
   if (action === 'toggle-add-menu') { SHOW_ADD_MENU = !SHOW_ADD_MENU; render(); return; }
+  if (action === 'toggle-ai-menu') { SHOW_AI_MENU = false; updateMasterVoiceUI(); return; }
   if (action === 'add-menu-new-opd') { SHOW_ADD_MENU = false; initApTemp(); AP_TEMP.caseType = 'opd'; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW = 'add'; render(); return; }
   if (action === 'add-menu-new-surgical') { SHOW_ADD_MENU = false; initApTemp(); AP_TEMP.caseType = 'surgical'; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW = 'add'; render(); return; }
   if (action === 'add-menu-pick-patient') { SHOW_ADD_MENU = false; render(); openQuickPicker(el.dataset.value); return; }
