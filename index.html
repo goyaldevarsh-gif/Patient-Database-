@@ -316,11 +316,11 @@
   .tab.active { border-bottom-color:var(--accent); color:var(--accent-dark); }
 
   .stat-card { border:1px solid var(--border); border-radius:20px; padding:12px; background:#fff; }
-  .dash-tile { flex:1; border-radius:20px; padding:14px 12px; text-align:center; border:1px solid; box-shadow:0 1px 3px rgba(15,23,42,0.05); transition:transform 0.12s ease, box-shadow 0.12s ease; }
+  .dash-tile { flex:1; border-radius:16px; padding:9px 8px; text-align:center; border:1px solid; box-shadow:0 1px 3px rgba(15,23,42,0.05); transition:transform 0.12s ease, box-shadow 0.12s ease; }
   button.dash-tile:active { transform:scale(0.97); box-shadow:0 1px 2px rgba(15,23,42,0.06); }
-  .dash-tile .di { display:flex; align-items:center; justify-content:center; margin-bottom:4px; opacity:0.9; }
-  .dash-tile .dv { font-size:22px; font-weight:800; font-family:'JetBrains Mono',monospace; line-height:1.1; }
-  .dash-tile .dl { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; margin-top:3px; opacity:0.85; }
+  .dash-tile .di { display:flex; align-items:center; justify-content:center; margin-bottom:2px; opacity:0.9; transform:scale(0.85); }
+  .dash-tile .dv { font-size:17px; font-weight:800; font-family:'JetBrains Mono',monospace; line-height:1.1; }
+  .dash-tile .dl { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:0.02em; margin-top:2px; opacity:0.85; }
   .backup-banner { display:flex; align-items:center; gap:10px; border-radius:20px; padding:10px 12px; background:var(--amber-bg); border:1px solid var(--amber-border); margin-bottom:12px; }
   .insight-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; font-size:12px; border-bottom:1px solid var(--border); }
   .insight-row:last-child { border-bottom:none; }
@@ -1692,16 +1692,6 @@ function getRecentSearchPatients() {
 function recordLastPatient(id) {
   try { localStorage.setItem(LAST_PATIENT_KEY, JSON.stringify({ id, at: Date.now() })); } catch(e) {}
 }
-function getLastPatient() {
-  try {
-    const raw = localStorage.getItem(LAST_PATIENT_KEY);
-    if (!raw) return null;
-    const { id, at } = JSON.parse(raw);
-    const p = getPatient(id);
-    if (!p) return null;
-    return { patient: p, at };
-  } catch(e) { return null; }
-}
 const NOTIF_LAST_SEEN_KEY = 'surgical-case-log-notif-last-seen-v1';
 function notifLastSeen() { try { return Number(localStorage.getItem(NOTIF_LAST_SEEN_KEY)) || 0; } catch(e) { return 0; } }
 function markNotifsSeen() { try { localStorage.setItem(NOTIF_LAST_SEEN_KEY, String(Date.now())); } catch(e) {} }
@@ -1825,20 +1815,6 @@ function relativeTimeAgo(ts) {
   if (hrs < 24) return hrs + ' hr' + (hrs > 1 ? 's' : '') + ' ago';
   const days = Math.round(hrs / 24);
   return days + ' day' + (days > 1 ? 's' : '') + ' ago';
-}
-function continueLastPatientHtml() {
-  const last = getLastPatient();
-  if (!last) return '';
-  const p = last.patient;
-  return '<button class="card" style="display:flex;align-items:center;gap:12px;width:100%;text-align:left;margin-bottom:12px;border-color:#c7d2fe;background:rgba(67,56,202,0.04);" data-action="open-patient" data-id="'+p.id+'">'
-    + '<span style="flex:none;color:var(--accent);">'+ic('clock')+'</span>'
-    + '<span style="flex:1;min-width:0;">'
-    + '<span style="display:block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:var(--accent-dark);">Continue \u00b7 '+relativeTimeAgo(last.at)+'</span>'
-    + '<span style="display:block;font-size:14px;font-weight:800;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escName(p.name)+'</span>'
-    + '<span style="display:block;font-size:12px;color:#64748b;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(p.caseType==='surgical'?esc(p.procedure||p.surgeryType):((p.diagnosis||p.chiefComplaints)?esc(sideTag(p))+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints)):'OPD case'))+'</span>'
-    + '</span>'
-    + '<span style="flex:none;color:var(--accent);font-size:12px;font-weight:700;display:flex;align-items:center;">Resume '+ic('chevron')+'</span>'
-    + '</button>';
 }
 
 const REMINDERS_KEY = 'surgical-case-log-reminders-v1';
@@ -4020,6 +3996,7 @@ function toast(msg) {
    cycling back to the start once the list is exhausted. Just add more
    filenames whenever you have new ones ready, then redeploy as usual. */
 const DASHBOARD_QUOTES = [
+  'quotes/quote1.jpg',
   // 'quotes/quote1.jpg',
   // 'quotes/quote2.jpg',
 ];
@@ -4072,10 +4049,10 @@ function renderDashboardSection() {
   }
 
   if (isAiTier()) {
-    html += '<button type="button" class="card" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;padding:11px 14px;margin-bottom:12px;cursor:pointer;" data-action="open-ai-digest">'
-      + '<span style="width:26px;height:26px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent);">'+ic('sparkle')+'</span>'
-      + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12.5px;font-weight:700;color:var(--ink);">AI Practice Briefing</span><span style="display:block;font-size:11px;color:var(--muted);">Tap for today\u2019s summary</span></span>'
-      + '<span style="color:var(--muted);flex-shrink:0;">'+ic('chevron')+'</span>'
+    html += '<button type="button" class="card" style="width:100%;text-align:left;display:flex;align-items:center;gap:8px;padding:7px 12px;margin-bottom:12px;cursor:pointer;" data-action="open-ai-digest">'
+      + '<span style="color:var(--accent);display:flex;align-items:center;flex-shrink:0;transform:scale(0.8);">'+ic('sparkle')+'</span>'
+      + '<span style="flex:1;min-width:0;font-size:11.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">AI Practice Briefing</span>'
+      + '<span style="color:var(--muted);flex-shrink:0;transform:scale(0.8);">'+ic('chevron')+'</span>'
       + '</button>';
   }
 
@@ -4110,19 +4087,6 @@ function renderDashboardSection() {
     + '<button type="button" class="dash-tile" style="border-color:var(--border);cursor:pointer;" data-action="dash-tile-calendar"><div class="di" style="color:var(--accent);">'+ic('calendar')+'</div><div class="dv">'+s.surgeriesThisWeek+'</div><div class="dl" style="color:var(--muted);">Surgeries (7 days)</div></button>'
     + '<div class="dash-tile" style="border-color:var(--border);"><div class="di" style="color:var(--emerald);">'+ic('shield')+'</div><div class="dv">'+s.activeCases+'</div><div class="dl" style="color:var(--muted);">Active cases</div></div>'
     + '</div>';
-
-  if (s.weekTrend && s.weekTrend.some(d => d.count > 0)) {
-    const maxDay = Math.max(...s.weekTrend.map(d => d.count), 1);
-    html += '<div class="card" style="margin-bottom:12px;padding:12px 14px;">'
-      + '<div class="row between" style="margin-bottom:8px;"><span style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;display:flex;align-items:center;gap:5px;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.75);">'+ic('trending')+'</span>This week</span><span style="font-size:12px;font-weight:800;color:var(--ink);">'+s.weekNewCases+' new case'+(s.weekNewCases!==1?'s':'')+'</span></div>'
-      + '<div style="display:flex;align-items:flex-end;gap:5px;height:44px;">'
-        + s.weekTrend.map(d => '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">'
-            + '<div style="width:100%;max-width:22px;border-radius:4px 4px 2px 2px;background:'+(d.count?'var(--accent)':'var(--border)')+';height:'+Math.max(4,Math.round(d.count/maxDay*32))+'px;"></div>'
-            + '<span style="font-size:9px;color:var(--muted);margin-top:3px;">'+esc(d.day)+'</span>'
-          + '</div>').join('')
-      + '</div>'
-      + '</div>';
-  }
 
   if (!s.important.length) {
     html += '<div class="card" style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:12px;">'
@@ -4452,7 +4416,7 @@ const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today
     + tagChips
     + recencyNote
     + '</div>'
-    + '<div class="px" style="padding-top:12px;">'+continueLastPatientHtml()+renderDashboardSection()
+    + '<div class="px" style="padding-top:12px;">'+renderDashboardSection()
     + (SEARCH || FILTER_TYPE !== 'all' || TAG_FILTER || PATIENT_LIST_EXPANDED
         ? ((PATIENT_LIST_EXPANDED ? '<button type="button" class="chip" style="margin-bottom:10px;" data-action="toggle-patient-list-expanded">\u2212 Show recent only</button>' : '')
           + (PATIENTS.length ? (SHOW_LEGEND
