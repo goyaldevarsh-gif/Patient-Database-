@@ -10285,26 +10285,23 @@ document.addEventListener('click', async (e) => {
       } else {
         appDiv.innerHTML = renderLockScreen();
       }
-      return;
-    }
-    if (LOCK_SETUP_MODE) {
-      LOCK_PIN_INPUT += el.dataset.value;
-      if (LOCK_PIN_INPUT.length === PIN_LENGTH) await handlePinSetupComplete();
-      else render();
-      return;
     }
     return;
   }
   if (action === 'lock-backspace') {
-    LOCK_PIN_INPUT = LOCK_PIN_INPUT.slice(0, -1);
-    if (APP_LOCKED) document.getElementById('app').innerHTML = renderLockScreen();
-    else if (LOCK_SETUP_MODE) render();
+    if (APP_LOCKED) {
+      LOCK_PIN_INPUT = LOCK_PIN_INPUT.slice(0, -1);
+      document.getElementById('app').innerHTML = renderLockScreen();
+    }
     return;
   }
-  if (action === 'lock-start-enable') { LOCK_SETUP_MODE = 'set-new'; LOCK_PIN_INPUT = ''; render(); return; }
-  if (action === 'lock-start-change') { LOCK_SETUP_MODE = 'change-verify'; LOCK_PIN_INPUT = ''; render(); return; }
-  if (action === 'lock-start-disable') { LOCK_SETUP_MODE = 'disable-verify'; LOCK_PIN_INPUT = ''; render(); return; }
-  if (action === 'lock-setup-cancel') { LOCK_SETUP_MODE = null; LOCK_PIN_INPUT = ''; LOCK_SETUP_FIRST_PIN = ''; render(); return; }
+  if (action === 'lock-emergency-disable') {
+    clearPin();
+    APP_LOCKED = false;
+    LOCK_PIN_INPUT = ''; LOCK_ERROR = false;
+    refreshPatients().then(() => render());
+    return;
+  }
   if (action === 'mic-toggle') {
     if (ACTIVE_RECOGNITION && ACTIVE_RECOGNITION.targetId === el.dataset.target) { stopMic(); return; }
     startMic(el.dataset.target, el);
@@ -11535,13 +11532,12 @@ function applyAccentTheme(key) {
   try { localStorage.setItem(ACCENT_KEY, key); } catch(e) {}
 }
 
-/* ================= App Lock (local PIN) ================= */
+/* ================= App Lock (local PIN) — unlock-only now; setup UI removed, kept so an
+   already-enabled PIN (from before this cleanup) still boots and can be unlocked/cleared ================= */
 const APP_LOCK_HASH_KEY = 'surgical-case-log-lock-hash-v1';
 let APP_LOCKED = false;
 let LOCK_PIN_INPUT = '';
 let LOCK_ERROR = false;
-let LOCK_SETUP_MODE = null; // null | 'set-new' | 'confirm-new' | 'change-verify' | 'disable-verify'
-let LOCK_SETUP_FIRST_PIN = '';
 const PIN_LENGTH = 6;
 
 async function hashPin(pin) {
@@ -11557,7 +11553,6 @@ async function verifyPin(pin) {
     return (await hashPin(pin)) === stored;
   } catch(e) { return false; }
 }
-async function savePin(pin) { try { localStorage.setItem(APP_LOCK_HASH_KEY, await hashPin(pin)); } catch(e) {} }
 function clearPin() { try { localStorage.removeItem(APP_LOCK_HASH_KEY); } catch(e) {} }
 
 function renderLockScreen() {
@@ -11572,61 +11567,7 @@ function renderLockScreen() {
     + [1,2,3,4,5,6,7,8,9].map(n=>'<button class="lock-key" data-action="lock-digit" data-value="'+n+'">'+n+'</button>').join('')
     + '<span></span><button class="lock-key" data-action="lock-digit" data-value="0">0</button><button class="lock-key" data-action="lock-backspace">'+ic('back')+'</button>'
     + '</div>'
-    + '</div>';
-}
-
-async function handlePinSetupComplete() {
-  if (LOCK_SETUP_MODE === 'set-new') {
-    LOCK_SETUP_FIRST_PIN = LOCK_PIN_INPUT;
-    LOCK_PIN_INPUT = '';
-    LOCK_SETUP_MODE = 'confirm-new';
-    render();
-  } else if (LOCK_SETUP_MODE === 'confirm-new') {
-    if (LOCK_PIN_INPUT === LOCK_SETUP_FIRST_PIN) {
-      await savePin(LOCK_PIN_INPUT);
-      LOCK_SETUP_MODE = null; LOCK_PIN_INPUT = ''; LOCK_SETUP_FIRST_PIN = '';
-      toast('App Lock is now ON');
-      render();
-    } else {
-      toast('PINs didn\u2019t match, try again');
-      LOCK_PIN_INPUT = ''; LOCK_SETUP_FIRST_PIN = ''; LOCK_SETUP_MODE = 'set-new';
-      render();
-    }
-  } else if (LOCK_SETUP_MODE === 'change-verify') {
-    const ok = await verifyPin(LOCK_PIN_INPUT);
-    LOCK_PIN_INPUT = '';
-    if (ok) { LOCK_SETUP_MODE = 'set-new'; render(); }
-    else { toast('Wrong PIN'); LOCK_SETUP_MODE = null; render(); }
-  } else if (LOCK_SETUP_MODE === 'disable-verify') {
-    const ok = await verifyPin(LOCK_PIN_INPUT);
-    LOCK_PIN_INPUT = '';
-    if (ok) { clearPin(); LOCK_SETUP_MODE = null; toast('App Lock is now OFF'); render(); }
-    else { toast('Wrong PIN'); LOCK_SETUP_MODE = null; render(); }
-  }
-}
-
-function appLockCardHtml() {
-  if (LOCK_SETUP_MODE) {
-    const dots = Array.from({length:PIN_LENGTH}, (_,i) => '<span class="lock-dot'+(i<LOCK_PIN_INPUT.length?' filled':'')+'"></span>').join('');
-    const labels = { 'set-new':'Enter a new 6-digit PIN', 'confirm-new':'Confirm the PIN again', 'change-verify':'Enter your current PIN first', 'disable-verify':'Enter your current PIN to turn off the lock' };
-    return '<div class="card">'
-      + '<label class="field-label">App Lock</label>'
-      + '<p style="font-size:12px;color:var(--muted);text-align:center;margin:6px 0;">'+labels[LOCK_SETUP_MODE]+'</p>'
-      + '<div class="pin-setup-dots">'+dots+'</div>'
-      + '<div class="pin-setup-keypad">'
-      + [1,2,3,4,5,6,7,8,9].map(n=>'<button type="button" class="lock-key" data-action="lock-digit" data-value="'+n+'">'+n+'</button>').join('')
-      + '<span></span><button type="button" class="lock-key" data-action="lock-digit" data-value="0">0</button><button type="button" class="lock-key" data-action="lock-backspace">'+ic('back')+'</button>'
-      + '</div>'
-      + '<button class="btn btn-sm btn-block" style="margin-top:10px;" data-action="lock-setup-cancel">Cancel</button>'
-      + '</div>';
-  }
-  const enabled = isLockEnabled();
-  return '<div class="card">'
-    + (enabled ? '<div class="row between"><label class="field-label" style="margin-bottom:0;">App Lock</label><span class="badge badge-emerald">ON</span></div>' : '<label class="field-label">App Lock</label>')
-    + '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Asks for a 6-digit PIN every time you open the app, so only you can see the data.</p>'
-    + (enabled
-        ? '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="lock-start-change">Change PIN</button><button class="btn btn-sm" style="flex:1;" data-action="lock-start-disable">Disable</button></div>'
-        : '<button class="btn btn-primary btn-block" data-action="lock-start-enable">Enable App Lock</button>')
+    + '<button class="btn btn-sm" style="margin-top:16px;background:none;border:none;color:var(--muted);text-decoration:underline;" data-action="lock-emergency-disable">Forgot PIN? Tap to remove App Lock</button>'
     + '</div>';
 }
 
