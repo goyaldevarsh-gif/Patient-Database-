@@ -5860,23 +5860,7 @@ const IMGREC_GROUPS = [
 ];
 let IMGREC_SELECT_MODE = false;
 let IMGREC_SELECTED_IDS = new Set();
-let SHOW_IMGREC_QUICKADD = false;
 function imgrecCatLabel(k) { const f = IMAGES_RECORDS_SECTIONS.find(s=>s[0]===k); return f?f[1]:k; }
-function imgrecQuickAddHtml() {
-  const cats = [
-    ['xray','X-ray','camera'], ['clinical','Clinical Image','camera'], ['wound','Wound / Suture','camera'],
-    ['ct','CT','camera'], ['mri','MRI','camera'], ['usg','USG','camera'],
-    ['injections','Injection record','camera'], ['video','Video','video'],
-  ];
-  const hiddenInputs = cats.map(([cat,,,]) => '<input type="file" id="imgrec-quickadd-input-'+cat+'" data-img-upload="'+cat+'" accept="'+(cat==='video'?'video/*':'image/*')+'" multiple style="display:none;">').join('');
-  return hiddenInputs
-    + '<div style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:320px;z-index:47;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:6px;display:flex;flex-direction:column;gap:2px;">'
-    + cats.map(([cat,label,icon]) => '<button type="button" class="menu-popup-btn" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="imgrec-quickadd-trigger" data-value="'+cat+'">'
-        + '<span style="flex:none;width:28px;height:28px;border-radius:50%;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic(icon)+'</span>'
-        + label + '</button>').join('')
-    + '</div>'
-    + '<div style="position:fixed;inset:0;z-index:46;" data-action="toggle-imgrec-quickadd"></div>';
-}
 async function renderImagesRecordsTab(p) {
   const activeGroup = IMGREC_GROUPS.find(g => g.categories.includes(IMAGES_RECORDS_SUBVIEW));
   const segHtml = '<div class="px" style="padding-top:12px;padding-bottom:0;">'
@@ -5890,7 +5874,6 @@ async function renderImagesRecordsTab(p) {
         : '<div class="row between" style="margin-bottom:8px;">'
           + '<span style="font-size:11px;color:var(--muted);">All photos, X-rays &amp; labs for this case</span>'
           + '<div class="row gap2">'
-          + '<button class="btn btn-sm btn-primary" data-action="toggle-imgrec-quickadd">'+ic('plus')+' Add</button>'
           + '<button class="btn btn-sm" data-action="imgrec-enter-select">'+ic('check')+' Select</button>'
           + '<button class="btn btn-sm" data-action="download-case-zip" data-id="'+p.id+'">'+ic('download')+' Download all</button>'
           + '</div></div>')
@@ -5902,8 +5885,8 @@ async function renderImagesRecordsTab(p) {
     + (activeGroup && activeGroup.categories.length > 1 ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 0 4px;padding-left:8px;border-left:2px solid var(--border);">' + activeGroup.categories.map(c => '<button class="'+(IMAGES_RECORDS_SUBVIEW===c?'chip active':'')+'" style="'+(IMAGES_RECORDS_SUBVIEW===c?'':'background:none;border:1px solid var(--border);color:var(--muted);border-radius:20px;')+'font-size:11px;padding:4px 10px;" data-action="imgrec-set-subview" data-value="'+c+'">'+imgrecCatLabel(c)+'</button>').join('') + '</div>' : '')
     + '</div>';
 
-  if (IMAGES_RECORDS_SUBVIEW === 'investigations') return segHtml + await renderInvestigationsTab(p) + (SHOW_IMGREC_QUICKADD ? imgrecQuickAddHtml() : '');
-  if (IMAGES_RECORDS_SUBVIEW === 'injections') return segHtml + renderInjectionsTab(p) + (SHOW_IMGREC_QUICKADD ? imgrecQuickAddHtml() : '');
+  if (IMAGES_RECORDS_SUBVIEW === 'investigations') return segHtml + await renderInvestigationsTab(p);
+  if (IMAGES_RECORDS_SUBVIEW === 'injections') return segHtml + renderInjectionsTab(p);
 
   const allImages = await dbGetImagesByPatient(p.id);
   revokeActiveUrls();
@@ -5945,7 +5928,7 @@ async function renderImagesRecordsTab(p) {
   if (allImages.length) body += '<button class="btn btn-block" style="margin-bottom:14px;" data-action="set-tab" data-value="photos">'+ic('folder')+' All Photos (organized)</button>';
   if (allImages.length >= 2) body += '<button class="btn btn-block" style="margin-bottom:14px;" data-action="open-compare-picker">'+ic('clock')+' Compare Before / After</button>';
   body += '</div>';
-  return segHtml + body + (SHOW_IMGREC_QUICKADD ? imgrecQuickAddHtml() : '');
+  return segHtml + body;
 }
 
 async function renderFollowupsTab(p) {
@@ -9465,7 +9448,6 @@ async function generatePersonalizedReminderMessage(p) {
     if (moreBtn) moreBtn.classList.toggle('active', !['overview','followups','imagesrecords','timeline'].includes(TAB));
     const moreWrap = document.getElementById('patient-more-popup-wrap');
     if (moreWrap) moreWrap.innerHTML = '';
-    if (TAB === 'imagesrecords') SHOW_IMGREC_QUICKADD = true;
     await renderTabBody(p); window.scrollTo(0,0); return;
   }
   if (action === 'toggle-patient-more-menu') {
@@ -10385,18 +10367,7 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
 
-  if (action === 'toggle-imgrec-quickadd') {
-    SHOW_IMGREC_QUICKADD = !SHOW_IMGREC_QUICKADD;
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'imgrec-quickadd-trigger') {
-    const cat = el.dataset.value;
-    SHOW_IMGREC_QUICKADD = false;
-    const inp = document.getElementById('imgrec-quickadd-input-'+cat);
-    if (inp) inp.click();
-    return;
-  }
+
   if (action === 'imgrec-enter-select') {
     IMGREC_SELECT_MODE = true;
     IMGREC_SELECTED_IDS = new Set();
