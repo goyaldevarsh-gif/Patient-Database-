@@ -1750,24 +1750,34 @@ function setupValidationListener(inputEl, validator) {
 
 // Setup swipe navigation for tab switching
 function setupSwipeNavigation(container, onSwipeLeft, onSwipeRight) {
+  if (!container) return;
+  // Store the latest callbacks on the element itself so re-renders (which call this again
+  // on the same persistent #tab-body node) just update the callbacks instead of stacking
+  // duplicate touchstart/touchend listeners \u2014 duplicate listeners meant a single swipe
+  // could fire multiple tab changes at once, which could cascade into a broken render.
+  container._swipeOnLeft = onSwipeLeft;
+  container._swipeOnRight = onSwipeRight;
+  if (container.dataset.swipeBound === '1') return;
+  container.dataset.swipeBound = '1';
+
   let touchStart = 0, touchEnd = 0, touchStartY = 0, touchEndY = 0;
-  
+
   container.addEventListener('touchstart', (e) => {
     touchStart = e.changedTouches[0].clientX;
     touchStartY = e.changedTouches[0].clientY;
   }, { passive: true });
-  
+
   container.addEventListener('touchend', (e) => {
     touchEnd = e.changedTouches[0].clientX;
     touchEndY = e.changedTouches[0].clientY;
-    
+
     const horizontalDiff = touchStart - touchEnd;
     const verticalDiff = Math.abs(touchStartY - touchEndY);
-    
+
     // Only trigger swipe if horizontal movement > vertical and > 50px threshold
     if (Math.abs(horizontalDiff) > 50 && Math.abs(horizontalDiff) > verticalDiff) {
-      if (horizontalDiff > 0 && onSwipeLeft) onSwipeLeft();
-      else if (horizontalDiff < 0 && onSwipeRight) onSwipeRight();
+      if (horizontalDiff > 0 && container._swipeOnLeft) container._swipeOnLeft();
+      else if (horizontalDiff < 0 && container._swipeOnRight) container._swipeOnRight();
     }
   }, { passive: true });
 }
@@ -4376,6 +4386,11 @@ function followUpReminderLink(patient) {
 
 /* ================= Dashboard quick-action patient cards ================= */
 let QUICK_FU_PATIENT_ID = null;
+let QUICK_LOG_FU_PATIENT_ID = null;
+let QUICK_LOG_FU_DATE = '';
+let QUICK_LOG_FU_FINDINGS = '';
+let QUICK_LOG_FU_NEXT_DATE = '';
+
 function patientQuickActionsRowHtml(p) {
   const wa = waLink(p);
   const telHref = p.whatsapp ? 'tel:+' + toWaNumber(p.whatsapp) : null;
@@ -4396,6 +4411,23 @@ function renderDashboardPatientQuickCard(p) {
     + patientQuickActionsRowHtml(p)
     + '</div>';
 }
+function renderQuickLogFuModal() {
+  let root = document.getElementById('quick-log-fu-modal-root');
+  if (!root) { root = document.createElement('div'); root.id = 'quick-log-fu-modal-root'; document.body.appendChild(root); }
+  if (!QUICK_LOG_FU_PATIENT_ID) { root.innerHTML = ''; return; }
+  const p = getPatient(QUICK_LOG_FU_PATIENT_ID);
+  if (!p) { root.innerHTML = ''; QUICK_LOG_FU_PATIENT_ID = null; return; }
+  root.innerHTML = '<div class="ocr-overlay">'
+    + '<div class="ocr-card">'
+    + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('checkSquare')+' Log Follow-up</h3><button class="icon-btn" data-action="close-quick-log-fu">'+ic('x')+'</button></div>'
+    + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Patient: <b>'+esc(p.name)+'</b></p>'
+    + '<div style="margin-bottom:12px;"><label class="field-label">Visit date</label><input class="input" type="date" id="quick-log-fu-date" max="'+todayStr()+'" value="'+QUICK_LOG_FU_DATE+'" style="width:100%;"></div>'
+    + '<div style="margin-bottom:12px;"><label class="field-label">Findings / Notes</label><textarea class="textarea" id="quick-log-fu-findings" rows="3" placeholder="Pain level, ROM, clinical findings...">'+esc(QUICK_LOG_FU_FINDINGS)+'</textarea></div>'
+    + '<div style="margin-bottom:12px;"><label class="field-label">Next follow-up date</label><input class="input" type="date" id="quick-log-fu-next-date" value="'+QUICK_LOG_FU_NEXT_DATE+'" style="width:100%;"></div>'
+    + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="close-quick-log-fu">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="save-quick-log-fu" data-patient-id="'+p.id+'">Save</button></div>'
+    + '</div></div>';
+}
+
 function renderQuickFuModal() {
   let root = document.getElementById('quick-modal-root');
   if (!root) { root = document.createElement('div'); root.id = 'quick-modal-root'; document.body.appendChild(root); }
@@ -5435,6 +5467,9 @@ function renderOverviewTab(p) {
     + '<button type="button" class="btn btn-sm btn-block" style="margin-top:6px;justify-content:space-between;" data-action="quick-fu-open" data-patient-id="'+p.id+'">'
     + '<span>'+(p.nextFollowUpDate ? (ic('calendar')+' '+fmtDate(p.nextFollowUpDate)) : (ic('plus')+' Set follow-up date'))+'</span>'
     + ic('chevron')
+    + '</button>'
+    + '<button type="button" class="btn btn-sm btn-block" style="margin-top:6px;background:var(--accent);border-color:var(--accent);color:#fff;" data-action="quick-log-fu" data-patient-id="'+p.id+'">'
+    + ic('plus')+' Log Follow-up Visit'
     + '</button>'
     + (overdue && overdueDays(p.nextFollowUpDate) >= 3 ? '<div class="row" style="gap:6px;margin-top:8px;">'
         + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-followup" data-id="'+p.id+'">'+ic('clock')+' Snooze 7d</button>'
@@ -8027,10 +8062,13 @@ function renderCalendarView() {
   const s = computeDashboardStats();
   let tomorrowHtml = '';
   if (s.dueTomorrowList.length) {
-    tomorrowHtml = '<button type="button" class="row between" style="width:100%;background:var(--amber-bg,#fffbeb);border:1px solid var(--amber-border,#fde68a);border-radius:10px;padding:9px 12px;margin-bottom:10px;cursor:pointer;" data-action="toggle-tomorrow-list">'
+    tomorrowHtml = '<div class="row between" style="margin-bottom:10px;gap:8px;">'
+      + '<button type="button" class="row between" style="flex:1;background:var(--amber-bg,#fffbeb);border:1px solid var(--amber-border,#fde68a);border-radius:10px;padding:9px 12px;cursor:pointer;" data-action="toggle-tomorrow-list">'
       + '<span style="font-size:12px;font-weight:700;color:#b45309;display:flex;align-items:center;gap:6px;">'+ic('clock')+' Tomorrow \u2014 '+s.dueTomorrowList.length+' follow-up'+(s.dueTomorrowList.length>1?'s':'')+' due</span>'
       + '<span style="color:#b45309;transform:scale(0.75)'+(SHOW_TOMORROW_LIST?' rotate(180deg)':'')+';">'+ic('chevron')+'</span>'
-      + '</button>';
+      + '</button>'
+      + (s.dueTomorrowList.filter(p => p.whatsapp).length ? '<button type="button" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;flex:none;" data-action="bulk-send-reminders" data-patient-ids="'+s.dueTomorrowList.filter(p => p.whatsapp).map(p => p.id).join(',')+'">'+ic('message')+' Remind All</button>' : '')
+      + '</div>';
     if (SHOW_TOMORROW_LIST) {
       tomorrowHtml += '<div class="card" style="margin-bottom:12px;padding:6px 0;">'
         + s.dueTomorrowList.map(p => {
@@ -8081,11 +8119,24 @@ async function render() {
   SHOW_AI_MENU = false;
   SHOW_PATIENT_MORE_MENU = false;
   app.classList.remove('view-transition'); void app.offsetWidth; app.classList.add('view-transition');
-  await renderCurrentView(app);
-  updateUsearchFabVisibility();
-  updateBottomNavVisibility();
-  updateSideBackVisibility();
-  updateMasterVoiceUI();
+  try {
+    await renderCurrentView(app);
+  } catch (err) {
+    console.error('render() failed for VIEW=' + VIEW, err);
+    // Don't let a broken view (bad data, edge case, etc.) leave the app in a half-rendered
+    // state forever \u2014 fall back to the list view rather than requiring a manual restart.
+    if (VIEW !== 'list') {
+      VIEW = 'list';
+      try { await renderCurrentView(app); } catch (err2) { console.error('Fallback list render also failed', err2); }
+    }
+  } finally {
+    // These must always run, even if the view above threw, so the bottom nav / FABs
+    // never get stuck missing until the user force-reloads the app.
+    updateUsearchFabVisibility();
+    updateBottomNavVisibility();
+    updateSideBackVisibility();
+    updateMasterVoiceUI();
+  }
 }
 async function renderCurrentView(app) {
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
@@ -10432,6 +10483,85 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
+  if (action === 'quick-log-fu') { 
+    QUICK_LOG_FU_PATIENT_ID = el.dataset.patientId;
+    QUICK_LOG_FU_DATE = todayStr();
+    QUICK_LOG_FU_FINDINGS = '';
+    QUICK_LOG_FU_NEXT_DATE = '';
+    renderQuickLogFuModal(); 
+    return; 
+  }
+
+  if (action === 'close-quick-log-fu') { 
+    QUICK_LOG_FU_PATIENT_ID = null; 
+    renderQuickLogFuModal(); 
+    return; 
+  }
+
+  if (action === 'save-quick-log-fu') {
+    const p = getPatient(el.dataset.patientId);
+    if (!p) { toast('Patient not found'); return; }
+    
+    const dateEl = document.getElementById('quick-log-fu-date');
+    const findingsEl = document.getElementById('quick-log-fu-findings');
+    const nextDateEl = document.getElementById('quick-log-fu-next-date');
+    
+    const date = dateEl ? dateEl.value : '';
+    const findings = findingsEl ? findingsEl.value.trim() : '';
+    const nextDate = nextDateEl ? nextDateEl.value : '';
+    
+    if (!date) { toast('Visit date required'); return; }
+    
+    // Create follow-up entry
+    const fu = {
+      id: uid(),
+      date: date,
+      notes: findings,
+      visitLabel: 'Follow-up',
+      createdAt: Date.now()
+    };
+    
+    p.followUps = (p.followUps || []);
+    p.followUps.push(fu);
+    
+    if (nextDate) {
+      p.nextFollowUpDate = nextDate;
+      p.followUpSnoozeCount = 0;
+    }
+    
+    dbPutPatient(p).then(() => {
+      refreshPatients();
+      QUICK_LOG_FU_PATIENT_ID = null;
+      haptic(15);
+      toast('✓ Follow-up logged for '+p.name);
+      renderQuickLogFuModal();
+      render();
+    });
+    return;
+  }
+
+  if (action === 'bulk-send-reminders') {
+    const patientIds = (el.dataset.patientIds || '').split(',').filter(Boolean);
+    if (!patientIds.length) { toast('No patients with WhatsApp to remind'); return; }
+    
+    let reminded = 0;
+    patientIds.forEach(pid => {
+      const p = getPatient(pid);
+      if (p && p.whatsapp) {
+        p.lastReminderSentAt = Date.now();
+        dbPutPatient(p).then(() => {
+          reminded++;
+          if (reminded === patientIds.length) {
+            haptic(20);
+            toast('✓ Reminders sent to ' + reminded + ' patient' + (reminded > 1 ? 's' : ''));
+            refreshPatients().then(() => render());
+          }
+        });
+      }
+    });
+    return;
+  }
+
   if (action === 'log-reminder-sent') {
     const p = getPatient(el.dataset.id);
     if (p) { 
