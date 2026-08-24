@@ -3043,6 +3043,7 @@ const DEFAULT_PROFILE = {
   email: '',
   qualifications: '',
   regNumber: '',
+  specialty: 'Orthopaedic Surgeon',  // For WhatsApp signature
   clinicName: '',
   clinicAddress: '',
   clinicPhone: '',
@@ -3357,9 +3358,10 @@ function psReminderLink(entry) {
   const profile = loadProfile();
   const msg = '\u0928\u092e\u0938\u094d\u0924\u0947 ' + entry.name + ' \u091c\u0940,'
     + '\n\u0906\u092a\u0915\u0940 \u0938\u0930\u094d\u091c\u0930\u0940/\u0905\u0938\u094d\u092a\u0924\u093e\u0932 \u092e\u0947\u0902 \u092d\u0930\u094d\u0924\u0940 (admission) \u0915\u0940 \u0924\u093e\u0930\u0940\u0916 ' + fmtDate(entry.date) + ' \u0939\u0948\u0964'
-    + '\n\u0915\u0943\u092a\u092f\u093e \u0938\u092e\u092f \u092a\u0930 \u092a\u0939\u0941\u0902\u091a\u0947\u0902 \u0914\u0930 \u0916\u093e\u0932\u0940 \u092a\u0947\u091f \u0906\u090f\u0902\u0964 \u0915\u094b\u0908 \u092d\u0940 \u092a\u0941\u0930\u093e\u0928\u0940 \u0930\u093f\u092a\u094b\u0930\u094d\u091f/\u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u093e\u090f\u0902\u0964'
+    + '\n\u0915\u0943\u092a\u092f\u093e \u0938\u092e\u092f \u092a\u0930 \u092a\u0939\u0941\u0902\u091a\u0947\u0902 \u0914\u0930 \u0916\u093e\u0932\u0940 \u092a\u0947\u091f \u0906\u090f\u0902\u0964 \u0915\u094b\u0908 \u092d\u0940 \u092a\u0941\u0930\u093e\u0928\u0940 \u0930\u093f\u092a\u094b\u0930\u094d\u091f/\u0926\u0935\u093e\u0908\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u093e\u090f\u0902\u0964'
     + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
-    + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]');
+    + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]')
+    + generateWhatsAppSignature();
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
 }
 
@@ -4252,7 +4254,8 @@ function renderSettingsView() {
     + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.02em;margin:0 0 -4px;">OrthoVault \u2014 Built for Orthopaedic Surgeons</p>'
     + '<p style="font-size:12px;color:var(--muted);margin:0;">These details print on the prescription letterhead. Fill them in once, edit anytime.</p>'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="e.g. Dr. Jane Smith"></div>'
-    + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
+    + '<div><label class="field-label">Specialty (for WhatsApp)</label><input class="input" id="pr-specialty" value="'+esc(pr.specialty||'Orthopaedic Surgeon')+'" placeholder="e.g. Orthopaedic Surgeon"></div>'
+    + '<div><label class="field-label">Qualifications (for letterhead)</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
     + '<div><label class="field-label">Email (optional)</label><input class="input" type="email" id="pr-email" value="'+esc(pr.email||'')+'"></div>'
     + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder="e.g. RMC-12345"></div>'
     + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
@@ -4442,7 +4445,8 @@ function waLink(patient) {
   const msg = '\u0928\u092e\u0938\u094d\u0924\u0947 ' + patient.name + ' \u091c\u0940,'
     + '\n\u0909\u092e\u094d\u092e\u0940\u0926 \u0939\u0948 \u0906\u092a \u0920\u0940\u0915 \u0939\u094b\u0902\u0917\u0947\u0964 \u0905\u0917\u0932\u0940 \u0935\u093f\u095b\u093f\u091f \u0938\u0947 \u092a\u0939\u0932\u0947 \u0905\u0917\u0930 \u0915\u094b\u0908 \u0926\u093f\u0915\u094d\u0915\u0924 \u092f\u093e \u0938\u0935\u093e\u0932 \u0939\u094b, \u0924\u094b \u0907\u0938\u0940 \u0928\u0902\u092c\u0930 \u092a\u0930 \u092c\u0947\u091d\u093f\u091d\u0915 \u0938\u0902\u092a\u0930\u094d\u0915 \u0915\u0930 \u0938\u0915\u0924\u0947 \u0939\u0948\u0902\u0964'
     + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
-    + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]') + (profile.qualifications ? ' (' + profile.qualifications + ')' : '');
+    + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]') + (profile.qualifications ? ' (' + profile.qualifications + ')' : '')
+    + generateWhatsAppSignature();
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
 }
 
@@ -4451,10 +4455,14 @@ function generateWhatsAppSignature() {
   const profile = loadProfile();
   if (!profile.clinicAddresses || !profile.clinicAddresses.length) return '';
   
-  let sig = '\n\n' + (profile.doctorName || 'Doctor');
-  if (profile.qualifications) sig += '\n' + profile.qualifications;
-  sig += '\n';
+  const firstClinic = profile.clinicAddresses[0];
+  const specialty = profile.specialty || 'Orthopaedic Surgeon';
+  const primaryClinic = firstClinic.name || 'Clinic';
   
+  // Header with specialty and first clinic (doctor name already in message)
+  let sig = '\n' + esc(specialty.trim()) + ' (' + esc(primaryClinic.trim()) + ')';
+  
+  // List all clinics
   profile.clinicAddresses.forEach(clinic => {
     sig += '\n📍 ' + esc(clinic.name);
     if (clinic.timings) sig += ' (' + esc(clinic.timings) + ')';
@@ -4763,7 +4771,19 @@ function rxWaMessage(patient, rx, profile) {
   });
   if (rx.advice) { lines.push(''); lines.push('Advice: ' + rx.advice); }
   if (rx.followUpDate) { lines.push('Follow-up: ' + fmtDate(rx.followUpDate)); }
-  return lines.join('\n');
+  
+  let msg = lines.join('\n');
+  
+  if (profile.clinicAddresses && profile.clinicAddresses.length) {
+    msg += '\n\n---\nClinic Details:\n';
+    profile.clinicAddresses.forEach(clinic => {
+      msg += '\n\u0919 ' + clinic.name;
+      if (clinic.timings) msg += ' (' + clinic.timings + ')';
+      msg += '\n' + clinic.mapsLink;
+    });
+  }
+  
+  return msg;
 }
 function rxWaLink(patient, rx, profile) {
   const digits = toWaNumber(patient.whatsapp);
@@ -7082,7 +7102,11 @@ function caseSummaryText(p) {
   if (s.has('notes') && p.notes) lines.push('\nClinical Notes:\n' + p.notes);
   return lines.join('\n');
 }
-function caseSummaryWaLink(p) { return 'https://wa.me/' + toWaNumber(p.whatsapp) + '?text=' + encodeURIComponent(caseSummaryText(p)); }
+function caseSummaryWaLink(p) { 
+  const profile = loadProfile();
+  const text = caseSummaryText(p) + generateWhatsAppSignature();
+  return 'https://wa.me/' + toWaNumber(p.whatsapp) + '?text=' + encodeURIComponent(text); 
+}
 function caseSummaryEmailLink(p) { return 'mailto:?subject=' + encodeURIComponent('Case Summary \u2014 ' + p.name) + '&body=' + encodeURIComponent(caseSummaryText(p)); }
 function renderFitnessCertPrintView() {
   if (!PRINT_FITNESS_CERT) { VIEW = 'list'; return renderListView(); }
@@ -9581,10 +9605,11 @@ async function generatePatientWhatsAppMessage(p) {
 async function generatePersonalizedReminderMessage(p) {
   const askClaude = callGeminiDirect;
   const profile = loadProfile();
-  const sys = 'You write a warm, natural WhatsApp follow-up reminder message in Hindi (Devanagari script) from a doctor to their patient, matching this style exactly:\n\n\u0928\u092e\u0938\u094d\u0924\u0947 [PatientName] \u091c\u0940,\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f [context] [date] \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0907\u090f\u0917\u093e\u0964\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n[DoctorName]\n\nPersonalize the middle part based on the patient\u2019s specific procedure/diagnosis and any relevant concern from their notes, while keeping the same warm tone, structure, and length. Return ONLY the final message text, nothing else.';
+  const sys = 'You write a warm, natural WhatsApp follow-up reminder message in Hindi (Devanagari script) from a doctor to their patient, matching this style exactly:\n\n\u0928\u092e\u0938\u094d\u0924\u0947 [PatientName] \u091c\u0940,\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f [context] [date] \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0908\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0908\u090f\u0917\u093e\u0964\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n[DoctorName]\n\nPersonalize the middle part based on the patient\u2019s specific procedure/diagnosis and any relevant concern from their notes, while keeping the same warm tone, structure, and length. Return ONLY the final message text, nothing else.';
   const context = 'Patient name: ' + p.name + '\nProcedure/Diagnosis: ' + (p.procedure || p.diagnosis || '\u2014') + '\nNext follow-up date: ' + fmtDate(p.nextFollowUpDate) + '\nNotes: ' + (p.notes || '\u2014') + '\nDoctor name: ' + (profile.doctorName || '[doctor name not set in profile]');
   const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 300 });
-  return (result.data.text || '').trim();
+  const baseMsg = (result.data.text || '').trim();
+  return baseMsg + generateWhatsAppSignature();
 }
   if (action === 'ai-suggest-investigations') {
     const p = AP_TEMP || getPatient(SELECTED_ID);
@@ -11656,10 +11681,12 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'ps-share-text') {
     const sorted = [...PLANNED_SURGERIES].filter(s=>s.status==='waiting').sort((a,b) => (a.date||'').localeCompare(b.date||''));
     if (!sorted.length) { toast('No waiting patients to share.'); return; }
+    const profile = loadProfile();
     let msg = '\ud83d\udccb Planned Surgeries (as of ' + fmtDate(todayStr()) + ')\n\n';
     sorted.forEach((s, i) => {
       msg += (i+1) + '. ' + s.name + ', ' + (s.age||'?') + '/' + (s.sex||'?') + ' \u2014 ' + (s.diagnosis||'\u2014') + ' \u2014 ' + (s.plan||'\u2014') + ' \u2014 ' + fmtDate(s.date) + '\n';
     });
+    msg += generateWhatsAppSignature();
     window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
     return;
   }
@@ -12160,6 +12187,7 @@ function readProfileFromDom() {
   return {
     doctorName: document.getElementById('pr-doctorName').value,
     email: document.getElementById('pr-email').value,
+    specialty: document.getElementById('pr-specialty').value,
     qualifications: document.getElementById('pr-qualifications').value,
     regNumber: document.getElementById('pr-regNumber').value,
     clinicName: document.getElementById('pr-clinicName').value,
