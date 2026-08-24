@@ -548,6 +548,178 @@
   .pcard-action-btn .ic { width:15px; height:15px; }
   .pcard-action-btn.wa { background:rgba(37,211,102,0.1); border-color:rgba(37,211,102,0.25); color:#1a9e4f; }
   .pcard-action-btn.disabled { opacity:0.32; pointer-events:none; }
+
+  /* ================= Premium Tab Transitions ================= */
+  .tab-content {
+    animation: tabFadeIn 150ms ease-out forwards;
+  }
+  @keyframes tabFadeIn {
+    from { opacity: 0; transform: scale(0.98); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* ================= Skeleton Loaders ================= */
+  .skeleton-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--bg-soft, #f8fafc);
+    border: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .skeleton-header {
+    height: 20px;
+    background: linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 50%, #e2e8f0 100%);
+    background-size: 200% 100%;
+    border-radius: 6px;
+    animation: shimmer 2s infinite;
+  }
+  .skeleton-line {
+    height: 12px;
+    background: linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 50%, #e2e8f0 100%);
+    background-size: 200% 100%;
+    border-radius: 4px;
+    animation: shimmer 2s infinite;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* ================= Form Validation Styles ================= */
+  input.valid, textarea.valid, select.valid {
+    border-color: #10b981;
+    background-color: rgba(16, 185, 129, 0.02);
+  }
+  input.invalid, textarea.invalid, select.invalid {
+    border-color: #ef4444;
+    background-color: rgba(239, 68, 68, 0.02);
+  }
+  .validation-helper {
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .validation-helper.valid {
+    color: #10b981;
+  }
+  .validation-helper.invalid {
+    color: #ef4444;
+  }
+
+  /* ================= Typography Standardization ================= */
+  .text-l {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .text-m {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+  .text-s {
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.4;
+  }
+
+  /* ================= Expandable Sections ================= */
+  .expandable-section {
+    overflow: hidden;
+    transition: max-height 200ms ease-out;
+  }
+  .expandable-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+    margin-top: 8px;
+  }
+  .expandable-toggle .chevron {
+    display: inline-flex;
+    transition: transform 200ms ease-out;
+  }
+  .expandable-toggle[aria-expanded="true"] .chevron {
+    transform: rotate(180deg);
+  }
+
+  /* ================= Confirmation Dialog ================= */
+  .confirm-dialog-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    display: flex;
+    align-items: flex-end;
+    z-index: 100;
+    animation: overlayFadeIn 150ms ease-out forwards;
+  }
+  @keyframes overlayFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  .confirm-dialog {
+    width: 100%;
+    background: var(--bg, #fff);
+    border-radius: 20px 20px 0 0;
+    padding: 24px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    animation: slideUp 250ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+  @keyframes slideUp {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .confirm-dialog-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .confirm-dialog-message {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    line-height: 1.5;
+  }
+  .confirm-dialog-actions {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  .confirm-dialog-actions button {
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 11px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .confirm-btn-destructive {
+    background: #dc2626;
+    color: #fff;
+  }
+  .confirm-btn-cancel {
+    background: var(--bg-soft, #f8fafc);
+    color: var(--ink);
+    border: 1px solid var(--border);
+  }
+
+  /* ================= Icon Size Standardization ================= */
+  .icon-24 { width: 24px; height: 24px; stroke-width: 2; }
+  .icon-20 { width: 20px; height: 20px; stroke-width: 2; }
+  .icon-16 { width: 16px; height: 16px; stroke-width: 2; }
 </style>
 </head>
 <body>
@@ -1472,6 +1644,130 @@ const ICONS = {
   video:'<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
 };
 function ic(name) { return '<svg class="ic" viewBox="0 0 24 24">'+ICONS[name]+'</svg>'; }
+
+/* ================= Premium UX Helpers ================= */
+// Haptic feedback (mobile only)
+function haptic(duration = 10) { if (navigator.vibrate) navigator.vibrate(duration); }
+
+// Confirmation dialog
+async function showConfirmDialog(opts) {
+  return new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-dialog-overlay';
+    overlay.innerHTML = `
+      <div class="confirm-dialog">
+        <div class="confirm-dialog-title">${opts.title || 'Confirm'}</div>
+        <div class="confirm-dialog-message">${opts.message || ''}</div>
+        <div class="confirm-dialog-actions">
+          <button class="confirm-btn-cancel" type="button">${opts.cancelText || 'Cancel'}</button>
+          <button class="confirm-btn-${opts.destructive ? 'destructive' : 'primary'}" type="button">${opts.confirmText || 'Confirm'}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    
+    const buttons = overlay.querySelectorAll('button');
+    const cancelBtn = buttons[0];
+    const confirmBtn = buttons[1];
+    
+    cancelBtn.focus();
+    
+    cancelBtn.addEventListener('click', () => {
+      overlay.remove();
+      resolve(false);
+    });
+    confirmBtn.addEventListener('click', () => {
+      haptic(15);
+      overlay.remove();
+      if (opts.onConfirm) opts.onConfirm();
+      resolve(true);
+    });
+    
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        resolve(false);
+      }
+    });
+  });
+}
+
+// Auto-focus first input in form
+function autoFocusFirstInput(container) {
+  if (!container) return;
+  setTimeout(() => {
+    const input = container.querySelector('input, textarea, select');
+    if (input) input.focus();
+  }, 50);
+}
+
+// Real-time validation for input fields
+function setupValidationListener(inputEl, validator) {
+  let timeout;
+  inputEl.addEventListener('input', () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      const result = validator(inputEl.value.trim());
+      if (result.valid) {
+        inputEl.classList.add('valid');
+        inputEl.classList.remove('invalid');
+        if (result.message) {
+          const helper = inputEl.nextElementSibling;
+          if (helper && helper.classList.contains('validation-helper')) {
+            helper.className = 'validation-helper valid';
+            helper.innerHTML = '✓ ' + result.message;
+          }
+        }
+      } else if (inputEl.value.length > 0) {
+        inputEl.classList.add('invalid');
+        inputEl.classList.remove('valid');
+        if (result.message) {
+          const helper = inputEl.nextElementSibling;
+          if (helper && helper.classList.contains('validation-helper')) {
+            helper.className = 'validation-helper invalid';
+            helper.innerHTML = '✗ ' + result.message;
+          }
+        }
+      }
+    }, 300);
+  });
+}
+
+// Setup swipe navigation for tab switching
+function setupSwipeNavigation(container, onSwipeLeft, onSwipeRight) {
+  let touchStart = 0, touchEnd = 0, touchStartY = 0, touchEndY = 0;
+  
+  container.addEventListener('touchstart', (e) => {
+    touchStart = e.changedTouches[0].clientX;
+    touchStartY = e.changedTouches[0].clientY;
+  }, { passive: true });
+  
+  container.addEventListener('touchend', (e) => {
+    touchEnd = e.changedTouches[0].clientX;
+    touchEndY = e.changedTouches[0].clientY;
+    
+    const horizontalDiff = touchStart - touchEnd;
+    const verticalDiff = Math.abs(touchStartY - touchEndY);
+    
+    // Only trigger swipe if horizontal movement > vertical and > 50px threshold
+    if (Math.abs(horizontalDiff) > 50 && Math.abs(horizontalDiff) > verticalDiff) {
+      if (horizontalDiff > 0 && onSwipeLeft) onSwipeLeft();
+      else if (horizontalDiff < 0 && onSwipeRight) onSwipeRight();
+    }
+  }, { passive: true });
+}
+
+// Skeleton loader HTML
+function skeletonCardHtml(count = 3) {
+  return Array(count).fill(0).map(() => 
+    '<div class="skeleton-card">' +
+      '<div class="skeleton-header" style="width: 40%;"></div>' +
+      '<div class="skeleton-line" style="width: 80%;"></div>' +
+      '<div class="skeleton-line" style="width: 60%;"></div>' +
+    '</div>'
+  ).join('');
+}
+
 /* After opening a patient from a search/filter result, jump straight to the matched field
    instead of leaving the person to hunt for it \u2014 same idea for tag-filtered opens. */
 const SEARCH_FIELD_ANCHORS = {
@@ -1549,6 +1845,24 @@ const TAB_STATE_KEY = 'surgical-case-log-tab-state-v1';
 function saveTabState() { try { localStorage.setItem(TAB_STATE_KEY, TAB); } catch(e) {} }
 function loadTabState() { try { const t = localStorage.getItem(TAB_STATE_KEY); if (t) TAB = t; } catch(e) {} }
 function setTab(newTab) { TAB = newTab; saveTabState(); }
+function nextPatientTab() {
+  const tabs = ['overview', 'followups', 'imagesrecords', 'timeline'];
+  const idx = tabs.indexOf(TAB);
+  if (idx >= 0 && idx < tabs.length - 1) {
+    TAB = tabs[idx + 1];
+    saveTabState();
+    renderTabBody(getPatient(SELECTED_ID));
+  }
+}
+function prevPatientTab() {
+  const tabs = ['overview', 'followups', 'imagesrecords', 'timeline'];
+  const idx = tabs.indexOf(TAB);
+  if (idx > 0) {
+    TAB = tabs[idx - 1];
+    saveTabState();
+    renderTabBody(getPatient(SELECTED_ID));
+  }
+}
 function saveFilterState() { try { localStorage.setItem(FILTER_STATE_KEY, JSON.stringify({ search: SEARCH, filterType: FILTER_TYPE, tagFilter: TAG_FILTER })); } catch(e) {} }
 function loadFilterState() { try { const s = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || '{}'); SEARCH = s.search || ''; FILTER_TYPE = s.filterType || 'all'; TAG_FILTER = s.tagFilter || ''; } catch(e) {} }
 let TAB = 'overview';
@@ -6773,25 +7087,27 @@ const EDU_LIBRARY = [
 async function renderTabBody(p) {
   const el = document.getElementById('tab-body');
   if (!el) return;
+  el.className = 'tab-content';
   saveTabState();
-  if (TAB === 'overview') { el.innerHTML = renderOverviewTab(p); return; }
-  if (TAB === 'ctev') { el.innerHTML = await renderCtevTab(p); return; }
-  if (TAB === 'timeline') { el.innerHTML = await renderTimelineTab(p); return; }
-  if (TAB === 'ra') { el.innerHTML = renderRaTab(p); return; }
-  if (TAB === 'osteo') { el.innerHTML = await renderOsteoTab(p); return; }
+  if (TAB === 'overview') { el.innerHTML = renderOverviewTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); return; }
+  if (TAB === 'ctev') { el.innerHTML = await renderCtevTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); return; }
+  if (TAB === 'timeline') { el.innerHTML = await renderTimelineTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); return; }
+  if (TAB === 'ra') { el.innerHTML = renderRaTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); return; }
+  if (TAB === 'osteo') { el.innerHTML = await renderOsteoTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); return; }
   el.innerHTML = '<div class="px" style="padding-top:14px;">'
     + '<div class="skeleton-line" style="width:60%;height:14px;margin-bottom:14px;"></div>'
     + '<div class="skeleton-block"></div>'
     + '<div class="skeleton-block" style="margin-top:12px;"></div>'
     + '</div>';
-  if (TAB === 'imagesrecords') el.innerHTML = await renderImagesRecordsTab(p);
-  else if (TAB === 'followups') el.innerHTML = await renderFollowupsTab(p);
+  if (TAB === 'imagesrecords') { el.innerHTML = await renderImagesRecordsTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); }
+  else if (TAB === 'followups') { el.innerHTML = await renderFollowupsTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); }
   else if (TAB === 'prescriptions') {
     if (!isProOrAbove()) {
       el.innerHTML = '<div style="padding:24px;text-align:center;"><div style="font-size:14px;color:var(--muted);line-height:1.6;">Prescriptions are a <b>Pro</b> feature. Upgrade to write, save, and share prescriptions with your patients.</div></div>';
     } else {
       el.innerHTML = await renderPrescriptionsTab(p);
     }
+    setupSwipeNavigation(el, nextPatientTab, prevPatientTab);
   }
   else if (TAB === 'photos') el.innerHTML = await renderPhotoOrganiserTab(p);
 }
@@ -8586,6 +8902,7 @@ document.addEventListener('click', async (e) => {
     await dbPutPatient(p);
     await refreshPatients();
     QUICK_FU_PATIENT_ID = null;
+    haptic(15);
     renderQuickFuModal();
     render();
     toast('\u2713 Follow-up set for ' + fmtDate(date));
@@ -9847,6 +10164,7 @@ async function generatePersonalizedReminderMessage(p) {
       AP_INVESTIGATIONS = [];
       AP_DUPLICATE_FROM = null;
       SELECTED_ID = p.id; recordLastPatient(p.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
+      haptic(20);
       toast('Case saved');
       await render();
       window.scrollTo(0,0);
@@ -10032,11 +10350,20 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'attn-mark-lost') {
     const p = getPatient(el.dataset.id);
     if (!p) return;
+    const confirmed = await showConfirmDialog({
+      title: 'Mark as Lost?',
+      message: `${p.name} (${p.condition}) will be marked as lost to follow-up.`,
+      confirmText: 'Mark Lost',
+      cancelText: 'Cancel',
+      destructive: true
+    });
+    if (!confirmed) return;
     p.status = 'Lost to follow-up';
     p.followUpSnoozeCount = 0;
     await dbPutPatient(p);
     await refreshPatients();
     ARMED_DELETE = null;
+    haptic(15);
     toast('Marked as lost to follow-up');
     render();
     return;
