@@ -215,8 +215,7 @@
   ::-webkit-scrollbar { display:none; }
 
   .sticky-top { position:sticky; top:0; z-index:10; background:rgba(255,255,255,0.96); backdrop-filter:blur(6px); border-bottom:1px solid var(--border); }
-  .section-sticky-label { position:sticky; top:calc(68px + env(safe-area-inset-top, 0px)); z-index:8; background:rgba(255,255,255,0.96); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); padding:8px 0; margin:0 0 10px; font-size:11px; font-weight:800; letter-spacing:0.03em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--border); }
-  [data-theme="dark"] .section-sticky-label { background:rgba(15,23,42,0.97); }
+  .section-sticky-label { position:sticky; top:calc(68px + env(safe-area-inset-top, 0px)); z-index:8; background:var(--accent); color:#fff; padding:7px 12px; margin:0 0 12px; border-radius:8px; font-size:11.5px; font-weight:800; letter-spacing:0.03em; text-transform:uppercase; box-shadow:0 2px 8px rgba(67,56,202,0.25); }
   .sticky-top::before { content:''; display:block; width:100%; height:env(safe-area-inset-top, 0px); }
   .px { padding-left:16px; padding-right:16px; }
   .row { display:flex; align-items:center; }
@@ -535,6 +534,10 @@
   .bottom-nav-add-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
   .bottom-nav-add-circle { width:56px; height:56px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 16px rgba(67,56,202,0.4); margin-top:-30px; border:4px solid var(--bg,#fff); }
   .bottom-nav-add-circle .ic { width:24px; height:24px; }
+  .pcard-action-btn { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; border:1px solid var(--border); background:var(--bg-soft,#f8fafc); color:var(--muted); flex:none; text-decoration:none; }
+  .pcard-action-btn .ic { width:15px; height:15px; }
+  .pcard-action-btn.wa { background:rgba(37,211,102,0.1); border-color:rgba(37,211,102,0.25); color:#1a9e4f; }
+  .pcard-action-btn.disabled { opacity:0.32; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -1782,6 +1785,21 @@ async function renderNotificationsView() {
   return html;
 }
 const CHANGELOG = [
+  { version:'1.3.0', date:'2026-08-24', features: [
+      'Bottom navigation \u2014 Patients, Followups, + (Add), Reminders, More, always at the bottom instead of scattered buttons',
+      'Patient pages now have their tabs at the bottom too \u2014 Overview, Follow-Up, Images & Records, Timeline primary, with Prescriptions (and CTEV/RA/Bone Health tracking) under "More"',
+      'Master AI button \u2014 a single floating purple button (bottom-left): tap for a menu (Voice, Ask AI, Digest, Knowledge Engine, Ask OrthoVault), hold it down for voice. On a patient\u2019s page it opens straight into that patient\u2019s AI tools instead',
+      'Voice commands can now be corrected \u2014 if it mishears you, "Not quite right \u2014 edit" lets you fix the transcript and re-interpret instead of starting over',
+      'Followups tab \u2014 Due / Upcoming / Calendar in one place, plus a "Tomorrow" banner so you can WhatsApp remind patients a day ahead',
+      'Reminders is now its own tab, separate from patient follow-ups',
+      'Patients tab \u2014 full list with its own search, always up to date, no more "recent only" limit',
+      'Images & Records \u2014 a quick "+ Add" popup jumps straight to the right category\u2019s camera/file picker (X-ray, CT, MRI, USG, Clinical, Wound, Injection, Video)',
+    ], improvements: [
+      'Dashboard simplified \u2014 tap-to-search bar, a 3-way Total/OPD/Surgical case count, "This month\u2019s insights" open by default',
+      'Chief Complaints and Diagnosis fields highlighted in Add Case so the two most important fields stand out',
+      'Case status (Active/Completed/Lost to follow-up) is now a small inline control instead of a full-width bar',
+      'AI Hub (More \u2192 OrthoVault AI) is now reference-only \u2014 the tools it describes run from the floating AI button, not from that screen',
+    ] },
   { version:'1.2.0', date:'2026-08-17', features: [
       'Scheme Package Finder \u2014 look up RGHS and MAA Yojana package codes, rates, and implant codes; attach the right one to any case, with a "+ custom implant code" option when yours isn\u2019t in the list',
       'Matching scheme codes now suggested automatically as you type a diagnosis, right alongside investigation suggestions',
@@ -3516,7 +3534,9 @@ async function renderUnfiledPhotosView() {
 let ABOUT_EXPANDED = new Set(['getting-started']);
 const ABOUT_SECTIONS = [
   { key:'getting-started', title:'Getting Started', icon:'clipboard', items:[
-    ['Adding a case', 'Tap "+ Add" on the home screen. Choose OPD or Surgical, then work through the 4 tabs (Patient Details, Complaints & Diagnosis, Investigations, Special Tracking/Surgery Details) and save \u2014 it appears at the top of your list.'],
+    ['Bottom navigation', 'Patients, Followups, + (Add), Reminders, More \u2014 always at the bottom. The purple + circle opens a quick menu: New OPD Case, New Surgical Case, Add Follow-up, Add Reminder, Add Investigation.'],
+    ['Adding a case', 'Tap the + button \u2192 New OPD/Surgical Case. Choose OPD or Surgical, then work through the 4 colour-highlighted sections (Patient Details, Complaints & Diagnosis, Investigations, Special Tracking/Surgery Details) and save.'],
+    ['Finding a patient', 'Tap "Patients" in the bottom bar \u2014 full list with its own search bar. The Dashboard also has a tap-to-search bar that jumps you straight there.'],
     ['Opening a patient', 'Tap anywhere on a patient card to open their full record.'],
     ['Editing anything later', 'Overview shows a compact read-only summary by default \u2014 tap the pencil icon (top-right) any time to edit any field.'],
   ]},
@@ -3526,12 +3546,12 @@ const ABOUT_SECTIONS = [
     ['AI Quick-Fill', 'In Add Case \u2192 Complaints & Diagnosis, dictate or paste a free-text description in the AI Quick-Fill box (separate from Notes) and tap "Fill all fields from this" \u2014 it distributes the info into the right fields. The same Quick-Fill also exists on the Follow-Up visit form.'],
     ['AI: Suggested investigations / What to examine / Similar past cases', 'In Add Case, once diagnosis or complaints are filled \u2014 reference-only suggestions and a list of your own similar past patients, never auto-inserted into records.'],
     ['AI follow-up date suggestion', 'When adding a Follow-Up, "AI suggest" proposes a clinically reasonable next-visit date based on the diagnosis/procedure and how far along the patient is.'],
-    ['Patient AI Tools', 'Open any patient \u2192 tap the \u2726 sparkle icon at the top of Overview. One panel with everything for that patient: Summarize this patient, Explain to patient (Hindi/simple English), Dictate visit \u2192 SOAP note, Home-care + WhatsApp follow-up message, Fitness/return-to-duty certificate, and a Referral letter \u2014 all printable with your letterhead where relevant.'],
-    ['Master Voice (bottom-left \u2726 button)', 'Speak a command \u2014 "naya case banao", "X ka case kholo", "X ka follow-up kal rakho", "digest dikhao" \u2014 it\u2019s parsed and confirmed before anything happens.'],
-    ['AI Hub', 'More \u2192 AI \u2192 OrthoVault AI \u2014 Ask AI about your patients (plain-language query over your whole list), This Week\u2019s Digest, Ortho Knowledge Engine (clinical reasoning), and Ask OrthoVault (case vignette / surgical approach reference).'],
+    ['Patient AI Tools', 'Open any patient, then tap the floating purple AI button (bottom-left) \u2014 on a patient\u2019s page it opens straight into that patient\u2019s panel: Summarize this patient, Explain to patient (Hindi/simple English), Dictate visit \u2192 SOAP note, Home-care + WhatsApp follow-up message, Fitness/return-to-duty certificate, and a Referral letter \u2014 all printable with your letterhead where relevant.'],
+    ['Master AI button (floating, bottom-left)', 'Tap for a quick menu \u2014 Voice command, Ask AI about your patients, This Week\u2019s Digest, Ortho Knowledge Engine, Ask OrthoVault. Hold it down (~half a second) to jump straight into voice \u2014 say a command like "naya case banao", "X ka case kholo", "X ka follow-up kal rakho". If it mishears you, tap "Not quite right \u2014 edit" to fix the transcript and re-interpret instead of starting over.'],
+    ['AI Hub (More \u2192 OrthoVault AI)', 'Reference-only page explaining what the floating AI button can do \u2014 the tools themselves only run from that button, not from here.'],
   ]},
   { key:'opd-process', title:'Full Process \u2014 Adding an OPD Case', icon:'calendar', items:[
-    ['1. Patient Details', 'Tap "+ Add", choose OPD, and fill in Name, Age, Sex, Occupation, WhatsApp \u2014 scroll down for the rest, it\u2019s one continuous form with sticky section labels.'],
+    ['1. Patient Details', 'Tap the + button \u2192 New OPD Case, and fill in Name, Age, Sex, Occupation, WhatsApp \u2014 scroll down for the rest, it\u2019s one continuous form with colour-highlighted sticky section labels.'],
     ['2. Complaints & Diagnosis', 'Complaints \u2192 Duration \u2192 Side \u2192 Region/Specialty (\u2726 Auto-detect, also unlocks Hand dominance for Upper Limb/Hand cases) \u2192 Diagnosis. Diagnosis switches on the right Special Tracking module by itself once it matches (CTEV/RA/Osteoporosis/Trauma).'],
     ['3. Investigations (optional)', 'Already have an X-ray or report at intake? Three collapsible groups \u2014 Imaging, Clinical/Wound, Labs \u2014 pick one, add the photo, it\u2019s filed correctly. Injections aren\u2019t added here \u2014 log them from the patient record after saving.'],
     ['4. Special Tracking (if relevant)', 'Usually already set from your diagnosis text \u2014 double check or change it here before saving.'],
@@ -3539,7 +3559,7 @@ const ABOUT_SECTIONS = [
     ['6. Prescriptions', 'Write and share/print a prescription any time from its own tab.'],
   ]},
   { key:'surgical-process', title:'Full Process \u2014 Adding a Surgical Case', icon:'clipboard', items:[
-    ['1. Patient Details', 'Tap "+ Add", choose Surgical, and fill in Name, Age, Sex, Occupation, WhatsApp \u2014 scroll down for the rest, it\u2019s one continuous form with sticky section labels.'],
+    ['1. Patient Details', 'Tap the + button \u2192 New Surgical Case, and fill in Name, Age, Sex, Occupation, WhatsApp \u2014 scroll down for the rest, it\u2019s one continuous form with colour-highlighted sticky section labels.'],
     ['2. Complaints & Diagnosis', 'Diagnosis, Side, Region/Specialty (\u2726 Auto-detect works well once Procedure is filled in too; also unlocks Hand dominance for Upper Limb/Hand cases).'],
     ['3. Investigations', 'Add pre-op X-rays, clinical images, or any report you already have \u2014 grouped into Imaging/Clinical-Wound/Labs. "General OPD" X-ray type isn\u2019t offered for surgical cases; use Pre-op instead.'],
     ['4. Surgery Details', 'Surgery type, Procedure, Surgery date, and a collapsible Payment section (Cash/Insurance) \u2014 all here at intake.'],
@@ -3560,11 +3580,12 @@ const ABOUT_SECTIONS = [
     ['Planned Surgeries', 'More \u2192 Practice Tools \u2014 a simple pre-admission list, separate from your main patient records: name, age, sex, diagnosis, plan, mobile number, and planned admission date. Send a WhatsApp reminder, and mark each entry Admitted or No-show as the date arrives.'],
   ]},
   { key:'tabs', title:'Patient Record Tabs', icon:'file', items:[
+    ['Bottom tab bar', 'Overview, Follow-Up, Images & Records, Timeline sit at the bottom of a patient\u2019s page. Prescriptions (and CTEV/RA/Bone Health if that tracking is on) live under the "More" button next to them.'],
     ['Overview', 'A compact, read-only clinical dashboard by default \u2014 Patient Snapshot, Clinical, Communicate, Useful, all in one glance. Tap the pencil icon (top-right) to switch into the full editable form for any of it. Patient ID, name, age/sex, and diagnosis are fixed at the top of the screen even as you scroll.'],
     ['Timeline', 'A chronological view of the whole case. Tap any entry to jump straight into that specific follow-up/investigation, expanded.'],
     ['Follow-Up', 'Log each visit with notes, wound/union status, and photos. Quick-preset chips fill both the visit label and the next-follow-up date (+3 Days/+1 Week/+2 Weeks/+3 Weeks/+1 Month, or custom) \u2014 or tap AI suggest.'],
-    ['Images & Records', 'Grouped into Imaging (X-ray/CT/MRI/USG), Clinical/Wound, and Labs, plus Injections. Open any X-ray and use the type dropdown in the viewer to relabel it (e.g. after Convert to Surgical, an old "General OPD" X-ray can become "Pre-op").'],
-    ['Prescriptions', 'Write medicines with dose/frequency/duration, save as a reusable Template, print/share as PDF or WhatsApp.'],
+    ['Images & Records', 'Grouped into Imaging (X-ray/CT/MRI/USG), Clinical/Wound, and Labs, plus Injections. A purple "+ Add" button opens a quick category picker (X-ray, Clinical, Wound, CT, MRI, USG, Injection, Video) that jumps straight to the camera/file picker \u2014 no need to navigate to that category first. Open any X-ray and use the type dropdown in the viewer to relabel it (e.g. after Convert to Surgical, an old "General OPD" X-ray can become "Pre-op").'],
+    ['Prescriptions', 'Write medicines with dose/frequency/duration, save as a reusable Template, print/share as PDF or WhatsApp. Reachable via "More" at the bottom of a patient\u2019s page.'],
   ]},
   { key:'smart', title:'Smart Features', icon:'search', items:[
     ['Region auto-detect', 'On Overview, tap "Auto-detect" to guess the region/specialty (Upper Limb, Spine, Trauma, etc.) from the diagnosis and procedure text \u2014 adjust manually anytime.'],
@@ -3582,11 +3603,11 @@ const ABOUT_SECTIONS = [
     ['Pediatrics', 'Weight-based dose calculator and a Rickets management reference, shown automatically for pediatric OPD cases.'],
   ]},
   { key:'organized', title:'Staying Organized', icon:'calendar', items:[
-    ['Recent patients only, by default', 'The home list shows only the last 2 months\u2019 patients, plus anything pinned. The collapsed button now says "Showing X recent of Y total" so it\u2019s clear more exist \u2014 tap "See all" to expand, or search by name/ID.'],
-    ['Calendar & Reminders', 'See follow-ups due on a calendar, plus a separate Reminders list for clinic/OT/general tasks.'],
-    ['Pinning', 'Pin an important case from Overview \u2014 it always sorts to the top of the home list and stays visible regardless of how old it is.'],
-    ['Tags', 'Free-form labels (Interesting, Teaching Slide, Complication\u2026) \u2014 filter the home list by tag.'],
-    ['Region filter', 'Home screen chips filter by Upper Limb, Lower Limb, Hand, Spine, Trauma, etc. \u2014 works for OPD and Surgical cases alike.'],
+    ['Followups tab', 'Bottom bar \u2192 Followups. Three views \u2014 Due (overdue + today\u2019s, with snooze and WhatsApp reminder), Upcoming, and Calendar. A "Tomorrow" banner at the top lists whoever\u2019s due tomorrow, so you can message them today.'],
+    ['Reminders tab', 'Bottom bar \u2192 Reminders \u2014 a separate list for clinic/OT/general tasks, not tied to a specific patient\u2019s follow-up.'],
+    ['Pinning', 'Pin an important case from Overview \u2014 it shows in a "Quick Access" strip on the Dashboard.'],
+    ['Tags', 'Free-form labels (Interesting, Teaching Slide, Complication\u2026) \u2014 filter the Patients list by tag.'],
+    ['Region filter', 'Patients tab chips filter by Upper Limb, Lower Limb, Hand, Spine, Trauma, etc. \u2014 works for OPD and Surgical cases alike.'],
   ]},
   { key:'data', title:'Your Data & Privacy', icon:'shield', items:[
     ['Local + optional cloud sync', 'Everything works fully offline and always stays on this device first. Sign in under More \u2192 Cloud Sync and your patients, photos, and Doctor Profile also sync privately across your own devices. A failed sync now retries automatically \u2014 a banner on the home screen shows if anything is still pending.'],
@@ -3932,10 +3953,10 @@ let QUICK_FU_PATIENT_ID = null;
 function patientQuickActionsRowHtml(p) {
   const wa = waLink(p);
   const telHref = p.whatsapp ? 'tel:+' + toWaNumber(p.whatsapp) : null;
-  return '<div class="row gap2" style="margin-top:8px;">'
-    + '<button class="btn btn-sm" style="flex:1;" data-action="quick-fu-open" data-patient-id="'+p.id+'">'+ic('calendar')+' Follow-up</button>'
-    + (wa ? '<a href="'+esc(wa)+'" target="_blank" rel="noopener" class="btn btn-sm" data-action="qa-noop" style="flex:1;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;text-align:center;">'+ic('message')+' Message</a>' : '<span class="btn btn-sm" style="flex:1;opacity:0.35;text-align:center;">'+ic('message')+' Message</span>')
-    + (telHref ? '<a href="'+esc(telHref)+'" class="btn btn-sm" data-action="qa-noop" style="flex:0 0 42px;text-decoration:none;text-align:center;" title="Call">'+ic('phone')+'</a>' : '')
+  return '<div class="row gap2" style="margin-top:8px;justify-content:flex-end;">'
+    + '<button class="pcard-action-btn" data-action="quick-fu-open" data-patient-id="'+p.id+'" title="Follow-up">'+ic('calendar')+'</button>'
+    + (wa ? '<a href="'+esc(wa)+'" target="_blank" rel="noopener" class="pcard-action-btn wa" data-action="qa-noop" title="Message">'+ic('message')+'</a>' : '<span class="pcard-action-btn wa disabled" title="No WhatsApp number">'+ic('message')+'</span>')
+    + (telHref ? '<a href="'+esc(telHref)+'" class="pcard-action-btn" data-action="qa-noop" title="Call">'+ic('phone')+'</a>' : '<span class="pcard-action-btn disabled" title="No number">'+ic('phone')+'</span>')
     + '</div>';
 }
 function renderDashboardPatientQuickCard(p) {
@@ -9406,6 +9427,7 @@ async function generatePersonalizedReminderMessage(p) {
     if (moreBtn) moreBtn.classList.toggle('active', !['overview','followups','imagesrecords','timeline'].includes(TAB));
     const moreWrap = document.getElementById('patient-more-popup-wrap');
     if (moreWrap) moreWrap.innerHTML = '';
+    if (TAB === 'imagesrecords') SHOW_IMGREC_QUICKADD = true;
     await renderTabBody(p); window.scrollTo(0,0); return;
   }
   if (action === 'toggle-patient-more-menu') {
