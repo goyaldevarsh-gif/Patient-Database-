@@ -2094,6 +2094,7 @@ function resetPerPatientUiState() {
   AI_EXAM_SUGGESTIONS = null;
 }
 let ADD_FOLLOWUP_OPEN = false;
+let FU_SMART_FORM_STATE = { customDateOpen: false, statusSelected: null };
 let EXPANDED_FOLLOWUP = new Set();
 let ADD_INVESTIGATION_OPEN = false;
 let ADD_INJECTION_OPEN = false;
@@ -4495,6 +4496,56 @@ function followUpReminderLink(patient) {
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(followUpReminderMessage(patient));
 }
 
+/* ================= Smart Follow-up Form Helpers ================= */
+function suggestVisitLabel(patient) {
+  const lastFU = (patient.followUps||[]).length > 0 ? patient.followUps[patient.followUps.length-1] : null;
+  if (!lastFU) return 'First Follow-up';
+  
+  const daysSince = daysBetween(lastFU.date, todayStr());
+  if (daysSince <= 7) return '1 Week';
+  if (daysSince <= 14) return '2 Weeks';
+  if (daysSince <= 21) return '3 Weeks';
+  if (daysSince <= 30) return '1 Month';
+  if (daysSince <= 42) return '6 Weeks';
+  return '3 Months';
+}
+
+function suggestNextFollowUpDate(patient) {
+  const diagnosis = displayDiagnosis(patient.diagnosis || patient.chiefComplaints || '');
+  const isSurgical = patient.caseType === 'surgical';
+  const isTrauma = patient.surgeryType === 'Trauma' || patient.condition === 'trauma';
+  const pod = isSurgical ? calcPOD(patient, todayStr()) : null;
+  
+  let days = 7;
+  if (isSurgical && isTrauma) {
+    if (pod === null || pod <= 3) days = 3;
+    else if (pod <= 7) days = 7;
+    else if (pod <= 42) days = 14;
+    else days = 30;
+  } else if (isSurgical) {
+    if (pod === null || pod <= 1) days = 3;
+    else if (pod <= 7) days = 7;
+    else days = 14;
+  } else {
+    if (diagnosis.toLowerCase().includes('ctev')) days = 7;
+    else if (diagnosis.toLowerCase().includes('arthritis') || diagnosis.toLowerCase().includes('ra')) days = 14;
+    else if (diagnosis.toLowerCase().includes('dexa') || diagnosis.toLowerCase().includes('osteoporosis')) days = 30;
+    else days = 14;
+  }
+  
+  const next = new Date(todayStr());
+  next.setDate(next.getDate() + days);
+  return next.toISOString().split('T')[0];
+}
+
+function daysBetween(d1, d2) {
+  if (!d1 || !d2) return 0;
+  const date1 = new Date(d1);
+  const date2 = new Date(d2);
+  const diffTime = Math.abs(date2 - date1);
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
 /* ================= Dashboard quick-action patient cards ================= */
 let QUICK_FU_PATIENT_ID = null;
 let QUICK_LOG_FU_PATIENT_ID = null;
@@ -6744,6 +6795,136 @@ async function renderImagesRecordsTab(p) {
   return segHtml + body;
 }
 
+/* ============ SMART FOLLOW-UP FORM LAYERS (Progressive Disclosure) ============ */
+
+function renderSmartFollowupFormLayer1(p) {
+  const pod = p.caseType === 'surgical' && p.surgeryDate ? calcPOD(p, todayStr()) : null;
+  const suggested = suggestVisitLabel(p);
+  const suggestedNextDate = suggestNextFollowUpDate(p);
+  
+  return '<div style="margin-bottom:16px;">'
+    + '<label class="field-label">When was this visit?</label>'
+    + '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">'
+    + '<button type="button" class="chip" data-action="fu-quick-date" data-date="'+todayStr()+'">Today</button>'
+    + '<button type="button" class="chip" data-action="fu-quick-date" data-date="'+(new Date(new Date().getTime()-86400000).toISOString().split('T')[0])+'">Yesterday</button>'
+    + '<button type="button" class="chip" data-action="fu-toggle-date-picker">Custom</button>'
+    + '</div>'
+    + '<input class="input" type="date" id="fu-date" value="'+todayStr()+'" style="display:none;margin-bottom:10px;">'
+    + (pod !== null ? '<p style="font-size:11px;color:var(--muted);margin:-6px 0 10px;">Post-op Day: <b class="mono">'+pod+'</b></p>' : '')
+    + '</div>'
+    + '<div style="margin-bottom:16px;">'
+    + '<label class="field-label">How is the patient doing?</label>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">'
+    + '<button type="button" class="chip" data-action="fu-status-select" data-status="Improving">✅ Improving</button>'
+    + '<button type="button" class="chip" data-action="fu-status-select" data-status="Stable">→ Stable</button>'
+    + '<button type="button" class="chip" data-action="fu-status-select" data-status="Slower">⚠️ Slower</button>'
+    + '<button type="button" class="chip" data-action="fu-status-select" data-status="Issue">🚨 Issue</button>'
+    + '</div>'
+    + '<input class="input" id="fu-label" placeholder="e.g. 2 weeks / 6 weeks / check-up" value="'+esc(suggested)+'" style="margin-bottom:10px;">'
+    + '</div>'
+    + '<div style="margin-bottom:16px;">'
+    + '<label class="field-label">Next follow-up?</label>'
+    + '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">'
+    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="3">+3 Days</button>'
+    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="7">+1 Week</button>'
+    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="14">+2 Weeks</button>'
+    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="21">+3 Weeks</button>'
+    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="30">+1 Month</button>'
+    + (isAiTier() ? '<button type="button" class="chip" data-action="ai-suggest-followup">✨ Suggest</button>' : '')
+    + '</div>'
+    + '<input class="input" type="date" id="fu-next-followup" value="'+(suggestedNextDate||'')+'" placeholder="Or pick date">'
+    + '</div>';
+}
+
+function renderSmartFollowupFormLayer2(p) {
+  let html = '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px;">';
+  
+  if (p.caseType === 'surgical') {
+    html += '<label class="field-label">Wound / Suture Status</label>'
+      + '<select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'
+      + WOUND_STATUS_OPTIONS.map(s => '<option' + (s==='N/A' ? ' selected' : '') + '>' + s + '</option>').join('')
+      + '</select>';
+  }
+  
+  if (p.surgeryType === 'Trauma' || p.condition === 'trauma') {
+    html += '<div class="row" style="margin-bottom:2px;">'
+      + '<label class="field-label" style="margin-bottom:0;">Union Status</label>'
+      + '<button type="button" class="info-help-btn" style="margin-left:6px;" data-action="toggle-rust-help" title="RUST scoring reference">i</button>'
+      + '</div>'
+      + '<select class="select" id="fu-unionstatus" style="margin-bottom:4px;">'
+      + UNION_STATUS_OPTIONS.map(s => '<option' + (s==='Not assessed' ? ' selected' : '') + '>' + s + '</option>').join('')
+      + '</select>'
+      + '<div id="rust-help-box" style="margin-bottom:10px;">' + (SHOW_RUST_HELP ? RUST_HELP_HTML : '') + '</div>';
+  }
+  
+  if (p.romTracking) {
+    html += '<label class="field-label">' + ROM_JOINT_LABELS[p.romTracking.jointType] + ' ROM (degrees)</label>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
+      + (ROM_JOINT_FIELDS[p.romTracking.jointType]||[]).map(([k,l]) => 
+          '<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">'+l+'</label>'
+          + '<input class="input" type="number" min="0" max="150" id="fu-rom-'+k+'" placeholder="°"></div>'
+        ).join('')
+      + '</div>';
+  }
+  
+  html += '</div>';
+  return html;
+}
+
+function renderSmartFollowupFormLayer3(p) {
+  let html = '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px;">';
+  
+  html += '<details style="margin-bottom:14px;">'
+    + '<summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;padding:8px;border-radius:4px;background:rgba(0,0,0,0.02);">'
+    + '<span>📸 Add Photos</span>'
+    + '</summary>'
+    + '<div style="padding:12px;margin-top:8px;">'
+    + '<select class="select" id="fu-inv-category" style="margin-bottom:8px;">'
+    + IMAGES_RECORDS_SECTIONS.map(([v,l]) => '<option value="'+v+'"'+(FU_INV_CATEGORY===v?' selected':'')+'>'+l+'</option>').join('')
+    + '</select>'
+    + '<div id="fu-inv-controls">'+fuInvControlsHtml()+'</div>'
+    + '<div id="fu-inv-thumbs">'+fuInvThumbsHtml()+'</div>'
+    + '</div>'
+    + '</details>';
+  
+  html += '<details style="margin-bottom:14px;">'
+    + '<summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;padding:8px;border-radius:4px;background:rgba(0,0,0,0.02);">'
+    + '<span>📝 Add Detailed Notes</span>'
+    + '</summary>'
+    + '<div style="padding:12px;margin-top:8px;">'
+    + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div>'
+    + '<textarea class="textarea" id="fu-notes" rows="2" maxlength="5000" placeholder="ROM, complications, concerns..."></textarea>'
+    + '</div>'
+    + '</details>';
+  
+  if (isAiTier()) {
+    html += '<details style="margin-bottom:14px;">'
+      + '<summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;padding:8px;border-radius:4px;background:rgba(67,56,202,0.03);border:1px solid #c7d2fe;">'
+      + '<span>✨ AI Help (Optional)</span>'
+      + '</summary>'
+      + '<div style="padding:12px;margin-top:8px;background:rgba(67,56,202,0.03);border-radius:4px;">'
+      + '<label class="field-label" style="font-size:12px;">Quick-fill from description</label>'
+      + '<textarea class="textarea" id="fu-ai-fill-input" rows="2" placeholder="e.g. wound clean, rom improving 60°, swelling mild..." style="margin-bottom:8px;"></textarea>'
+      + '<div style="margin-bottom:10px;">'+aiButtonHtml('fu-ai-fill','AI: Extract & Fill',false,null,'gemini')+'</div>'
+      + '<div id="fu-ai-fill-status" style="font-size:11px;color:var(--muted);margin:0;"></div>'
+      + '</div>'
+      + '</details>';
+  }
+  
+  html += '</div>';
+  return html;
+}
+
+function renderSmartFollowupForm(p) {
+  return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
+    + renderSmartFollowupFormLayer1(p)
+    + renderSmartFollowupFormLayer2(p)
+    + renderSmartFollowupFormLayer3(p)
+    + '<p style="font-size:10.5px;color:var(--muted);margin:16px 0 0;">Next follow-up date replaces the patient\'s reminder. Leave blank if no further visit needed — it\'ll clear once you save.</p>'
+    + '<div class="row gap2" style="margin-top:14px;"><button type="button" class="btn" style="flex:1;" data-action="cancel-add-fu">Cancel</button><button type="button" class="btn btn-primary" style="flex:2;" data-action="submit-fu">Save visit</button></div>'
+    + '</div>';
+}
+
 async function renderFollowupsTab(p) {
   const allImages = await dbGetImagesByPatient(p.id);
   revokeActiveUrls();
@@ -6751,42 +6932,7 @@ async function renderFollowupsTab(p) {
   if (!ADD_FOLLOWUP_OPEN) {
     addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-fu">'+ic('plus')+' Add follow-up visit</button>';
   } else {
-    addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-      + '<label class="field-label">Visit label</label>'
-      + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'
-      + ['3 Days','1 Week','2 Weeks','3 Weeks','1 Month','6 Weeks','3 Months','6 Months'].map(l=>'<button type="button" class="chip" data-action="fu-set-label" data-value="'+l+'">'+l+'</button>').join('')
-      + '</div>'
-      + '<input class="input" id="fu-label" placeholder="e.g. 2 weeks / 6 weeks / 3 months" style="margin-bottom:10px;">'
-      + '<label class="field-label">Visit date</label><input class="input" type="date" id="fu-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
-      + (p.caseType==='surgical' && p.surgeryDate ? '<p style="font-size:11px;color:var(--muted);margin:-6px 0 10px;">Post-op Day: <b class="mono" id="fu-pod-preview">'+(calcPOD(p, todayStr())??'\u2014')+'</b></p>' : '')
-      + '<label class="field-label">Wound / suture status (if applicable)</label><select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'+WOUND_STATUS_OPTIONS.map(s=>'<option'+(s==='N/A'?' selected':'')+'>'+s+'</option>').join('')+'</select>'
-      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? '<div class="row" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">Union status</label><button type="button" class="info-help-btn" style="margin-left:6px;" data-action="toggle-rust-help" title="RUST scoring reference">i</button></div>' : '')
-      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? '<select class="select" id="fu-unionstatus" style="margin-bottom:4px;">'+UNION_STATUS_OPTIONS.map(s=>'<option'+(s==='Not assessed'?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
-      + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? '<div id="rust-help-box" style="margin-bottom:10px;">'+(SHOW_RUST_HELP ? RUST_HELP_HTML : '')+'</div>' : '')
-      + (p.romTracking ? (
-          '<label class="field-label">'+ROM_JOINT_LABELS[p.romTracking.jointType]+' ROM (degrees, optional)</label>'
-          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-          + (ROM_JOINT_FIELDS[p.romTracking.jointType]||[]).map(([k,l])=>'<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">'+l+'</label><input class="input" type="number" min="0" max="150" id="fu-rom-'+k+'" placeholder="\u00b0"></div>').join('')
-          + '</div>'
-        ) : '')
-      + '<label class="field-label">Add photo (optional)</label>'
-      + '<select class="select" id="fu-inv-category" style="margin-bottom:8px;">'+IMAGES_RECORDS_SECTIONS.map(([v,l])=>'<option value="'+v+'"'+(FU_INV_CATEGORY===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'
-      + '<div id="fu-inv-controls">'+fuInvControlsHtml()+'</div>'
-      + '<div id="fu-inv-thumbs">'+fuInvThumbsHtml()+'</div>'
-      + (isAiTier() ? (
-          '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">'+ic('sparkle')+' AI Quick-Fill (optional)</label>'+micButtonHtml('fu-ai-fill-input')+'</div>'
-          + '<textarea class="textarea" id="fu-ai-fill-input" rows="2" placeholder="e.g. wound clean and healthy, mild swelling, ROM improving, callus forming on X-ray..." style="margin-bottom:8px;"></textarea>'
-          + '<div style="margin-bottom:10px;">'+aiButtonHtml('fu-ai-fill','AI: Fill from this',false,null,'gemini')+'</div><div id="fu-ai-fill-status" style="font-size:11px;color:var(--muted);margin:-6px 0 8px;"></div>'
-        ) : '')
-      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div><textarea class="textarea" id="fu-notes" rows="2" maxlength="5000" placeholder="Range of motion, complications\u2026"></textarea>'
-      + '<div class="row between" style="margin-top:10px;"><label class="field-label" style="margin-bottom:0;">Next follow-up date (optional)</label>'
-      + (isAiTier() ? '<span style="display:inline-block;transform:scale(0.85);transform-origin:left center;">'+aiButtonHtml('ai-suggest-followup','AI suggest',false,null,'gemini')+'</span>' : '')
-      + '</div>'
-      + relativeFollowupPickerHtml('fu-next-followup', '', false)
-      + '<div id="ai-followup-suggestion" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
-      + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">This replaces the patient\u2019s \u201cnext follow-up due\u201d date. Leave blank if no further visit is needed \u2014 it\u2019ll be cleared (no longer overdue) once you save.</p>'
-      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-fu">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-fu">Save visit</button></div>'
-      + '</div>';
+    addBlock = renderSmartFollowupForm(p);
   }
 
   let list = '';
@@ -11091,6 +11237,53 @@ async function generatePersonalizedReminderMessage(p) {
     FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return;
   }
   if (action === 'fu-set-label') { const inp = document.getElementById('fu-label'); if (inp) inp.value = el.dataset.value; return; }
+  
+  // Smart Form Layer 1 Actions
+  if (action === 'fu-quick-date') {
+    const dateVal = el.dataset.date;
+    const dateEl = document.getElementById('fu-date');
+    if (dateEl) dateEl.value = dateVal;
+    return;
+  }
+  
+  if (action === 'fu-toggle-date-picker') {
+    const dateEl = document.getElementById('fu-date');
+    if (dateEl) {
+      if (dateEl.style.display === 'none') {
+        dateEl.style.display = 'block';
+        dateEl.focus();
+      } else {
+        dateEl.style.display = 'none';
+      }
+    }
+    return;
+  }
+  
+  if (action === 'fu-status-select') {
+    const status = el.dataset.status;
+    const labelEl = document.getElementById('fu-label');
+    
+    // Auto-fill label based on status
+    if (status === 'Issue') {
+      if (labelEl) labelEl.value = 'Follow-up - Concern';
+    } else if (status === 'Improving') {
+      const p = getPatient(SELECTED_ID);
+      const suggested = suggestVisitLabel(p);
+      if (labelEl) labelEl.value = suggested || '1 Week';
+    }
+    
+    return;
+  }
+  
+  if (action === 'fu-next-quick') {
+    const days = parseInt(el.dataset.days, 10);
+    const nextDate = new Date(todayStr());
+    nextDate.setDate(nextDate.getDate() + days);
+    const nextEl = document.getElementById('fu-next-followup');
+    if (nextEl) nextEl.value = nextDate.toISOString().split('T')[0];
+    return;
+  }
+  
   if (action === 'ai-suggest-followup') {
     const p = getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
