@@ -1546,12 +1546,13 @@ let SHOW_TAG_FILTER = false;
 let TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
 const DAILY_LIMIT = 15000;
 const MONTHLY_LIMIT = 100000;
-let SHOW_INSIGHTS = false;
+let SHOW_INSIGHTS = true;
 let SHOW_ALL_ATTENTION = false;
 let DASH_CASE_TAB = 'total'; // 'total' | 'opd' | 'surgical'
 let SHOW_TOMORROW_LIST = true;
 let SHOW_ADD_MENU = false;
 let SHOW_AI_MENU = false;
+let SHOW_PATIENT_MORE_MENU = false;
 let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
 let QUICK_PICKER_QUERY = '';
 let SEARCH_DEBOUNCE_TIMER = null;
@@ -4315,6 +4316,7 @@ function renderListView() {
     + '<p style="font-size:10.5px;color:var(--muted);margin:1px 0 0;"><span style="font-weight:800;color:var(--accent);font-size:12px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p>'
     + '</div>'
     + '</div>'
+    + '<button type="button" class="search-wrap search-input" style="display:block;width:100%;text-align:left;margin-top:10px;cursor:pointer;" data-action="dash-search-tap">'+ic('search')+'<span style="color:var(--muted);font-size:13px;">Search patient by name, ID, diagnosis\u2026</span></button>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'+renderDashboardSection()+'</div>'
     + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">\u00a9 '+new Date().getFullYear()+' Dr. Devarsh Goyal \u2014 OrthoVault, all rights reserved</p>'
@@ -4745,7 +4747,7 @@ function renderAddView() {
       + '</div>';
 
   const complaintsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + (!isSurgical ? '<div><label class="field-label">Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
+      + (!isSurgical ? '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
       + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div>'
       + '<div><label class="field-label">Side</label><div class="seg">'
       + ['Left','Right','Bilateral'].map(s=>'<button class="seg-btn'+(AP_TEMP.side===s?' active':'')+'" data-action="ap-set-side" data-value="'+s+'">'+s+'</button>').join('')
@@ -4754,7 +4756,7 @@ function renderAddView() {
       + (AP_TEMP.regions.includes('Upper Limb') || AP_TEMP.regions.includes('Hand') ? '<div><label class="field-label">Hand dominance (optional)</label><div class="seg">'
       + [['Left','L'],['Right','R'],['Ambidextrous','Ambi']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.handDominance===v?' active':'')+'" data-action="ap-set-hand" data-value="'+v+'">'+l+'</button>').join('')
       + '</div></div>' : '')
-      + '<div><label class="field-label">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" maxlength="500" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
+      + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" maxlength="500" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
         + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+apSimilarCasesBlockHtml()+apSchemeSuggestBlockHtml()+'</div>'
       + '</div>'
       + '</div>';
@@ -5095,7 +5097,6 @@ function renderOverviewTab(p) {
     + '<div class="row" style="justify-content:flex-end;gap:8px;">'
     + '<button class="icon-btn" data-action="open-export-summary" title="Export / Share Case Summary">'+ic('printer')+'</button>'
     + '<button class="icon-btn" data-action="download-case-zip" data-id="'+p.id+'" title="Download all photos + labs (zip)">'+ic('download')+'</button>'
-    + (isAiTier() ? '<button class="icon-btn" data-action="open-patient-ai-tools" title="AI Tools">'+ic('sparkle')+'</button>' : '')
     + '<button class="icon-btn" data-action="duplicate-case" title="Duplicate Case">'+ic('copy')+'</button>'
     + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
     + '<button class="icon-btn'+(p.researchFlag?' active':'')+'" style="'+(p.researchFlag?'color:#b45309;':'')+'" data-action="toggle-research-flag" data-id="'+p.id+'" title="'+(p.researchFlag?'Remove from research cases':'Flag as interesting case (for paper / study)')+'">'+ic('bookmark')+'</button>'
@@ -5820,7 +5821,23 @@ const IMGREC_GROUPS = [
 ];
 let IMGREC_SELECT_MODE = false;
 let IMGREC_SELECTED_IDS = new Set();
+let SHOW_IMGREC_QUICKADD = false;
 function imgrecCatLabel(k) { const f = IMAGES_RECORDS_SECTIONS.find(s=>s[0]===k); return f?f[1]:k; }
+function imgrecQuickAddHtml() {
+  const cats = [
+    ['xray','X-ray','camera'], ['clinical','Clinical Image','camera'], ['wound','Wound / Suture','camera'],
+    ['ct','CT','camera'], ['mri','MRI','camera'], ['usg','USG','camera'],
+    ['injections','Injection record','camera'], ['video','Video','video'],
+  ];
+  const hiddenInputs = cats.map(([cat,,,]) => '<input type="file" id="imgrec-quickadd-input-'+cat+'" data-img-upload="'+cat+'" accept="'+(cat==='video'?'video/*':'image/*')+'" multiple style="display:none;">').join('');
+  return hiddenInputs
+    + '<div style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:320px;z-index:47;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:6px;display:flex;flex-direction:column;gap:2px;">'
+    + cats.map(([cat,label,icon]) => '<button type="button" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="imgrec-quickadd-trigger" data-value="'+cat+'">'
+        + '<span style="flex:none;width:28px;height:28px;border-radius:50%;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic(icon)+'</span>'
+        + label + '</button>').join('')
+    + '</div>'
+    + '<div style="position:fixed;inset:0;z-index:46;" data-action="toggle-imgrec-quickadd"></div>';
+}
 async function renderImagesRecordsTab(p) {
   const activeGroup = IMGREC_GROUPS.find(g => g.categories.includes(IMAGES_RECORDS_SUBVIEW));
   const segHtml = '<div class="px" style="padding-top:12px;padding-bottom:0;">'
@@ -5834,6 +5851,7 @@ async function renderImagesRecordsTab(p) {
         : '<div class="row between" style="margin-bottom:8px;">'
           + '<span style="font-size:11px;color:var(--muted);">All photos, X-rays &amp; labs for this case</span>'
           + '<div class="row gap2">'
+          + '<button class="btn btn-sm btn-primary" data-action="toggle-imgrec-quickadd">'+ic('plus')+' Add</button>'
           + '<button class="btn btn-sm" data-action="imgrec-enter-select">'+ic('check')+' Select</button>'
           + '<button class="btn btn-sm" data-action="download-case-zip" data-id="'+p.id+'">'+ic('download')+' Download all</button>'
           + '</div></div>')
@@ -5845,8 +5863,8 @@ async function renderImagesRecordsTab(p) {
     + (activeGroup && activeGroup.categories.length > 1 ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 0 4px;padding-left:8px;border-left:2px solid var(--border);">' + activeGroup.categories.map(c => '<button class="'+(IMAGES_RECORDS_SUBVIEW===c?'chip active':'')+'" style="'+(IMAGES_RECORDS_SUBVIEW===c?'':'background:none;border:1px solid var(--border);color:var(--muted);border-radius:20px;')+'font-size:11px;padding:4px 10px;" data-action="imgrec-set-subview" data-value="'+c+'">'+imgrecCatLabel(c)+'</button>').join('') + '</div>' : '')
     + '</div>';
 
-  if (IMAGES_RECORDS_SUBVIEW === 'investigations') return segHtml + await renderInvestigationsTab(p);
-  if (IMAGES_RECORDS_SUBVIEW === 'injections') return segHtml + renderInjectionsTab(p);
+  if (IMAGES_RECORDS_SUBVIEW === 'investigations') return segHtml + await renderInvestigationsTab(p) + (SHOW_IMGREC_QUICKADD ? imgrecQuickAddHtml() : '');
+  if (IMAGES_RECORDS_SUBVIEW === 'injections') return segHtml + renderInjectionsTab(p) + (SHOW_IMGREC_QUICKADD ? imgrecQuickAddHtml() : '');
 
   const allImages = await dbGetImagesByPatient(p.id);
   revokeActiveUrls();
@@ -5888,7 +5906,7 @@ async function renderImagesRecordsTab(p) {
   if (allImages.length) body += '<button class="btn btn-block" style="margin-bottom:14px;" data-action="set-tab" data-value="photos">'+ic('folder')+' All Photos (organized)</button>';
   if (allImages.length >= 2) body += '<button class="btn btn-block" style="margin-bottom:14px;" data-action="open-compare-picker">'+ic('clock')+' Compare Before / After</button>';
   body += '</div>';
-  return segHtml + body;
+  return segHtml + body + (SHOW_IMGREC_QUICKADD ? imgrecQuickAddHtml() : '');
 }
 
 async function renderFollowupsTab(p) {
@@ -7360,16 +7378,24 @@ function renderConfirmDeletePatientView(p) {
     + '</div>';
 }
 function renderDetailShell(p) {
-  const tabs = visibleTabs(p);
+  const allTabs = visibleTabs(p);
   const QUICK_ACCESS_TABS = ['photos']; // reachable via a button, not shown in the tab bar itself
-  if (!tabs.some(t => t.key === TAB) && !QUICK_ACCESS_TABS.includes(TAB)) TAB = 'overview';
-  let tabsHtml = tabs.map(t => '<button class="tab'+(TAB===t.key?' active':'')+'" data-action="set-tab" data-value="'+t.key+'">'+ic(t.icon)+t.label+'</button>').join('');
+  if (!allTabs.some(t => t.key === TAB) && !QUICK_ACCESS_TABS.includes(TAB)) TAB = 'overview';
+  const PRIMARY_TAB_KEYS = ['overview','followups','imagesrecords','timeline'];
+  const primaryTabs = PRIMARY_TAB_KEYS.map(k => allTabs.find(t => t.key === k)).filter(Boolean);
+  const secondaryTabs = allTabs.filter(t => !PRIMARY_TAB_KEYS.includes(t.key));
+  const moreActive = secondaryTabs.some(t => t.key === TAB);
+  let bottomTabsHtml = '<div class="bottom-nav" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;z-index:44;">'
+    + primaryTabs.map(t => '<button type="button" class="detail-tab-btn bottom-nav-btn'+(TAB===t.key?' active':'')+'" data-action="set-tab" data-value="'+t.key+'">'+ic(t.icon)+'<span>'+t.label+'</span></button>').join('')
+    + (secondaryTabs.length ? '<button type="button" id="patient-more-nav-btn" class="bottom-nav-btn'+(moreActive?' active':'')+'" data-action="toggle-patient-more-menu">'+ic('menu')+'<span>More</span></button>' : '')
+    + '</div>'
+    + '<div id="patient-more-popup-wrap"></div>';
   // Old records may still have the retired 'Active follow-up' value \u2014 treat that as 'Active' here.
   const currentStatus = (!p.status || p.status === 'Active follow-up') ? 'Active' : p.status;
   let statusOptions = STATUS_OPTIONS.map(s => '<option'+(currentStatus===s?' selected':'')+'>'+s+'</option>').join('');
   const isSurgical = p.caseType === 'surgical';
   const diagnosisLine = isSurgical ? (p.procedure || displayDiagnosis(p.diagnosis) || '') : (displayDiagnosis(p.diagnosis || p.chiefComplaints) || '');
-  return '<div style="padding-bottom:20px;">'
+  return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top">'
     + '<div class="row gap3 px" style="padding:14px 16px 8px;align-items:flex-start;">'
     + '<button class="icon-btn" data-action="back-to-list" style="margin-top:2px;">'+ic('back')+'</button>'
@@ -7381,16 +7407,27 @@ function renderDetailShell(p) {
             : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>'))
     + '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escName(p.name)+' <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>'
     + (diagnosisLine ? '<p style="font-size:12px;color:#334155;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(diagnosisLine)+'</p>' : '')
-    + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;">'+(isSurgical?'Surgical case':'OPD case')+'</p>'
+    + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;display:flex;align-items:center;gap:6px;">'
+      + (isSurgical?'Surgical case':'OPD case')
+      + '<span style="color:var(--border);">\u00b7</span>'
+      + '<select class="select" style="font-size:11px;padding:1px 4px;height:auto;border:none;background:none;color:'+(currentStatus==='Active'?'var(--muted)':currentStatus==='Completed'?'var(--emerald)':'var(--ink)')+';font-weight:700;" data-field="status">'+statusOptions+'</select>'
+      + '</p>'
     + '</div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;margin-top:2px;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
     + '<button class="icon-btn" style="color:var(--red);margin-top:2px;" data-action="open-confirm-delete" title="Delete Case">'+ic('trash')+'</button>'
     + '</div>'
-    + '<div class="px" style="padding-bottom:10px;"><select class="select" style="font-weight:700;" data-field="status">'+statusOptions+'</select></div>'
-    + '<div class="tabs-wrap"><div class="tabs px">'+tabsHtml+'</div></div>'
     + '</div>'
     + '<div id="tab-body"></div>'
+    + bottomTabsHtml
     + '</div>';
+}
+function patientMorePopupHtml(secondaryTabs) {
+  return '<div style="position:fixed;bottom:78px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:340px;z-index:47;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:6px;display:flex;flex-direction:column;gap:2px;">'
+    + secondaryTabs.map(t => '<button type="button" class="detail-tab-btn" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="set-tab" data-value="'+t.key+'">'
+      + '<span style="flex:none;width:28px;height:28px;border-radius:50%;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic(t.icon)+'</span>'
+      + t.label + '</button>').join('')
+    + '</div>'
+    + '<div style="position:fixed;inset:0;z-index:46;" data-action="toggle-patient-more-menu"></div>';
 }
 
 /* ================= Calendar & Reminders view ================= */
@@ -7598,6 +7635,7 @@ function renderRemindersTabView() {
 async function render() {
   const app = document.getElementById('app');
   SHOW_AI_MENU = false;
+  SHOW_PATIENT_MORE_MENU = false;
   app.classList.remove('view-transition'); void app.offsetWidth; app.classList.add('view-transition');
   await renderCurrentView(app);
   updateUsearchFabVisibility();
@@ -8441,7 +8479,14 @@ function updateMasterVoiceUI() {
   };
   const end = () => {
     clearTimeout(pressTimer);
-    if (!longPressed) { SHOW_AI_MENU = !SHOW_AI_MENU; updateMasterVoiceUI(); }
+    if (!longPressed) {
+      if (VIEW === 'detail' && SELECTED_ID && isAiTier()) {
+        PATIENT_AI_TOOL_OPEN = null;
+        VIEW = 'patient-ai-tools'; render();
+      } else {
+        SHOW_AI_MENU = !SHOW_AI_MENU; updateMasterVoiceUI();
+      }
+    }
   };
   const cancel = () => { clearTimeout(pressTimer); };
   btn.addEventListener('touchstart', start, { passive: true });
@@ -9352,7 +9397,27 @@ async function generatePersonalizedReminderMessage(p) {
     await render();
     return;
   }
-  if (action === 'set-tab') { TAB = el.dataset.value; ADD_FOLLOWUP_OPEN=false; const p = getPatient(SELECTED_ID); document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); el.classList.add('active'); await renderTabBody(p); window.scrollTo(0,0); return; }
+  if (action === 'set-tab') {
+    TAB = el.dataset.value; ADD_FOLLOWUP_OPEN=false;
+    const p = getPatient(SELECTED_ID);
+    document.querySelectorAll('.detail-tab-btn').forEach(t=>t.classList.remove('active'));
+    if (el.classList.contains('detail-tab-btn')) el.classList.add('active');
+    const moreBtn = document.getElementById('patient-more-nav-btn');
+    if (moreBtn) moreBtn.classList.toggle('active', !['overview','followups','imagesrecords','timeline'].includes(TAB));
+    const moreWrap = document.getElementById('patient-more-popup-wrap');
+    if (moreWrap) moreWrap.innerHTML = '';
+    await renderTabBody(p); window.scrollTo(0,0); return;
+  }
+  if (action === 'toggle-patient-more-menu') {
+    SHOW_PATIENT_MORE_MENU = !SHOW_PATIENT_MORE_MENU;
+    const moreWrap = document.getElementById('patient-more-popup-wrap');
+    if (moreWrap) {
+      const p = getPatient(SELECTED_ID);
+      const secondaryTabs = visibleTabs(p).filter(t => !['overview','followups','imagesrecords','timeline'].includes(t.key));
+      moreWrap.innerHTML = SHOW_PATIENT_MORE_MENU ? patientMorePopupHtml(secondaryTabs) : '';
+    }
+    return;
+  }
   if (action === 'imgrec-set-subview') { IMAGES_RECORDS_SUBVIEW = el.dataset.value; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') AP_TEMP.condition = ''; render(); return; }
@@ -10260,6 +10325,18 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
 
+  if (action === 'toggle-imgrec-quickadd') {
+    SHOW_IMGREC_QUICKADD = !SHOW_IMGREC_QUICKADD;
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'imgrec-quickadd-trigger') {
+    const cat = el.dataset.value;
+    SHOW_IMGREC_QUICKADD = false;
+    const inp = document.getElementById('imgrec-quickadd-input-'+cat);
+    if (inp) inp.click();
+    return;
+  }
   if (action === 'imgrec-enter-select') {
     IMGREC_SELECT_MODE = true;
     IMGREC_SELECTED_IDS = new Set();
@@ -10796,6 +10873,13 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'open-more') { VIEW = 'more'; render(); return; }
   if (action === 'nav-patients') { VIEW = 'patients'; render(); return; }
+  if (action === 'dash-search-tap') {
+    VIEW = 'patients';
+    await render();
+    const inp = document.getElementById('search-input');
+    if (inp) inp.focus();
+    return;
+  }
   if (action === 'open-followups') {
     const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
     CAL_SUBVIEW = 'due'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
