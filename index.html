@@ -3045,7 +3045,8 @@ const DEFAULT_PROFILE = {
   regNumber: '',
   clinicName: '',
   clinicAddress: '',
-  clinicPhone: ''
+  clinicPhone: '',
+  clinicAddresses: []  // [{name, address, timings, mapsLink}]
 };
 
 const ONBOARDING_DONE_KEY = 'surgical-case-log-onboarding-done-v1';
@@ -4257,6 +4258,20 @@ function renderSettingsView() {
     + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
     + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="Full address">'+esc(pr.clinicAddress)+'</textarea></div>'
     + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder="+91 ..."></div>'
+    + '<div style="margin-top:20px;"><label class="field-label" style="font-weight:800;font-size:13px;">📍 Clinic Addresses (for WhatsApp signature)</label>'
+    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 12px;">Add 1-3 clinics where you practice. These will auto-appear at the bottom of all WhatsApp messages.</p>'
+    + (pr.clinicAddresses && pr.clinicAddresses.length ? pr.clinicAddresses.map((clinic, idx) => '<div class="card" style="padding:12px;background:rgba(67,56,202,0.03);border-color:#c7d2fe;margin-bottom:10px;">'
+        + '<div class="row between" style="align-items:center;margin-bottom:8px;">'
+        + '<span style="font-size:13px;font-weight:700;">Clinic ' + (idx+1) + '</span>'
+        + '<button class="icon-btn" style="color:var(--red);" data-action="pr-remove-clinic" data-index="'+idx+'">'+ic('trash')+'</button>'
+        + '</div>'
+        + '<div style="display:flex;flex-direction:column;gap:8px;">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="name" placeholder="Clinic name (e.g., SMS Hospital)" value="'+esc(clinic.name)+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="address" placeholder="Address (e.g., SMS Medical College, Jaipur)" value="'+esc(clinic.address)+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="timings" placeholder="Timings (optional, e.g., 9am-5pm)" value="'+esc(clinic.timings||'')+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="mapsLink" placeholder="Google Maps link (https://maps.google.com/...)" value="'+esc(clinic.mapsLink||'')+'">'
+        + '</div></div>').join('') : '')
+    + '<button class="btn btn-sm" style="margin-bottom:16px;" data-action="pr-add-clinic">'+ic('plus')+' Add clinic</button>'
     + '</div>'
     + '<div class="bottom-bar"><button class="btn btn-primary btn-block" data-action="save-settings">Save profile</button></div>'
     + '</div>';
@@ -4432,20 +4447,39 @@ function waLink(patient) {
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
 }
 
+/* ================= WhatsApp Signature ================= */
+function generateWhatsAppSignature() {
+  const profile = loadProfile();
+  if (!profile.clinicAddresses || !profile.clinicAddresses.length) return '';
+  
+  let sig = '\n\n' + (profile.doctorName || 'Doctor');
+  if (profile.qualifications) sig += '\n' + profile.qualifications;
+  sig += '\n';
+  
+  profile.clinicAddresses.forEach(clinic => {
+    sig += '\n📍 ' + esc(clinic.name);
+    if (clinic.timings) sig += ' (' + esc(clinic.timings) + ')';
+    sig += '\n' + (clinic.mapsLink || esc(clinic.address));
+  });
+  
+  return sig;
+}
+
 function followUpReminderMessage(patient) {
   const profile = loadProfile();
   const reg = regardingLine(patient);
   return '\u0928\u092e\u0938\u094d\u0924\u0947 ' + patient.name + ' \u091c\u0940,'
     + '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964'
-    + '\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0907\u090f\u0917\u093e\u0964'
+    + '\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0908\u090f\u0917\u093e\u0964'
     + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
-    + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]');
+    + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]')
+    + generateWhatsAppSignature();
 }
 function homeCareInstructionsLink(patient, text) {
   const digits = toWaNumber(patient.whatsapp);
   if (!digits || !text) return null;
   const profile = loadProfile();
-  const msg = text + '\n\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n' + (profile.doctorName || '[Set your name in Doctor Profile]');
+  const msg = text + '\n\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n' + (profile.doctorName || '[Set your name in Doctor Profile]') + generateWhatsAppSignature();
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
 }
 function followUpReminderLink(patient) {
@@ -5384,7 +5418,7 @@ function initApTemp() {
   // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
   // would lose them for good. See handlePhotoInputChange / handleCategorizedPhotoChange.
   AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', handDominance:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
-    surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
+    surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
   AP_SCHEDULE = defaultFollowUpSchedule(AP_TEMP.surgeryDate);
   AP_INVESTIGATIONS = [];
   AP_INV_CATEGORY = 'xray';
@@ -5395,7 +5429,7 @@ function initApTemp() {
   AI_SANITY_CHECK_RESULT = null;
 }
 function syncApTempFromDom() {
-  ['name','age','ageMonths','occupation','handDominance','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
+  ['name','age','ageMonths','occupation','handDominance','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital','nextFollowUpDate'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : f === 'nextFollowUpDate' ? 'ap-next-fu-date' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
   const anaesEl = document.getElementById('ap-anaesthesia'); if (anaesEl) AP_TEMP.anaesthesiaType = anaesEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
@@ -5655,6 +5689,7 @@ function renderAddView() {
         + '</div>'
       ) : '')
     + '</div>'
+    + '<div style="margin-top:22px;padding:0 16px;"><label class="field-label">Next follow-up date (optional)</label><input class="input" type="date" id="ap-next-fu-date" value="'+esc(AP_TEMP.nextFollowUpDate)+'"></div>'
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
     + '<button class="btn" style="flex:1;" data-action="cancel-add">Cancel</button>'
@@ -10624,6 +10659,7 @@ async function generatePersonalizedReminderMessage(p) {
     p.anaesthesiaType = AP_TEMP.caseType === 'surgical' ? (AP_TEMP.anaesthesiaType||'') : '';
     p.whatsapp = AP_TEMP.whatsapp;
     p.notes = AP_TEMP.notes;
+    p.nextFollowUpDate = AP_TEMP.nextFollowUpDate;
     p.preOpImageCount = AP_INVESTIGATIONS.length;
     recordTextUsed(DIAGNOSIS_LIB_KEY, p.diagnosis);
     if (p.chiefComplaints) recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, p.chiefComplaints);
@@ -12112,6 +12148,15 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
 function readProfileFromDom() {
+  const clinicAddresses = [];
+  document.querySelectorAll('[data-clinic-index]').forEach(el => {
+    const idx = el.dataset.clinicIndex;
+    const existing = clinicAddresses.find(c => c.index === idx);
+    if (!existing) clinicAddresses[idx] = { name: '', address: '', timings: '', mapsLink: '' };
+    const field = el.dataset.clinicField;
+    clinicAddresses[idx][field] = el.value;
+  });
+  
   return {
     doctorName: document.getElementById('pr-doctorName').value,
     email: document.getElementById('pr-email').value,
@@ -12120,11 +12165,30 @@ function readProfileFromDom() {
     clinicName: document.getElementById('pr-clinicName').value,
     clinicAddress: document.getElementById('pr-clinicAddress').value,
     clinicPhone: document.getElementById('pr-clinicPhone').value,
+    clinicAddresses: clinicAddresses.filter(c => c && c.name && c.address)
   };
 }
   if (action === 'save-settings') {
     saveProfile(readProfileFromDom());
     VIEW = 'more'; render();
+    return;
+  }
+  if (action === 'pr-add-clinic') {
+    const pr = loadProfile();
+    if (!pr.clinicAddresses) pr.clinicAddresses = [];
+    pr.clinicAddresses.push({ name: '', address: '', timings: '', mapsLink: '' });
+    saveProfile(pr, true);
+    await render();
+    return;
+  }
+  if (action === 'pr-remove-clinic') {
+    const idx = parseInt(el.dataset.index, 10);
+    const pr = loadProfile();
+    if (pr.clinicAddresses && pr.clinicAddresses.length > idx) {
+      pr.clinicAddresses.splice(idx, 1);
+      saveProfile(pr, true);
+      await render();
+    }
     return;
   }
   if (action === 'onboarding-continue' || action === 'onboarding-skip') {
