@@ -290,6 +290,7 @@
   .badge-emerald { color:var(--emerald); background:var(--emerald-bg); border-color:var(--emerald-border); }
   .badge-red { color:var(--red); background:var(--red-bg); border-color:var(--red-border); }
   .badge-slate { color:var(--slate); background:var(--slate-bg); border-color:var(--slate-border); }
+  .badge-muted { color:var(--muted); background:var(--bg-soft,#f8fafc); border-color:var(--border); }
 
   label.field-label { display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); margin-bottom:6px; }
   .section-title { font-size:11px; font-weight:800; text-transform:uppercase; color:var(--muted); margin:16px 0 8px; }
@@ -459,6 +460,7 @@
     --slate:#94a3b8; --slate-bg:#1e293b; --slate-border:#334155;
   }
   [data-theme="dark"] .badge-indigo { color:#c7d2fe; background:#312e81; border-color:#4338ca; }
+  [data-theme="dark"] .badge-muted { color:#94a3b8; background:#1e293b; border-color:#334155; }
   [data-theme="dark"] html, [data-theme="dark"] body { background:#0f172a; color:var(--ink); }
   [data-theme="dark"] #app { background:#0f172a; }
   [data-theme="dark"] .card, [data-theme="dark"] .case-card, [data-theme="dark"] .stat-card,
@@ -537,15 +539,27 @@
   .usearch-topbar { display:flex; align-items:center; gap:8px; padding:14px 16px; padding-top:calc(14px + env(safe-area-inset-top, 0px)); border-bottom:1px solid var(--border); }
   .usearch-results { flex:1; overflow-y:auto; padding:8px 16px 24px; }
   [data-theme="dark"] .reminder-check { background:#1e293b; }
+  
+  /* ================= Dark Mode: New Premium Features ================= */
+  [data-theme="dark"] .confirm-dialog-overlay { background: rgba(0, 0, 0, 0.8); }
+  [data-theme="dark"] .confirm-dialog { background: #1e293b; color: #f1f5f9; }
+  [data-theme="dark"] .confirm-dialog-title { color: #f1f5f9; }
+  [data-theme="dark"] .confirm-dialog-message { color: #94a3b8; }
+  [data-theme="dark"] .confirm-btn-cancel { background: #0f172a; color: #f1f5f9; border-color: #334155; }
+  [data-theme="dark"] .confirm-btn-destructive { background: #991b1b; color: #fecaca; }
+  [data-theme="dark"] .skeleton-line, [data-theme="dark"] .skeleton-header { background: linear-gradient(90deg, #334155 0%, #475569 50%, #334155 100%); }
+  [data-theme="dark"] input.valid, [data-theme="dark"] textarea.valid, [data-theme="dark"] select.valid { border-color: #10b981; background-color: rgba(16, 185, 129, 0.05); }
+  [data-theme="dark"] input.invalid, [data-theme="dark"] textarea.invalid, [data-theme="dark"] select.invalid { border-color: #ef4444; background-color: rgba(239, 68, 68, 0.05); }
+  [data-theme="dark"] .expandable-section { color: #e2e8f0; }
   .bottom-nav { display:flex; align-items:stretch; background:var(--bg,#fff); border-top:1px solid var(--border); padding:6px 4px calc(6px + env(safe-area-inset-bottom, 0px)); box-shadow:0 -2px 10px rgba(15,23,42,0.06); position:relative; }
   .bottom-nav-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; background:none; border:none; padding:6px 2px; color:var(--muted); font-size:10px; font-weight:700; }
   .bottom-nav-btn.active { color:var(--accent); }
-  .bottom-nav-btn .ic { width:20px; height:20px; }
+  .bottom-nav-btn .ic { width: 24px; height: 24px; }
   .bottom-nav-add-btn { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; }
   .bottom-nav-add-circle { width:56px; height:56px; border-radius:50%; background:var(--accent); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 6px 16px rgba(67,56,202,0.4); margin-top:-30px; border:4px solid var(--bg,#fff); }
   .bottom-nav-add-circle .ic { width:24px; height:24px; }
   .pcard-action-btn { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; border:1px solid var(--border); background:var(--bg-soft,#f8fafc); color:var(--muted); flex:none; text-decoration:none; }
-  .pcard-action-btn .ic { width:15px; height:15px; }
+  .pcard-action-btn .ic { width: 16px; height: 16px; }
   .pcard-action-btn.wa { background:rgba(37,211,102,0.1); border-color:rgba(37,211,102,0.25); color:#1a9e4f; }
   .pcard-action-btn.disabled { opacity:0.32; pointer-events:none; }
 
@@ -717,9 +731,10 @@
   }
 
   /* ================= Icon Size Standardization ================= */
-  .icon-24 { width: 24px; height: 24px; stroke-width: 2; }
-  .icon-20 { width: 20px; height: 20px; stroke-width: 2; }
-  .icon-16 { width: 16px; height: 16px; stroke-width: 2; }
+  .icon-24 { width: 24px !important; height: 24px !important; stroke-width: 2 !important; }
+  .icon-20 { width: 20px !important; height: 20px !important; stroke-width: 2 !important; }
+  .icon-16 { width: 16px !important; height: 16px !important; stroke-width: 2 !important; }
+
 </style>
 </head>
 <body>
@@ -1766,6 +1781,93 @@ function skeletonCardHtml(count = 3) {
       '<div class="skeleton-line" style="width: 60%;"></div>' +
     '</div>'
   ).join('');
+}
+
+// Setup form validation for Add Case form
+function setupAddCaseFormValidation() {
+  setTimeout(() => {
+    const nameEl = document.getElementById('ap-name');
+    const diagnosisEl = document.getElementById('ap-diagnosis');
+    
+    if (nameEl) {
+      setupValidationListener(nameEl, (value) => {
+        if (value.length < 2) return { valid: false, message: 'Name must be at least 2 characters' };
+        return { valid: true, message: 'Name OK' };
+      });
+    }
+    
+    if (diagnosisEl) {
+      setupValidationListener(diagnosisEl, (value) => {
+        if (value.length < 3) return { valid: false, message: 'Diagnosis required (min 3 chars)' };
+        return { valid: true, message: 'Diagnosis OK' };
+      });
+    }
+    
+    // Auto-focus patient name field
+    if (nameEl) {
+      nameEl.focus();
+    }
+  }, 50);
+}
+
+// Setup form validation for Follow-up form
+function setupFollowupFormValidation() {
+  setTimeout(() => {
+    const dateEl = document.getElementById('quick-fu-date');
+    const notesEl = document.getElementById('quick-fu-notes');
+    
+    if (dateEl) {
+      dateEl.addEventListener('change', () => {
+        if (dateEl.value) {
+          dateEl.classList.add('valid');
+          dateEl.classList.remove('invalid');
+        }
+      });
+      dateEl.focus();
+    }
+  }, 50);
+}
+
+// Expandable section HTML helper
+function expandableSectionHtml(id, title, content, defaultExpanded = false) {
+  return '<div class="card" style="padding:0;overflow:hidden;">'
+    + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:12px;text-align:left;" data-action="toggle-expandable" data-id="'+id+'">'
+    + '<span style="font-size:13px;font-weight:700;">'+title+'</span>'
+    + '<span class="chevron" style="color:var(--accent);transform:rotate('+(defaultExpanded?90:0)+'deg);display:inline-flex;transition:transform 200ms ease-out;">'+ic('chevron')+'</span>'
+    + '</button>'
+    + '<div class="expandable-section" id="'+id+'-content" style="max-height:'+(defaultExpanded?'1000':'0')+'px;overflow:hidden;transition:max-height 200ms ease-out;">'
+    + '<div style="padding:12px;border-top:1px solid var(--border);">'
+    + content
+    + '</div></div></div>';
+}
+
+// Reminder status badge
+function reminderStatusBadgeHtml(patient) {
+  if (!patient.lastReminderSentAt) {
+    return '<span class="badge badge-muted" style="font-size:10px;">Not reminded</span>';
+  }
+  
+  const hoursAgo = Math.floor((Date.now() - patient.lastReminderSentAt) / 3600000);
+  
+  if (hoursAgo < 1) {
+    return '<span class="badge badge-emerald" style="font-size:10px;">✓ Reminded now</span>';
+  } else if (hoursAgo < 24) {
+    return '<span class="badge badge-emerald" style="font-size:10px;">✓ Reminded '+hoursAgo+'h ago</span>';
+  } else if (hoursAgo < 48) {
+    return '<span class="badge badge-amber" style="font-size:10px;">⚠ Reminded 1 day ago</span>';
+  } else {
+    return '<span class="badge badge-slate" style="font-size:10px;">Reminded '+Math.floor(hoursAgo/24)+'d ago</span>';
+  }
+}
+
+// Setup empty state handler
+function showEmptyStateMessage(container, icon, title, message, actionButton = '') {
+  container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;">'
+    + '<div style="font-size:48px;margin-bottom:16px;opacity:0.3;">'+icon+'</div>'
+    + '<h3 style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:8px;">'+title+'</h3>'
+    + '<p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px;">'+message+'</p>'
+    + actionButton
+    + '</div>';
 }
 
 /* After opening a patient from a search/filter result, jump straight to the matched field
@@ -4307,6 +4409,7 @@ function renderQuickFuModal() {
     + '<div style="margin-bottom:14px;">'+relativeFollowupPickerHtml('quick-fu-date', p.nextFollowUpDate || '', false)+'</div>'
     + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="quick-fu-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="quick-fu-save" data-patient-id="'+p.id+'">Save</button></div>'
     + '</div></div>';
+  setupFollowupFormValidation();
 }
 function rxWaMessage(patient, rx, profile) {
   let lines = [];
@@ -7932,9 +8035,12 @@ function renderCalendarView() {
       tomorrowHtml += '<div class="card" style="margin-bottom:12px;padding:6px 0;">'
         + s.dueTomorrowList.map(p => {
             const waLink = p.whatsapp ? followUpReminderLink(p) : null;
-            return '<div class="row between" style="padding:7px 14px;border-bottom:1px solid var(--border);">'
-              + '<span data-action="open-patient" data-id="'+p.id+'" style="cursor:pointer;font-size:12.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.name)+'</span>'
-              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+p.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '<span class="badge badge-slate" style="font-size:9px;">No WhatsApp</span>')
+            return '<div class="row between" style="padding:7px 14px;border-bottom:1px solid var(--border);align-items:center;">'
+              + '<div style="flex:1;min-width:0;overflow:hidden;">'
+              + '<div style="font-size:12.5px;font-weight:600;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px;" data-action="open-patient" data-id="'+p.id+'">'+esc(p.name)+'</div>'
+              + '<div>'+reminderStatusBadgeHtml(p)+'</div>'
+              + '</div>'
+              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+p.id+'" style="flex-shrink:0;color:#25D366;margin-left:8px;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '<span class="badge badge-slate" style="font-size:9px;">No WhatsApp</span>')
               + '</div>';
           }).join('')
         + '</div>';
@@ -7985,7 +8091,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'list') { app.innerHTML = renderListView(); return; }
   if (VIEW === 'patients') { app.innerHTML = renderPatientsView(); return; }
   if (VIEW === 'reminders-tab') { app.innerHTML = renderRemindersTabView(); return; }
-  if (VIEW === 'add') { app.innerHTML = renderAddView(); return; }
+  if (VIEW === 'add') { app.innerHTML = renderAddView(); setupAddCaseFormValidation(); return; }
   if (VIEW === 'ai-query') { app.innerHTML = renderAiQueryView(); return; }
   if (VIEW === 'ai-digest') { app.innerHTML = renderAiDigestView(); return; }
   if (VIEW === 'ai-knowledge') { app.innerHTML = renderAiKnowledgeView(); return; }
@@ -9833,6 +9939,17 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
+  if (action === 'toggle-expandable') {
+    const id = el.dataset.id;
+    const contentEl = document.getElementById(id + '-content');
+    const chevronEl = el.querySelector('.chevron');
+    if (contentEl) {
+      const isExpanded = contentEl.style.maxHeight && contentEl.style.maxHeight !== '0px';
+      contentEl.style.maxHeight = isExpanded ? '0px' : '1000px';
+      if (chevronEl) chevronEl.style.transform = isExpanded ? 'rotate(0deg)' : 'rotate(90deg)';
+    }
+    return;
+  }
   if (action === 'ov-toggle-section') {
     const key = el.dataset.value;
     if (OV_EXPANDED.has(key)) OV_EXPANDED.delete(key); else OV_EXPANDED.add(key);
@@ -10317,7 +10434,12 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'log-reminder-sent') {
     const p = getPatient(el.dataset.id);
-    if (p) { p.lastReminderSentAt = Date.now(); dbPutPatient(p).then(refreshPatients); }
+    if (p) { 
+      p.lastReminderSentAt = Date.now(); 
+      haptic(15);
+      toast('✓ Follow-up reminder sent to ' + p.name);
+      dbPutPatient(p).then(refreshPatients); 
+    }
     return;
   }
   if (action === 'attn-snooze-tracking') {
@@ -10610,6 +10732,8 @@ async function generatePersonalizedReminderMessage(p) {
     await dbPutPatient(p);
     await refreshPatients();
     ARMED_DELETE = null;
+    haptic(15);
+    toast('Follow-up deleted');
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11326,6 +11450,7 @@ async function generatePersonalizedReminderMessage(p) {
     await dbDeleteClinicalBank(el.dataset.id);
     await refreshClinicalBank();
     ARMED_DELETE = null;
+    haptic(15);
     VIEW = 'clinical-bank';
     CB_SELECTED_ID = null;
     toast('Entry deleted');
