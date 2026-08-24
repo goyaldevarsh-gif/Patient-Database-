@@ -1951,7 +1951,6 @@ let VIEW = 'list';
 let SELECTED_ID = null;
 let SEARCH = '';
 let FILTER_TYPE = 'all';
-let TAG_FILTER = '';
 const FILTER_STATE_KEY = 'surgical-case-log-filter-state-v1';
 const TAB_STATE_KEY = 'surgical-case-log-tab-state-v1';
 function saveTabState() { try { localStorage.setItem(TAB_STATE_KEY, TAB); } catch(e) {} }
@@ -1975,17 +1974,15 @@ function prevPatientTab() {
     renderTabBody(getPatient(SELECTED_ID));
   }
 }
-function saveFilterState() { try { localStorage.setItem(FILTER_STATE_KEY, JSON.stringify({ search: SEARCH, filterType: FILTER_TYPE, tagFilter: TAG_FILTER })); } catch(e) {} }
-function loadFilterState() { try { const s = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || '{}'); SEARCH = s.search || ''; FILTER_TYPE = s.filterType || 'all'; TAG_FILTER = s.tagFilter || ''; } catch(e) {} }
+function saveFilterState() { try { localStorage.setItem(FILTER_STATE_KEY, JSON.stringify({ search: SEARCH, filterType: FILTER_TYPE })); } catch(e) {} }
+function loadFilterState() { try { const s = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || '{}'); SEARCH = s.search || ''; FILTER_TYPE = s.filterType || 'all'; } catch(e) {} }
 let TAB = 'overview';
 let ARMED_DELETE = null;
-let SHOW_TAG_FILTER = false;
 
 // Token usage tracking (AI tier only)
 let TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
 const DAILY_LIMIT = 15000;
 const MONTHLY_LIMIT = 100000;
-let SHOW_INSIGHTS = true;
 let SHOW_ALL_ATTENTION = false;
 let DASH_CASE_TAB = 'total'; // 'total' | 'opd' | 'surgical'
 let SHOW_TOMORROW_LIST = true;
@@ -2017,7 +2014,6 @@ function aiMenuDropdownHtml() {
     ['mic', 'Voice command', 'master-voice-start'],
     ['shield', 'Ask AI about your patients', 'open-ai-query'],
     ['shield', 'This Week\u2019s Digest', 'open-ai-digest'],
-    ['book', 'Ortho Knowledge Engine', 'open-ai-knowledge'],
     ['heart', 'Ask OrthoVault', 'open-ai-assistant'],
   ];
   return '<div style="position:fixed;bottom:78px;left:16px;width:calc(100% - 32px);max-width:280px;z-index:47;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:6px;display:flex;flex-direction:column;gap:2px;">'
@@ -2068,16 +2064,10 @@ function resetPerPatientUiState() {
   OV_SHOW_TRACKING_PICK = false;
   OV_EDIT_SECTIONS = new Set();
   AI_PATIENT_SUMMARY = null;
-  AI_PATIENT_EXPLANATION = null;
-  OV_SOAP_DICTATE_TEXT = '';
-  AI_HOME_CARE_INSTRUCTIONS = null;
-  AI_PATIENT_WHATSAPP_MESSAGE = null;
   PATIENT_AI_TOOL_OPEN = null;
-  AI_FITNESS_CERT = null;
   AI_REFERRAL_LETTER = null;
   AI_REFERRAL_SPECIALIST = '';
   AI_REFERRAL_REASON = '';
-  ROM_LOG_OPEN = false;
   ADD_FOLLOWUP_OPEN = false;
   ADD_INVESTIGATION_OPEN = false;
   ADD_INJECTION_OPEN = false;
@@ -2089,7 +2079,6 @@ function resetPerPatientUiState() {
   RX_PHOTOS = [];
   INV_PHOTOS = [];
   FU_INV_PHOTOS = [];
-  AI_TAG_SUGGESTIONS = null;
   AI_INVESTIGATION_SUGGESTIONS = null;
   AI_EXAM_SUGGESTIONS = null;
 }
@@ -2098,20 +2087,6 @@ let FU_SMART_FORM_STATE = { customDateOpen: false, statusSelected: null };
 let EXPANDED_FOLLOWUP = new Set();
 let ADD_INVESTIGATION_OPEN = false;
 let ADD_INJECTION_OPEN = false;
-let GUSTILO_OPEN = false;
-let GUSTILO_ANSWERS = { woundSize:'', mechanism:'', softTissue:'', periosteal:'', vascular:'' };
-let LAUGE_HANSEN_OPEN = false;
-let LAUGE_HANSEN_ANSWERS = { fibulaLevel:'', medial:'', posterior:'' };
-let SALTER_HARRIS_OPEN = false;
-let SALTER_HARRIS_ANSWERS = { metaphysis:'', epiphysis:'', crush:'' };
-let GARDEN_OPEN = false;
-let GARDEN_ANSWERS = { complete:'', displaced:'', extent:'' };
-let NEER_OPEN = false;
-let NEER_ANSWERS = { displacedCount:'' };
-let SCHATZKER_OPEN = false;
-let SCHATZKER_ANSWERS = { condyle:'', lateralType:'', dissociation:'' };
-let SANDERS_OPEN = false;
-let SANDERS_ANSWERS = { displaced:'', lines:'' };
 let EXPANDED_INVESTIGATION = new Set();
 let ADD_PRESCRIPTION_OPEN = false;
 let RX_TEMP = null; // { date, medicines:[{id,name,dose,frequency,duration,instructions}], advice, followUpDate }
@@ -2119,7 +2094,6 @@ let RX_PHOTOS = [];
 let EXPANDED_PRESCRIPTION = new Set();
 let PRINT_RX = null; // {patient, prescription} when viewing a prescription in print mode
 let PRINT_CASE_SUMMARY = null; // patient object when viewing a case summary in print mode
-let PRINT_FITNESS_CERT = null; // {patient, text} when printing a fitness certificate
 let PRINT_REFERRAL = null; // {patient, text, specialist} when printing a referral letter
 let PLANNED_SURGERIES = [];
 let PS_ADD_OPEN = false;
@@ -2373,7 +2347,6 @@ function newPatientShape() {
     classification: '',
     isOpenFracture: false,
     pinned: false,
-    romTracking: null,
     heightCm: '', weightKg: '',
     pjiSuspected: false,
     paymentMethod: '', insuranceType: '',
@@ -2465,160 +2438,6 @@ const LAB_PARAMETERS = [
   ['Uric Acid','mg/dL'], ['ALP','U/L'], ['PTH','pg/mL'],
 ];
 
-/* ================= OCR: Lab report + demographic sticker scanning (Tesseract.js, on-device) ================= */
-let OCR_BUSY = false;
-let OCR_LAB_STAGE = null;     // { date, photoBlob, items:[{label,unit,value,checked}] }
-let OCR_STICKER_STAGE = null; // { name, age, sex, mobile }
-
-// Each pattern looks for a label word/phrase followed (within a short gap, allowing for
-// stray OCR punctuation) by a number. Kept intentionally loose \u2014 real lab report layouts
-// vary a lot, and the result is always shown to the user for review before anything saves.
-const OCR_LAB_PATTERNS = [
-  { label:'ESR', unit:'mm/hr', re:/\bESR\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'CRP', unit:'mg/L', re:/\bCRP\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'Hemoglobin', unit:'g/dL', re:/\b(?:Hemoglobin|Haemoglobin|Hb)\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'TLC/WBC', unit:'cells/\u00b5L', re:/\b(?:TLC|WBC|Total\s*Leu[ck]ocyte\s*Count)\b[^\d\-]{0,30}(\d+(?:\.\d+)?)/i },
-  { label:'Platelet Count', unit:'lakh/\u00b5L', re:/\bPlatelet(?:s)?(?:\s*Count)?\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'RBS', unit:'mg/dL', re:/\bRBS\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'Calcium', unit:'mg/dL', re:/\bCalcium\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'Vitamin D3', unit:'ng/mL', re:/\bVitamin\s*D3?\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'D-dimer', unit:'ng/mL', re:/\bD[\s\-]?dimer\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'Uric Acid', unit:'mg/dL', re:/\bUric\s*Acid\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'ALP', unit:'U/L', re:/\bALP\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'PTH', unit:'pg/mL', re:/\bPTH\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'Creatinine', unit:'mg/dL', re:/\bCreatinine\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'PT/INR', unit:'', re:/\bINR\b[^\d\-]{0,25}(\d+(?:\.\d+)?)/i },
-  { label:'T-score', unit:'', re:/\bT[\s\-]?score\b[^\d\-]{0,25}(-?\d+(?:\.\d+)?)/i },
-  { label:'Z-score', unit:'', re:/\bZ[\s\-]?score\b[^\d\-]{0,25}(-?\d+(?:\.\d+)?)/i },
-];
-function parseLabValuesFromOcrText(text) {
-  const found = [];
-  OCR_LAB_PATTERNS.forEach(p => {
-    const m = text.match(p.re);
-    if (m && m[1]) found.push({ label:p.label, unit:p.unit, value:m[1], checked:true });
-  });
-  return found;
-}
-function parseStickerFromOcrText(text) {
-  const nameM = text.match(/\bName\b\s*[:\-]?\s*([A-Za-z][A-Za-z .]{1,40})/i);
-  const ageM = text.match(/\bAge\b\s*[:\-]?\s*(\d{1,3})/i);
-  const sexM = text.match(/\bSex\b\s*[:\-]?\s*(Male|Female|M|F)\b/i);
-  const mobM = text.match(/\b(?:Mobile|Contact|Phone|Ph)\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*(\+?\d[\d\s\-]{8,14}\d)/i)
-            || text.match(/\b(\d{10})\b/);
-  return {
-    name: nameM ? nameM[1].trim().replace(/\s+/g,' ') : '',
-    age: ageM ? ageM[1] : '',
-    sex: sexM ? (sexM[1][0].toUpperCase()==='M' ? 'M' : 'F') : '',
-    mobile: mobM ? mobM[1].replace(/[\s\-]/g,'') : '',
-  };
-}
-async function runTesseractOcr(file) {
-  if (typeof Tesseract === 'undefined') throw new Error('OCR library did not load \u2014 check your internet connection and try again.');
-  const result = await Tesseract.recognize(file, 'eng', { logger: () => {} });
-  return (result && result.data && result.data.text) ? result.data.text : '';
-}
-function renderOcrOverlay() {
-  let root = document.getElementById('ocr-overlay-root');
-  if (!root) { root = document.createElement('div'); root.id = 'ocr-overlay-root'; document.body.appendChild(root); }
-  if (OCR_BUSY) {
-    root.innerHTML = '<div class="ocr-overlay"><div class="ocr-card" style="text-align:center;padding:36px 24px;border-radius:20px;max-width:320px;">'
-      + '<span class="spinner" style="width:22px;height:22px;border-width:3px;color:var(--accent);"></span>'
-      + '<p style="margin-top:14px;font-size:13px;font-weight:700;">Reading photo\u2026</p>'
-      + '<p style="font-size:11px;color:var(--muted);margin-top:4px;">Takes a few seconds</p>'
-      + '</div></div>';
-    return;
-  }
-  if (OCR_LAB_STAGE) { root.innerHTML = ocrLabModalHtml(); return; }
-  if (OCR_STICKER_STAGE) { root.innerHTML = ocrStickerModalHtml(); return; }
-  root.innerHTML = '';
-}
-function ocrLabScanButtonHtml() {
-  return '<label class="btn btn-outline-dashed btn-block" style="margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">'
-    + ic('camera') + ' Scan Lab Report (auto-fill)'
-    + '<input type="file" accept="image/*" id="ocr-labs-input" style="display:none;">'
-    + '</label>';
-}
-function ocrStickerScanButtonHtml() {
-  return '<label class="btn btn-outline-dashed btn-block" style="display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;">'
-    + ic('camera') + ' Scan Sticker (auto-fill name/age/sex/mobile)'
-    + '<input type="file" accept="image/*" id="ocr-sticker-input" style="display:none;">'
-    + '</label>';
-}
-function ocrLabModalHtml() {
-  const s = OCR_LAB_STAGE;
-  const rows = s.items.map((it, idx) =>
-    '<div class="ocr-row">'
-    + '<label class="row gap2" style="align-items:center;flex:1;min-width:0;">'
-    + '<input type="checkbox" data-ocr-lab-check="'+idx+'"'+(it.checked?' checked':'')+' style="width:18px;height:18px;flex-shrink:0;">'
-    + '<span style="font-weight:700;font-size:12.5px;">'+esc(it.label)+'</span>'
-    + '</label>'
-    + '<input class="input" data-ocr-lab-value="'+idx+'" value="'+esc(it.value)+'" style="width:64px;flex-shrink:0;padding:6px 8px;" inputmode="decimal">'
-    + '<input class="input" data-ocr-lab-unit="'+idx+'" value="'+esc(it.unit)+'" style="width:70px;flex-shrink:0;padding:6px 8px;" placeholder="unit">'
-    + '</div>'
-  ).join('');
-  return '<div class="ocr-overlay">'
-    + '<div class="ocr-card">'
-    + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('camera')+' Lab Report Scanned</h3><button class="icon-btn" data-action="ocr-lab-cancel">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Found '+s.items.length+' value(s). Uncheck any you don\u2019t want, edit anything OCR misread.</p>'
-    + '<div style="margin-bottom:10px;"><label class="field-label">Date</label><input class="input" type="date" id="ocr-lab-date" value="'+esc(s.date)+'"></div>'
-    + rows
-    + '<div class="row gap2" style="margin-top:16px;"><button class="btn" style="flex:1;" data-action="ocr-lab-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ocr-lab-confirm">Add to Investigations</button></div>'
-    + '</div></div>';
-}
-function ocrStickerModalHtml() {
-  const s = OCR_STICKER_STAGE;
-  return '<div class="ocr-overlay">'
-    + '<div class="ocr-card">'
-    + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('camera')+' Sticker Scanned</h3><button class="icon-btn" data-action="ocr-sticker-cancel">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Review before filling the form \u2014 edit anything OCR misread.</p>'
-    + '<div style="display:flex;flex-direction:column;gap:10px;">'
-    + '<div><label class="field-label">Name</label><input class="input" id="ocr-sticker-name" value="'+esc(s.name)+'"></div>'
-    + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
-    + '<div><label class="field-label">Age</label><input class="input" type="number" min="0" id="ocr-sticker-age" value="'+esc(s.age)+'"></div>'
-    + '<div><label class="field-label">Sex</label><div class="seg">' + ['M','F'].map(v=>'<button type="button" class="seg-btn'+(s.sex===v?' active':'')+'" data-action="ocr-sticker-set-sex" data-value="'+v+'">'+v+'</button>').join('') + '</div></div>'
-    + '</div>'
-    + '<div><label class="field-label">Mobile</label><input class="input" type="tel" id="ocr-sticker-mobile" value="'+esc(s.mobile)+'"></div>'
-    + '</div>'
-    + '<div class="row gap2" style="margin-top:16px;"><button class="btn" style="flex:1;" data-action="ocr-sticker-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ocr-sticker-confirm">Use These Details</button></div>'
-    + '</div></div>';
-}
-async function handleOcrLabsScan(file) {
-  OCR_BUSY = true; renderOcrOverlay();
-  try {
-    const text = await runTesseractOcr(file);
-    const items = parseLabValuesFromOcrText(text);
-    if (!items.length) {
-      OCR_BUSY = false; renderOcrOverlay();
-      toast('No lab values found \u2014 try a clearer photo, or enter manually.');
-      return;
-    }
-    const photoBlob = await resizeImageFile(file);
-    OCR_BUSY = false;
-    OCR_LAB_STAGE = { date: todayStr(), photoBlob, items };
-    renderOcrOverlay();
-  } catch (err) {
-    OCR_BUSY = false; renderOcrOverlay();
-    toast('OCR failed: ' + (err && err.message ? err.message : 'unknown error'));
-  }
-}
-async function handleOcrStickerScan(file) {
-  OCR_BUSY = true; renderOcrOverlay();
-  try {
-    const text = await runTesseractOcr(file);
-    const data = parseStickerFromOcrText(text);
-    if (!data.name && !data.age && !data.sex && !data.mobile) {
-      OCR_BUSY = false; renderOcrOverlay();
-      toast('Could not read the sticker \u2014 try a clearer photo, or enter manually.');
-      return;
-    }
-    OCR_BUSY = false;
-    OCR_STICKER_STAGE = data;
-    renderOcrOverlay();
-  } catch (err) {
-    OCR_BUSY = false; renderOcrOverlay();
-    toast('OCR failed: ' + (err && err.message ? err.message : 'unknown error'));
-  }
-}
 const INJECTION_LIB_KEY = 'surgical-case-log-injection-lib-v1';
 function ageFieldHtml(p) {
   return '<div><label class="field-label">Age</label><div class="row gap2">'
@@ -2747,7 +2566,6 @@ function unionBadgeClass(status) {
   if (['No union yet'].includes(status)) return 'badge-slate';
   return 'badge-red'; // Delayed union, Non-union
 }
-const CLASSIFICATION_SYSTEMS = ['AO/OTA', 'Garden', 'Pauwels', 'Weber', 'Neer', 'Schatzker', 'Salter-Harris', 'Gustilo-Anderson', 'Lauge-Hansen', 'Sanders'];
 function calcPOD(p, dateStr) {
   if (p.caseType !== 'surgical' || !p.surgeryDate || !dateStr) return null;
   const d1 = new Date(p.surgeryDate), d2 = new Date(dateStr);
@@ -2756,16 +2574,6 @@ function calcPOD(p, dateStr) {
 }
 
 /* ---- Smart tags ---- */
-const PRESET_TAGS = ['Interesting', 'Teaching Slide', 'Complication', 'Exam Case', 'Revision'];
-const OP_NOTE_TEMPLATES = [
-  ['TKR', 'Diagnosis: \nAnaesthesia: \nApproach: Medial parapatellar\nTourniquet time: \nFindings: \nProcedure: Standard TKR \u2014 femoral cut, tibial cut, trial reduction, final implantation with cement\nImplant used: \nAlignment/stability checked: satisfactory\nClosure: Layered closure, drain [placed/not placed]\nBlood loss: \nPost-op plan: '],
-  ['THR', 'Diagnosis: \nAnaesthesia: \nApproach: Posterior/Lateral\nFindings: \nProcedure: Standard THR \u2014 acetabular preparation, cup placement, femoral preparation, stem + head placement, trial reduction, final implantation\nImplant used: \nStability checked: satisfactory, no impingement\nClosure: Layered closure, drain [placed/not placed]\nBlood loss: \nPost-op plan: '],
-  ['DHS', 'Diagnosis: Intertrochanteric fracture\nAnaesthesia: \nApproach: Lateral, standard DHS approach\nReduction: Closed reduction on traction table, checked under II\nProcedure: Guidewire placement, triangulation check, DHS plate + screw fixation\nImplant used: DHS [size] with [barrel length] plate\nFixation checked under II: satisfactory, TAD acceptable\nClosure: Layered closure\nBlood loss: \nPost-op plan: '],
-  ['ORIF', 'Diagnosis: \nAnaesthesia: \nApproach: \nReduction: \nFixation: \nImplant used: \nStability/alignment checked under II: satisfactory\nClosure: Layered closure\nBlood loss: \nPost-op plan: '],
-  ['Arthroscopy', 'Diagnosis: \nAnaesthesia: \nPortals used: \nDiagnostic arthroscopy findings: \nProcedure performed: \nClosure: Portal closure\nPost-op plan: '],
-];
-const TAG_LIB_KEY = 'surgical-case-log-tag-lib-v1';
-const PRESET_COMORBIDITIES = ['Diabetes (DM)', 'Hypertension (BP)', 'Thyroid disorder', 'Smoking', 'Alcohol use', 'Obesity', 'Asthma / COPD', 'Cardiac disease (IHD)', 'CKD', 'On blood thinners'];
 
 /* ---- Voice-to-text (Web Speech API) ---- */
 let ACTIVE_RECOGNITION = null;
@@ -3152,21 +2960,6 @@ function renderAiAssistantView() {
     + '</div>';
 }
 
-function renderAiKnowledgeView() {
-  const levels = [['resident','Explain like I\u2019m a resident'],['colleague','Colleague-level, concise'],['patient','Patient-friendly, simple']];
-  return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
-    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-knowledge">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ortho Knowledge Engine</h2><span style="width:36px;"></span></div>'
-    + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;">Ask "why" or "how", not just "what" \u2014 clinical reasoning and mechanisms, not a patient lookup.</p>'
-    + '<div class="row between" style="margin-bottom:4px;"><span></span>'+micButtonHtml('ai-knowledge-input')+'</div>'
-    + '<textarea class="textarea" id="ai-knowledge-input" rows="3" placeholder="e.g. Why does a Segond fracture indicate ACL injury?">'+esc(AI_KNOWLEDGE_QUESTION||'')+'</textarea>'
-    + '<label class="field-label" style="margin-top:10px;margin-bottom:4px;">Explain for</label>'
-    + '<div class="seg" style="flex-wrap:wrap;height:auto;">' + levels.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:7px 12px;'+(AI_KNOWLEDGE_LEVEL===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="ai-knowledge-set-level" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
-    + '<button class="btn btn-primary btn-block" style="margin-top:12px;" data-action="ask-ai-knowledge">'+ic('shield')+' Ask</button>'
-    + (AI_KNOWLEDGE_ANSWER ? '<div style="margin-top:16px;"><div class="row between" style="margin-bottom:4px;"><span></span>'+speakButtonHtml('ai-knowledge-answer-text')+'</div><div class="card" id="ai-knowledge-answer-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_KNOWLEDGE_ANSWER)+'</div></div>' : '')
-    + '<p style="font-size:10.5px;color:var(--muted);margin-top:16px;">General clinical education/reference only \u2014 not tied to any patient record, and not a substitute for your own clinical judgement.</p>'
-    + '</div>';
-}
-
 function renderAiHubView() {
   const directAccess = [
     ['shield', 'Ask AI about your patients', 'Plain-language question over your whole patient list'],
@@ -3175,14 +2968,12 @@ function renderAiHubView() {
     ['heart', 'Ask OrthoVault', 'Case vignette or surgical approach \u2014 considerations, technique reference'],
   ];
   const elsewhere = [
-    ['Fill fields from notes (or voice)', 'Add Case \u2192 AI Quick-Fill box, below Global Notes'],
     ['Auto-detect Region / Specialty', 'Add Case & Overview \u2192 next to Region/Specialty chips'],
     ['Suggest tags', 'Overview \u2192 Tags card'],
     ['Suggested investigations', 'Add Case \u2192 below Diagnosis, once it\u2019s filled'],
     ['What to examine', 'Add Case \u2192 below Diagnosis, once it\u2019s filled'],
     ['Similar past cases', 'Add Case \u2192 below Diagnosis, once it\u2019s filled (free, no AI cost)'],
     ['Diagnosis auto-triggers tracking', 'Add Case / Overview \u2192 typing a diagnosis like CTEV/RA silently switches on the matching Special Tracking module'],
-    ['Fill follow-up fields from notes (or voice)', 'Follow-Up \u2192 Add visit form, AI Quick-Fill box'],
     ['Suggest next follow-up interval', 'Follow-Up \u2192 Add visit form'],
     ['Check for data-entry mismatches', 'Add Case \u2192 above Save, before you save a new case'],
     ['Draft a prescription', 'Prescriptions tab \u2192 New prescription form'],
@@ -3206,42 +2997,6 @@ function renderAiHubView() {
     + '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">'
     + elsewhere.map(([title,loc]) => '<div class="card" style="padding:10px 12px;"><div style="font-size:13px;font-weight:700;">'+esc(title)+'</div><div style="font-size:11.5px;color:var(--muted);margin-top:2px;">'+esc(loc)+'</div></div>').join('')
     + '</div></div>'
-    + '</div>'
-    + '</div>';
-}
-
-function renderCashAuditView() {
-  const monthly = {};
-  let grandTotal = 0, grandCount = 0;
-  PATIENTS.forEach(p => {
-    if (p.paymentMethod !== 'Cash' && p.paymentMethod !== 'Both') return;
-    const amt = parseFloat(p.cashAmount);
-    if (!amt || isNaN(amt) || amt <= 0) return;
-    if (!p.surgeryDate) return;
-    const monthKey = p.surgeryDate.slice(0,7);
-    if (!monthly[monthKey]) monthly[monthKey] = { total: 0, count: 0, patients: [] };
-    monthly[monthKey].total += amt;
-    monthly[monthKey].count += 1;
-    monthly[monthKey].patients.push(p);
-    grandTotal += amt;
-    grandCount += 1;
-  });
-  const months = Object.keys(monthly).sort().reverse();
-  const monthLabel = (key) => { const [y,m] = key.split('-'); return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m,10)-1] + ' ' + y; };
-  return '<div style="padding-bottom:40px;">'
-    + '<div class="sticky-top px" style="padding:14px 16px;">'
-    + '<div class="row gap3"><button class="icon-btn" data-action="close-cash-audit">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Cash Collection Audit</h2></div>'
-    + '</div>'
-    + '<div class="px" style="padding-top:12px;">'
-    + '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;"><div class="stat-label">Total cash (all time)</div><div class="stat-value mono" style="font-size:22px;">\u20b9'+grandTotal.toLocaleString('en-IN')+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">across '+grandCount+' case'+(grandCount!==1?'s':'')+'</div></div>'
-    + (months.length ? months.map(mk => {
-        const m = monthly[mk];
-        return '<div class="card" style="margin-bottom:8px;">'
-          + '<div class="row between"><span style="font-size:13.5px;font-weight:700;">'+monthLabel(mk)+'</span><span class="mono" style="font-weight:800;">\u20b9'+m.total.toLocaleString('en-IN')+'</span></div>'
-          + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+m.count+' case'+(m.count!==1?'s':'')+': '+m.patients.map(p=>escName(p.name)).join(', ')+'</div>'
-          + '</div>';
-      }).join('')
-      : '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:24px;">No cash payments recorded yet.</p>')
     + '</div>'
     + '</div>';
 }
@@ -3468,31 +3223,6 @@ function renderPatientAiToolsView() {
     ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-summary-text')+'</div><div class="card" id="ai-patient-summary-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_SUMMARY)+'</div>'
     : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">A quick 2-3 sentence clinical recap for your own reference.</p>'+aiButtonHtml('ai-summarize-patient','Generate summary',false,null,'claude'));
 
-  const explainContent = AI_PATIENT_EXPLANATION
-    ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-explanation-text','hi-IN')+'</div><div class="card" id="ai-patient-explanation-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PATIENT_EXPLANATION)+'</div>'
-      + '<div class="row gap2">'+aiButtonHtml('ai-explain-patient-hi','Redo in Hindi',false,null,'claude')+aiButtonHtml('ai-explain-patient-en','Redo in simple English',false,null,'claude')+'</div>'
-    : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Simple, jargon-free explanation for the patient/family.</p><div class="row gap2">'+aiButtonHtml('ai-explain-patient-hi','Explain in Hindi',false,null,'claude')+aiButtonHtml('ai-explain-patient-en','Explain in simple English',false,null,'claude')+'</div>');
-
-  const soapContent = '<label class="field-label" style="margin-bottom:2px;">Dictate freely about the visit</label>'
-    + '<div class="row between" style="margin-bottom:2px;"><span></span>'+micButtonHtml('ov-soap-dictate-input')+'</div>'
-    + '<textarea class="textarea" id="ov-soap-dictate-input" rows="3" placeholder="Complaints, exam findings, what you did, the plan\u2026" style="margin-bottom:8px;">'+esc(OV_SOAP_DICTATE_TEXT)+'</textarea>'
-    + aiButtonHtml('ai-structure-soap','Structure as SOAP note',false,null,'claude')
-    + '<div id="ai-soap-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
-    + '<div style="font-size:10.5px;color:var(--muted);margin-top:6px;">Replaces Clinical Notes in the Clinical tab \u2014 review before saving.</div>';
-
-  const waMsgContent = !p.whatsapp
-    ? '<p style="font-size:12px;color:var(--muted);margin:0;">Save a WhatsApp number in the Communicate tab first.</p>'
-    : (AI_PATIENT_WHATSAPP_MESSAGE
-        ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-message-text','hi-IN')+'</div><div class="card" id="ai-patient-message-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_PATIENT_WHATSAPP_MESSAGE)+'</div>'
-          + (homeCareInstructionsLink(p, AI_PATIENT_WHATSAPP_MESSAGE) ? '<a href="'+esc(homeCareInstructionsLink(p, AI_PATIENT_WHATSAPP_MESSAGE))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Send on WhatsApp</a>'
-            : '<p style="font-size:11px;color:var(--muted);">Save a WhatsApp number to send.</p>')
-        : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Combined home-care do\u2019s/don\u2019ts + follow-up date reminder, in Hindi.</p>'+aiButtonHtml('ai-patient-message','Generate message',false,null,'claude')));
-
-  const fitnessContent = AI_FITNESS_CERT
-    ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-fitness-cert-text')+'</div><div class="card" id="ai-fitness-cert-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_FITNESS_CERT)+'</div>'
-      + '<button class="btn btn-block" data-action="print-fitness-cert">'+ic('printer')+' Print with letterhead</button>'
-    : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">Draft a fitness / return-to-duty certificate based on diagnosis and recovery stage. Review dates before printing.</p>'+aiButtonHtml('ai-generate-fitness-cert','Draft certificate',false,null,'claude'));
-
   const referralContent = '<label class="field-label">Refer to (specialty / doctor name)</label>'
     + '<input class="input" id="ai-referral-specialist" placeholder="e.g. Rheumatologist, Physiotherapy, Dr. Sharma" value="'+esc(AI_REFERRAL_SPECIALIST)+'" style="margin-bottom:8px;">'
     + '<label class="field-label">Reason for referral</label>'
@@ -3503,10 +3233,6 @@ function renderPatientAiToolsView() {
         : aiButtonHtml('ai-generate-referral','Draft referral letter',false,null,'claude'));
 
   const body = aiToolAccordionHtml('summary', 'sparkle', 'Summarize this patient', summaryContent)
-    + aiToolAccordionHtml('explain', 'heart', 'Explain to patient', explainContent)
-    + aiToolAccordionHtml('soap', 'file', 'Dictate visit \u2192 SOAP note', soapContent)
-    + aiToolAccordionHtml('wamsg', 'message', 'Home-care + WhatsApp message', waMsgContent)
-    + aiToolAccordionHtml('fitness', 'shield', 'Fitness / return-to-duty certificate', fitnessContent)
     + aiToolAccordionHtml('referral', 'printer', 'Referral letter', referralContent);
 
   return '<div style="padding-bottom:40px;">'
@@ -3769,19 +3495,15 @@ async function renderMoreView() {
     },
     { key:'practice', title:'Practice Tools', icon:'clipboard', rows:
         moreRowHtml('clipboard', 'Scheme Package Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
-        + moreRowHtml('calendar', 'Planned Surgeries', (PLANNED_SURGERIES.filter(s=>s.status==='waiting').length ? PLANNED_SURGERIES.filter(s=>s.status==='waiting').length + ' upcoming' : 'Track upcoming admissions'), 'open-planned-surgeries')
     },
     { key:'data', title:'Data & Backup', icon:'download', rows:
         moreRowHtml('shield', 'Cloud Sync (AI tier)', !CURRENT_USER ? 'Not signed in \u2014 tap to set up' : (isAiTier() ? 'Signed in \u2014 backing up automatically' : 'Signed in \u2014 upgrade to AI tier to enable'), 'open-cloud-sync')
-        + moreRowHtml('download', 'Google Drive Backup'+(isProOrAbove()?'':' (Pro)'), !isProOrAbove() ? 'Upgrade to Pro to enable' : (GOOGLE_DRIVE_ACCESS_TOKEN ? 'Connected \u2014 auto-backing up daily' : 'Connect to auto-backup to your Drive'), 'open-drive-backup')
         + moreRowHtml('download', 'Export Backup', 'Zip of all cases, photos, reminders \u2014 pick your Drive folder for an off-device copy', 'export-backup')
         + moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import')
         + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
-        + moreRowHtml('camera', 'Unfiled Photos'+(unfiled.length ? ' ('+unfiled.length+')' : ''), unfiled.length ? 'From an interrupted entry \u2014 file to a patient or delete' : 'Nothing unfiled right now', 'open-unfiled-photos')
     },
     { key:'reports', title:'Reports', icon:'file', rows:
         moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
-        + moreRowHtml('printer', 'Cash Collection Audit', 'Monthly totals of cash payments across all surgical cases', 'open-cash-audit')
     },
     { key:'teachingresearch', title:'Academic Vault', icon:'bookmark', rows:
         moreRowHtml('bookmark', 'Research Cases'+(PATIENTS.filter(p=>p.researchFlag).length ? ' ('+PATIENTS.filter(p=>p.researchFlag).length+')' : ''), 'Cases flagged for papers, case reports & study', 'open-research-cases')
@@ -4066,11 +3788,10 @@ const ABOUT_SECTIONS = [
   { key:'ai', title:'AI Features (this account only)', icon:'sparkle', items:[
     ['Auto-detect Region/Specialty', 'On Complaints & Diagnosis or Overview, tap the \u2726 Auto-detect chip \u2014 reads your diagnosis/complaints and suggests region + specialty.'],
     ['Diagnosis triggers tracking automatically', 'Type a diagnosis like "CTEV" or "Rheumatoid arthritis" and the matching Special Tracking module switches on by itself \u2014 no manual selection needed. Forgot to add one? Overview \u2192 Clinical has a small "+ Track a condition" button.'],
-    ['AI Quick-Fill', 'In Add Case \u2192 Complaints & Diagnosis, dictate or paste a free-text description in the AI Quick-Fill box (separate from Notes) and tap "Fill all fields from this" \u2014 it distributes the info into the right fields. The same Quick-Fill also exists on the Follow-Up visit form.'],
     ['AI: Suggested investigations / What to examine / Similar past cases', 'In Add Case, once diagnosis or complaints are filled \u2014 reference-only suggestions and a list of your own similar past patients, never auto-inserted into records.'],
     ['AI follow-up date suggestion', 'When adding a Follow-Up, "AI suggest" proposes a clinically reasonable next-visit date based on the diagnosis/procedure and how far along the patient is.'],
-    ['Patient AI Tools', 'Open any patient, then tap the floating purple AI button (bottom-left) \u2014 on a patient\u2019s page it opens straight into that patient\u2019s panel: Summarize this patient, Explain to patient (Hindi/simple English), Dictate visit \u2192 SOAP note, Home-care + WhatsApp follow-up message, Fitness/return-to-duty certificate, and a Referral letter \u2014 all printable with your letterhead where relevant.'],
-    ['Master AI button (floating, bottom-left)', 'Tap for a quick menu \u2014 Voice command, Ask AI about your patients, This Week\u2019s Digest, Ortho Knowledge Engine, Ask OrthoVault. Hold it down (~half a second) to jump straight into voice \u2014 say a command like "naya case banao", "X ka case kholo", "X ka follow-up kal rakho". If it mishears you, tap "Not quite right \u2014 edit" to fix the transcript and re-interpret instead of starting over.'],
+    ['Patient AI Tools', 'Open any patient, then tap the floating purple AI button (bottom-left) \u2014 on a patient\u2019s page it opens straight into that patient\u2019s panel: Summarize this patient and a Referral letter \u2014 printable with your letterhead.'],
+    ['Master AI button (floating, bottom-left)', 'Tap for a quick menu \u2014 Voice command, Ask AI about your patients, This Week\u2019s Digest, Ask OrthoVault. Hold it down (~half a second) to jump straight into voice \u2014 say a command like "naya case banao", "X ka case kholo", "X ka follow-up kal rakho". If it mishears you, tap "Not quite right \u2014 edit" to fix the transcript and re-interpret instead of starting over.'],
     ['AI Hub (More \u2192 OrthoVault AI)', 'Reference-only page explaining what the floating AI button can do \u2014 the tools themselves only run from that button, not from here.'],
   ]},
   { key:'opd-process', title:'Full Process \u2014 Adding an OPD Case', icon:'calendar', items:[
@@ -4092,7 +3813,6 @@ const ABOUT_SECTIONS = [
   ]},
   { key:'when-tools', title:'When to Use Which Special Tool', icon:'search', items:[
     ['CTEV / RA / Osteoporosis tracking', 'Switches on automatically as soon as the diagnosis matches (or set it manually in Add Case, or later via Overview \u2192 Clinical \u2192 "+ Track a condition"). CTEV gives Pirani scoring per cast with a trend + tenotomy alert; RA gives DAS28/CDAI/SDAI tracking, monitoring labs, and treatment history; Osteoporosis gives DEXA T-score tracking (spine/hip/wrist) and a FRAX/risk-factor guide.'],
-    ['Gustilo-Anderson / classification chips', 'Only the classification systems relevant to the diagnosis are shown (e.g. Garden for femoral neck, Weber for ankle) \u2014 not all 10 every time.'],
     ['Kocher\u2019s criteria', 'Shows automatically when the diagnosis mentions "Septic Arthritis".'],
     ['PJI (MSIS) checklist', 'On an Arthroplasty case, toggle "PJI suspected?" if infection is suspected.'],
     ['BMI calculator', 'Shows automatically for Arthroplasty and Knee OA cases.'],
@@ -4121,7 +3841,7 @@ const ABOUT_SECTIONS = [
     ['CTEV (clubfoot)', 'Pirani scoring per cast session with a trend graph, and an automatic alert when your own tenotomy criteria are met.'],
     ['RA (rheumatoid arthritis)', 'DAS28/CDAI/SDAI tracking with a 28-joint reference, plus a management reference (MTX, HCQ, steroids).'],
     ['Osteoporosis', 'DEXA tracking (spine/hip/wrist), risk factors with a FRAX explainer and link.'],
-    ['Trauma tools', 'Guided assistants that auto-appear based on diagnosis \u2014 Gustilo-Anderson (open fractures), Lauge-Hansen/Weber (ankle fractures), Salter-Harris (paediatric physeal fractures), Garden (femoral neck), Neer (proximal humerus), Schatzker (tibial plateau), Sanders (calcaneus) \u2014 plus RUST score with trend graph, union tracking, and Kocher\u2019s criteria (septic arthritis).'],
+    ['Trauma tools', 'RUST score with trend graph and union tracking.'],
     ['Arthroplasty tools', 'BMI calculator, PJI (MSIS criteria) checklist.'],
     ['Pediatrics', 'Weight-based dose calculator and a Rickets management reference, shown automatically for pediatric OPD cases.'],
   ]},
@@ -4304,9 +4024,6 @@ function renderAppSettingsView() {
     + [['auto','Auto'],['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div>'
     + (loadTheme()==='auto' ? '<p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Light 6 AM\u20137 PM, Dark otherwise \u2014 switches automatically.</p>' : '')
-    + '<div style="margin-top:12px;"><span style="font-size:13px;font-weight:600;display:block;margin-bottom:8px;">Accent color</span><div style="display:flex;gap:10px;">'
-    + Object.entries(ACCENT_THEMES).map(([k,t])=>'<button class="accent-swatch'+(loadAccentTheme()===k?' active':'')+'" data-action="set-accent" data-value="'+k+'" title="'+t.label+'" style="background:'+t.light+';"></button>').join('')
-    + '</div></div>'
     + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
     + '</div>'
     + notifCardHtml()
@@ -4328,8 +4045,6 @@ function renderAppSettingsView() {
         + '<p style="font-size:10.5px;color:var(--muted);margin:10px 0 0;">Used for AI clinical assistant, suggestions, and analysis.</p>'
         + '</div>'
       ) : '')
-    + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">SECURITY</div>'
-    + appLockCardHtml()
     + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">ABOUT</div>'
     + moreRowHtml('info', 'About OrthoVault', 'What this app does and how to use it', 'open-about')
     + '</div>'
@@ -4489,8 +4204,12 @@ function generateWhatsAppSignature() {
 function followUpReminderMessage(patient) {
   const profile = loadProfile();
   const reg = regardingLine(patient);
+  const isOverdue = !!(patient.nextFollowUpDate && patient.nextFollowUpDate < todayStr());
+  const dateLine = isOverdue
+    ? '\n\u0906\u092a\u0915\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0925\u0940\u0964 \u0915\u0943\u092a\u092f\u093e \u091c\u0932\u094d\u0926 \u0938\u0947 \u091c\u0932\u094d\u0926 \u0906 \u091c\u093e\u090f\u0902\u0964'
+    : '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964';
   return '\u0928\u092e\u0938\u094d\u0924\u0947 ' + patient.name + ' \u091c\u0940,'
-    + '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964'
+    + dateLine
     + '\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0908\u090f\u0917\u093e\u0964'
     + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
     + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]')
@@ -4977,26 +4696,14 @@ function renderDashboardSection() {
     + '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.02em;margin-top:5px;">'+caseTabLabels[DASH_CASE_TAB]+'</div>'
     + '</div>';
 
-  const pinnedPatients = PATIENTS.filter(p => p.pinned);
-  if (pinnedPatients.length) {
-    html += '<div style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:6px;">Quick Access</label></div>'
-      + '<div style="margin-bottom:8px;">'
-      + pinnedPatients.map(p => renderDashboardPatientQuickCard(p)).join('')
-      + '</div>';
-  }
-
   if (s.topProcedures.length || s.topConditions.length) {
-    if (!SHOW_INSIGHTS) {
-      html += '<button class="chip" style="margin-bottom:12px;" data-action="toggle-insights">'+ic('search')+' This month\u2019s insights ('+s.monthCount+' cases added)</button>';
-    } else {
-      html += '<div class="card" style="margin-bottom:12px;">'
-        + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;display:flex;align-items:center;gap:5px;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.75);">'+ic('search')+'</span>This month\u2019s insights ('+s.monthCount+' cases added)</label><button class="icon-btn" style="width:24px;height:24px;color:var(--muted);" data-action="toggle-insights" title="Collapse">'+ic('x')+'</button></div>'
-        + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top procedures</span>'
-            + (function(){ const max = s.topProcedures[0][1]; return s.topProcedures.map(([name,n]) => '<div class="insight-row" style="display:block;padding:5px 0;"><div class="row between" style="margin-bottom:3px;"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div><div style="height:4px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:var(--accent);width:'+Math.max(8,Math.round(n/max*100))+'%;"></div></div></div>').join(''); })() + '</div>' : '')
-        + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top conditions</span>'
-            + (function(){ const max = s.topConditions[0][1]; return s.topConditions.map(([name,n]) => '<div class="insight-row" style="display:block;padding:5px 0;"><div class="row between" style="margin-bottom:3px;"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div><div style="height:4px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:var(--emerald);width:'+Math.max(8,Math.round(n/max*100))+'%;"></div></div></div>').join(''); })() + '</div>' : '')
-        + '</div>';
-    }
+    html += '<div class="card" style="margin-bottom:12px;">'
+      + '<label class="field-label" style="margin-bottom:2px;display:flex;align-items:center;gap:5px;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.75);">'+ic('search')+'</span>This month\u2019s insights ('+s.monthCount+' cases added)</label>'
+      + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top procedures</span>'
+          + (function(){ const max = s.topProcedures[0][1]; return s.topProcedures.map(([name,n]) => '<div class="insight-row" style="display:block;padding:5px 0;"><div class="row between" style="margin-bottom:3px;"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div><div style="height:4px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:var(--accent);width:'+Math.max(8,Math.round(n/max*100))+'%;"></div></div></div>').join(''); })() + '</div>' : '')
+      + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top conditions</span>'
+          + (function(){ const max = s.topConditions[0][1]; return s.topConditions.map(([name,n]) => '<div class="insight-row" style="display:block;padding:5px 0;"><div class="row between" style="margin-bottom:3px;"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div><div style="height:4px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:var(--emerald);width:'+Math.max(8,Math.round(n/max*100))+'%;"></div></div></div>').join(''); })() + '</div>' : '')
+      + '</div>';
   }
   return html;
 }
@@ -5153,7 +4860,7 @@ function usearchResultRowHtml(p, q) {
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
-const USEARCH_FAB_HIDDEN_VIEWS = ['list','patients','reminders-tab','add','ai-query','ai-digest','ai-knowledge','ai-assistant','ai-hub','cash-audit','compare-picker','compare-view','print','settings','app-settings','cloud-sync','about','calendar','more','recently-deleted','unfiled-photos','onboarding'];
+const USEARCH_FAB_HIDDEN_VIEWS = ['list','patients','reminders-tab','add','ai-query','ai-digest','ai-assistant','ai-hub','compare-picker','compare-view','print','settings','app-settings','cloud-sync','about','calendar','more','recently-deleted','unfiled-photos','onboarding'];
 function updateUsearchFabVisibility() {
   const wrap = document.getElementById('usearch-fab-wrap');
   if (!wrap) return;
@@ -5193,7 +4900,6 @@ function updateBottomNavVisibility() {
 
 
 function patientGroupKey(p) {
-  if (p.pinned) return 'pinned';
   if (isOverdue(p.nextFollowUpDate)) return 'overdue';
   const d = p.surgeryDate ? new Date(p.surgeryDate) : null;
   if (!d || isNaN(d)) return 'older';
@@ -5227,11 +4933,9 @@ function renderPatientsView() {
   saveFilterState();
   const counts = { all: PATIENTS.length };
   CASE_REGIONS.forEach(r => counts[r.key] = PATIENTS.filter(p => (p.regions||[]).includes(r.key)).length);
-  const allTags = [...new Set(PATIENTS.flatMap(p => p.tags || []))].sort();
 
   const filtered = PATIENTS.filter(p => {
     if (FILTER_TYPE !== 'all' && !(p.regions||[]).includes(FILTER_TYPE)) return false;
-    if (TAG_FILTER && !(p.tags||[]).includes(TAG_FILTER)) return false;
     if (SEARCH) {
       const hit = matchCase(p, SEARCH);
       if (!hit) return false;
@@ -5239,7 +4943,6 @@ function renderPatientsView() {
     }
     return true;
   }).sort((a,b) => {
-    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
     const aOver = isOverdue(a.nextFollowUpDate), bOver = isOverdue(b.nextFollowUpDate);
     if (aOver !== bOver) return aOver ? -1 : 1;
     return new Date(b.surgeryDate) - new Date(a.surgeryDate);
@@ -5250,18 +4953,6 @@ function renderPatientsView() {
     chips += '<button class="chip'+(FILTER_TYPE===t?' active':'')+'" data-action="set-filter" data-value="'+t+'">'+(t==='all'?'All':t)+' ('+counts[t]+')</button>';
   });
   chips += '</div>';
-
-  let tagChips = '';
-  if (allTags.length) {
-    if (!SHOW_TAG_FILTER) {
-      tagChips = '<button class="chip" style="margin-top:6px;" data-action="toggle-tag-filter-row">'+ic('tag')+' Filter by tag'+(TAG_FILTER?' \u2014 '+esc(TAG_FILTER):'')+'</button>';
-    } else {
-      tagChips = '<div class="chips" style="margin-top:6px;">'
-        + '<button class="chip'+(!TAG_FILTER?' active':'')+'" data-action="set-tag-filter" data-value="">'+ic('tag')+'All tags</button>'
-        + allTags.map(t => '<button class="chip'+(TAG_FILTER===t?' active':'')+'" data-action="set-tag-filter" data-value="'+esc(t)+'">'+esc(t)+' ('+PATIENTS.filter(p=>(p.tags||[]).includes(t)).length+')</button>').join('')
-        + '</div>';
-    }
-  }
 
   let cards = '';
   if (!filtered.length) {
@@ -5312,7 +5003,6 @@ function renderPatientsView() {
         + '</div>'
         + '<div class="row gap2" style="margin-top:3px;">'
         + (dot ? '<span class="status-dot" style="background:'+dot.color+';" title="'+dot.label+'"></span>' : '')
-        + (p.pinned ? '<span style="color:var(--accent);flex:none;">'+ic('pin')+'</span>' : '')
         + '<span class="display" style="font-weight:800;font-size:15px;">'+escName(p.name)+'</span>'
         + '<span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex||'')+'</span>'
         + '</div>'
@@ -5333,7 +5023,6 @@ function renderPatientsView() {
     + '<div class="row gap3" style="margin-bottom:10px;align-items:center;"><button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Patients</h2><span style="font-size:12px;color:var(--muted);">'+PATIENTS.length+' total</span></div>'
     + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
-    + tagChips
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
     + (PATIENTS.length ? (SHOW_LEGEND
@@ -5508,7 +5197,6 @@ function initApTemp() {
   AP_INV_XRAY_SUBTYPE = 'General OPD';
   AP_INV_ACTIVE_GROUP = null;
   AP_SHOW_PAYMENT = false;
-  AP_AI_FILL_TEXT = '';
   AI_SANITY_CHECK_RESULT = null;
 }
 function syncApTempFromDom() {
@@ -5517,13 +5205,11 @@ function syncApTempFromDom() {
   const anaesEl = document.getElementById('ap-anaesthesia'); if (anaesEl) AP_TEMP.anaesthesiaType = anaesEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
   const complaintsEl = document.getElementById('ap-complaints'); if (complaintsEl) AP_TEMP.chiefComplaints = complaintsEl.value;
-  const aiFillEl = document.getElementById('ap-ai-fill-input'); if (aiFillEl) AP_AI_FILL_TEXT = aiFillEl.value;
   document.querySelectorAll('[data-schedule-id]').forEach(el => {
     const v = AP_SCHEDULE.find(x => x.id === el.dataset.scheduleId);
     if (v) v[el.dataset.scheduleField] = el.value;
   });
 }
-let AP_AI_FILL_TEXT = '';
 function conditionOptionsHtml(selected, caseType) {
   const excluded = caseType === 'surgical' ? ['ctev','ra','osteoporosis'] : [];
   let html = '<option value=""'+(!selected?' selected':'')+'>\u2014 Select condition \u2014</option>';
@@ -5633,7 +5319,6 @@ function renderAddView() {
   const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
 
   const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + ocrStickerScanButtonHtml()
       + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label><div class="row gap2">'
@@ -5713,7 +5398,6 @@ function renderAddView() {
           + '<input class="input" type="date" data-schedule-id="'+v.id+'" data-schedule-field="date" value="'+esc(v.date)+'" style="flex:none;width:140px;">'
           + '<button class="icon-btn" style="color:var(--red);" data-action="ap-schedule-remove" data-value="'+v.id+'">'+ic('trash')+'</button>'
           + '</div>').join('')
-      + '<button class="btn btn-sm" data-action="ap-schedule-add">'+ic('plus')+' Add Custom Visit</button>'
       + '</div>'
       + '</div>'
     ) : (
@@ -5757,14 +5441,6 @@ function renderAddView() {
     + '<div class="section-sticky-label">5/5 \u00b7 Notes'+(isAiTier()?' & AI':'')+'</div>'
     + '<div style="display:flex;flex-direction:column;gap:16px;">'
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
-    + (isAiTier() ? (
-        '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
-        + '<div class="row between" style="margin-bottom:2px;"><label class="field-label" style="margin-bottom:0;">'+ic('sparkle')+' AI Quick-Fill</label>'+micButtonHtml('ap-ai-fill-input')+'</div>'
-        + '<p style="font-size:11px;color:var(--muted);margin:2px 0 8px;">Dictate or paste anything about the patient \u2014 AI fills the fields above from it. Separate from Notes.</p>'
-        + '<textarea class="textarea" id="ap-ai-fill-input" rows="3" placeholder="e.g. 45 year old female, right knee pain for 6 months, worse on stairs, primary OA...">'+esc(AP_AI_FILL_TEXT)+'</textarea>'
-        + '<div style="margin-top:8px;">'+aiButtonHtml('ai-fill-from-notes','AI: Fill all fields from this',false,null,'gemini')+'</div><div id="ai-fill-status" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>'
-        + '</div>'
-      ) : '')
     + (isAiTier() ? (
         '<div>'
         + aiButtonHtml('ai-sanity-check','AI: Check for mismatches before saving',true,null,'claude')
@@ -5893,9 +5569,7 @@ function renderOverviewTab(p) {
         + '</div>' : '')
     + '</div>';
 
-  let clinicalBody = comorbidityCardHtml(p)
-    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
-    + (isSurgical ? '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">'+OP_NOTE_TEMPLATES.map(([n]) => '<button type="button" class="chip" data-action="insert-op-template" data-value="'+esc(n)+'">'+ic('printer')+' '+esc(n)+'</button>').join('')+'</div>' : '')
+  let clinicalBody = '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
     + '<textarea class="textarea" id="ov-notes" rows="5" maxlength="5000" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
     + (p.condition ? '<div style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></div>'
         : (!isSurgical ? (OV_SHOW_TRACKING_PICK
@@ -5903,14 +5577,8 @@ function renderOverviewTab(p) {
             : '<button class="chip" data-action="ov-show-tracking-pick">'+ic('plus')+' Track a condition</button>') : ''));
 
   let trackingBody = ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
-    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '')
-    + romTrendCardHtml(p)
-    + (shouldShowBmi(p) ? bmiCardHtml(p) : '')
-    + (p.surgeryType === 'Arthroplasty' ? pjiCardHtml(p) : '')
-    + (shouldShowRickets(p) ? ricketsCardHtml(p) : '')
-    + (shouldShowKocher(p) ? kocherCardHtml(p) : '')
-    + (shouldShowPedsDose(p) ? pedsDoseCardHtml(p) : '');
-  const hasTracking = !!(((p.surgeryType === 'Trauma' || p.condition === 'trauma')) || p.romTracking || shouldShowBmi(p) || p.surgeryType === 'Arthroplasty' || shouldShowRickets(p) || shouldShowKocher(p) || shouldShowPedsDose(p));
+    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '');
+  const hasTracking = !!(((p.surgeryType === 'Trauma' || p.condition === 'trauma')));
 
   let communicateBody = '<div class="card">'
     + '<label class="field-label">WhatsApp number</label>'
@@ -5925,7 +5593,7 @@ function renderOverviewTab(p) {
         + '</div>' : '')
     + '</div>';
 
-  let usefulBody = tagsCardHtml(p) + reminderMiniCardHtml(p);
+  let usefulBody = reminderMiniCardHtml(p);
 
   // ---- Compact read-only summary (default view), redesigned to match a multi-column dashboard card layout ----
   const regionsSpecLine = (p.regions||[]).length ? (p.regions||[]).join(', ') : '';
@@ -6002,8 +5670,6 @@ function renderOverviewTab(p) {
     + '<div class="row" style="justify-content:flex-end;gap:8px;">'
     + '<button class="icon-btn" data-action="open-export-summary" title="Export / Share Case Summary">'+ic('printer')+'</button>'
     + '<button class="icon-btn" data-action="download-case-zip" data-id="'+p.id+'" title="Download all photos + labs (zip)">'+ic('download')+'</button>'
-    + '<button class="icon-btn" data-action="duplicate-case" title="Duplicate Case">'+ic('copy')+'</button>'
-    + '<button class="icon-btn'+(p.pinned?' active':'')+'" style="'+(p.pinned?'color:var(--accent);':'')+'" data-action="toggle-pin" title="'+(p.pinned?'Unpin case':'Pin as important')+'">'+ic('pin')+'</button>'
     + '<button class="icon-btn'+(p.researchFlag?' active':'')+'" style="'+(p.researchFlag?'color:#b45309;':'')+'" data-action="toggle-research-flag" data-id="'+p.id+'" title="'+(p.researchFlag?'Remove from research cases':'Flag as interesting case (for paper / study)')+'">'+ic('bookmark')+'</button>'
     + '</div>'
     + (p.researchFlag ? '<div class="row" style="gap:6px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:var(--amber-bg);border:1px solid var(--amber-border);"><span style="color:#b45309;flex-shrink:0;margin-top:1px;">'+ic('bookmark')+'</span><p style="font-size:12px;color:#92400e;margin:0;flex:1;"><strong>Research case</strong>'+(p.researchNote?' \u2014 '+esc(p.researchNote):'')+'</p></div>' : '')
@@ -6040,18 +5706,12 @@ function renderOverviewTab(p) {
     + '</div>';
 }
 
-let AI_TAG_SUGGESTIONS = null;
 let AI_QUERY_ANSWER = null;
 let AI_QUERY_TEXT = '';
 let AI_INVESTIGATION_SUGGESTIONS = null;
 let AI_EXAM_SUGGESTIONS = null;
 let AI_PATIENT_SUMMARY = null;
-let AI_PATIENT_EXPLANATION = null;
-let OV_SOAP_DICTATE_TEXT = '';
-let AI_HOME_CARE_INSTRUCTIONS = null;
-let AI_PATIENT_WHATSAPP_MESSAGE = null;
 let PATIENT_AI_TOOL_OPEN = null;
-let AI_FITNESS_CERT = null;
 let AI_REFERRAL_LETTER = null;
 let AI_REFERRAL_SPECIALIST = '';
 let AI_REFERRAL_REASON = '';
@@ -6061,39 +5721,8 @@ let MASTER_VOICE_STATE = 'idle'; // idle | listening | thinking | confirming
 let MASTER_VOICE_TRANSCRIPT = '';
 let MASTER_VOICE_RESULT = null;
 let MASTER_VOICE_EDITING = false;
-let AI_KNOWLEDGE_LEVEL = 'colleague';
-let AI_KNOWLEDGE_QUESTION = '';
-let AI_KNOWLEDGE_ANSWER = null;
 let AI_ASSISTANT_QUESTION = '';
 let AI_ASSISTANT_ANSWER = null;
-function tagsCardHtml(p) {
-  const tags = p.tags || [];
-  const recentCustomTags = topTextChips(TAG_LIB_KEY, 6).map(x=>x.value).filter(t => !PRESET_TAGS.includes(t) && !tags.includes(t));
-  return '<div class="card">'
-    + '<label class="field-label">'+ic('tag')+' Tags</label>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:'+(tags.length?'10px':'0')+';">'
-    + tags.map(t => '<span class="tag-chip active">'+esc(t)+'<button type="button" class="tag-chip-x" data-action="remove-tag" data-value="'+esc(t)+'" style="background:none;border:none;color:#fff;padding:0;cursor:pointer;">'+ic('x')+'</button></span>').join('')
-    + '</div>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
-    + PRESET_TAGS.filter(t => !tags.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
-    + recentCustomTags.map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
-    + '</div>'
-    + '<div class="row gap2"><input class="input" id="custom-tag-input" placeholder="Type a custom tag\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-tag">Add</button></div>'
-    + autocompleteBoxHtml('custom-tag-input')
-    + (isAiTier() ? (
-        '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
-        + (AI_TAG_SUGGESTIONS === null
-            ? aiButtonHtml('ai-suggest-tags','AI: Suggest tags',false,null,'gemini')
-            : (AI_TAG_SUGGESTIONS.length
-                ? '<label class="field-label" style="margin-bottom:4px;">Suggested</label><div style="display:flex;flex-wrap:wrap;gap:6px;">'
-                  + AI_TAG_SUGGESTIONS.filter(t => !tags.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-tag" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
-                  + '</div>'
-                : '<p style="font-size:11px;color:var(--muted);margin:0;">No suggestions \u2014 add diagnosis/notes first.</p>'))
-        + '</div>'
-      ) : '')
-    + '</div>';
-}
-
 function hasRealSurgicalData(p) {
   return !!(p.procedure && p.procedure.trim()) || (p.preOpImageCount > 0) || !!(p.insuranceType && p.insuranceType.trim()) || !!p.paymentMethod;
 }
@@ -6110,312 +5739,13 @@ function convertToOpdButtonHtml(p) {
   return '<button class="btn btn-sm" style="background:transparent;color:var(--accent-dark);font-weight:700;" data-action="arm-delete" data-arm="convert-to-opd:'+p.id+'">'+ic('back')+' Convert to OPD</button>';
 }
 
-function comorbidityCardHtml(p) {
-  const list = p.comorbidities || [];
-  return '<div class="card">'
-    + '<label class="field-label">'+ic('heart')+' Co-morbidities</label>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:'+(list.length?'10px':'0')+';">'
-    + list.map(t => '<span class="tag-chip active" style="background:var(--red);border-color:var(--red);">'+esc(t)+'<button type="button" class="tag-chip-x" data-action="remove-comorbidity" data-value="'+esc(t)+'" style="background:none;border:none;color:#fff;padding:0;cursor:pointer;">'+ic('x')+'</button></span>').join('')
-    + '</div>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
-    + PRESET_COMORBIDITIES.filter(t => !list.includes(t)).map(t => '<button type="button" class="tag-chip" data-action="add-comorbidity" data-value="'+esc(t)+'">+ '+esc(t)+'</button>').join('')
-    + '</div>'
-    + '<div class="row gap2"><input class="input" id="custom-comorbidity-input" placeholder="Type another co-morbidity\u2026" style="flex:1;"><button class="btn btn-sm" data-action="add-custom-comorbidity">Add</button></div>'
-    + '</div>';
-}
-
-function isAnkleFractureCase(p) {
-  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
-  return /malleol|ankle fracture|weber|maisonneuve/.test(text);
-}
-function isPediatricPhysealCase(p) {
-  const age = parseFloat(p.age);
-  return (p.surgeryType === 'Trauma' || p.condition === 'trauma') && !isNaN(age) && age > 0 && age < 16;
-}
-function isFemoralNeckCase(p) {
-  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
-  return /femoral neck|neck of femur|\bnof\b/.test(text);
-}
-function isProximalHumerusCase(p) {
-  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
-  return /proximal humerus/.test(text) || (/humerus/.test(text) && (p.regions||[]).includes('Upper Limb') && !/shaft/.test(text));
-}
-function isTibialPlateauCase(p) {
-  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
-  return /tibial plateau|plateau fracture/.test(text);
-}
-function isCalcanealCase(p) {
-  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
-  return /calcane/.test(text);
-}
-/* Only surface classification systems actually relevant to this case, instead of all 10 \u2014
-   falls back to showing everything if nothing matches (e.g. diagnosis not detailed yet). */
-function relevantClassificationSystems(p) {
-  const checks = [
-    ['Garden', isFemoralNeckCase(p)], ['Pauwels', isFemoralNeckCase(p)],
-    ['Weber', isAnkleFractureCase(p)], ['Lauge-Hansen', isAnkleFractureCase(p)],
-    ['Neer', isProximalHumerusCase(p)], ['Schatzker', isTibialPlateauCase(p)],
-    ['Salter-Harris', isPediatricPhysealCase(p)], ['Gustilo-Anderson', !!p.isOpenFracture],
-    ['Sanders', isCalcanealCase(p)],
-  ];
-  const relevant = ['AO/OTA'].concat(checks.filter(([,cond]) => cond).map(([s]) => s));
-  return relevant.length > 1 ? relevant : CLASSIFICATION_SYSTEMS;
-}
 function classificationCardHtml(p) {
   return '<div class="card">'
     + '<label class="field-label">'+ic('tag')+' Fracture Classification <span style="color:var(--muted);font-weight:500;">(optional)</span></label>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
-    + relevantClassificationSystems(p).map(s => '<button type="button" class="tag-chip" data-action="classification-insert-system" data-value="'+esc(s)+'">'+esc(s)+'</button>').join('')
-    + '</div>'
     + '<input class="input" data-field="classification" placeholder="e.g. AO 31-A1, Garden III, Weber B" value="'+esc(p.classification||'')+'">'
-    + '<div class="row between" style="margin-top:12px;"><span style="font-size:12px;font-weight:700;">Open fracture?</span><div class="seg" style="width:auto;">'
-    + [['no','No'],['yes','Yes']].map(([v,l])=>'<button class="seg-btn'+(((p.isOpenFracture?'yes':'no')===v)?' active':'')+'" data-action="set-open-fracture" data-value="'+v+'" style="padding:6px 14px;">'+l+'</button>').join('')
-    + '</div></div>'
-    + (p.isOpenFracture ? gustiloSectionHtml(p) : '')
-    + (isAnkleFractureCase(p) ? laugeHansenSectionHtml(p) : '')
-    + (isPediatricPhysealCase(p) ? salterHarrisSectionHtml(p) : '')
-    + (isFemoralNeckCase(p) ? gardenSectionHtml(p) : '')
-    + (isProximalHumerusCase(p) ? neerSectionHtml(p) : '')
-    + (isTibialPlateauCase(p) ? schatzkerSectionHtml(p) : '')
-    + (isCalcanealCase(p) ? sandersSectionHtml(p) : '')
     + '</div>';
 }
 
-function gustiloSectionHtml(p) {
-  if (!GUSTILO_OPEN) {
-    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-gustilo">'+ic('tag')+' Gustilo-Anderson Assistant</button>';
-  }
-  const a = GUSTILO_ANSWERS;
-  const result = gustiloCompute(a);
-  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
-    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="gustilo-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
-    + '</div></div>';
-  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
-    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Gustilo-Anderson Assistant</label><button class="icon-btn" data-action="close-gustilo">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">Based on the standard Gustilo-Anderson criteria. Often finalised intra-operatively after debridement \u2014 treat this as a working estimate from ER/clinical findings.</p>'
-    + q('woundSize', 'Wound size', [['<1','< 1 cm'],['1-10','1\u201310 cm'],['>10','> 10 cm']])
-    + q('mechanism', 'Mechanism / energy', [['low','Low energy'],['high','High energy (crush, farm, GSW, segmental)']])
-    + q('softTissue', 'Soft tissue damage', [['minimal','Minimal'],['moderate','Moderate'],['extensive','Extensive / loss']])
-    + q('periosteal', 'Periosteal stripping / bone exposure', [['none','None'],['some','Some'],['extensive','Extensive, needs flap']])
-    + q('vascular', 'Vascular injury needing repair', [['no','No'],['yes','Yes']])
-    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Gustilo '+result.type+'</span></div>'
-        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
-        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="gustilo-insert" data-value="Gustilo-Anderson Type '+result.type+'">Insert into Classification</button>'
-      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer all questions to see the suggested type.</p>')
-    + '</div>';
-}
-
-function gustiloCompute(a) {
-  if (!a.woundSize || !a.mechanism || !a.softTissue || !a.periosteal || !a.vascular) return null;
-  if (a.vascular === 'yes') return { type: 'IIIC', note: 'Open fracture with an arterial injury requiring repair \u2014 Type IIIC regardless of wound size or soft tissue damage.' };
-  const highEnergy = a.mechanism === 'high' || a.woundSize === '>10' || a.periosteal === 'extensive' || a.softTissue === 'extensive';
-  if (highEnergy) {
-    if (a.periosteal === 'extensive' || a.softTissue === 'extensive') return { type: 'IIIB', note: 'Extensive soft tissue loss with periosteal stripping / bone exposure \u2014 usually needs a soft tissue coverage procedure (flap).' };
-    return { type: 'IIIA', note: 'High-energy injury or extensive wound, but adequate soft tissue coverage of the fracture is still possible.' };
-  }
-  if (a.woundSize === '1-10' || a.softTissue === 'moderate') return { type: 'II', note: 'Wound 1\u201310 cm with moderate soft tissue damage and minimal periosteal stripping.' };
-  return { type: 'I', note: 'Wound < 1 cm, clean, minimal soft tissue damage, simple fracture pattern.' };
-}
-
-function weberFromFibulaLevel(level) {
-  if (level === 'below') return 'A';
-  if (level === 'at') return 'B';
-  if (level === 'above-short' || level === 'high') return 'C';
-  return null;
-}
-function laugeHansenSectionHtml(p) {
-  if (!LAUGE_HANSEN_OPEN) {
-    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-lauge-hansen">'+ic('tag')+' Lauge-Hansen / Weber Assistant</button>';
-  }
-  const a = LAUGE_HANSEN_ANSWERS;
-  const result = laugeHansenCompute(a);
-  const weber = weberFromFibulaLevel(a.fibulaLevel);
-  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
-    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="lauge-hansen-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
-    + '</div></div>';
-  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
-    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Lauge-Hansen / Weber Assistant</label><button class="icon-btn" data-action="close-lauge-hansen">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">Based on fibula fracture level and medial/posterior involvement on X-ray. A working estimate \u2014 correlate clinically.</p>'
-    + q('fibulaLevel', 'Fibula fracture level', [['below','Below the joint line'],['at','At the joint line (spiral/oblique)'],['above-short','Just above, short segment'],['high','Well above (high fibula)']])
-    + q('medial', 'Medial malleolus / deltoid ligament', [['intact','Intact'],['fractured','Medial malleolus fractured'],['deltoid','Deltoid ligament torn']])
-    + q('posterior', 'Posterior malleolus fractured?', [['no','No'],['yes','Yes']])
-    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested pattern</span><span class="mono">'+result.pattern+' \u2014 Stage '+result.stage+'</span></div>'
-        + (weber ? '<div class="scorer-total" style="margin-top:6px;"><span>Weber (from fibula level)</span><span class="mono">Type '+weber+'</span></div>' : '')
-        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
-        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="lauge-hansen-insert" data-value="'+esc(result.pattern+' Stage '+result.stage+(weber?' / Weber '+weber:''))+'">Insert into Classification</button>'
-      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the fibula level and medial-side questions to see the suggested pattern.</p>')
-    + '</div>';
-}
-function laugeHansenCompute(a) {
-  if (!a.fibulaLevel || !a.medial) return null;
-  const posteriorInvolved = a.posterior === 'yes';
-  if (a.fibulaLevel === 'below') {
-    if (a.medial === 'intact') return { pattern: 'Supination-Adduction (SA)', stage: 'I', note: 'Transverse fibula fracture (often avulsion-type) below the joint line, medial side intact.' };
-    return { pattern: 'Supination-Adduction (SA)', stage: 'II', note: 'Fibula fracture below the joint line plus a medial malleolus fracture (often near-vertical) or deep deltoid injury.' };
-  }
-  if (a.fibulaLevel === 'at') {
-    if (a.medial !== 'intact') return { pattern: 'Supination-External Rotation (SER)', stage: 'IV', note: 'Classic spiral/oblique fibula fracture at the joint line, plus medial malleolus fracture or deltoid ligament injury \u2014 the full unstable pattern.' };
-    if (posteriorInvolved) return { pattern: 'Supination-External Rotation (SER)', stage: 'III', note: 'Spiral/oblique fibula fracture at the joint line with a posterior malleolus fragment; medial side intact so far.' };
-    return { pattern: 'Supination-External Rotation (SER)', stage: 'II', note: 'The most common ankle fracture pattern \u2014 spiral/oblique fibula fracture at the joint line, medial and posterior structures intact.' };
-  }
-  if (a.fibulaLevel === 'above-short') {
-    return { pattern: 'Pronation-Abduction (PA)', stage: 'III', note: 'Short oblique or comminuted ("butterfly") fibula fracture just above the joint line, with medial malleolus/deltoid injury \u2014 implies the syndesmosis is disrupted too.' };
-  }
-  if (a.fibulaLevel === 'high') {
-    if (posteriorInvolved) return { pattern: 'Pronation-External Rotation (PER)', stage: 'IV', note: 'High spiral fibula fracture (consider Maisonneuve \u2014 examine the proximal fibula/knee) with posterior malleolus involvement.' };
-    return { pattern: 'Pronation-External Rotation (PER)', stage: 'III', note: 'High spiral fibula fracture (consider Maisonneuve \u2014 examine the proximal fibula/knee), with medial malleolus/deltoid injury.' };
-  }
-  return null;
-}
-
-function salterHarrisSectionHtml(p) {
-  if (!SALTER_HARRIS_OPEN) {
-    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-salter-harris">'+ic('tag')+' Salter-Harris Assistant</button>';
-  }
-  const a = SALTER_HARRIS_ANSWERS;
-  const result = salterHarrisCompute(a);
-  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
-    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="salter-harris-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
-    + '</div></div>';
-  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
-    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Salter-Harris Assistant</label><button class="icon-btn" data-action="close-salter-harris">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">For a paediatric fracture involving the growth plate (physis). A working estimate \u2014 correlate with X-ray.</p>'
-    + q('crush', 'Crush/compression injury to the physis (no clear fracture line)?', [['no','No'],['yes','Yes']])
-    + (a.crush !== 'yes' ? q('metaphysis', 'Fracture line extends into the metaphysis?', [['no','No'],['yes','Yes']]) : '')
-    + (a.crush !== 'yes' ? q('epiphysis', 'Fracture line extends into the epiphysis (joint surface)?', [['no','No'],['yes','Yes']]) : '')
-    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Salter-Harris '+result.type+'</span></div>'
-        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
-        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="salter-harris-insert" data-value="Salter-Harris Type '+result.type+'">Insert into Classification</button>'
-      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the questions above to see the suggested type.</p>')
-    + '</div>';
-}
-function salterHarrisCompute(a) {
-  if (a.crush === 'yes') return { type: 'V', note: 'Compression injury to the physis with no clear fracture line \u2014 often only visible in retrospect when growth arrest appears. Highest risk of growth disturbance.' };
-  if (!a.metaphysis || !a.epiphysis) return null;
-  if (a.metaphysis === 'yes' && a.epiphysis === 'yes') return { type: 'IV', note: 'Fracture line crosses metaphysis, physis, and epiphysis \u2014 often needs anatomic reduction to prevent growth arrest.' };
-  if (a.epiphysis === 'yes') return { type: 'III', note: 'Fracture line through physis and epiphysis (intra-articular), metaphysis spared.' };
-  if (a.metaphysis === 'yes') return { type: 'II', note: 'Fracture line through physis and metaphysis \u2014 the most common type, generally good prognosis.' };
-  return { type: 'I', note: 'Fracture line through the physis only (pure separation) \u2014 metaphysis and epiphysis both spared.' };
-}
-
-function gardenSectionHtml(p) {
-  if (!GARDEN_OPEN) {
-    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-garden">'+ic('tag')+' Garden Assistant</button>';
-  }
-  const a = GARDEN_ANSWERS;
-  const result = gardenCompute(a);
-  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
-    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="garden-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
-    + '</div></div>';
-  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
-    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Garden Assistant</label><button class="icon-btn" data-action="close-garden">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">For a femoral neck fracture. A working estimate \u2014 correlate with X-ray trabecular alignment.</p>'
-    + q('complete', 'Fracture complete (through both cortices)?', [['no','Incomplete'],['yes','Complete']])
-    + (a.complete === 'yes' ? q('displaced', 'Displaced?', [['no','Undisplaced'],['yes','Displaced']]) : '')
-    + (a.complete === 'yes' && a.displaced === 'yes' ? q('extent', 'Extent of displacement', [['partial','Partial (trabeculae malaligned)'],['full','Complete (trabeculae align with acetabulum)']]) : '')
-    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Garden Type '+result.type+'</span></div>'
-        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
-        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="garden-insert" data-value="Garden Type '+result.type+'">Insert into Classification</button>'
-      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the questions above to see the suggested type.</p>')
-    + '</div>';
-}
-function gardenCompute(a) {
-  if (!a.complete) return null;
-  if (a.complete === 'no') return { type: 'I', note: 'Incomplete fracture, often valgus impacted \u2014 relatively stable.' };
-  if (!a.displaced) return null;
-  if (a.displaced === 'no') return { type: 'II', note: 'Complete fracture, undisplaced.' };
-  if (!a.extent) return null;
-  if (a.extent === 'partial') return { type: 'III', note: 'Complete and displaced, but trabeculae still malaligned rather than parallel to the acetabulum \u2014 some residual contact.' };
-  return { type: 'IV', note: 'Complete and fully displaced \u2014 trabeculae align with the acetabulum, fragments lie free. Highest AVN risk.' };
-}
-
-function neerSectionHtml(p) {
-  if (!NEER_OPEN) {
-    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-neer">'+ic('tag')+' Neer Assistant</button>';
-  }
-  const a = NEER_ANSWERS;
-  const result = neerCompute(a);
-  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
-    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Neer Assistant</label><button class="icon-btn" data-action="close-neer">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">For a proximal humerus fracture. A fragment counts as "displaced" if >1cm displaced or >45\u00b0 angulated.</p>'
-    + '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">How many of the 4 possible fragments (head, greater tuberosity, lesser tuberosity, shaft) are significantly displaced?</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
-    + ['0','1','2','3'].map(v=>'<button class="seg-btn" style="flex:none;padding:6px 14px;'+(a.displacedCount===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="neer-set" data-value="'+v+'">'+v+'</button>').join('')
-    + '</div></div>'
-    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Neer '+result.type+'</span></div>'
-        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
-        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="neer-insert" data-value="Neer '+result.type+'">Insert into Classification</button>'
-      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Select a count above to see the suggested type.</p>')
-    + '</div>';
-}
-function neerCompute(a) {
-  if (!a.displacedCount) return null;
-  const map = { '0': { type: '1-part', note: 'No fragment significantly displaced, regardless of the number of fracture lines \u2014 usually managed conservatively.' },
-    '1': { type: '2-part', note: 'One fragment significantly displaced relative to the rest.' },
-    '2': { type: '3-part', note: 'Two fragments significantly displaced \u2014 usually needs surgical fixation.' },
-    '3': { type: '4-part', note: 'Three fragments significantly displaced (all 4 parts separate) \u2014 highest AVN risk, often needs arthroplasty in the elderly.' } };
-  return map[a.displacedCount];
-}
-
-function schatzkerSectionHtml(p) {
-  if (!SCHATZKER_OPEN) {
-    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-schatzker">'+ic('tag')+' Schatzker Assistant</button>';
-  }
-  const a = SCHATZKER_ANSWERS;
-  const result = schatzkerCompute(a);
-  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
-    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="schatzker-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
-    + '</div></div>';
-  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
-    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Schatzker Assistant</label><button class="icon-btn" data-action="close-schatzker">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">For a tibial plateau fracture. A working estimate \u2014 correlate with X-ray/CT.</p>'
-    + q('dissociation', 'Metaphyseal-diaphyseal dissociation (plateau completely separated from the shaft)?', [['no','No'],['yes','Yes']])
-    + (a.dissociation !== 'yes' ? q('condyle', 'Which condyle(s) involved?', [['lateral','Lateral only'],['medial','Medial only'],['both','Both (bicondylar)']]) : '')
-    + (a.dissociation !== 'yes' && a.condyle === 'lateral' ? q('lateralType', 'Lateral plateau pattern', [['split','Split only'],['both','Split + depression'],['depression','Depression only']]) : '')
-    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Schatzker Type '+result.type+'</span></div>'
-        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
-        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="schatzker-insert" data-value="Schatzker Type '+result.type+'">Insert into Classification</button>'
-      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the questions above to see the suggested type.</p>')
-    + '</div>';
-}
-function schatzkerCompute(a) {
-  if (a.dissociation === 'yes') return { type: 'VI', note: 'Plateau fracture with complete metaphyseal-diaphyseal dissociation \u2014 usually high-energy, needs a spanning external fixator initially.' };
-  if (!a.condyle) return null;
-  if (a.condyle === 'both') return { type: 'V', note: 'Bicondylar fracture, but the metaphysis still continuous with the diaphysis.' };
-  if (a.condyle === 'medial') return { type: 'IV', note: 'Medial plateau fracture \u2014 higher-energy than it looks, watch for associated ligament/vascular injury.' };
-  if (!a.lateralType) return null;
-  if (a.lateralType === 'split') return { type: 'I', note: 'Pure lateral plateau split (wedge), no depression \u2014 usually younger patients, good bone quality.' };
-  if (a.lateralType === 'both') return { type: 'II', note: 'Lateral plateau split with depression \u2014 the most common type.' };
-  return { type: 'III', note: 'Pure lateral plateau depression, no split \u2014 usually lower-energy, older/osteoporotic bone.' };
-}
-
-function sandersSectionHtml(p) {
-  if (!SANDERS_OPEN) {
-    return '<button class="btn btn-block" style="margin-top:10px;" data-action="open-sanders">'+ic('tag')+' Sanders Assistant</button>';
-  }
-  const a = SANDERS_ANSWERS;
-  const result = sandersCompute(a);
-  const q = (key, label, options) => '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:4px;">'+label+'</label><div class="seg" style="flex-wrap:wrap;height:auto;">'
-    + options.map(([v,l])=>'<button class="seg-btn" style="flex:none;padding:6px 10px;'+(a[key]===v?'background:var(--accent);color:#fff;border-color:var(--accent);':'')+'" data-action="sanders-set" data-key="'+key+'" data-value="'+v+'">'+l+'</button>').join('')
-    + '</div></div>';
-  return '<div class="card" style="margin-top:10px;background:rgba(67,56,202,0.04);border-color:#c7d2fe;">'
-    + '<div class="row between"><label class="field-label" style="margin-bottom:0;">Sanders Assistant</label><button class="icon-btn" data-action="close-sanders">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 0;">CT-based, coronal cut through the posterior facet. Sub-types (A/B/C by fragment location) need direct CT correlation \u2014 this gives the working number.</p>'
-    + q('displaced', 'Posterior facet displaced on CT?', [['no','No'],['yes','Yes']])
-    + (a.displaced === 'yes' ? q('lines', 'Number of fracture lines through the posterior facet', [['1','1 line (2 fragments)'],['2','2 lines (3 fragments)'],['3','3+ lines (comminuted)']]) : '')
-    + (result ? '<div class="scorer-total" style="margin-top:12px;"><span>Suggested type</span><span class="mono">Sanders Type '+result.type+'</span></div>'
-        + '<p style="font-size:11px;color:#64748b;margin:6px 0 0;">'+result.note+'</p>'
-        + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="sanders-insert" data-value="Sanders Type '+result.type+'">Insert into Classification</button>'
-      : '<p style="font-size:11px;color:var(--muted);margin-top:10px;">Answer the questions above to see the suggested type.</p>')
-    + '</div>';
-}
-function sandersCompute(a) {
-  if (!a.displaced) return null;
-  if (a.displaced === 'no') return { type: 'I', note: 'Non-displaced posterior facet, regardless of the number of fracture lines \u2014 usually managed non-operatively.' };
-  if (!a.lines) return null;
-  if (a.lines === '1') return { type: 'II', note: 'One fracture line through the posterior facet (2 fragments) \u2014 sub-type A/B/C depends on the line\u2019s location, check CT directly.' };
-  if (a.lines === '2') return { type: 'III', note: 'Two fracture lines (3 fragments), often with a depressed central fragment.' };
-  return { type: 'IV', note: 'Comminuted posterior facet (4+ fragments) \u2014 worst prognosis, primary subtalar fusion sometimes considered.' };
-}
 
 function unionProgressCardHtml(p) {
   const tracked = [...(p.followUps||[])].filter(f => f.unionStatus && f.unionStatus !== 'Not assessed').sort((a,b) => new Date(a.date) - new Date(b.date));
@@ -6436,13 +5766,6 @@ function rustTotal(rust) {
   return vals.reduce((a,b) => a+b, 0);
 }
 
-const RUST_HELP_HTML = '<div class="help-box"><b>How to score:</b> On AP and lateral X-rays, score each of the 4 cortices (anterior, posterior, medial, lateral) from <b>1</b> to <b>4</b>:<br><br>'
-  + '<b>1</b> \u2014 No callus, fracture line visible<br>'
-  + '<b>2</b> \u2014 Callus present, fracture line still visible<br>'
-  + '<b>3</b> \u2014 Bridging callus, fracture line not visible<br>'
-  + '<b>4</b> \u2014 Remodelled, fully consolidated<br><br>'
-  + 'Total = sum of all 4 cortices (range 4\u201316). Published series commonly treat a score of \u2265 11 as suggestive of union \u2014 use it as a general reference point, not a fixed cutoff, and weigh the trend across serial films alongside clinical findings.</div>';
-
 function rustTrendCardHtml(p) {
   const tracked = [...(p.followUps||[])].filter(f => rustTotal(f.rust) !== null).sort((a,b) => new Date(a.date) - new Date(b.date));
   if (!tracked.length) return '';
@@ -6462,204 +5785,6 @@ function rustTrendCardHtml(p) {
     html += '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:140px;">'+grid+lines+'</svg>';
   } else {
     html += '<p style="font-size:11px;color:var(--muted);">Log RUST at another visit to see the trend.</p>';
-  }
-  html += '</div>';
-  return html;
-}
-
-/* ================= ROM tracking (Knee / Shoulder / Elbow, extensible) ================= */
-const ROM_JOINT_FIELDS = {
-  knee: [['flexion','Flexion','#4338ca'],['extension','Extension deficit','#dc2626']],
-  shoulder: [['forwardFlexion','Forward flexion','#4338ca'],['abduction','Abduction','#0891b2'],['externalRotation','External rotation','#16a34a'],['internalRotation','Internal rotation','#dc2626']],
-  elbow: [['flexion','Flexion','#4338ca'],['extension','Extension deficit','#dc2626']],
-};
-const ROM_JOINT_LABELS = { knee:'Knee', shoulder:'Shoulder', elbow:'Elbow' };
-
-/* ================= Rickets \u2014 diagnosis-triggered management reference ================= */
-function shouldShowRickets(p) {
-  return /rickets/i.test(p.diagnosis || '');
-}
-const RICKETS_HELP_HTML = '<div class="help-box">'
-  + '<b>Workup:</b> Serum Calcium, Phosphate, Alkaline Phosphatase (ALP), 25-OH Vitamin D, PTH; X-ray wrist/knee for rachitic changes (metaphyseal fraying, cupping, widening).<br><br>'
-  + '<b>Management (nutritional rickets):</b><br>'
-  + '\u2022 Vitamin D replacement \u2014 high-dose (stoss) or daily regimen depending on age/severity, per current national/IAP guidelines \u2014 individualise the exact dose.<br>'
-  + '\u2022 Elemental calcium supplementation alongside Vitamin D.<br>'
-  + '\u2022 Sunlight exposure and dietary counselling.<br><br>'
-  + '<b>Follow-up:</b> Repeat X-ray and biochemistry (Calcium, Phosphate, ALP) at ~4\u20136 weeks and again at 3 months \u2014 falling ALP and radiographic healing (re-mineralisation, reduced fraying/cupping) confirm response.<br><br>'
-  + '<p style="font-size:10px;color:var(--muted);margin:0;">General reference \u2014 confirm the exact Vitamin D dose/regimen against current national guidelines and individualise for the patient\u2019s age and severity.</p>'
-  + '</div>';
-function ricketsCardHtml(p) {
-  return '<div class="card"><label class="field-label">'+ic('clock')+' Rickets \u2014 management reference</label>'+RICKETS_HELP_HTML+'</div>';
-}
-
-/* ================= Pediatric weight-based dose calculator (OPD) ================= */
-function shouldShowPedsDose(p) {
-  return p.caseType === 'opd' && p.age !== '' && p.age != null && Number(p.age) < 18;
-}
-function pedsDoseCardHtml(p) {
-  const w = Number(p.weightKg);
-  let html = '<div class="card"><label class="field-label">'+ic('clock')+' Pediatric dose calculator</label>'
-    + '<div style="margin-bottom:10px;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Weight (kg)</label><input class="input" type="number" min="0" step="0.1" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>';
-  if (w) {
-    const rows = [
-      ['Paracetamol', (w*10).toFixed(0)+'\u2013'+(w*15).toFixed(0)+' mg/dose', 'PO, q4\u20136h, max 4 doses/day'],
-      ['Ibuprofen', (w*5).toFixed(0)+'\u2013'+(w*10).toFixed(0)+' mg/dose', 'PO, q6\u20138h, max 40 mg/kg/day \u2014 avoid if <3 months or <5 kg'],
-      ['Cefixime', (w*8).toFixed(0)+' mg/day', 'PO, once daily or divided BD, max 400 mg/day'],
-      ['Calcium (elemental)', (w*30).toFixed(0)+'\u2013'+(w*75).toFixed(0)+' mg/day', 'divided doses \u2014 wider range, dose depends on severity/indication'],
-    ];
-    html += '<div style="display:flex;flex-direction:column;gap:8px;">' + rows.map(([name,dose,note]) =>
-      '<div style="border-top:1px solid var(--border);padding-top:8px;"><div class="row between"><span style="font-weight:700;font-size:13px;">'+name+'</span><span class="mono" style="font-size:13px;">'+dose+'</span></div><div style="font-size:11px;color:var(--muted);margin-top:2px;">'+note+'</div></div>'
-    ).join('') + '</div>'
-    + '<p style="font-size:10px;color:var(--muted);margin-top:10px;">Standard reference dosing (syrup or tablet form, whichever applies) \u2014 verify against current formulary/BNF-C and individualise for the patient.</p>';
-  } else {
-    html += '<p style="font-size:11px;color:var(--muted);">Enter weight to calculate doses.</p>';
-  }
-  html += '</div>';
-  return html;
-}
-
-/* ================= Kocher\u2019s criteria \u2014 septic arthritis (hip) vs transient synovitis ================= */
-function shouldShowKocher(p) {
-  return /septic arthritis/i.test(p.diagnosis || '');
-}
-const KOCHER_CRITERIA = [
-  ['nonWeightBearing', 'Non-weight-bearing on affected side'],
-  ['esr40', 'ESR > 40 mm/hr'],
-  ['fever', 'Fever (temperature > 38.5\u00b0C)'],
-  ['wbc12k', 'WBC count > 12,000/mm\u00b3'],
-];
-const KOCHER_PROBABILITY = { 0: '< 0.2%', 1: '~3%', 2: '~40%', 3: '~93%', 4: '~99%' };
-function kocherCardHtml(p) {
-  const k = p.kocher || {};
-  const count = KOCHER_CRITERIA.filter(([key]) => k[key]).length;
-  let html = '<div class="card"><label class="field-label">'+ic('tag')+' Kocher\u2019s criteria (septic arthritis vs transient synovitis \u2014 hip)</label>'
-    + KOCHER_CRITERIA.map(([key,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12px;"><input type="checkbox" data-kocher-key="'+key+'"'+(k[key]?' checked':'')+'> '+label+'</label>').join('')
-    + '<div class="scorer-total" style="margin-top:10px;"><span>'+count+' of 4 predictors</span><span class="badge '+(count>=3?'badge-red':count>=2?'badge-amber':'badge-emerald')+'">Probability '+KOCHER_PROBABILITY[count]+'</span></div>'
-    + '<p style="font-size:10px;color:var(--muted);margin-top:8px;">Kocher et al. clinical prediction rule \u2014 an aid alongside clinical judgement, not a substitute for it.</p>'
-    + '</div>';
-  return html;
-}
-
-/* ================= PJI (MSIS 2011 criteria) \u2014 Arthroplasty only, manually toggled ================= */
-const MSIS_MAJOR = [
-  ['major1','Two positive periprosthetic cultures with phenotypically identical organisms'],
-  ['major2','A sinus tract communicating with the joint'],
-];
-const MSIS_MINOR = [
-  ['minor1','Elevated ESR and CRP'],
-  ['minor2','Elevated synovial fluid WBC count'],
-  ['minor3','Elevated synovial fluid PMN %'],
-  ['minor4','Positive histological analysis of periprosthetic tissue'],
-  ['minor5','A single positive culture'],
-  ['minor6','Purulence in the affected joint'],
-];
-function pjiResult(pji) {
-  if (!pji) return null;
-  const anyMajor = MSIS_MAJOR.some(([k]) => pji[k]);
-  if (anyMajor) return { label: 'PJI confirmed (major criterion met)', badge: 'badge-red' };
-  const minorCount = MSIS_MINOR.filter(([k]) => pji[k]).length;
-  if (minorCount >= 4) return { label: 'PJI confirmed ('+minorCount+'/6 minor criteria)', badge: 'badge-red' };
-  if (minorCount >= 2) return { label: 'Possible PJI ('+minorCount+'/6 minor criteria)', badge: 'badge-amber' };
-  return { label: 'PJI unlikely ('+minorCount+'/6 minor criteria)', badge: 'badge-emerald' };
-}
-function pjiCardHtml(p) {
-  let html = '<div class="card"><label class="field-label">'+ic('tag')+' PJI (periprosthetic joint infection)</label>'
-    + '<div class="row between"><span style="font-size:12px;color:var(--muted);">Suspected?</span><div class="seg" style="width:auto;">'
-    + [['no','No'],['yes','Yes']].map(([v,l])=>'<button class="seg-btn'+(((p.pjiSuspected?'yes':'no')===v)?' active':'')+'" data-action="set-pji-suspected" data-value="'+v+'" style="padding:6px 14px;">'+l+'</button>').join('')
-    + '</div></div>';
-  if (p.pjiSuspected) {
-    const pji = p.pji || {};
-    const result = pjiResult(pji);
-    html += '<p style="font-size:11px;color:var(--muted);margin:10px 0 6px;font-weight:700;text-transform:uppercase;">Major criteria (either one confirms PJI)</p>'
-      + MSIS_MAJOR.map(([k,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12px;"><input type="checkbox" data-pji-key="'+k+'"'+(pji[k]?' checked':'')+'> '+label+'</label>').join('')
-      + '<p style="font-size:11px;color:var(--muted);margin:10px 0 6px;font-weight:700;text-transform:uppercase;">Minor criteria (\u22654 of 6, if no major met)</p>'
-      + MSIS_MINOR.map(([k,label]) => '<label class="row gap2" style="padding:5px 0;font-size:12px;"><input type="checkbox" data-pji-key="'+k+'"'+(pji[k]?' checked':'')+'> '+label+'</label>').join('')
-      + (result ? '<div class="scorer-total" style="margin-top:10px;"><span>Result</span><span class="badge '+result.badge+'">'+result.label+'</span></div>' : '');
-  }
-  html += '</div>';
-  return html;
-}
-
-/* ================= BMI calculator (Arthroplasty / Knee OA) ================= */
-function bmiClassify(bmi) {
-  if (bmi < 18.5) return { label: 'Underweight', badge: 'badge-slate' };
-  if (bmi < 23) return { label: 'Normal', badge: 'badge-emerald' };
-  if (bmi < 25) return { label: 'Overweight', badge: 'badge-amber' };
-  if (bmi < 30) return { label: 'Obese I', badge: 'badge-orange' };
-  return { label: 'Obese II', badge: 'badge-red' };
-}
-function shouldShowBmi(p) {
-  const text = ((p.diagnosis||'') + ' ' + (p.procedure||'')).toLowerCase();
-  return p.surgeryType === 'Arthroplasty' || /\boa\b|osteoarthritis/.test(text);
-}
-function bmiCardHtml(p) {
-  const h = Number(p.heightCm), w = Number(p.weightKg);
-  const bmi = (h && w) ? (w / ((h/100)*(h/100))) : null;
-  const cat = bmi ? bmiClassify(bmi) : null;
-  return '<div class="card">'
-    + '<label class="field-label">'+ic('clock')+' BMI</label>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">'
-    + '<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Height (cm)</label><input class="input" type="number" min="0" data-field="heightCm" value="'+esc(p.heightCm)+'"></div>'
-    + '<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Weight (kg)</label><input class="input" type="number" min="0" data-field="weightKg" value="'+esc(p.weightKg)+'"></div>'
-    + '</div>'
-    + (bmi ? ('<div class="scorer-total"><span>BMI</span><span class="mono">'+bmi.toFixed(1)+' \u00b7 <span class="badge '+cat.badge+'" style="font-size:10px;">'+cat.label+'</span></span></div>'
-        + (cat.label==='Overweight' || cat.label==='Obese I' || cat.label==='Obese II' ? '<p style="font-size:11px;color:var(--muted);margin-top:8px;">Higher BMI is a well-documented risk factor for wound complications, infection, and prosthesis loosening after arthroplasty. Pre-operative optimisation (weight, glycaemic control, nutrition) is commonly advised \u2014 individualise based on the full clinical picture.</p>' : ''))
-      : '<p style="font-size:11px;color:var(--muted);">Enter height and weight to calculate BMI (Asian-Pacific classification).</p>')
-    + '</div>';
-}
-
-let ROM_LOG_OPEN = false;
-let ROM_LOG_TEMP = null;
-function romTrendCardHtml(p) {
-  if (!p.romTracking) {
-    return '<div class="card"><label class="field-label">'+ic('clock')+' ROM tracking</label>'
-      + '<p style="font-size:11px;color:var(--muted);margin:2px 0 10px;">Track range of motion over follow-ups \u2014 useful for TKR, frozen shoulder, elbow stiffness, or any joint where progress needs watching.</p>'
-      + '<div class="row gap2">'
-      + Object.keys(ROM_JOINT_FIELDS).map(j => '<button class="btn" style="flex:1;" data-action="enable-rom" data-value="'+j+'">'+ROM_JOINT_LABELS[j]+'</button>').join('')
-      + '</div></div>';
-  }
-  const joint = p.romTracking.jointType;
-  const fields = ROM_JOINT_FIELDS[joint] || ROM_JOINT_FIELDS.knee;
-  const readings = (p.romTracking.readings || []).slice();
-  const fromFollowUps = (p.followUps||[]).filter(f => f.rom && fields.some(([k])=>f.rom[k]!=null && f.rom[k]!=='')).map(f => ({ id:'fu-'+f.id, date: f.date, values: f.rom, fromFollowUp: true }));
-  const tracked = readings.concat(fromFollowUps).sort((a,b) => new Date(a.date) - new Date(b.date));
-  let html = '<div class="card">'
-    + '<div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">'+ic('clock')+' '+ROM_JOINT_LABELS[joint]+' ROM trend</label>'
-    + '<button class="icon-btn" style="width:26px;height:26px;" title="Stop ROM tracking" data-action="disable-rom">'+ic('x')+'</button></div>';
-  if (tracked.length > 1) {
-    const w=300,h=150,padL=26,padR=8,padT=10,padB=20, plotW=w-padL-padR, plotH=h-padT-padB, n=tracked.length;
-    const xFor = i => padL + (n===1?plotW/2:(i/(n-1))*plotW);
-    const yFor = deg => padT + (1 - Math.max(0,Math.min(150,deg))/150) * plotH;
-    let grid = '';
-    [0,50,100,150].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+v+'</text>'; });
-    let lines = '';
-    fields.forEach(([key,,color]) => {
-      const pts = []; tracked.forEach((r,i) => { const v = r.values && r.values[key]; if (v!=null && v!=='') pts.push(xFor(i)+','+yFor(Number(v))); });
-      if (pts.length) { lines += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+color+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
-        tracked.forEach((r,i) => { const v = r.values && r.values[key]; if (v!=null && v!=='') lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(Number(v))+'" r="3" fill="'+color+'"/>'; }); }
-    });
-    html += '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:150px;">'+grid+lines+'</svg>'
-      + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;">'
-      + fields.map(([,label,color]) => '<span style="font-size:10px;color:#64748b;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+color+';margin-right:3px;"></span>'+label+'</span>').join('')
-      + '</div>';
-  } else {
-    html += '<p style="font-size:11px;color:var(--muted);margin:0 0 8px;">Log a reading to start the trend.</p>';
-  }
-  if (!ROM_LOG_OPEN) {
-    html += '<button class="btn btn-sm btn-block" style="margin-top:10px;" data-action="rom-open-log">'+ic('plus')+' Log ROM for today</button>';
-  } else {
-    html += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);">'
-      + '<label class="field-label">Date</label><input class="input" type="date" id="rom-log-date" value="'+esc(ROM_LOG_TEMP.date)+'" style="margin-bottom:8px;">'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-      + fields.map(([k,l])=>'<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">'+l+'</label><input class="input" type="number" min="0" max="150" id="rom-log-'+k+'" placeholder="\u00b0"></div>').join('')
-      + '</div>'
-      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="rom-cancel-log">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="rom-submit-log">Save reading</button></div>'
-      + '</div>';
-  }
-  if (readings.length) {
-    html += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);display:flex;flex-direction:column;gap:6px;">'
-      + [...readings].reverse().map(r => '<div class="row between" style="font-size:11.5px;"><span>'+fmtDateShort(r.date)+' \u2014 '+fields.map(([k,l])=>(r.values[k]!=null&&r.values[k]!==''?l+' '+r.values[k]+'\u00b0':null)).filter(Boolean).join(', ')+'</span>'+confirmBtn('rom-delete-reading', r.id)+'</div>').join('')
-      + '</div>';
   }
   html += '</div>';
   return html;
@@ -6803,7 +5928,6 @@ async function renderImagesRecordsTab(p) {
     body += imageBucketCardHtml('Videos', allImages.filter(im=>im.imageCategory==='video'), 'video', null, false);
   }
   if (allImages.length) body += '<button class="btn btn-block" style="margin-bottom:14px;" data-action="set-tab" data-value="photos">'+ic('folder')+' All Photos (organized)</button>';
-  if (allImages.length >= 2) body += '<button class="btn btn-block" style="margin-bottom:14px;" data-action="open-compare-picker">'+ic('clock')+' Compare Before / After</button>';
   body += '</div>';
   return segHtml + body;
 }
@@ -6862,22 +5986,10 @@ function renderSmartFollowupFormLayer2(p) {
   if (p.surgeryType === 'Trauma' || p.condition === 'trauma') {
     html += '<div class="row" style="margin-bottom:2px;">'
       + '<label class="field-label" style="margin-bottom:0;">Union Status</label>'
-      + '<button type="button" class="info-help-btn" style="margin-left:6px;" data-action="toggle-rust-help" title="RUST scoring reference">i</button>'
       + '</div>'
       + '<select class="select" id="fu-unionstatus" style="margin-bottom:4px;">'
       + UNION_STATUS_OPTIONS.map(s => '<option' + (s==='Not assessed' ? ' selected' : '') + '>' + s + '</option>').join('')
-      + '</select>'
-      + '<div id="rust-help-box" style="margin-bottom:10px;">' + (SHOW_RUST_HELP ? RUST_HELP_HTML : '') + '</div>';
-  }
-  
-  if (p.romTracking) {
-    html += '<label class="field-label">' + ROM_JOINT_LABELS[p.romTracking.jointType] + ' ROM (degrees)</label>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-      + (ROM_JOINT_FIELDS[p.romTracking.jointType]||[]).map(([k,l]) => 
-          '<div><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">'+l+'</label>'
-          + '<input class="input" type="number" min="0" max="150" id="fu-rom-'+k+'" placeholder="°"></div>'
-        ).join('')
-      + '</div>';
+      + '</select>';
   }
   
   html += '</div>';
@@ -6910,19 +6022,7 @@ function renderSmartFollowupFormLayer3(p) {
     + '</div>'
     + '</details>';
   
-  if (isAiTier()) {
-    html += '<details style="margin-bottom:14px;">'
-      + '<summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;padding:8px;border-radius:4px;background:rgba(67,56,202,0.03);border:1px solid #c7d2fe;">'
-      + '<span>✨ AI Help (Optional)</span>'
-      + '</summary>'
-      + '<div style="padding:12px;margin-top:8px;background:rgba(67,56,202,0.03);border-radius:4px;">'
-      + '<label class="field-label" style="font-size:12px;">Quick-fill from description</label>'
-      + '<textarea class="textarea" id="fu-ai-fill-input" rows="2" placeholder="e.g. wound clean, rom improving 60°, swelling mild..." style="margin-bottom:8px;"></textarea>'
-      + '<div style="margin-bottom:10px;">'+aiButtonHtml('fu-ai-fill','AI: Extract & Fill',false,null,'gemini')+'</div>'
-      + '<div id="fu-ai-fill-status" style="font-size:11px;color:var(--muted);margin:0;"></div>'
-      + '</div>'
-      + '</details>';
-  }
+
   
   html += '</div>';
   return html;
@@ -7104,7 +6204,7 @@ async function renderInvestigationsTab(p) {
       + '</div>';
   });
 
-  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+investigationTrendGraphsHtml(p)+ocrLabScanButtonHtml()+addBlock+list+'</div>';
+  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+investigationTrendGraphsHtml(p)+addBlock+list+'</div>';
 }
 
 function initRxTemp(prefillFollowUpDate) {
@@ -7267,32 +6367,6 @@ function caseSummaryWaLink(p) {
   return 'https://wa.me/' + toWaNumber(p.whatsapp) + '?text=' + encodeURIComponent(text); 
 }
 function caseSummaryEmailLink(p) { return 'mailto:?subject=' + encodeURIComponent('Case Summary \u2014 ' + p.name) + '&body=' + encodeURIComponent(caseSummaryText(p)); }
-function renderFitnessCertPrintView() {
-  if (!PRINT_FITNESS_CERT) { VIEW = 'list'; return renderListView(); }
-  const { patient: p, text } = PRINT_FITNESS_CERT;
-  const profile = loadProfile();
-  return '<div class="no-print sticky-top row between px" style="padding:14px 16px;background:#fff;border-bottom:1px solid var(--border);z-index:5;gap:8px;">'
-    + '<button class="icon-btn" data-action="close-print-fitness">'+ic('back')+'</button>'
-    + '<button class="btn btn-primary" data-action="do-print">'+ic('printer')+' Print / PDF</button>'
-    + '</div>'
-    + (!profileIsComplete(profile) ? '<div class="no-print px cspine-alert" style="margin:10px 16px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
-    + '<div class="rx-sheet">'
-    + '<div class="rx-letterhead">'
-    + '<div><div class="rx-clinic-name">'+esc(profile.clinicName||'\u2014')+'</div>'
-    + '<div class="rx-clinic-addr">'+esc(profile.clinicAddress||'').replace(/\n/g,'<br>')+'</div>'
-    + (profile.clinicPhone?'<div class="rx-clinic-addr" style="margin-top:4px;"><b>Contact Details:</b> '+esc(profile.clinicPhone)+'</div>':'')+'</div>'
-    + '<div style="text-align:right;"><div class="rx-doc-name">'+esc(profile.doctorName||'\u2014')+'</div>'
-    + '<div class="rx-clinic-addr">'+esc(profile.qualifications||'')+'</div>'
-    + '<div class="rx-clinic-addr">Reg. No: '+esc(profile.regNumber||'\u2014')+'</div></div>'
-    + '</div>'
-    + '<div style="text-align:center;font-weight:800;font-size:15px;margin:16px 0;text-decoration:underline;">FITNESS CERTIFICATE</div>'
-    + '<div class="rx-advice" style="white-space:pre-wrap;">' + esc(text) + '</div>'
-    + '<div style="margin-top:50px;text-align:right;">'
-    + '<div style="border-top:1px solid #333;width:200px;display:inline-block;padding-top:4px;">Signature</div>'
-    + '</div>'
-    + '</div>';
-}
-
 function renderReferralPrintView() {
   if (!PRINT_REFERRAL) { VIEW = 'list'; return renderListView(); }
   const { patient: p, text, specialist } = PRINT_REFERRAL;
@@ -7832,7 +6906,6 @@ let CTEV_SESSION_TEMP = null;
 let CTEV_SESSION_ACTIVE_FOOT = 'left'; // which foot's scorer is shown when bilateral (one at a time \u2014 side-by-side overflowed the screen)
 let ADD_CTEV_BRACELOG_OPEN = false;
 let SHOW_PIRANI_HELP = false;
-let SHOW_RUST_HELP = false;
 let SHOW_RA_HELP = false;
 let SHOW_RA_SNAPSHOT_HELP = false;
 let SHOW_RA_MGT_HELP = false;
@@ -8591,7 +7664,6 @@ function renderCalendarView() {
       + '<span style="font-size:12px;font-weight:700;color:#b45309;display:flex;align-items:center;gap:6px;">'+ic('clock')+' Tomorrow \u2014 '+s.dueTomorrowList.length+' follow-up'+(s.dueTomorrowList.length>1?'s':'')+' due</span>'
       + '<span style="color:#b45309;transform:scale(0.75)'+(SHOW_TOMORROW_LIST?' rotate(180deg)':'')+';">'+ic('chevron')+'</span>'
       + '</button>'
-      + (s.dueTomorrowList.filter(p => p.whatsapp).length ? '<button type="button" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;flex:none;" data-action="bulk-send-reminders" data-patient-ids="'+s.dueTomorrowList.filter(p => p.whatsapp).map(p => p.id).join(',')+'">'+ic('message')+' Remind All</button>' : '')
       + '</div>';
     if (SHOW_TOMORROW_LIST) {
       tomorrowHtml += '<div class="card" style="margin-bottom:12px;padding:6px 0;">'
@@ -8669,10 +7741,8 @@ async function renderCurrentView(app) {
   if (VIEW === 'add') { app.innerHTML = renderAddView(); setupAddCaseFormValidation(); return; }
   if (VIEW === 'ai-query') { app.innerHTML = renderAiQueryView(); return; }
   if (VIEW === 'ai-digest') { app.innerHTML = renderAiDigestView(); return; }
-  if (VIEW === 'ai-knowledge') { app.innerHTML = renderAiKnowledgeView(); return; }
   if (VIEW === 'ai-assistant') { app.innerHTML = renderAiAssistantView(); return; }
   if (VIEW === 'ai-hub') { app.innerHTML = renderAiHubView(); return; }
-  if (VIEW === 'cash-audit') { app.innerHTML = renderCashAuditView(); return; }
   if (VIEW === 'content-ideas') { app.innerHTML = renderContentIdeasTab(); return; }
   if (VIEW === 'academic-vault') { app.innerHTML = renderAcademicVaultTab(); return; }
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
@@ -8704,7 +7774,6 @@ async function renderCurrentView(app) {
     }
     return; 
   }
-  if (VIEW === 'print-fitness') { app.innerHTML = renderFitnessCertPrintView(); return; }
   if (VIEW === 'print-referral') { app.innerHTML = renderReferralPrintView(); return; }
   if (VIEW === 'export-summary') {
     const p = getPatient(SELECTED_ID);
@@ -9435,7 +8504,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-knowledge','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-fitness','close-print-referral','close-planned-surgeries','close-reminder-queue'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -9600,71 +8669,6 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'ocr-lab-cancel') { OCR_LAB_STAGE = null; renderOcrOverlay(); return; }
-  if (action === 'ocr-sticker-cancel') { OCR_STICKER_STAGE = null; renderOcrOverlay(); return; }
-  if (action === 'ocr-sticker-set-sex') { OCR_STICKER_STAGE.sex = el.dataset.value; renderOcrOverlay(); return; }
-
-  if (action === 'ocr-sticker-confirm') {
-    const nameEl = document.getElementById('ocr-sticker-name');
-    const ageEl = document.getElementById('ocr-sticker-age');
-    const mobileEl = document.getElementById('ocr-sticker-mobile');
-    if (nameEl) OCR_STICKER_STAGE.name = nameEl.value;
-    if (ageEl) OCR_STICKER_STAGE.age = ageEl.value;
-    if (mobileEl) OCR_STICKER_STAGE.mobile = mobileEl.value;
-    if (VIEW === 'add') {
-      syncApTempFromDom();
-      if (OCR_STICKER_STAGE.name) AP_TEMP.name = OCR_STICKER_STAGE.name;
-      if (OCR_STICKER_STAGE.age) AP_TEMP.age = OCR_STICKER_STAGE.age;
-      if (OCR_STICKER_STAGE.sex) AP_TEMP.sex = OCR_STICKER_STAGE.sex;
-      if (OCR_STICKER_STAGE.mobile) AP_TEMP.whatsapp = OCR_STICKER_STAGE.mobile;
-      OCR_STICKER_STAGE = null;
-      renderOcrOverlay();
-      render();
-      toast('Patient details filled from sticker');
-    } else {
-      OCR_STICKER_STAGE = null;
-      renderOcrOverlay();
-    }
-    return;
-  }
-
-  if (action === 'ocr-lab-confirm') {
-    const p = getPatient(SELECTED_ID);
-    if (!p || !OCR_LAB_STAGE) { OCR_LAB_STAGE = null; renderOcrOverlay(); return; }
-    const dateEl = document.getElementById('ocr-lab-date');
-    const date = dateEl ? dateEl.value : OCR_LAB_STAGE.date;
-    const checkedItems = [];
-    OCR_LAB_STAGE.items.forEach((it, idx) => {
-      const checkEl = document.querySelector('[data-ocr-lab-check="'+idx+'"]');
-      const valueEl = document.querySelector('[data-ocr-lab-value="'+idx+'"]');
-      const unitEl = document.querySelector('[data-ocr-lab-unit="'+idx+'"]');
-      if (checkEl && checkEl.checked) {
-        checkedItems.push({
-          label: it.label,
-          value: valueEl ? valueEl.value.trim() : it.value,
-          unit: unitEl ? unitEl.value.trim() : it.unit,
-        });
-      }
-    });
-    if (!checkedItems.length) { toast('Nothing selected'); return; }
-    const photoBlob = OCR_LAB_STAGE.photoBlob;
-    p.investigations = p.investigations || [];
-    const newInvs = checkedItems.map(item => ({ id: uid(), label: item.label, date, notes: '', value: item.value, unit: item.unit, imageCount: photoBlob ? 1 : 0 }));
-    newInvs.forEach(inv => { p.investigations.push(inv); recordTextUsed(INVESTIGATION_LIB_KEY, inv.label); });
-    await dbPutPatient(p);
-    if (photoBlob) {
-      for (const inv of newInvs) {
-        await dbAddImage({ id: uid(), patientId: p.id, investigationId: inv.id, blob: photoBlob, createdAt: Date.now() });
-      }
-    }
-    await refreshPatients();
-    OCR_LAB_STAGE = null;
-    renderOcrOverlay();
-    toast('Added ' + checkedItems.length + ' investigation(s)');
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-
   if (action === 'restore-from-cloud') {
     if (!CURRENT_USER) { toast('Sign in first'); return; }
     ARMED_DELETE = null;
@@ -9747,29 +8751,6 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
-async function generatePatientWhatsAppMessage(p) {
-  const askClaude = firebaseFunctions.httpsCallable('askClaude');
-  const isSurgical = p.caseType === 'surgical';
-  const sys = 'You write a single clear, calm, professional WhatsApp message in Hindi (Devanagari script) from a doctor to their orthopaedic patient (or family). Tone: respectful and measured, like a doctor briefing a patient in clinic \u2014 not overly casual or effusive, no excessive warmth or exclamation marks. Combine two things naturally into one flowing message: (1) home-care guidance \u2014 activity restrictions, wound/dressing care if relevant, medicine reminders (generic, no drug names/doses), and 2-3 warning signs to call the doctor immediately; (2) if a next follow-up date is given, a clear reminder of that date and to bring old X-ray/MRI/reports. Keep it complete \u2014 do not cut any section short for brevity. No markdown symbols like * or #, just natural line breaks. Do not include a greeting or sign-off \u2014 those are added separately.';
-  const context = 'Patient name: ' + p.name
-    + '\nCase type: ' + (isSurgical ? 'Post-surgical' : 'OPD / conservative treatment')
-    + '\nDiagnosis: ' + (p.diagnosis || p.chiefComplaints || '\u2014')
-    + (isSurgical ? ('\nProcedure: ' + (p.procedure || '\u2014') + '\nSurgery date: ' + fmtDate(p.surgeryDate)) : '')
-    + '\nNext follow-up date: ' + (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'not scheduled yet')
-    + (p.notes ? ('\nNotes: ' + p.notes) : '');
-  const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 900 });
-  return (result.data.text || '').trim();
-}
-
-async function generatePersonalizedReminderMessage(p) {
-  const askClaude = callGeminiDirect;
-  const profile = loadProfile();
-  const sys = 'You write a warm, natural WhatsApp follow-up reminder message in Hindi (Devanagari script) from a doctor to their patient, matching this style exactly:\n\n\u0928\u092e\u0938\u094d\u0924\u0947 [PatientName] \u091c\u0940,\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f [context] [date] \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0908\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0908\u090f\u0917\u093e\u0964\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,\n[DoctorName]\n\nPersonalize the middle part based on the patient\u2019s specific procedure/diagnosis and any relevant concern from their notes, while keeping the same warm tone, structure, and length. Return ONLY the final message text, nothing else.';
-  const context = 'Patient name: ' + p.name + '\nProcedure/Diagnosis: ' + (p.procedure || p.diagnosis || '\u2014') + '\nNext follow-up date: ' + fmtDate(p.nextFollowUpDate) + '\nNotes: ' + (p.notes || '\u2014') + '\nDoctor name: ' + (profile.doctorName || '[doctor name not set in profile]');
-  const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 300 });
-  const baseMsg = (result.data.text || '').trim();
-  return baseMsg + generateWhatsAppSignature();
-}
   if (action === 'ai-suggest-investigations') {
     const p = AP_TEMP || getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
@@ -9846,63 +8827,8 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'upcoming-send-reminder') {
     const p = getPatient(el.dataset.id);
     if (!p) return;
-    const statusEl = document.getElementById('upcoming-status-' + p.id);
-    if (isAiTier()) {
-      const originalHtml = el.innerHTML;
-      el.innerHTML = '<span class="spinner"></span>';
-      el.disabled = true;
-      if (statusEl) { statusEl.style.color = 'var(--muted)'; statusEl.textContent = 'Personalizing message\u2026'; }
-      try {
-        const message = await generatePersonalizedReminderMessage(p);
-        window.open('https://wa.me/' + toWaNumber(p.whatsapp) + '?text=' + encodeURIComponent(message), '_blank');
-        if (statusEl) statusEl.textContent = '';
-      } catch (err) {
-        console.error('Quick reminder failed:', err);
-        const link = followUpReminderLink(p);
-        if (link) window.open(link, '_blank');
-        if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'AI failed \u2014 sent the standard template instead'; }
-      }
-      el.innerHTML = originalHtml;
-      el.disabled = false;
-    } else {
-      const link = followUpReminderLink(p);
-      if (link) window.open(link, '_blank');
-    }
-    return;
-  }
-  if (action === 'insert-op-template') {
-    const template = OP_NOTE_TEMPLATES.find(t => t[0] === el.dataset.value);
-    if (!template) return;
-    const notesEl = document.getElementById('ov-notes');
-    if (notesEl) {
-      const existing = notesEl.value.trim();
-      notesEl.value = existing ? (existing + '\n\n' + template[1]) : template[1];
-      await patchField('notes', notesEl.value);
-      toast(el.dataset.value + ' template inserted \u2014 fill in the blanks');
-    }
-    return;
-  }
-  if (action === 'ai-suggest-tags') {
-    const p = getPatient(SELECTED_ID);
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
-    el.disabled = true;
-    try {
-      const askClaude = callGeminiDirect;
-      const context = ['Diagnosis: ' + (p.diagnosis||'\u2014'), 'Procedure: ' + (p.procedure||'\u2014'), 'Notes: ' + (p.notes||'\u2014')].join('\n');
-      const sys = 'You suggest short organizational tags for a doctor\u2019s patient case log. Existing tag vocabulary this doctor uses: ' + PRESET_TAGS.join(', ') + '. Given the case details, suggest 2-4 relevant tags as a JSON array of short strings only, e.g. ["Interesting","Revision"]. Prefer the existing vocabulary when it fits; only propose a new short tag (2-3 words max) if genuinely warranted (e.g. a specific named complication). Return ONLY the JSON array, no other text.';
-      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 150 });
-      let raw = (result.data.text || '').trim();
-      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
-      const suggestions = JSON.parse(raw);
-      AI_TAG_SUGGESTIONS = Array.isArray(suggestions) ? suggestions.filter(t => typeof t === 'string' && t.trim()).slice(0, 4) : [];
-      await renderTabBody(getPatient(SELECTED_ID));
-    } catch (err) {
-      console.error('AI tag suggestion failed:', err);
-      toast('AI suggestion failed: ' + (err && err.message ? err.message : 'try again'));
-      el.innerHTML = originalHtml;
-      el.disabled = false;
-    }
+    const link = followUpReminderLink(p);
+    if (link) window.open(link, '_blank');
     return;
   }
   if (action === 'ai-sanity-check') {
@@ -9930,75 +8856,6 @@ async function generatePersonalizedReminderMessage(p) {
     } catch (err) {
       console.error('AI sanity check failed:', err);
       toast('AI check failed: ' + (err && err.message ? err.message : 'try again'));
-      el.innerHTML = originalHtml;
-      el.disabled = false;
-    }
-    return;
-  }
-  if (action === 'fu-ai-fill') {
-    const inputEl = document.getElementById('fu-ai-fill-input');
-    const notesText = (inputEl && inputEl.value || '').trim();
-    const statusEl = document.getElementById('fu-ai-fill-status');
-    if (!notesText) { if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'Write something in the box first.'; } return; }
-    const p = getPatient(SELECTED_ID);
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span> Reading\u2026';
-    el.disabled = true;
-    if (statusEl) statusEl.textContent = '';
-    try {
-      const isTrauma = p && (p.surgeryType === 'Trauma' || p.condition === 'trauma');
-      const sys = 'You are a clinical data extraction assistant for an orthopaedic follow-up visit note. Given free-text dictated notes from a doctor during a follow-up visit, extract fields and return ONLY a JSON object, no markdown fences, no explanation. Fields: {"notes": string (a clean clinical note summarizing findings), "woundStatus": one of ' + JSON.stringify(WOUND_STATUS_OPTIONS) + ' or "" if not mentioned' + (isTrauma ? ', "unionStatus": one of ' + JSON.stringify(UNION_STATUS_OPTIONS) + ' or "" if not mentioned' : '') + '}. Leave a field empty string if not clearly stated.';
-      const result = await callGeminiDirect({ systemPrompt: sys, userMessage: notesText, maxTokens: 250 });
-      let raw = (result.data.text || '').trim();
-      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
-      const extracted = JSON.parse(raw);
-      let filledCount = 0;
-      if (extracted.notes) { const n = document.getElementById('fu-notes'); if (n) { n.value = extracted.notes; filledCount++; } }
-      if (extracted.woundStatus && WOUND_STATUS_OPTIONS.includes(extracted.woundStatus)) { const w = document.getElementById('fu-woundstatus'); if (w) { w.value = extracted.woundStatus; filledCount++; } }
-      if (extracted.unionStatus && UNION_STATUS_OPTIONS.includes(extracted.unionStatus)) { const u = document.getElementById('fu-unionstatus'); if (u) { u.value = extracted.unionStatus; filledCount++; } }
-      el.innerHTML = originalHtml; el.disabled = false;
-      toast(filledCount ? ('Filled ' + filledCount + ' field(s) \u2014 please review') : 'Nothing clear to extract from that');
-    } catch (err) {
-      console.error('Follow-up AI fill failed:', err);
-      if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = '\u2717 ' + (err && err.message ? err.message : 'Request failed'); }
-      el.innerHTML = originalHtml;
-      el.disabled = false;
-    }
-    return;
-  }
-  if (action === 'ai-fill-from-notes') {
-    syncApTempFromDom();
-    const notesText = (AP_AI_FILL_TEXT || '').trim();
-    const statusEl = document.getElementById('ai-fill-status');
-    if (!notesText) { if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'Write something in the AI Quick-Fill box first.'; } return; }
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span> Reading notes\u2026';
-    el.disabled = true;
-    if (statusEl) statusEl.textContent = '';
-    try {
-      const askClaude = callGeminiDirect;
-      const isSurgical = AP_TEMP.caseType === 'surgical';
-      const sys = 'You are a clinical data extraction assistant for an orthopaedic practice app. Given free-text dictated notes from a doctor during patient intake, extract fields and return ONLY a JSON object, no markdown fences, no explanation. Fields: {"name": string, "age": string (years, digits only), "ageMonths": string (months, digits only, usually empty unless a young child), "sex": one of "M","F", or "", "occupation": string, "handDominance": one of "Left","Right","Ambidextrous", or "", "diagnosis": string, "symptomDuration": string, "side": one of "Left","Right","Bilateral", or "", "chiefComplaints": string}. Leave a field as an empty string if it is not mentioned. symptomDuration should be short, like "3 months" or "2 weeks". chiefComplaints is the patient-reported presenting complaint' + (isSurgical ? ' (usually not applicable for a surgical case, leave empty unless clearly stated)' : '') + '.';
-      const result = await askClaude({ systemPrompt: sys, userMessage: notesText, maxTokens: 300 });
-      let raw = (result.data.text || '').trim();
-      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
-      const extracted = JSON.parse(raw);
-      let filledCount = 0;
-      if (extracted.name) { AP_TEMP.name = extracted.name; filledCount++; }
-      if (extracted.age) { AP_TEMP.age = extracted.age; filledCount++; }
-      if (extracted.ageMonths) { AP_TEMP.ageMonths = extracted.ageMonths; filledCount++; }
-      if (extracted.sex && ['M','F'].includes(extracted.sex)) { AP_TEMP.sex = extracted.sex; filledCount++; }
-      if (extracted.occupation) { AP_TEMP.occupation = extracted.occupation; filledCount++; }
-      if (extracted.handDominance && ['Left','Right','Ambidextrous'].includes(extracted.handDominance)) { AP_TEMP.handDominance = extracted.handDominance; filledCount++; }
-      if (extracted.diagnosis) { AP_TEMP.diagnosis = extracted.diagnosis; filledCount++; }
-      if (extracted.symptomDuration) { AP_TEMP.symptomDuration = extracted.symptomDuration; filledCount++; }
-      if (extracted.side && ['Left','Right','Bilateral'].includes(extracted.side)) { AP_TEMP.side = extracted.side; filledCount++; }
-      if (extracted.chiefComplaints && !isSurgical) { AP_TEMP.chiefComplaints = extracted.chiefComplaints; filledCount++; }
-      render();
-      toast(filledCount ? ('Filled ' + filledCount + ' field(s) \u2014 please review before saving') : 'Nothing clear to extract from those notes');
-    } catch (err) {
-      console.error('AI fill failed:', err);
-      if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = '\u2717 ' + (err && err.message ? err.message : 'Request failed'); }
       el.innerHTML = originalHtml;
       el.disabled = false;
     }
@@ -10043,7 +8900,6 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
   if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; VIEW = 'ai-digest'; render(); return; }
-  if (action === 'open-ai-knowledge') { AI_KNOWLEDGE_ANSWER = null; VIEW = 'ai-knowledge'; render(); return; }
   if (action === 'open-ai-assistant') { AI_ASSISTANT_ANSWER = null; VIEW = 'ai-assistant'; render(); return; }
   if (action === 'close-ai-assistant') { VIEW = 'list'; render(); return; }
   if (action === 'ask-ai-assistant') {
@@ -10061,40 +8917,6 @@ async function generatePersonalizedReminderMessage(p) {
       render();
     } catch (err) {
       console.error('AI assistant query failed:', err);
-      toast('AI query failed: ' + (err && err.message ? err.message : 'try again'));
-      el.innerHTML = originalHtml;
-      el.disabled = false;
-    }
-    return;
-  }
-  if (action === 'close-ai-knowledge') { VIEW = 'list'; render(); return; }
-  if (action === 'ai-knowledge-set-level') {
-    const inputEl = document.getElementById('ai-knowledge-input');
-    AI_KNOWLEDGE_QUESTION = inputEl ? inputEl.value : '';
-    AI_KNOWLEDGE_LEVEL = el.dataset.value;
-    render();
-    return;
-  }
-  if (action === 'ask-ai-knowledge') {
-    const inputEl = document.getElementById('ai-knowledge-input');
-    AI_KNOWLEDGE_QUESTION = inputEl ? inputEl.value.trim() : '';
-    if (!AI_KNOWLEDGE_QUESTION) { toast('Type a question first'); return; }
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
-    el.disabled = true;
-    try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
-      const levelInstructions = {
-        resident: 'Explain at the depth you would for a first-year orthopaedic resident \u2014 walk through the underlying mechanism/reasoning step by step, defining terms as you go, the way a teaching attending would.',
-        colleague: 'Explain concisely, colleague-to-colleague \u2014 assume strong existing orthopaedic knowledge, focus on the key reasoning without over-explaining basics.',
-        patient: 'Explain simply, in plain language a patient without medical training could follow \u2014 avoid jargon, use short sentences and everyday analogies.'
-      };
-      const sys = 'You are an orthopaedic clinical knowledge assistant for a practicing orthopaedic surgeon. Focus on the "why"/"how" \u2014 clinical reasoning and mechanisms, not just definitions. ' + (levelInstructions[AI_KNOWLEDGE_LEVEL] || levelInstructions.colleague) + ' If something is genuinely debated or evolving in the literature, say so plainly rather than presenting it as settled. This is general clinical education, not advice about any specific patient.';
-      const result = await askClaude({ systemPrompt: sys, userMessage: AI_KNOWLEDGE_QUESTION, maxTokens: 1024 });
-      AI_KNOWLEDGE_ANSWER = result.data.text || '(empty response)';
-      render();
-    } catch (err) {
-      console.error('AI knowledge query failed:', err);
       toast('AI query failed: ' + (err && err.message ? err.message : 'try again'));
       el.innerHTML = originalHtml;
       el.disabled = false;
@@ -10145,7 +8967,7 @@ async function generatePersonalizedReminderMessage(p) {
     }
     return;
   }
-  if (action === 'clear-list-filters') { SEARCH = ''; FILTER_TYPE = 'all'; TAG_FILTER = ''; render(); return; }
+  if (action === 'clear-list-filters') { SEARCH = ''; FILTER_TYPE = 'all'; render(); return; }
   if (action === 'quick-fill-text') {
     const target = document.getElementById(el.dataset.target);
     if (target) target.value = el.dataset.value;
@@ -10168,17 +8990,6 @@ async function generatePersonalizedReminderMessage(p) {
       recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, el.dataset.value);
       await render();
     }
-    return;
-  }
-  if (action === 'autocomplete-add-tag') {
-    hideAutocomplete('custom-tag-input');
-    const val = el.dataset.value;
-    const p = getPatient(SELECTED_ID);
-    p.tags = p.tags || [];
-    if (!p.tags.includes(val)) p.tags.push(val);
-    recordTextUsed(TAG_LIB_KEY, val);
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
   if (action === 'assign-patient-code') {
@@ -10232,12 +9043,6 @@ async function generatePersonalizedReminderMessage(p) {
   }
 
   if (action === 'toggle-pirani-help') { SHOW_PIRANI_HELP = !SHOW_PIRANI_HELP; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'toggle-rust-help') {
-    SHOW_RUST_HELP = !SHOW_RUST_HELP;
-    const box = document.getElementById('rust-help-box');
-    if (box) box.innerHTML = SHOW_RUST_HELP ? RUST_HELP_HTML : '';
-    return;
-  }
   if (action === 'toggle-ra-help') { SHOW_RA_HELP = !SHOW_RA_HELP; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'toggle-ra-snapshot-help') { SHOW_RA_SNAPSHOT_HELP = !SHOW_RA_SNAPSHOT_HELP; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'toggle-ra-mgt-help') { SHOW_RA_MGT_HELP = !SHOW_RA_MGT_HELP; await renderTabBody(getPatient(SELECTED_ID)); return; }
@@ -10406,7 +9211,7 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'open-patient') {
     const p2 = getPatient(el.dataset.id);
-    const matchField = (TAG_FILTER ? 'Tags' : (p2 && p2._searchMatchField)) || null;
+    const matchField = (p2 && p2._searchMatchField) || null;
     SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
     await render();
     if (matchField) { await jumpToSearchMatch(getPatient(SELECTED_ID), matchField); return; }
@@ -10426,9 +9231,6 @@ async function generatePersonalizedReminderMessage(p) {
   }
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); window.scrollTo(0,0); return; }
   if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
-  if (action === 'set-tag-filter') { TAG_FILTER = el.dataset.value; render(); return; }
-  if (action === 'toggle-tag-filter-row') { SHOW_TAG_FILTER = !SHOW_TAG_FILTER; render(); return; }
-  if (action === 'toggle-insights') { SHOW_INSIGHTS = !SHOW_INSIGHTS; render(); return; }
   if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
   if (action === 'dash-case-tab-set') { DASH_CASE_TAB = el.dataset.value; render(); return; }
   if (action === 'dash-goto-followups') {
@@ -10484,7 +9286,6 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'ap-set-payment') { syncApTempFromDom(); AP_TEMP.paymentMethod = el.dataset.value; render(); return; }
   if (action === 'ap-toggle-payment') { AP_SHOW_PAYMENT = !AP_SHOW_PAYMENT; render(); return; }
   if (action === 'ap-schedule-remove') { syncApTempFromDom(); AP_SCHEDULE = AP_SCHEDULE.filter(v => v.id !== el.dataset.value); render(); return; }
-  if (action === 'ap-schedule-add') { syncApTempFromDom(); AP_SCHEDULE.push({ id: uid(), label: 'Custom Visit', date: AP_TEMP.surgeryDate || todayStr() }); render(); return; }
   if (action === 'ap-inv-toggle-group') {
     const key = el.dataset.value;
     AP_INV_ACTIVE_GROUP = (AP_INV_ACTIVE_GROUP === key) ? null : key;
@@ -10557,38 +9358,6 @@ async function generatePersonalizedReminderMessage(p) {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'ai-generate-fitness-cert') {
-    const p = getPatient(SELECTED_ID);
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span> Drafting\u2026';
-    el.disabled = true;
-    try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
-      const isSurgical = p.caseType === 'surgical';
-      const sys = 'You draft a short, formal medical fitness / return-to-duty certificate for an orthopaedic patient, to be printed on a doctor\u2019s letterhead. Format: a brief certifying statement ("This is to certify that [name], aged [age], is under my treatment for [diagnosis]..."), a recommended rest/restriction period with reasoning kept brief, and any activity restrictions on return (e.g. no heavy lifting, no prolonged standing) if clinically reasonable. End with "Fit to resume duties from: [date]" using your best clinical estimate based on the case \u2014 the doctor will review and correct dates before printing. Plain text only, no markdown.';
-      const context = 'Patient: ' + p.name + ', ' + formatAge(p) + ' / ' + (p.sex||'')
-        + '\nCase type: ' + (isSurgical ? 'Post-surgical' : 'OPD / conservative treatment')
-        + '\nDiagnosis: ' + (p.diagnosis || p.chiefComplaints || '\u2014')
-        + (isSurgical ? ('\nProcedure: ' + (p.procedure || '\u2014') + '\nSurgery date: ' + fmtDate(p.surgeryDate)) : '')
-        + '\nToday\u2019s date: ' + fmtDate(todayStr());
-      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 350 });
-      AI_FITNESS_CERT = (result.data.text || '').trim();
-      await render();
-    } catch (err) {
-      console.error('AI fitness certificate failed:', err);
-      toast('Failed: ' + (err && err.message ? err.message : 'try again'));
-      el.innerHTML = originalHtml;
-      el.disabled = false;
-    }
-    return;
-  }
-  if (action === 'print-fitness-cert') {
-    const p = getPatient(SELECTED_ID);
-    if (!p || !AI_FITNESS_CERT) return;
-    PRINT_FITNESS_CERT = { patient: p, text: AI_FITNESS_CERT };
-    VIEW = 'print-fitness'; render(); return;
-  }
-  if (action === 'close-print-fitness') { PRINT_FITNESS_CERT = null; VIEW = 'patient-ai-tools'; render(); return; }
   if (action === 'ai-generate-referral') {
     const specialistEl = document.getElementById('ai-referral-specialist');
     const reasonEl = document.getElementById('ai-referral-reason');
@@ -10629,79 +9398,6 @@ async function generatePersonalizedReminderMessage(p) {
     VIEW = 'print-referral'; render(); return;
   }
   if (action === 'close-print-referral') { PRINT_REFERRAL = null; VIEW = 'patient-ai-tools'; render(); return; }
-  if (action === 'ai-patient-message') {
-    const p = getPatient(SELECTED_ID);
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span> Writing\u2026';
-    el.disabled = true;
-    try {
-      AI_PATIENT_WHATSAPP_MESSAGE = await generatePatientWhatsAppMessage(p);
-      await render();
-    } catch (err) {
-      console.error('AI patient message failed:', err);
-      toast('Failed: ' + (err && err.message ? err.message : 'try again'));
-      el.innerHTML = originalHtml;
-      el.disabled = false;
-    }
-    return;
-  }
-  if (action === 'ai-structure-soap') {
-    const inputEl = document.getElementById('ov-soap-dictate-input');
-    const dictateText = (inputEl && inputEl.value || OV_SOAP_DICTATE_TEXT || '').trim();
-    const statusEl = document.getElementById('ai-soap-status');
-    if (!dictateText) { if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = 'Dictate or type something about the visit first.'; } return; }
-    const p = getPatient(SELECTED_ID);
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span> Structuring\u2026';
-    el.disabled = true;
-    if (statusEl) statusEl.textContent = '';
-    try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
-      const sys = 'You convert a doctor\u2019s free-form dictation about a patient visit into a concise, well-organized clinical note in SOAP format (Subjective, Objective, Assessment, Plan). Use short section headers (S:, O:, A:, P:) each on their own line, followed by brief bullet-style lines. Only include a section if there is relevant content for it \u2014 omit empty sections. Do not invent findings that were not mentioned. Plain text only, no markdown formatting characters like ** or #.';
-      const context = 'Case: ' + (p.diagnosis || p.chiefComplaints || 'orthopaedic patient') + (p.caseType === 'surgical' ? (' \u2014 ' + (p.procedure || '')) : '') + '\n\nDoctor\u2019s dictation:\n' + dictateText;
-      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 400 });
-      const soapNote = (result.data.text || '').trim();
-      const notesEl = document.getElementById('ov-notes');
-      if (notesEl) { notesEl.value = soapNote; }
-      await patchField('notes', soapNote);
-      OV_SOAP_DICTATE_TEXT = '';
-      const dictateEl = document.getElementById('ov-soap-dictate-input');
-      if (dictateEl) dictateEl.value = '';
-      el.innerHTML = originalHtml; el.disabled = false;
-      toast('Clinical notes updated with structured SOAP note \u2014 please review');
-    } catch (err) {
-      console.error('AI SOAP structuring failed:', err);
-      if (statusEl) { statusEl.style.color = '#dc2626'; statusEl.textContent = '\u2717 ' + (err && err.message ? err.message : 'Request failed'); }
-      el.innerHTML = originalHtml;
-      el.disabled = false;
-    }
-    return;
-  }
-  if (action === 'ai-explain-patient-hi' || action === 'ai-explain-patient-en') {
-    const isHindi = action === 'ai-explain-patient-hi';
-    const p = getPatient(SELECTED_ID);
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span> Writing\u2026';
-    el.disabled = true;
-    try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
-      const sys = isHindi
-        ? 'You explain a medical diagnosis to a patient in simple, warm, conversational Hindi (Devanagari script), as an orthopaedic doctor would speak to a worried patient with no medical background. Avoid medical jargon and English technical terms where a simple Hindi word exists. 3-5 short sentences. No markdown, no headers, plain text only.'
-        : 'You explain a medical diagnosis to a patient in simple, warm, conversational English, avoiding medical jargon, as if speaking to someone with no medical background. 3-5 short sentences. No markdown, no headers, plain text only.';
-      const context = 'Diagnosis: ' + (p.diagnosis || p.chiefComplaints || '\u2014')
-        + (p.caseType === 'surgical' ? ('\nProcedure planned/done: ' + (p.procedure || '\u2014')) : '')
-        + (p.notes ? ('\nClinical notes: ' + p.notes) : '');
-      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 300 });
-      AI_PATIENT_EXPLANATION = (result.data.text || '').trim();
-      await render();
-    } catch (err) {
-      console.error('AI patient explanation failed:', err);
-      toast('Failed: ' + (err && err.message ? err.message : 'try again'));
-      el.innerHTML = originalHtml;
-      el.disabled = false;
-    }
-    return;
-  }
   if (action === 'ai-summarize-patient') {
     const p = getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
@@ -10886,146 +9582,6 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
 
-  if (action === 'set-open-fracture') {
-    const p = getPatient(SELECTED_ID);
-    p.isOpenFracture = el.dataset.value === 'yes';
-    if (!p.isOpenFracture) GUSTILO_OPEN = false;
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'open-gustilo') { GUSTILO_OPEN = true; GUSTILO_ANSWERS = { woundSize:'', mechanism:'', softTissue:'', periosteal:'', vascular:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'close-gustilo') { GUSTILO_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'gustilo-set') { GUSTILO_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'gustilo-insert') {
-    const p = getPatient(SELECTED_ID);
-    p.classification = el.dataset.value;
-    await dbPutPatient(p); await refreshPatients();
-    GUSTILO_OPEN = false;
-    await renderTabBody(getPatient(SELECTED_ID));
-    toast('Classification updated');
-    return;
-  }
-  if (action === 'open-lauge-hansen') { LAUGE_HANSEN_OPEN = true; LAUGE_HANSEN_ANSWERS = { fibulaLevel:'', medial:'', posterior:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'close-lauge-hansen') { LAUGE_HANSEN_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'lauge-hansen-set') { LAUGE_HANSEN_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'lauge-hansen-insert') {
-    const p = getPatient(SELECTED_ID);
-    p.classification = el.dataset.value;
-    await dbPutPatient(p); await refreshPatients();
-    LAUGE_HANSEN_OPEN = false;
-    await renderTabBody(getPatient(SELECTED_ID));
-    toast('Classification updated');
-    return;
-  }
-  if (action === 'open-salter-harris') { SALTER_HARRIS_OPEN = true; SALTER_HARRIS_ANSWERS = { metaphysis:'', epiphysis:'', crush:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'close-salter-harris') { SALTER_HARRIS_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'salter-harris-set') { SALTER_HARRIS_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'salter-harris-insert') {
-    const p = getPatient(SELECTED_ID);
-    p.classification = el.dataset.value;
-    await dbPutPatient(p); await refreshPatients();
-    SALTER_HARRIS_OPEN = false;
-    await renderTabBody(getPatient(SELECTED_ID));
-    toast('Classification updated');
-    return;
-  }
-  if (action === 'open-garden') { GARDEN_OPEN = true; GARDEN_ANSWERS = { complete:'', displaced:'', extent:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'close-garden') { GARDEN_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'garden-set') { GARDEN_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'garden-insert') {
-    const p = getPatient(SELECTED_ID);
-    p.classification = el.dataset.value;
-    await dbPutPatient(p); await refreshPatients();
-    GARDEN_OPEN = false;
-    await renderTabBody(getPatient(SELECTED_ID));
-    toast('Classification updated');
-    return;
-  }
-  if (action === 'open-neer') { NEER_OPEN = true; NEER_ANSWERS = { displacedCount:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'close-neer') { NEER_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'neer-set') { NEER_ANSWERS.displacedCount = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'neer-insert') {
-    const p = getPatient(SELECTED_ID);
-    p.classification = el.dataset.value;
-    await dbPutPatient(p); await refreshPatients();
-    NEER_OPEN = false;
-    await renderTabBody(getPatient(SELECTED_ID));
-    toast('Classification updated');
-    return;
-  }
-  if (action === 'open-schatzker') { SCHATZKER_OPEN = true; SCHATZKER_ANSWERS = { condyle:'', lateralType:'', dissociation:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'close-schatzker') { SCHATZKER_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'schatzker-set') { SCHATZKER_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'schatzker-insert') {
-    const p = getPatient(SELECTED_ID);
-    p.classification = el.dataset.value;
-    await dbPutPatient(p); await refreshPatients();
-    SCHATZKER_OPEN = false;
-    await renderTabBody(getPatient(SELECTED_ID));
-    toast('Classification updated');
-    return;
-  }
-  if (action === 'open-sanders') { SANDERS_OPEN = true; SANDERS_ANSWERS = { displaced:'', lines:'' }; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'close-sanders') { SANDERS_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'sanders-set') { SANDERS_ANSWERS[el.dataset.key] = el.dataset.value; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'sanders-insert') {
-    const p = getPatient(SELECTED_ID);
-    p.classification = el.dataset.value;
-    await dbPutPatient(p); await refreshPatients();
-    SANDERS_OPEN = false;
-    await renderTabBody(getPatient(SELECTED_ID));
-    toast('Classification updated');
-    return;
-  }
-  if (action === 'set-pji-suspected') {
-    const p = getPatient(SELECTED_ID);
-    p.pjiSuspected = el.dataset.value === 'yes';
-    if (p.pjiSuspected && !p.pji) p.pji = {};
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'enable-rom') {
-    const p = getPatient(SELECTED_ID);
-    p.romTracking = { jointType: el.dataset.value, readings: [] };
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'disable-rom') {
-    const p = getPatient(SELECTED_ID);
-    p.romTracking = null;
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'rom-open-log') { ROM_LOG_TEMP = { date: todayStr() }; ROM_LOG_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'rom-cancel-log') { ROM_LOG_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'rom-submit-log') {
-    const p = getPatient(SELECTED_ID);
-    const joint = p.romTracking.jointType;
-    const fields = ROM_JOINT_FIELDS[joint] || ROM_JOINT_FIELDS.knee;
-    const dateEl = document.getElementById('rom-log-date');
-    const date = dateEl ? dateEl.value : todayStr();
-    const vals = {};
-    fields.forEach(([k]) => { const fEl = document.getElementById('rom-log-'+k); if (fEl && fEl.value !== '') vals[k] = fEl.value; });
-    if (!Object.keys(vals).length) { toast('Enter at least one value'); return; }
-    p.romTracking.readings = p.romTracking.readings || [];
-    p.romTracking.readings.push({ id: uid(), date, values: vals });
-    ROM_LOG_OPEN = false;
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'rom-delete-reading' && el.dataset.confirm) {
-    const p = getPatient(SELECTED_ID);
-    p.romTracking.readings = (p.romTracking.readings||[]).filter(r => r.id !== el.dataset.id);
-    ARMED_DELETE = null;
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
   if (action === 'quick-log-fu') { 
     QUICK_LOG_FU_PATIENT_ID = el.dataset.patientId;
     QUICK_LOG_FU_DATE = todayStr();
@@ -11110,28 +9666,6 @@ async function generatePersonalizedReminderMessage(p) {
     return;
   }
 
-  if (action === 'bulk-send-reminders') {
-    const patientIds = (el.dataset.patientIds || '').split(',').filter(Boolean);
-    if (!patientIds.length) { toast('No patients with WhatsApp to remind'); return; }
-    
-    let reminded = 0;
-    patientIds.forEach(pid => {
-      const p = getPatient(pid);
-      if (p && p.whatsapp) {
-        p.lastReminderSentAt = Date.now();
-        dbPutPatient(p).then(() => {
-          reminded++;
-          if (reminded === patientIds.length) {
-            haptic(20);
-            toast('✓ Reminders sent to ' + reminded + ' patient' + (reminded > 1 ? 's' : ''));
-            refreshPatients().then(() => render());
-          }
-        });
-      }
-    });
-    return;
-  }
-
   if (action === 'log-reminder-sent') {
     const p = getPatient(el.dataset.id);
     if (p) { 
@@ -11206,14 +9740,6 @@ async function generatePersonalizedReminderMessage(p) {
     await dbPutPatient(p);
     await refreshPatients();
     await renderTabBody(getPatient(p.id));
-    return;
-  }
-  if (action === 'toggle-pin') {
-    const p = getPatient(SELECTED_ID);
-    p.pinned = !p.pinned;
-    await dbPutPatient(p);
-    await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
   if (action === 'duplicate-case') {
@@ -11339,12 +9865,7 @@ async function generatePersonalizedReminderMessage(p) {
     const woundStatus = woundStatusEl ? woundStatusEl.value : 'N/A';
     const unionStatusEl = document.getElementById('fu-unionstatus');
     const unionStatus = unionStatusEl ? unionStatusEl.value : '';
-    let rom = null;
-    if (p.romTracking) {
-      const fields = ROM_JOINT_FIELDS[p.romTracking.jointType] || [];
-      const vals = {}; fields.forEach(([k]) => { const el2 = document.getElementById('fu-rom-'+k); if (el2) vals[k] = el2.value; });
-      if (Object.values(vals).some(v => v)) rom = vals;
-    }
+    const rom = null;
     const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rom, imageCount: FU_INV_PHOTOS.length, createdAt: Date.now() };
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
@@ -11789,74 +10310,6 @@ async function generatePersonalizedReminderMessage(p) {
     startMic(el.dataset.target, el);
     return;
   }
-  if (action === 'add-tag') {
-    const p = getPatient(SELECTED_ID);
-    p.tags = p.tags || [];
-    if (!p.tags.includes(el.dataset.value)) p.tags.push(el.dataset.value);
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'remove-tag') {
-    const p = getPatient(SELECTED_ID);
-    p.tags = (p.tags || []).filter(t => t !== el.dataset.value);
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'add-custom-tag') {
-    const input = document.getElementById('custom-tag-input');
-    const val = input ? input.value.trim() : '';
-    if (!val) return;
-    const p = getPatient(SELECTED_ID);
-    p.tags = p.tags || [];
-    if (!p.tags.includes(val)) p.tags.push(val);
-    recordTextUsed(TAG_LIB_KEY, val);
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'add-comorbidity') {
-    const p = getPatient(SELECTED_ID);
-    p.comorbidities = p.comorbidities || [];
-    if (!p.comorbidities.includes(el.dataset.value)) p.comorbidities.push(el.dataset.value);
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'remove-comorbidity') {
-    const p = getPatient(SELECTED_ID);
-    p.comorbidities = (p.comorbidities || []).filter(t => t !== el.dataset.value);
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'add-custom-comorbidity') {
-    const input = document.getElementById('custom-comorbidity-input');
-    const val = input ? input.value.trim() : '';
-    if (!val) return;
-    const p = getPatient(SELECTED_ID);
-    p.comorbidities = p.comorbidities || [];
-    if (!p.comorbidities.includes(val)) p.comorbidities.push(val);
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'classification-insert-system') {
-    const p = getPatient(SELECTED_ID);
-    const field = document.querySelector('[data-field="classification"]');
-    const sysName = el.dataset.value;
-    const current = (field ? field.value : (p.classification || '')).trim();
-    const next = current ? current + ' \u00b7 ' + sysName + ' ' : sysName + ' ';
-    p.classification = next;
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    setTimeout(() => {
-      const f = document.querySelector('[data-field="classification"]');
-      if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
-    }, 30);
-    return;
-  }
   if (action === 'trigger-import') { document.getElementById('import-file-input').click(); return; }
 
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); updateStorageIndicator(); return; }
@@ -12119,8 +10572,6 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'open-reminders-tab') { REMINDER_FORM_OPEN = false; VIEW = 'reminders-tab'; render(); return; }
   if (action === 'close-reminders-tab') { REMINDER_FORM_OPEN = false; VIEW = 'list'; render(); return; }
   if (action === 'open-ai-hub') { VIEW = 'ai-hub'; render(); return; }
-  if (action === 'open-cash-audit') { VIEW = 'cash-audit'; render(); return; }
-  if (action === 'close-cash-audit') { VIEW = 'more'; render(); return; }
   if (action === 'open-content-ideas') { VIEW = 'content-ideas'; render(); return; }
   if (action === 'close-content-ideas') { VIEW = 'more'; render(); return; }
   if (action === 'open-academic-vault') { VIEW = 'academic-vault'; render(); return; }
@@ -12678,42 +11129,10 @@ document.addEventListener('change', async (e) => {
     if (rec) { rec.note = t.value; await dbAddImage(rec); }
     return;
   }
-  if (t.dataset && t.dataset.pjiKey) {
-    const p = getPatient(SELECTED_ID);
-    p.pji = p.pji || {};
-    p.pji[t.dataset.pjiKey] = t.checked;
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (t.dataset && t.dataset.kocherKey) {
-    const p = getPatient(SELECTED_ID);
-    p.kocher = p.kocher || {};
-    p.kocher[t.dataset.kocherKey] = t.checked;
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-
   if (t.id === 'import-file-input') {
     const file = t.files && t.files[0];
     if (file) await importBackup(file);
     t.value = '';
-    return;
-  }
-
-  if (t.id === 'ocr-labs-input') {
-    const file = t.files && t.files[0];
-    t.value = '';
-    if (!file) return;
-    await handleOcrLabsScan(file);
-    return;
-  }
-  if (t.id === 'ocr-sticker-input') {
-    const file = t.files && t.files[0];
-    t.value = '';
-    if (!file) return;
-    await handleOcrStickerScan(file);
     return;
   }
 
@@ -12978,7 +11397,6 @@ document.addEventListener('input', (e) => {
     const prev = document.getElementById(target+'-preview');
     if (prev) prev.textContent = relfuPreviewText(date);
   }
-  if (e.target.id === 'ov-soap-dictate-input') { OV_SOAP_DICTATE_TEXT = e.target.value; }
   if (e.target.id === 'ai-referral-specialist') { AI_REFERRAL_SPECIALIST = e.target.value; }
   if (e.target.id === 'ai-referral-reason') { AI_REFERRAL_REASON = e.target.value; }
   if (e.target.id === 'scheme-search-input') {
@@ -13023,7 +11441,6 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'ap-procedure') { AP_TEMP.procedure = e.target.value; updateAutocomplete('ap-procedure', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ov-procedure') { updateAutocomplete('ov-procedure', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ap-duration') { AP_TEMP.symptomDuration = e.target.value; }
-  if (e.target.id === 'custom-tag-input') { updateAutocomplete('custom-tag-input', TAG_LIB_KEY, e.target.value, 'autocomplete-add-tag'); }
 });
 document.addEventListener('mousedown', (e) => {
   if (e.target.closest && e.target.closest('.autocomplete-item')) { e.preventDefault(); }
@@ -13033,7 +11450,7 @@ document.addEventListener('touchstart', (e) => {
 }, { passive: false });
 document.addEventListener('blur', async (e) => {
   if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
-  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','ov-procedure','custom-tag-input'].includes(e.target.id)) {
+  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','ov-procedure'].includes(e.target.id)) {
     const id = e.target.id;
     setTimeout(() => hideAutocomplete(id), 200);
   }
