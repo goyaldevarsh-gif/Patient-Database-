@@ -268,11 +268,19 @@
   @keyframes spinner-spin { to { transform:rotate(360deg); } }
   .view-transition { animation:view-fade-in 220ms cubic-bezier(0.34,1.2,0.64,1); }
   @keyframes view-fade-in { from { opacity:0.4; transform:scale(0.99); } to { opacity:1; transform:scale(1); } }
-  .case-card { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; border:1px solid var(--border); border-radius:20px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03); }
+  .case-card { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; border:1px solid var(--border); border-radius:20px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03); position:relative; touch-action:pan-y; }
+  .case-card[data-wa-link]::before { content:''; position:absolute; left:0; top:14px; bottom:14px; width:3px; border-radius:0 3px 3px 0; background:rgba(37,211,102,0.5); }
   .status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .case-card:active { background:var(--bg-soft); }
-  .btn, .icon-btn, .seg-btn, .chip, .tag-chip, .case-card, .modal-btn, button.badge { transition:transform 180ms cubic-bezier(0.34,1.56,0.64,1), opacity 150ms ease, background 150ms ease; }
-  .btn:active, .icon-btn:active, .seg-btn:active, .chip:active, .tag-chip:active, .case-card:active, .modal-btn:active, button.badge:active { transform:scale(0.97); opacity:0.85; }
+  .btn, .icon-btn, .seg-btn, .chip, .tag-chip, .case-card, .modal-btn, button.badge,
+  .bottom-nav-btn, .bottom-nav-add-circle, .pcard-action-btn, .usearch-fab, .menu-popup-btn, .detail-tab-btn {
+    transition:transform 180ms cubic-bezier(0.34,1.56,0.64,1), opacity 150ms ease, background 150ms ease;
+  }
+  .btn:active, .icon-btn:active, .seg-btn:active, .chip:active, .tag-chip:active, .case-card:active, .modal-btn:active, button.badge:active,
+  .bottom-nav-btn:active, .pcard-action-btn:active, .usearch-fab:active, .menu-popup-btn:active, .detail-tab-btn:active {
+    transform:scale(0.94); opacity:0.8;
+  }
+  .bottom-nav-add-btn:active .bottom-nav-add-circle { transform:scale(0.9); }
 
   .badge { display:inline-flex; align-items:center; gap:4px; border-radius:999px; border:1px solid; padding:4px 9px; font-size:11px; font-weight:700; }
   button.badge { border-style:dashed; cursor:pointer; }
@@ -462,6 +470,8 @@
   }
   [data-theme="dark"] .sticky-top, [data-theme="dark"] .bottom-bar { background:rgba(15,23,42,0.97) !important; backdrop-filter:blur(6px); border-color:var(--border); }
   [data-theme="dark"] .seg-btn.active, [data-theme="dark"] .chip.active, [data-theme="dark"] .tab.active { background:var(--accent) !important; border-color:var(--accent) !important; color:#0f172a !important; }
+  [data-theme="dark"] .section-sticky-label { color:#0f172a; }
+  [data-theme="dark"] .pcard-action-btn.wa { color:#4ade80; }
   [data-theme="dark"] .btn-primary { background:var(--accent) !important; border-color:var(--accent) !important; color:#0f172a; box-shadow:none; }
   [data-theme="dark"] .btn-primary .ic { stroke:#0f172a; }
   [data-theme="dark"] [style*="c7d2fe"] { background:rgba(129,140,248,0.1) !important; border-color:#4338ca !important; }
@@ -1570,7 +1580,7 @@ function addMenuDropdownHtml() {
     ['camera', 'Add Investigation', 'add-menu-pick-patient', 'investigation'],
   ];
   return '<div style="position:fixed;bottom:78px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:340px;z-index:47;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:6px;display:flex;flex-direction:column;gap:2px;">'
-    + items.map(([icon,label,action,value]) => '<button type="button" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="'+action+'"'+(value?' data-value="'+value+'"':'')+'>'
+    + items.map(([icon,label,action,value]) => '<button type="button" class="menu-popup-btn" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="'+action+'"'+(value?' data-value="'+value+'"':'')+'>'
       + '<span style="flex:none;width:28px;height:28px;border-radius:50%;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic(icon)+'</span>'
       + label + '</button>').join('')
     + '</div>'
@@ -1585,7 +1595,7 @@ function aiMenuDropdownHtml() {
     ['heart', 'Ask OrthoVault', 'open-ai-assistant'],
   ];
   return '<div style="position:fixed;bottom:78px;left:16px;width:calc(100% - 32px);max-width:280px;z-index:47;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:6px;display:flex;flex-direction:column;gap:2px;">'
-    + items.map(([icon,label,action]) => '<button type="button" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="'+action+'">'
+    + items.map(([icon,label,action]) => '<button type="button" class="menu-popup-btn" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="'+action+'">'
       + '<span style="flex:none;width:28px;height:28px;border-radius:50%;background:rgba(124,58,237,0.12);color:#7c3aed;display:flex;align-items:center;justify-content:center;">'+ic(icon)+'</span>'
       + label + '</button>').join('')
     + '</div>'
@@ -4297,20 +4307,27 @@ function updateUsearchFabVisibility() {
 }
 
 const BOTTOM_NAV_VIEWS = ['list', 'patients', 'calendar', 'reminders-tab', 'more'];
+function bottomNavBadgeHtml(n) {
+  if (!n) return '';
+  return '<span style="position:absolute;top:2px;right:calc(50% - 18px);min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:var(--red);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1;">'+(n>9?'9+':n)+'</span>';
+}
 function updateBottomNavVisibility() {
   const wrap = document.getElementById('bottom-nav-wrap');
   if (!wrap) return;
   if (APP_LOCKED || !BOTTOM_NAV_VIEWS.includes(VIEW)) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
   wrap.style.display = 'block';
+  const s = PATIENTS.length ? computeDashboardStats() : { important: [] };
+  const dueRemindersCount = REMINDERS.filter(r => !r.done && r.dueDate && r.dueDate <= todayStr()).length;
   wrap.innerHTML = '<div class="bottom-nav">'
     + '<button type="button" class="bottom-nav-btn'+(VIEW==='patients' ? ' active' : '')+'" data-action="nav-patients">'+ic('userPlus')+'<span>Patients</span></button>'
-    + '<button type="button" class="bottom-nav-btn'+(VIEW==='calendar' ? ' active' : '')+'" data-action="open-followups">'+ic('clock')+'<span>Followups</span></button>'
+    + '<button type="button" class="bottom-nav-btn" style="position:relative;'+(VIEW==='calendar' ? 'color:var(--accent);' : '')+'" data-action="open-followups">'+ic('clock')+bottomNavBadgeHtml(s.important.length)+'<span>Followups</span></button>'
     + '<button type="button" class="bottom-nav-add-btn" data-action="toggle-add-menu"><span class="bottom-nav-add-circle">'+ic(SHOW_ADD_MENU?'x':'plus')+'</span></button>'
-    + '<button type="button" class="bottom-nav-btn'+(VIEW==='reminders-tab' ? ' active' : '')+'" data-action="open-reminders-tab">'+ic('bookmark')+'<span>Reminders</span></button>'
+    + '<button type="button" class="bottom-nav-btn" style="position:relative;'+(VIEW==='reminders-tab' ? 'color:var(--accent);' : '')+'" data-action="open-reminders-tab">'+ic('bookmark')+bottomNavBadgeHtml(dueRemindersCount)+'<span>Reminders</span></button>'
     + '<button type="button" class="bottom-nav-btn'+(VIEW==='more' ? ' active' : '')+'" data-action="open-more">'+ic('menu')+'<span>More</span></button>'
     + '</div>'
     + (SHOW_ADD_MENU ? addMenuDropdownHtml() : '');
 }
+
 
 
 function patientGroupKey(p) {
@@ -4420,7 +4437,8 @@ function renderPatientsView() {
       } else {
         followUpLine = '<span style="color:var(--muted);">Follow-up not scheduled</span>';
       }
-      cards += '<div class="case-card" data-action="open-patient" data-id="'+p.id+'">'
+      const cardWaLink = waLink(p);
+      cards += '<div class="case-card" data-action="open-patient" data-id="'+p.id+'"'+(cardWaLink?' data-wa-link="'+esc(cardWaLink)+'"':'')+'>'
         + '<div style="flex:none;width:40px;height:40px;border-radius:50%;background:'+avatarColorFor(p.id)+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;margin-right:10px;">'+esc(nameInitials(p.name))+'</div>'
         + '<div style="min-width:0;flex:1;">'
         + '<div class="row between" style="align-items:center;">'
@@ -4862,19 +4880,19 @@ function renderAddView() {
 
     + (!isSurgical ? '<div class="row between" style="align-items:center;margin-bottom:16px;"><label class="field-label" style="margin-bottom:0;">Visit date</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'" style="width:auto;max-width:150px;"></div>' : '')
 
-    + '<div class="section-sticky-label">Patient Details</div>'
+    + '<div class="section-sticky-label">1/5 \u00b7 Patient Details</div>'
     + '<div style="margin-bottom:22px;">' + detailsHtml + '</div>'
 
-    + '<div class="section-sticky-label">'+tab2Label+'</div>'
+    + '<div class="section-sticky-label">2/5 \u00b7 '+tab2Label+'</div>'
     + '<div style="margin-bottom:22px;">' + complaintsHtml + '</div>'
 
-    + '<div class="section-sticky-label">Investigations</div>'
+    + '<div class="section-sticky-label">3/5 \u00b7 Investigations</div>'
     + '<div style="margin-bottom:22px;">' + investigationsHtml + '</div>'
 
-    + '<div class="section-sticky-label">'+tab3Label+'</div>'
+    + '<div class="section-sticky-label">4/5 \u00b7 '+tab3Label+'</div>'
     + '<div style="margin-bottom:22px;">' + trackingHtml + '</div>'
 
-    + '<div class="section-sticky-label">Notes'+(isAiTier()?' & AI':'')+'</div>'
+    + '<div class="section-sticky-label">5/5 \u00b7 Notes'+(isAiTier()?' & AI':'')+'</div>'
     + '<div style="display:flex;flex-direction:column;gap:16px;">'
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
     + (isAiTier() ? (
@@ -5853,7 +5871,7 @@ function imgrecQuickAddHtml() {
   const hiddenInputs = cats.map(([cat,,,]) => '<input type="file" id="imgrec-quickadd-input-'+cat+'" data-img-upload="'+cat+'" accept="'+(cat==='video'?'video/*':'image/*')+'" multiple style="display:none;">').join('');
   return hiddenInputs
     + '<div style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:320px;z-index:47;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:6px;display:flex;flex-direction:column;gap:2px;">'
-    + cats.map(([cat,label,icon]) => '<button type="button" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="imgrec-quickadd-trigger" data-value="'+cat+'">'
+    + cats.map(([cat,label,icon]) => '<button type="button" class="menu-popup-btn" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="imgrec-quickadd-trigger" data-value="'+cat+'">'
         + '<span style="flex:none;width:28px;height:28px;border-radius:50%;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic(icon)+'</span>'
         + label + '</button>').join('')
     + '</div>'
@@ -7444,7 +7462,7 @@ function renderDetailShell(p) {
 }
 function patientMorePopupHtml(secondaryTabs) {
   return '<div style="position:fixed;bottom:78px;left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:340px;z-index:47;background:var(--bg,#fff);border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,0.18);padding:6px;display:flex;flex-direction:column;gap:2px;">'
-    + secondaryTabs.map(t => '<button type="button" class="detail-tab-btn" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="set-tab" data-value="'+t.key+'">'
+    + secondaryTabs.map(t => '<button type="button" class="detail-tab-btn menu-popup-btn" style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;border:none;background:none;text-align:left;width:100%;font-size:13px;font-weight:600;color:var(--ink);" data-action="set-tab" data-value="'+t.key+'">'
       + '<span style="flex:none;width:28px;height:28px;border-radius:50%;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic(t.icon)+'</span>'
       + t.label + '</button>').join('')
     + '</div>'
@@ -8540,6 +8558,26 @@ document.addEventListener('touchend', (e) => {
     if (btn) btn.click();
   }
 }, { passive: true });
+
+let CARD_SWIPE_EL = null, CARD_SWIPE_START_X = null, CARD_SWIPE_START_Y = null;
+document.addEventListener('touchstart', (e) => {
+  const card = e.target.closest('.case-card[data-wa-link]');
+  if (!card || e.touches.length !== 1) { CARD_SWIPE_EL = null; return; }
+  CARD_SWIPE_EL = card;
+  CARD_SWIPE_START_X = e.touches[0].clientX;
+  CARD_SWIPE_START_Y = e.touches[0].clientY;
+}, { passive: true });
+document.addEventListener('touchend', (e) => {
+  if (!CARD_SWIPE_EL) return;
+  const dx = e.changedTouches[0].clientX - CARD_SWIPE_START_X;
+  const dy = e.changedTouches[0].clientY - CARD_SWIPE_START_Y;
+  const card = CARD_SWIPE_EL;
+  CARD_SWIPE_EL = null;
+  if (dx < -70 && Math.abs(dy) < 50) {
+    e.preventDefault();
+    window.open(card.dataset.waLink, '_blank');
+  }
+}, { passive: false });
 
 document.addEventListener('click', async (e) => {
   // Close overlays when clicking the backdrop
