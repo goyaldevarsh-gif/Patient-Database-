@@ -3046,7 +3046,7 @@ const DEFAULT_PROFILE = {
   clinicName: '',
   clinicAddress: '',
   clinicPhone: '',
-  clinicAddresses: []  // [{name, address, timings, mapsLink}]
+  clinicAddresses: []  // [{name, timings, mapsLink}]
 };
 
 const ONBOARDING_DONE_KEY = 'surgical-case-log-onboarding-done-v1';
@@ -4258,8 +4258,8 @@ function renderSettingsView() {
     + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
     + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="Full address">'+esc(pr.clinicAddress)+'</textarea></div>'
     + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder="+91 ..."></div>'
-    + '<div style="margin-top:20px;"><label class="field-label" style="font-weight:800;font-size:13px;">📍 Clinic Addresses (for WhatsApp signature)</label>'
-    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 12px;">Add 1-3 clinics where you practice. These will auto-appear at the bottom of all WhatsApp messages.</p>'
+    + '<div style="margin-top:20px;"><label class="field-label" style="font-weight:800;font-size:13px;">📍 WhatsApp Clinic Footer</label>'
+    + '<p style="font-size:11px;color:var(--muted);margin:4px 0 12px;">Add 1-3 clinics. These auto-appear at the bottom of all WhatsApp messages.</p>'
     + (pr.clinicAddresses && pr.clinicAddresses.length ? pr.clinicAddresses.map((clinic, idx) => '<div class="card" style="padding:12px;background:rgba(67,56,202,0.03);border-color:#c7d2fe;margin-bottom:10px;">'
         + '<div class="row between" style="align-items:center;margin-bottom:8px;">'
         + '<span style="font-size:13px;font-weight:700;">Clinic ' + (idx+1) + '</span>'
@@ -4267,9 +4267,8 @@ function renderSettingsView() {
         + '</div>'
         + '<div style="display:flex;flex-direction:column;gap:8px;">'
         + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="name" placeholder="Clinic name (e.g., SMS Hospital)" value="'+esc(clinic.name)+'">'
-        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="address" placeholder="Address (e.g., SMS Medical College, Jaipur)" value="'+esc(clinic.address)+'">'
-        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="timings" placeholder="Timings (optional, e.g., 9am-5pm)" value="'+esc(clinic.timings||'')+'">'
-        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="mapsLink" placeholder="Google Maps link (https://maps.google.com/...)" value="'+esc(clinic.mapsLink||'')+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="timings" placeholder="Timings (e.g., 9am-5pm)" value="'+esc(clinic.timings||'')+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="mapsLink" placeholder="Google Maps link" value="'+esc(clinic.mapsLink||'')+'">'
         + '</div></div>').join('') : '')
     + '<button class="btn btn-sm" style="margin-bottom:16px;" data-action="pr-add-clinic">'+ic('plus')+' Add clinic</button>'
     + '</div>'
@@ -4459,7 +4458,7 @@ function generateWhatsAppSignature() {
   profile.clinicAddresses.forEach(clinic => {
     sig += '\n📍 ' + esc(clinic.name);
     if (clinic.timings) sig += ' (' + esc(clinic.timings) + ')';
-    sig += '\n' + (clinic.mapsLink || esc(clinic.address));
+    sig += '\n' + esc(clinic.mapsLink);
   });
   
   return sig;
@@ -12150,11 +12149,12 @@ async function generatePersonalizedReminderMessage(p) {
 function readProfileFromDom() {
   const clinicAddresses = [];
   document.querySelectorAll('[data-clinic-index]').forEach(el => {
-    const idx = el.dataset.clinicIndex;
-    const existing = clinicAddresses.find(c => c.index === idx);
-    if (!existing) clinicAddresses[idx] = { name: '', address: '', timings: '', mapsLink: '' };
+    const idx = parseInt(el.dataset.clinicIndex, 10);
+    if (!clinicAddresses[idx]) {
+      clinicAddresses[idx] = { name: '', timings: '', mapsLink: '' };
+    }
     const field = el.dataset.clinicField;
-    clinicAddresses[idx][field] = el.value;
+    clinicAddresses[idx][field] = el.value.trim();
   });
   
   return {
@@ -12165,7 +12165,7 @@ function readProfileFromDom() {
     clinicName: document.getElementById('pr-clinicName').value,
     clinicAddress: document.getElementById('pr-clinicAddress').value,
     clinicPhone: document.getElementById('pr-clinicPhone').value,
-    clinicAddresses: clinicAddresses.filter(c => c && c.name && c.address)
+    clinicAddresses: clinicAddresses.filter(c => c && c.name && c.mapsLink)
   };
 }
   if (action === 'save-settings') {
@@ -12176,7 +12176,7 @@ function readProfileFromDom() {
   if (action === 'pr-add-clinic') {
     const pr = loadProfile();
     if (!pr.clinicAddresses) pr.clinicAddresses = [];
-    pr.clinicAddresses.push({ name: '', address: '', timings: '', mapsLink: '' });
+    pr.clinicAddresses.push({ name: '', timings: '', mapsLink: '' });
     saveProfile(pr, true);
     await render();
     return;
