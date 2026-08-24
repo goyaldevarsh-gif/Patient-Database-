@@ -3676,6 +3676,19 @@ let CONTENT_IDEAS_FAQS = [];  // [{id, question, dateAdded}]
 // Academic Vault (Topics to Read)
 let ACADEMIC_VAULT_TOPICS = [];  // [{id, topic, dateAdded, status}]
 
+// Load/Save FAQ & Topics
+async function loadFAQsAndTopics() {
+  try {
+    const faqs = await idbGet('app-settings', 'content-ideas-faqs');
+    CONTENT_IDEAS_FAQS = faqs || [];
+  } catch(e) { CONTENT_IDEAS_FAQS = []; }
+  
+  try {
+    const topics = await idbGet('app-settings', 'academic-vault-topics');
+    ACADEMIC_VAULT_TOPICS = topics || [];
+  } catch(e) { ACADEMIC_VAULT_TOPICS = []; }
+}
+
 let SCHEME_FINDER_TYPE = null;
 let SCHEME_FINDER_QUERY = '';
 let SCHEME_FINDER_CASE_ID = null;
@@ -12213,6 +12226,7 @@ async function generatePersonalizedReminderMessage(p) {
       question: q.trim(),
       dateAdded: Date.now()
     });
+    await idbSet('app-settings', 'content-ideas-faqs', CONTENT_IDEAS_FAQS);
     await render();
     haptic(10);
     toast('✓ FAQ added');
@@ -12221,6 +12235,7 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'content-ideas-delete') {
     const id = el.dataset.id;
     CONTENT_IDEAS_FAQS = CONTENT_IDEAS_FAQS.filter(f => f.id !== id);
+    await idbSet('app-settings', 'content-ideas-faqs', CONTENT_IDEAS_FAQS);
     await render();
     haptic(10);
     toast('✓ FAQ deleted');
@@ -12237,6 +12252,7 @@ async function generatePersonalizedReminderMessage(p) {
       dateAdded: Date.now(),
       status: 'pending'
     });
+    await idbSet('app-settings', 'academic-vault-topics', ACADEMIC_VAULT_TOPICS);
     await render();
     haptic(10);
     toast('✓ Topic added');
@@ -12245,6 +12261,7 @@ async function generatePersonalizedReminderMessage(p) {
   if (action === 'academic-vault-delete') {
     const id = el.dataset.id;
     ACADEMIC_VAULT_TOPICS = ACADEMIC_VAULT_TOPICS.filter(t => t.id !== id);
+    await idbSet('app-settings', 'academic-vault-topics', ACADEMIC_VAULT_TOPICS);
     await render();
     haptic(10);
     toast('✓ Topic deleted');
@@ -13248,6 +13265,8 @@ async function onAuthChanged(user) {
     CURRENT_PLAN = 'free';
     TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
   }
+  // Load FAQs and Academic Vault Topics
+  await loadFAQsAndTopics();
   // Always render to ensure UI reflects latest plan/auth state
   render();
 }
@@ -13301,6 +13320,7 @@ function renderSplashScreen() {
     if (!onboardingDone) { VIEW = 'onboarding'; }
     await refreshPatients();
     loadReminders();
+    await loadFAQsAndTopics();
     await loadGoogleDriveCredentials();
     const justConnectedDrive = await handleOAuthCallback();
     if (justConnectedDrive) { VIEW = 'drive-backup'; }
