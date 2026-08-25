@@ -2333,7 +2333,7 @@ function peekNextPatientCode() {
 
 function newPatientShape() {
   return {
-    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', handDominance:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [],
+    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [],
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active', notes:'', whatsapp:'',
@@ -2454,7 +2454,6 @@ function computeDashboardStats() {
   const today = todayStr();
   const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-6);
   const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0,10);
-  const thisMonthKey = new Date().toISOString().slice(0,7);
 
   const isTrackable = p => !p.status || p.status === 'Active' || p.status === 'Active follow-up';
   const dueToday = PATIENTS.filter(p => isTrackable(p) && p.nextFollowUpDate === today);
@@ -2489,18 +2488,7 @@ function computeDashboardStats() {
   }
   const weekNewCases = weekTrend.reduce((sum,d) => sum + d.count, 0);
 
-  const monthPatients = PATIENTS.filter(p => p.createdAt && new Date(p.createdAt).toISOString().slice(0,7) === thisMonthKey);
-  const procCounts = {};
-  monthPatients.forEach(p => { if (p.caseType==='surgical' && p.procedure) procCounts[p.procedure]=(procCounts[p.procedure]||0)+1; });
-  const topProcedures = Object.entries(procCounts).sort((a,b)=>b[1]-a[1]).slice(0,3);
-
-  const condCounts = {};
-  monthPatients.forEach(p => { if (p.condition && p.condition!=='other') condCounts[p.condition]=(condCounts[p.condition]||0)+1; });
-  const CONDITION_LABEL_OVERRIDES = { trauma:'Trauma', ctev:'CTEV', ra:'Rheumatoid Arthritis', osteoporosis:'Osteoporosis' };
-  const topConditions = Object.entries(condCounts).sort((a,b)=>b[1]-a[1]).slice(0,3)
-    .map(([id,n]) => { const e = EDU_LIBRARY.find(x=>x.id===id); return [CONDITION_LABEL_OVERRIDES[id] || (e?e.name.en:id), n]; });
-
-  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, monthCount: monthPatients.length, topProcedures, topConditions, weekTrend, weekNewCases, dueTomorrowList };
+  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, weekTrend, weekNewCases, dueTomorrowList };
 }
 
 /* ---- Daily "important today" notifications ---- */
@@ -3493,8 +3481,8 @@ async function renderMoreView() {
         (isAiTier() ? moreRowHtml('sparkle', 'OrthoVault AI', 'Everywhere AI helps in the app \u2014 patient queries, digest, knowledge engine, clinical assistant', 'open-ai-hub', true) : '')
         + (!isAiTier() ? moreRowHtml('sparkle', 'Upgrade Plan', isProOrAbove() ? 'You\u2019re on Pro \u2014 tap to see AI tier' : 'Unlock Pro or AI tier features', 'open-upgrade', true) : '')
     },
-    { key:'practice', title:'Practice Tools', icon:'clipboard', rows:
-        moreRowHtml('clipboard', 'Scheme Package Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
+    { key:'practice', title:'Scheme Code Finder', icon:'clipboard', rows:
+        moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
     },
     { key:'data', title:'Data & Backup', icon:'download', rows:
         moreRowHtml('shield', 'Cloud Sync (AI tier)', !CURRENT_USER ? 'Not signed in \u2014 tap to set up' : (isAiTier() ? 'Signed in \u2014 backing up automatically' : 'Signed in \u2014 upgrade to AI tier to enable'), 'open-cloud-sync')
@@ -3813,14 +3801,9 @@ const ABOUT_SECTIONS = [
   ]},
   { key:'when-tools', title:'When to Use Which Special Tool', icon:'search', items:[
     ['CTEV / RA / Osteoporosis tracking', 'Switches on automatically as soon as the diagnosis matches (or set it manually in Add Case, or later via Overview \u2192 Clinical \u2192 "+ Track a condition"). CTEV gives Pirani scoring per cast with a trend + tenotomy alert; RA gives DAS28/CDAI/SDAI tracking, monitoring labs, and treatment history; Osteoporosis gives DEXA T-score tracking (spine/hip/wrist) and a FRAX/risk-factor guide.'],
-    ['Kocher\u2019s criteria', 'Shows automatically when the diagnosis mentions "Septic Arthritis".'],
-    ['PJI (MSIS) checklist', 'On an Arthroplasty case, toggle "PJI suspected?" if infection is suspected.'],
-    ['BMI calculator', 'Shows automatically for Arthroplasty and Knee OA cases.'],
-    ['Pediatric dose calculator / Rickets guide', 'Show automatically for OPD patients under 18.'],
   ]},
-  { key:'practice-tools', title:'Practice Tools', icon:'clipboard', items:[
-    ['Scheme Package Finder', 'More \u2192 Practice Tools \u2014 search RGHS or MAA Yojana package codes and rates by procedure name. Also available inside a patient\u2019s Overview so you can attach a matched package directly to that case (shows up in Print Case Summary too). Free local search, no AI cost.'],
-    ['Planned Surgeries', 'More \u2192 Practice Tools \u2014 a simple pre-admission list, separate from your main patient records: name, age, sex, diagnosis, plan, mobile number, and planned admission date. Send a WhatsApp reminder, and mark each entry Admitted or No-show as the date arrives.'],
+  { key:'practice-tools', title:'Scheme Code Finder', icon:'clipboard', items:[
+    ['Scheme Code Finder', 'More \u2192 Scheme Code Finder \u2014 search RGHS or MAA Yojana package codes and rates by procedure name. Also available inside a patient\u2019s Overview so you can attach a matched package directly to that case (shows up in Print Case Summary too). Free local search, no AI cost.'],
   ]},
   { key:'tabs', title:'Patient Record Tabs', icon:'file', items:[
     ['Bottom tab bar', 'Overview, Follow-Up, Images & Records, Timeline sit at the bottom of a patient\u2019s page. Prescriptions (and CTEV/RA/Bone Health if that tracking is on) live under the "More" button next to them.'],
@@ -4696,15 +4679,6 @@ function renderDashboardSection() {
     + '<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.02em;margin-top:5px;">'+caseTabLabels[DASH_CASE_TAB]+'</div>'
     + '</div>';
 
-  if (s.topProcedures.length || s.topConditions.length) {
-    html += '<div class="card" style="margin-bottom:12px;">'
-      + '<label class="field-label" style="margin-bottom:2px;display:flex;align-items:center;gap:5px;"><span style="color:var(--accent);display:inline-flex;transform:scale(0.75);">'+ic('search')+'</span>This month\u2019s insights ('+s.monthCount+' cases added)</label>'
-      + (s.topProcedures.length ? '<div style="margin-top:6px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top procedures</span>'
-          + (function(){ const max = s.topProcedures[0][1]; return s.topProcedures.map(([name,n]) => '<div class="insight-row" style="display:block;padding:5px 0;"><div class="row between" style="margin-bottom:3px;"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div><div style="height:4px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:var(--accent);width:'+Math.max(8,Math.round(n/max*100))+'%;"></div></div></div>').join(''); })() + '</div>' : '')
-      + (s.topConditions.length ? '<div style="margin-top:8px;"><span style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;">Top conditions</span>'
-          + (function(){ const max = s.topConditions[0][1]; return s.topConditions.map(([name,n]) => '<div class="insight-row" style="display:block;padding:5px 0;"><div class="row between" style="margin-bottom:3px;"><span>'+esc(name)+'</span><span class="mono" style="font-weight:700;">'+n+'</span></div><div style="height:4px;border-radius:3px;background:var(--border);overflow:hidden;"><div style="height:100%;border-radius:3px;background:var(--emerald);width:'+Math.max(8,Math.round(n/max*100))+'%;"></div></div></div>').join(''); })() + '</div>' : '')
-      + '</div>';
-  }
   return html;
 }
 
@@ -5168,17 +5142,6 @@ let AP_INV_CATEGORY = 'xray';
 let AP_INV_XRAY_SUBTYPE = 'General OPD';
 let AP_INV_ACTIVE_GROUP = null;
 let AP_SHOW_PAYMENT = false;
-let AP_SCHEDULE = [];
-const FOLLOWUP_SCHEDULE_TEMPLATE = [
-  ['Day 1 (Dressing)', 1], ['2 Weeks', 14], ['6 Weeks', 42], ['3 Months', 90], ['6 Months', 182],
-];
-function defaultFollowUpSchedule(surgeryDateStr) {
-  const base = new Date(surgeryDateStr || todayStr());
-  return FOLLOWUP_SCHEDULE_TEMPLATE.map(([label, days]) => {
-    const d = new Date(base); d.setDate(d.getDate() + days);
-    return { id: uid(), label, date: d.toISOString().slice(0,10) };
-  });
-}
 const AP_INV_GROUPS = [
   { key:'imaging', label:'Imaging', categories:['xray','ct','mri','usg'] },
   { key:'clinical', label:'Clinical Images / Wound', categories:['clinical','wound'] },
@@ -5189,9 +5152,8 @@ function initApTemp() {
   // during this wizard can be written to IndexedDB immediately, instead of sitting
   // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
   // would lose them for good. See handlePhotoInputChange / handleCategorizedPhotoChange.
-  AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', handDominance:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
+  AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
-  AP_SCHEDULE = defaultFollowUpSchedule(AP_TEMP.surgeryDate);
   AP_INVESTIGATIONS = [];
   AP_INV_CATEGORY = 'xray';
   AP_INV_XRAY_SUBTYPE = 'General OPD';
@@ -5200,15 +5162,11 @@ function initApTemp() {
   AI_SANITY_CHECK_RESULT = null;
 }
 function syncApTempFromDom() {
-  ['name','age','ageMonths','occupation','handDominance','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital','nextFollowUpDate'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : f === 'nextFollowUpDate' ? 'ap-next-fu-date' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
+  ['name','age','ageMonths','occupation','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital','nextFollowUpDate'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : f === 'nextFollowUpDate' ? 'ap-next-fu-date' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
   const anaesEl = document.getElementById('ap-anaesthesia'); if (anaesEl) AP_TEMP.anaesthesiaType = anaesEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
   const complaintsEl = document.getElementById('ap-complaints'); if (complaintsEl) AP_TEMP.chiefComplaints = complaintsEl.value;
-  document.querySelectorAll('[data-schedule-id]').forEach(el => {
-    const v = AP_SCHEDULE.find(x => x.id === el.dataset.scheduleId);
-    if (v) v[el.dataset.scheduleField] = el.value;
-  });
 }
 function conditionOptionsHtml(selected, caseType) {
   const excluded = caseType === 'surgical' ? ['ctev','ra','osteoporosis'] : [];
@@ -5339,9 +5297,6 @@ function renderAddView() {
       + ['Left','Right','Bilateral'].map(s=>'<button class="seg-btn'+(AP_TEMP.side===s?' active':'')+'" data-action="ap-set-side" data-value="'+s+'">'+s+'</button>').join('')
       + '</div></div>'
       + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
-      + (AP_TEMP.regions.includes('Upper Limb') || AP_TEMP.regions.includes('Hand') ? '<div><label class="field-label">Hand dominance (optional)</label><div class="seg">'
-      + [['Left','L'],['Right','R'],['Ambidextrous','Ambi']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.handDominance===v?' active':'')+'" data-action="ap-set-hand" data-value="'+v+'">'+l+'</button>').join('')
-      + '</div></div>' : '')
       + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" maxlength="500" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
         + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+apSimilarCasesBlockHtml()+apSchemeSuggestBlockHtml()+'</div>'
       + '</div>'
@@ -5389,16 +5344,6 @@ function renderAddView() {
           + (AP_TEMP.paymentMethod==='Cash' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-cash-amount" type="number" inputmode="numeric" placeholder="Cash amount (\u20b9)" value="'+esc(AP_TEMP.cashAmount||'')+'" style="margin-top:8px;">' : '')
           + '</div>'
         ) : '')
-      + '</div>'
-      + '<div class="card">'
-      + '<label class="field-label">'+ic('calendar')+' Follow-up Schedule</label>'
-      + '<p style="font-size:11px;color:var(--muted);margin:2px 0 10px;">Reminders will be created automatically for each visit below \u2014 edit dates, remove any, or add your own.</p>'
-      + AP_SCHEDULE.map(v => '<div class="row gap2" style="margin-bottom:8px;align-items:center;">'
-          + '<input class="input" data-schedule-id="'+v.id+'" data-schedule-field="label" value="'+esc(v.label)+'" style="flex:1;">'
-          + '<input class="input" type="date" data-schedule-id="'+v.id+'" data-schedule-field="date" value="'+esc(v.date)+'" style="flex:none;width:140px;">'
-          + '<button class="icon-btn" style="color:var(--red);" data-action="ap-schedule-remove" data-value="'+v.id+'">'+ic('trash')+'</button>'
-          + '</div>').join('')
-      + '</div>'
       + '</div>'
     ) : (
       '<div style="display:flex;flex-direction:column;gap:12px;">'
@@ -5549,9 +5494,6 @@ function renderOverviewTab(p) {
         + '</div>'
       ) : '')
     + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(p.occupation||'')+'"></div>'
-    + ((p.regions||[]).includes('Upper Limb') || (p.regions||[]).includes('Hand') ? '<div><label class="field-label">Hand dominance (optional)</label><div class="seg">'
-    + [['Left','L'],['Right','R'],['Ambidextrous','Ambi']].map(([v,l])=>'<button class="seg-btn'+((p.handDominance||'')===v?' active':'')+'" data-action="ov-set-hand" data-value="'+v+'">'+l+'</button>').join('')
-    + '</div></div>' : '')
     + '<div style="'+(overdue?'padding:10px;border-radius:12px;background:var(--red-bg);':'')+'">'
     + '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up'+(overdue?' \u2014 OVERDUE':'')+'</label></div>'
     + '<button type="button" class="btn btn-sm btn-block" style="margin-top:6px;justify-content:space-between;" data-action="quick-fu-open" data-patient-id="'+p.id+'">'
@@ -5650,8 +5592,7 @@ function renderOverviewTab(p) {
             : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
       ) : '');
 
-  const usefulRead = ((p.tags||[]).length ? '<div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.tags.map(t=>'<span class="badge badge-indigo">'+esc(t)+'</span>').join('')+'</div>' : '<p style="font-size:11.5px;color:var(--muted);margin:0;">No tags</p>')
-    + reminderMiniCardHtml(p);
+  const usefulRead = reminderMiniCardHtml(p);
 
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
     + (isAiTier() ? (
@@ -5698,7 +5639,7 @@ function renderOverviewTab(p) {
     + ovSectionV2('snapshot', 'Patient Snapshot', 'userPlus', snapshotRead, snapshotBody)
     + ovSectionV2('clinical', 'Clinical', 'file', clinicalRead, clinicalBody)
     + ovSectionV2('communicate', 'Communicate', 'message', communicateRead, communicateBody)
-    + ovSectionV2('useful', 'Useful', 'tag', usefulRead, usefulBody)
+    + ovSectionV2('useful', 'Reminders', 'calendar', usefulRead, usefulBody)
     + (hasTracking ? ovSectionV2('tracking', 'Special Tracking', 'clock', trackingBody, null) : '')
     + '<div style="text-align:center;padding-top:6px;">'
     + (!isSurgical ? '<button class="btn btn-sm" style="background:transparent;border-color:transparent;color:var(--muted);font-size:11.5px;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical\u2026</button>' : convertToOpdButtonHtml(p))
@@ -9282,10 +9223,8 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') AP_TEMP.condition = ''; render(); return; }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
-  if (action === 'ap-set-hand') { syncApTempFromDom(); AP_TEMP.handDominance = el.dataset.value; render(); return; }
   if (action === 'ap-set-payment') { syncApTempFromDom(); AP_TEMP.paymentMethod = el.dataset.value; render(); return; }
   if (action === 'ap-toggle-payment') { AP_SHOW_PAYMENT = !AP_SHOW_PAYMENT; render(); return; }
-  if (action === 'ap-schedule-remove') { syncApTempFromDom(); AP_SCHEDULE = AP_SCHEDULE.filter(v => v.id !== el.dataset.value); render(); return; }
   if (action === 'ap-inv-toggle-group') {
     const key = el.dataset.value;
     AP_INV_ACTIVE_GROUP = (AP_INV_ACTIVE_GROUP === key) ? null : key;
@@ -9322,13 +9261,6 @@ document.addEventListener('click', async (e) => {
   if (action === 'ov-set-payment') {
     const p = getPatient(SELECTED_ID);
     p.paymentMethod = el.dataset.value;
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'ov-set-hand') {
-    const p = getPatient(SELECTED_ID);
-    p.handDominance = el.dataset.value;
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
@@ -9519,7 +9451,6 @@ document.addEventListener('click', async (e) => {
     p.ageMonths = AP_TEMP.ageMonths;
     p.sex = AP_TEMP.sex;
     p.occupation = AP_TEMP.occupation;
-    p.handDominance = AP_TEMP.handDominance;
     p.diagnosis = AP_TEMP.diagnosis;
     p.chiefComplaints = AP_TEMP.caseType === 'opd' ? AP_TEMP.chiefComplaints : '';
     p.symptomDuration = AP_TEMP.symptomDuration;
@@ -9548,12 +9479,6 @@ document.addEventListener('click', async (e) => {
     if (p.condition === 'osteoporosis') p.osteo = newOsteoShape();
     try {
       await dbPutPatient(p);
-      if (p.caseType === 'surgical' && AP_SCHEDULE.length) {
-        AP_SCHEDULE.forEach(v => {
-          if (v.date) REMINDERS.push(newReminder({ text: v.label + ' follow-up', category: 'Patient', patientId: p.id, dueDate: v.date }));
-        });
-        saveReminders();
-      }
       // These photos are already in IndexedDB (saved the moment they were picked \u2014
       // see handlePhotoInputChange / handleCategorizedPhotoChange). Reusing ph.tempId as
       // the id here just updates that same record rather than creating a duplicate.
@@ -9750,7 +9675,6 @@ document.addEventListener('click', async (e) => {
     AP_TEMP.ageMonths = src.ageMonths;
     AP_TEMP.sex = src.sex;
     AP_TEMP.occupation = src.occupation||'';
-    AP_TEMP.handDominance = src.handDominance||'';
     AP_TEMP.diagnosis = src.diagnosis;
     AP_TEMP.caseType = src.caseType;
     AP_TEMP.condition = src.condition;
