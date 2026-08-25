@@ -3538,6 +3538,9 @@ function moreRowHtml(icon, title, sub, action, highlight) {
 let CB_ADD_OPEN = false;
 let CB_SELECTED_ID = null;
 let CB_DRAFT_NOTE = '';
+let CB_DRAFT_NAME = '';
+let CB_DRAFT_AGE = '';
+let CB_DRAFT_PHONE = '';
 let CB_DRAFT_TAGS = [];
 let CB_DRAFT_PHOTOS = [];
 let CB_SEARCH = '';
@@ -3601,6 +3604,7 @@ function cbFilteredEntries() {
   return [...CLINICAL_BANK].sort((a,b) => (b.createdAt||0) - (a.createdAt||0)).filter(c => {
     if (!q) return true;
     if ((c.note||'').toLowerCase().includes(q)) return true;
+    if ((c.name||'').toLowerCase().includes(q)) return true;
     return (c.tags||[]).some(t => t.toLowerCase().includes(q));
   });
 }
@@ -3617,10 +3621,12 @@ function cbResultsListHtml(filtered, imageMap) {
     return '<div class="fu-card" data-action="open-clinical-bank-entry" data-id="'+c.id+'" style="cursor:pointer;display:flex;gap:10px;align-items:flex-start;">'
       + thumb
       + '<div style="min-width:0;flex:1;">'
+        + ((c.name || c.age) ? '<p style="font-size:12.5px;font-weight:700;margin:0 0 2px;">'+(c.name?esc(c.name):'Unnamed')+(c.age?' \u00b7 '+esc(c.age)+'y':'')+'</p>' : '')
         + '<p style="font-size:12.5px;color:var(--ink);margin:0;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">'+(c.note?esc(c.note):'<span style="color:var(--muted);">No note</span>')+'</p>'
         + (c.tags && c.tags.length ? '<div class="chips" style="margin-top:6px;">'+c.tags.slice(0,4).map(t=>'<span class="chip" style="font-size:10px;padding:2px 8px;">'+esc(t)+'</span>').join('')+'</div>' : '')
         + (imgs.length ? '<span style="font-size:10.5px;color:var(--muted);display:block;margin-top:5px;">'+imgs.length+' image'+(imgs.length>1?'s':'')+'</span>' : '')
       + '</div>'
+      + (c.phone ? '<a href="tel:'+esc(c.phone)+'" class="icon-btn" style="flex:none;color:var(--accent);" title="Call" onclick="event.stopPropagation()">'+ic('phone')+'</a>' : '')
       + '</div>';
   }).join('');
 }
@@ -3662,6 +3668,15 @@ async function renderClinicalBankDetailView() {
     + '<div class="card">'
     + '<label class="field-label">Images</label>'
     + '<div id="cb-thumbs" style="position:relative;margin-top:8px;margin-bottom:14px;">' + thumbsHtml + '</div>'
+    + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:10px;">'
+    + '<div><label class="field-label">Patient name (optional)</label><input class="input" id="cb-name" placeholder="e.g. Colleague\u2019s patient" value="'+esc(CB_DRAFT_NAME)+'"></div>'
+    + '<div><label class="field-label">Age</label><input class="input" type="number" id="cb-age" placeholder="Yrs" value="'+esc(CB_DRAFT_AGE)+'"></div>'
+    + '</div>'
+    + '<div style="margin-bottom:10px;"><label class="field-label">Phone number (optional)</label>'
+    + '<div class="row gap2">'
+    + '<input class="input" type="tel" id="cb-phone" placeholder="For calling to ask about the case" value="'+esc(CB_DRAFT_PHONE)+'" style="flex:1;">'
+    + (CB_DRAFT_PHONE ? '<a href="tel:'+esc(CB_DRAFT_PHONE)+'" class="btn" style="flex:none;">'+ic('phone')+' Call</a>' : '')
+    + '</div></div>'
     + '<label class="field-label">What\u2019s interesting about this?</label>'
     + '<textarea class="textarea" id="cb-note" rows="3" placeholder="e.g. Rare bilateral presentation, unusual union pattern\u2026">'+esc(CB_DRAFT_NOTE)+'</textarea>'
     + cbTagEditorHtml()
@@ -5911,6 +5926,7 @@ function renderSmartFollowupFormLayer1(p) {
     + (isAiTier() ? '<button type="button" class="chip" data-action="ai-suggest-followup">✨ Suggest</button>' : '')
     + '</div>'
     + '<input class="input" type="date" id="fu-next-followup" value="'+(suggestedNextDate||'')+'" placeholder="Or pick date">'
+    + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">'+ic('sparkle')+' Auto-suggested \u2014 tap a chip above or edit the date to change it</p>'
     + '</div>';
 }
 
@@ -9794,7 +9810,19 @@ document.addEventListener('click', async (e) => {
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
     const nextFuEl = document.getElementById('fu-next-followup');
-    if (nextFuEl) { p.nextFollowUpDate = nextFuEl.value; p.followUpSnoozeCount = 0; p.lastReminderSentAt = null; }
+    let nextFuDefaulted = false;
+    if (nextFuEl && nextFuEl.value) {
+      p.nextFollowUpDate = nextFuEl.value;
+    } else {
+      // Safety net: never let a follow-up leave next-visit blank \u2014 falls off all
+      // overdue tracking silently otherwise. Flat fallback: OPD +5 days, Surgical +7 days.
+      const fallbackDays = p.caseType === 'surgical' ? 7 : 5;
+      const base = new Date(date || todayStr());
+      base.setDate(base.getDate() + fallbackDays);
+      p.nextFollowUpDate = base.toISOString().split('T')[0];
+      nextFuDefaulted = true;
+    }
+    p.followUpSnoozeCount = 0; p.lastReminderSentAt = null;
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
@@ -9809,6 +9837,14 @@ document.addEventListener('click', async (e) => {
     await refreshPatients();
     FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
     await renderTabBody(getPatient(SELECTED_ID));
+    if (nextFuDefaulted) {
+      toastWithButton(
+        '\u26a0\ufe0f Next follow-up not set \u2014 defaulted to ' + fmtDate(p.nextFollowUpDate) + ' (' + (p.caseType === 'surgical' ? '7' : '5') + ' days)',
+        'Edit date',
+        () => { TAB = 'overview'; render(); },
+        5000
+      );
+    }
     return;
   }
 
@@ -10510,11 +10546,11 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-research-cases') { VIEW = 'more'; render(); return; }
   if (action === 'open-clinical-bank') { VIEW = 'clinical-bank'; CB_SEARCH = ''; await refreshClinicalBank(); render(); return; }
   if (action === 'close-clinical-bank') { VIEW = 'more'; render(); return; }
-  if (action === 'cb-open-add') { CB_SELECTED_ID = null; CB_DRAFT_NOTE = ''; CB_DRAFT_TAGS = []; CB_DRAFT_PHOTOS = []; VIEW = 'clinical-bank-detail'; render(); return; }
+  if (action === 'cb-open-add') { CB_SELECTED_ID = null; CB_DRAFT_NOTE = ''; CB_DRAFT_NAME = ''; CB_DRAFT_AGE = ''; CB_DRAFT_PHONE = ''; CB_DRAFT_TAGS = []; CB_DRAFT_PHOTOS = []; VIEW = 'clinical-bank-detail'; render(); return; }
   if (action === 'open-clinical-bank-entry') {
     const entry = CLINICAL_BANK.find(c => c.id === el.dataset.id);
     if (!entry) return;
-    CB_SELECTED_ID = entry.id; CB_DRAFT_NOTE = entry.note || ''; CB_DRAFT_TAGS = [...(entry.tags||[])]; CB_DRAFT_PHOTOS = [];
+    CB_SELECTED_ID = entry.id; CB_DRAFT_NOTE = entry.note || ''; CB_DRAFT_NAME = entry.name || ''; CB_DRAFT_AGE = entry.age || ''; CB_DRAFT_PHONE = entry.phone || ''; CB_DRAFT_TAGS = [...(entry.tags||[])]; CB_DRAFT_PHOTOS = [];
     VIEW = 'clinical-bank-detail'; render(); return;
   }
   if (action === 'close-clinical-bank-detail') { VIEW = 'clinical-bank'; CB_SELECTED_ID = null; render(); return; }
@@ -10526,6 +10562,9 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'cb-add-tag') {
     const noteEl0 = document.getElementById('cb-note'); if (noteEl0) CB_DRAFT_NOTE = noteEl0.value;
+    const nameEl0 = document.getElementById('cb-name'); if (nameEl0) CB_DRAFT_NAME = nameEl0.value;
+    const ageEl0 = document.getElementById('cb-age'); if (ageEl0) CB_DRAFT_AGE = ageEl0.value;
+    const phoneEl0 = document.getElementById('cb-phone'); if (phoneEl0) CB_DRAFT_PHONE = phoneEl0.value;
     const inp = document.getElementById('cb-tag-input');
     const val = inp ? inp.value.trim() : '';
     if (val && !CB_DRAFT_TAGS.includes(val)) CB_DRAFT_TAGS.push(val);
@@ -10534,6 +10573,9 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'cb-add-suggested-tag') {
     const noteEl0 = document.getElementById('cb-note'); if (noteEl0) CB_DRAFT_NOTE = noteEl0.value;
+    const nameEl0 = document.getElementById('cb-name'); if (nameEl0) CB_DRAFT_NAME = nameEl0.value;
+    const ageEl0 = document.getElementById('cb-age'); if (ageEl0) CB_DRAFT_AGE = ageEl0.value;
+    const phoneEl0 = document.getElementById('cb-phone'); if (phoneEl0) CB_DRAFT_PHONE = phoneEl0.value;
     const val = el.dataset.tag;
     if (val && !CB_DRAFT_TAGS.includes(val)) CB_DRAFT_TAGS.push(val);
     render();
@@ -10541,6 +10583,9 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'cb-remove-draft-tag') {
     const noteEl0 = document.getElementById('cb-note'); if (noteEl0) CB_DRAFT_NOTE = noteEl0.value;
+    const nameEl0 = document.getElementById('cb-name'); if (nameEl0) CB_DRAFT_NAME = nameEl0.value;
+    const ageEl0 = document.getElementById('cb-age'); if (ageEl0) CB_DRAFT_AGE = ageEl0.value;
+    const phoneEl0 = document.getElementById('cb-phone'); if (phoneEl0) CB_DRAFT_PHONE = phoneEl0.value;
     CB_DRAFT_TAGS = CB_DRAFT_TAGS.filter(t => t !== el.dataset.tag);
     render();
     return;
@@ -10548,17 +10593,23 @@ document.addEventListener('click', async (e) => {
   if (action === 'cb-save-entry') {
     const noteEl = document.getElementById('cb-note');
     const note = noteEl ? noteEl.value.trim() : CB_DRAFT_NOTE.trim();
+    const nameEl = document.getElementById('cb-name');
+    const name = nameEl ? nameEl.value.trim() : CB_DRAFT_NAME.trim();
+    const ageEl = document.getElementById('cb-age');
+    const age = ageEl ? ageEl.value.trim() : CB_DRAFT_AGE.trim();
+    const phoneEl = document.getElementById('cb-phone');
+    const phone = phoneEl ? phoneEl.value.trim() : CB_DRAFT_PHONE.trim();
     const now = Date.now();
-    CB_DRAFT_NOTE = note;
+    CB_DRAFT_NOTE = note; CB_DRAFT_NAME = name; CB_DRAFT_AGE = age; CB_DRAFT_PHONE = phone;
     if (CB_SELECTED_ID) {
       const existing = CLINICAL_BANK.find(c => c.id === CB_SELECTED_ID);
-      const entry = Object.assign({}, existing, { note, tags: CB_DRAFT_TAGS.slice(), updatedAt: now });
+      const entry = Object.assign({}, existing, { note, name, age, phone, tags: CB_DRAFT_TAGS.slice(), updatedAt: now });
       await dbPutClinicalBank(entry);
       await refreshClinicalBank();
       toast('Saved');
       render();
     } else {
-      const entry = { id: uid(), note, tags: CB_DRAFT_TAGS.slice(), createdAt: now, updatedAt: now };
+      const entry = { id: uid(), note, name, age, phone, tags: CB_DRAFT_TAGS.slice(), createdAt: now, updatedAt: now };
       await dbPutClinicalBank(entry);
       for (const ph of CB_DRAFT_PHOTOS) {
         await dbAddImage({ id: ph.tempId, patientId: null, clinicalBankId: entry.id, blob: ph.blob, createdAt: Date.now(), imageCategory: 'clinical-bank' });
