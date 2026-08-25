@@ -2311,7 +2311,7 @@ let AP_PHOTOS = [];
 // temp state for add-followup photo staging
 let FU_INV_PHOTOS = [];
 let FU_INV_CATEGORY = 'xray';
-let FU_INV_XRAY_SUBTYPE = 'General OPD';
+let FU_INV_XRAY_SUBTYPE = 'Follow-up';
 // temp state for add-investigation photo staging
 let INV_PHOTOS = [];
 
@@ -6008,7 +6008,7 @@ function renderSmartFollowupFormLayer1(p) {
   return '<div style="margin-bottom:16px;">'
     + '<label class="field-label">When was this visit?</label>'
     + '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">'
-    + '<button type="button" class="chip" data-action="fu-quick-date" data-date="'+todayStr()+'">Today</button>'
+    + '<button type="button" class="chip active" data-action="fu-quick-date" data-date="'+todayStr()+'">Today</button>'
     + '<button type="button" class="chip" data-action="fu-quick-date" data-date="'+(new Date(new Date().getTime()-86400000).toISOString().split('T')[0])+'">Yesterday</button>'
     + '<button type="button" class="chip" data-action="fu-toggle-date-picker">Custom</button>'
     + '</div>'
@@ -6064,13 +6064,14 @@ function renderSmartFollowupFormLayer2(p) {
 }
 
 function renderSmartFollowupFormLayer3(p) {
-  let html = '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px;">';
-  
-  html += '<details style="margin-bottom:14px;">'
-    + '<summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;padding:8px;border-radius:4px;background:rgba(0,0,0,0.02);">'
-    + '<span>📸 Add Photos</span>'
+  let html = '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px;display:flex;flex-direction:column;gap:12px;">';
+
+  html += '<details style="border-radius:10px;overflow:hidden;background:rgba(37,99,235,0.05);border:1px solid rgba(37,99,235,0.18);">'
+    + '<summary style="cursor:pointer;font-weight:700;display:flex;align-items:center;gap:8px;padding:10px 12px;color:#1d4ed8;">'
+    + '<span style="flex:none;">'+ic('camera')+'</span><span>Add Photos</span>'
+    + (FU_INV_PHOTOS.length ? '<span class="badge" style="margin-left:auto;background:#2563eb;color:#fff;font-size:10px;">'+FU_INV_PHOTOS.length+'</span>' : '')
     + '</summary>'
-    + '<div style="padding:12px;margin-top:8px;">'
+    + '<div style="padding:0 12px 14px;">'
     + '<select class="select" id="fu-inv-category" style="margin-bottom:8px;">'
     + IMAGES_RECORDS_SECTIONS.map(([v,l]) => '<option value="'+v+'"'+(FU_INV_CATEGORY===v?' selected':'')+'>'+l+'</option>').join('')
     + '</select>'
@@ -6078,19 +6079,17 @@ function renderSmartFollowupFormLayer3(p) {
     + '<div id="fu-inv-thumbs">'+fuInvThumbsHtml()+'</div>'
     + '</div>'
     + '</details>';
-  
-  html += '<details style="margin-bottom:14px;">'
-    + '<summary style="cursor:pointer;font-weight:600;display:flex;align-items:center;gap:8px;padding:8px;border-radius:4px;background:rgba(0,0,0,0.02);">'
-    + '<span>📝 Add Detailed Notes</span>'
+
+  html += '<details style="border-radius:10px;overflow:hidden;background:rgba(180,83,9,0.05);border:1px solid rgba(180,83,9,0.18);" open>'
+    + '<summary style="cursor:pointer;font-weight:700;display:flex;align-items:center;gap:8px;padding:10px 12px;color:#b45309;">'
+    + '<span style="flex:none;">'+ic('file')+'</span><span>Clinical Notes</span>'
     + '</summary>'
-    + '<div style="padding:12px;margin-top:8px;">'
-    + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('fu-notes')+'</div>'
-    + '<textarea class="textarea" id="fu-notes" rows="2" maxlength="5000" placeholder="ROM, complications, concerns..."></textarea>'
+    + '<div style="padding:0 12px 14px;">'
+    + '<div class="row between" style="margin-bottom:8px;"><span style="font-size:11px;color:var(--muted);">ROM, complications, concerns\u2026</span>'+micButtonHtml('fu-notes')+'</div>'
+    + '<textarea class="textarea" id="fu-notes" rows="3" maxlength="5000" placeholder="Type or use the mic\u2026" style="background:#fff;"></textarea>'
     + '</div>'
     + '</details>';
-  
 
-  
   html += '</div>';
   return html;
 }
@@ -6134,14 +6133,17 @@ async function renderFollowupsTab(p) {
         grid += '</div>';
         return '<div style="margin-top:10px;"><label class="field-label" style="margin-bottom:6px;">'+label+'</label><div style="position:relative;">'+grid+cameraFabHtml(inputAttr)+'</div></div>';
       };
-      body = photoGroupHtml('X-ray', fuXrayImages, 'data-fu-input="'+f.id+'"')
-        + photoGroupHtml('Clinical Image', fuClinicalImages, 'data-fu-clinical-input="'+f.id+'"')
+      body = (fuXrayImages.length ? photoGroupHtml('X-ray', fuXrayImages, 'data-fu-input="'+f.id+'"') : '')
+        + (fuClinicalImages.length ? photoGroupHtml('Clinical Image', fuClinicalImages, 'data-fu-clinical-input="'+f.id+'"') : '')
         + (f.woundStatus && f.woundStatus !== 'N/A' || fuWoundImages.length
             ? '<div style="margin-top:10px;"><div class="row gap2" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Wound / Suture Photo</label><span class="badge '+woundBadgeClass(f.woundStatus)+'">'+esc(f.woundStatus||'N/A')+'</span></div>'
               + (() => { let wg = '<div class="thumb-grid">'; fuWoundImages.forEach(im => { const url = trackUrl(URL.createObjectURL(im.blob)); wg += '<div class="thumb-wrap" data-action="view-image" data-imgid="'+im.id+'" data-url="'+esc(url)+'"><img src="'+url+'"></div>'; }); wg += '<label class="add-photo-tile">'+ic('camera')+'<span>Add</span><input type="file" accept="image/*" multiple data-fu-wound-input="'+f.id+'" style="display:none;"></label>'; wg += '</div>'; return '<div style="position:relative;">'+wg+cameraFabHtml('data-fu-wound-input="'+f.id+'"')+'</div>'; })()
               + '</div>'
             : '')
-        + (f.notes ? '<p style="font-size:12px;color:#64748b;margin-top:10px;">'+esc(f.notes)+'</p>' : '');
+        + (f.notes ? '<div style="margin-top:12px;"><label class="field-label" style="margin-bottom:6px;">Notes</label><div style="background:var(--bg-soft);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.55;color:var(--ink);white-space:pre-wrap;">'+esc(f.notes)+'</div></div>' : '');
+      if (!fuXrayImages.length && !fuClinicalImages.length && !fuWoundImages.length && !(f.woundStatus && f.woundStatus !== 'N/A') && !f.notes) {
+        body += '<p style="font-size:11.5px;color:var(--muted);margin-top:8px;">Nothing else added for this visit.</p>';
+      }
     }
     list += '<div class="fu-card">'
       + '<div class="row between" style="cursor:pointer;" data-action="toggle-fu" data-id="'+f.id+'">'
@@ -8950,7 +8952,7 @@ document.addEventListener('click', async (e) => {
     const purpose = QUICK_PICKER_PURPOSE;
     closeQuickPicker();
     SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW = 'detail'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH = null;
-    if (purpose === 'followup') { TAB = 'followups'; FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'General OPD'; ADD_FOLLOWUP_OPEN = true; }
+    if (purpose === 'followup') { TAB = 'followups'; FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'Follow-up'; ADD_FOLLOWUP_OPEN = true; }
     else if (purpose === 'investigation') { TAB = 'imagesrecords'; IMAGES_RECORDS_SUBVIEW = 'investigations'; ADD_INVESTIGATION_OPEN = true; INV_PHOTOS = []; }
     else { TAB = 'overview'; REMINDER_FORM_OPEN = true; REMINDER_FORM_PATIENT_ID = el.dataset.id; REMINDER_FORM_CATEGORY = 'General'; REMINDER_FORM_DATE = ''; }
     await render();
@@ -9158,7 +9160,7 @@ document.addEventListener('click', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'ctev-jump-followup') { TAB = 'followups'; FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'General OPD'; ADD_FOLLOWUP_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); window.scrollTo(0,0); return; }
+  if (action === 'ctev-jump-followup') { TAB = 'followups'; FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'Follow-up'; ADD_FOLLOWUP_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); window.scrollTo(0,0); return; }
   if (action === 'ctev-open-add-brace-log') { ADD_CTEV_BRACELOG_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-cancel-add-bracelog') { ADD_CTEV_BRACELOG_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-submit-bracelog') {
@@ -9798,7 +9800,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'open-add-fu') { FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'General OPD'; ADD_FOLLOWUP_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'open-add-fu') { FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'Follow-up'; ADD_FOLLOWUP_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
   if (action === 'cancel-add-fu') {
     await discardStagedPhotos(FU_INV_PHOTOS);
     FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return;
@@ -9807,13 +9809,21 @@ document.addEventListener('click', async (e) => {
   
   // Smart Form Layer 1 Actions
   if (action === 'fu-quick-date') {
+    haptic(10);
     const dateVal = el.dataset.date;
     const dateEl = document.getElementById('fu-date');
-    if (dateEl) dateEl.value = dateVal;
+    if (dateEl) { dateEl.value = dateVal; dateEl.style.display = 'none'; }
+    const row = el.parentElement;
+    if (row) row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
     return;
   }
   
   if (action === 'fu-toggle-date-picker') {
+    haptic(10);
+    const row = el.parentElement;
+    if (row) row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
     const dateEl = document.getElementById('fu-date');
     if (dateEl) {
       if (dateEl.style.display === 'none') {
