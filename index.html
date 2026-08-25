@@ -5443,7 +5443,6 @@ function renderAddView() {
       '<div style="display:flex;flex-direction:column;gap:12px;">'
       + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
-      + '<div><label class="field-label">Surgery date</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Hospital (optional)</label><input class="input" id="ap-hospital" value="'+esc(AP_TEMP.hospital||'')+'"></div>'
       + '<div><label class="field-label">Anaesthesia (optional)</label><select class="select" id="ap-anaesthesia"><option value=""'+(!AP_TEMP.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(AP_TEMP.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
@@ -5478,10 +5477,7 @@ function renderAddView() {
     [2, 'alert', tab2Label, complaintsHtml],
     [3, 'flask', 'Investigations', investigationsHtml],
     [4, isSurgical ? 'scalpel' : 'clock', tab3Label, trackingHtml],
-    [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div style="display:flex;flex-direction:column;gap:16px;">'
-        + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'
-        + '<div style="padding:0;"><label class="field-label">Next follow-up date (optional)</label><input class="input" type="date" id="ap-next-fu-date" value="'+esc(AP_TEMP.nextFollowUpDate)+'"></div>'
-        + '</div>'],
+    [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'],
   ];
 
   const accordionHtml = sections.map(([n, icon, title, body]) => {
@@ -5511,13 +5507,15 @@ function renderAddView() {
     + '<div class="px" style="padding-top:16px;display:flex;flex-direction:column;gap:0;">'
     + (AP_DUPLICATE_FROM ? '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;padding:10px 12px;margin-bottom:16px;"><span style="font-size:12px;color:var(--accent-dark);font-weight:600;">'+ic('tag')+' Duplicated from '+esc(AP_DUPLICATE_FROM)+' \u2014 everything else was copied, just check Name, Age and Side below.</span></div>' : '')
 
-    + '<div class="row gap2" style="margin-bottom:16px;">'
+    + '<div class="row gap2" style="margin-bottom:12px;">'
     + '<div style="flex:1;"><label class="field-label">Case type</label><div class="seg">'
     + '<button class="seg-btn'+(AP_TEMP.caseType==='opd'?' active':'')+'" data-action="ap-set-casetype" data-value="opd">OPD</button>'
     + '<button class="seg-btn'+(AP_TEMP.caseType==='surgical'?' active':'')+'" data-action="ap-set-casetype" data-value="surgical">Surgical</button>'
     + '</div></div>'
-    + (!isSurgical ? '<div style="flex:none;width:150px;"><label class="field-label">Visit date</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'"></div>' : '')
+    + '<div style="flex:none;width:150px;"><label class="field-label">'+(isSurgical?'Surgery date':'Visit date')+'</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
     + '</div>'
+
+    + '<div style="margin-bottom:16px;"><label class="field-label">Next follow-up date (optional)</label><input class="input" type="date" id="ap-next-fu-date" value="'+esc(AP_TEMP.nextFollowUpDate)+'"></div>'
 
     + accordionHtml
     + aiAssistantPill
