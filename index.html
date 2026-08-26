@@ -3547,10 +3547,10 @@ async function renderMoreView() {
   const unfiled = await computeUnfiledImages();
   const notifCount = (await computeActivityFeed()).filter(e => e.ts > notifLastSeen()).length;
   const groups = [
-    { key:'settings', title:'Settings', icon:'gear', rows:
-        moreRowHtml('clock', 'Notifications'+(notifCount?' ('+notifCount+')':''), 'Due reminders and recent activity', 'open-notifications')
-        + moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead', 'open-settings')
-        + moreRowHtml('gear', 'App Settings', 'App Lock, dark mode, accent color, reminders, Patient ID', 'open-app-settings')
+    { key:'settings', title:'Profile & Settings', icon:'gear', rows:
+        moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead', 'open-settings')
+        + moreRowHtml('gear', 'App Settings', 'Dark mode, storage, AI usage', 'open-app-settings')
+        + moreRowHtml('clock', 'Notifications'+(notifCount?' ('+notifCount+')':''), 'Due reminders and recent activity', 'open-notifications')
     },
     { key:'ai', title:'AI', icon:'sparkle', rows:
         (isAiTier() ? '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;background:rgba(67,56,202,0.06);border-color:var(--accent);" data-action="open-ai-hub">'
@@ -3560,27 +3560,21 @@ async function renderMoreView() {
           + '</button>' : '')
         + (!isAiTier() ? moreRowHtml('sparkle', 'Upgrade Plan', isProOrAbove() ? 'You\u2019re on Pro \u2014 tap to see AI tier' : 'Unlock Pro or AI tier features', 'open-upgrade', true) : '')
     },
-    { key:'practice', title:'Scheme Code Finder', icon:'clipboard', rows:
-        moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
-    },
-    { key:'data', title:'Data & Backup', icon:'download', rows:
+    { key:'data', title:'Data & Reports', icon:'download', rows:
         moreRowHtml('shield', 'Cloud Sync (AI tier)', !CURRENT_USER ? 'Not signed in \u2014 tap to set up' : (isAiTier() ? 'Signed in \u2014 backing up automatically' : 'Signed in \u2014 upgrade to AI tier to enable'), 'open-cloud-sync')
         + moreRowHtml('download', 'Export Backup', 'Zip of all cases, photos, reminders \u2014 pick your Drive folder for an off-device copy', 'export-backup')
         + moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import')
         + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
+        + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
     },
-    { key:'reports', title:'Reports', icon:'file', rows:
-        moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
-    },
-    { key:'teachingresearch', title:'Academic Vault', icon:'bookmark', rows:
-        moreRowHtml('bookmark', 'Research Cases'+(PATIENTS.filter(p=>p.researchFlag).length ? ' ('+PATIENTS.filter(p=>p.researchFlag).length+')' : ''), 'Cases flagged for papers, case reports & study', 'open-research-cases')
+    { key:'reference', title:'Reference & Research', icon:'bookmark', rows:
+        moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
+        + moreRowHtml('bookmark', 'Research Cases'+(PATIENTS.filter(p=>p.researchFlag).length ? ' ('+PATIENTS.filter(p=>p.researchFlag).length+')' : ''), 'Cases flagged for papers, case reports & study', 'open-research-cases')
         + moreRowHtml('camera', 'Clinical Bank'+(CLINICAL_BANK.length ? ' ('+CLINICAL_BANK.length+')' : ''), 'Interesting X-rays, CT findings & notes \u2014 kept separate from patient records', 'open-clinical-bank')
         + moreRowHtml('bookmark', 'Topics to Read'+(ACADEMIC_VAULT_TOPICS.length ? ' ('+ACADEMIC_VAULT_TOPICS.length+')' : ''), 'Research papers and topics you want to study', 'open-academic-vault')
+        + moreRowHtml('sparkle', 'FAQ'+(CONTENT_IDEAS_FAQS.length ? ' ('+CONTENT_IDEAS_FAQS.length+')' : ''), 'Patient questions for social media content' , 'open-content-ideas')
     },
-    { key:'social', title:'Social Media', icon:'sparkle', rows:
-        moreRowHtml('sparkle', 'FAQ'+(CONTENT_IDEAS_FAQS.length ? ' ('+CONTENT_IDEAS_FAQS.length+')' : ''), 'Patient questions for social media content' , 'open-content-ideas')
-    },
-    { key:'help', title:'Help & Info', icon:'info', rows:
+    { key:'help', title:'Help', icon:'info', rows:
         moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
         + moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new')
     },
