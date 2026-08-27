@@ -3924,7 +3924,7 @@ const ABOUT_SECTIONS = [
   { key:'smart', title:'Smart Features', icon:'search', items:[
     ['Region auto-detect', 'On Overview, tap "Auto-detect" to guess the region/specialty (Upper Limb, Spine, Trauma, etc.) from the diagnosis and procedure text \u2014 adjust manually anytime.'],
     ['Autocomplete memory', 'Diagnosis, Chief Complaints, Procedure, and Tags remember what you\u2019ve typed before \u2014 start typing 2+ letters to see matching past entries, in any word order.'],
-    ['Universal search', 'The floating search button searches every field \u2014 name, ID, diagnosis, notes, tags, investigations, prescriptions \u2014 across all cases.'],
+    ['Universal search', 'The floating search button searches every field \u2014 name, ID, diagnosis, notes, investigations, prescriptions \u2014 across all cases.'],
     ['WhatsApp messaging', 'From Overview: a general message, a Follow-up Reminder (auto-fills the visit reason and date), and a direct Call button \u2014 messages are in Hindi, using your saved profile name.'],
     ['Photo zoom, notes & download', 'Open any photo: use the +/\u2212 buttons or pinch/double-tap to zoom, add a note that shows boldly on the image, or download it.'],
   ]},
@@ -4725,7 +4725,7 @@ function closeUniversalSearch() {
 }
 function usearchOverlayHtml() {
   return '<div class="usearch-topbar">'
-    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="usearch-input" autofocus placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(USEARCH_QUERY)+'"></div>'
+    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="usearch-input" autofocus placeholder="Search anything \u2014 ID, diagnosis, notes\u2026" value="'+esc(USEARCH_QUERY)+'"></div>'
     + '<button class="icon-btn" data-action="close-usearch">'+ic('x')+'</button>'
     + '</div>'
     + '<div class="usearch-results" id="usearch-results">'+usearchResultsHtml()+'</div>';
@@ -4787,7 +4787,7 @@ function patientGroupKey(p) {
   if (diffDays <= 30) return 'month';
   return 'older';
 }
-const PATIENT_GROUP_LABELS = { pinned:'Pinned', overdue:'Needs Attention', today:'Today', week:'This Week', month:'This Month', older:'Older' };
+const PATIENT_GROUP_LABELS = { overdue:'Needs Attention', today:'Today', week:'This Week', month:'This Month', older:'Older' };
 
 function renderListView() {
   const ownerProfile = loadProfile();
@@ -4900,7 +4900,7 @@ function renderPatientsView() {
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px 10px;">'
     + '<div class="row gap3" style="margin-bottom:10px;align-items:center;"><button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Patients</h2><span style="font-size:12px;color:var(--muted);">'+PATIENTS.length+' total</span></div>'
-    + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes, tags\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
+    + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
@@ -5321,7 +5321,7 @@ function renderAddView() {
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
     + '<button class="btn" style="flex:1;" data-action="cancel-add">Cancel</button>'
-    + '<button class="btn btn-primary" style="flex:2;" data-action="save-patient">'+ic('download')+' Save case</button>'
+    + '<button class="btn btn-primary" style="flex:2;" data-action="save-patient">Save case</button>'
     + '</div>'
     + '</div>';
 }
@@ -5437,7 +5437,8 @@ function renderOverviewTab(p) {
 
   let clinicalBody = '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
     + '<textarea class="textarea" id="ov-notes" rows="5" maxlength="5000" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
-    + (p.condition ? '<div style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></div>'
+    + (p.condition ? '<div class="row between" style="align-items:center;"><span style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></span><button type="button" class="chip" style="font-size:10px;padding:3px 8px;" data-action="ov-show-tracking-pick">Change</button></div>'
+        + (OV_SHOW_TRACKING_PICK ? '<select class="select" id="ov-tracking-select" style="margin-top:6px;"><option value="">\u2014 None (remove tracking) \u2014</option><option value="ctev"'+(p.condition==='ctev'?' selected':'')+'>CTEV</option><option value="ra"'+(p.condition==='ra'?' selected':'')+'>RA</option><option value="osteoporosis"'+(p.condition==='osteoporosis'?' selected':'')+'>Osteoporosis</option><option value="trauma"'+(p.condition==='trauma'?' selected':'')+'>Trauma</option></select>' : '')
         : (!isSurgical ? (OV_SHOW_TRACKING_PICK
             ? '<select class="select" id="ov-tracking-select"><option value="">\u2014 Pick \u2014</option><option value="ctev">CTEV</option><option value="ra">RA</option><option value="osteoporosis">Osteoporosis</option><option value="trauma">Trauma</option></select>'
             : '<button class="chip" data-action="ov-show-tracking-pick">'+ic('plus')+' Track a condition</button>') : ''));
@@ -5501,7 +5502,8 @@ function renderOverviewTab(p) {
     + ((p.comorbidities||[]).length ? '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:5px;">Co-morbidities</div><div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.comorbidities.map(c=>'<span class="badge badge-indigo" style="font-weight:600;">+ '+esc(c)+'</span>').join('')+'</div></div>' : '')
     + '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Clinical Notes</div><div style="font-size:12.5px;color:#334155;white-space:pre-wrap;">'+(p.notes ? esc(p.notes) : '<span style="color:var(--muted);">No notes yet.</span>')+'</div></div>'
     + (!p.chiefComplaints && !(p.comorbidities||[]).length && !p.notes ? '<p style="font-size:12px;color:var(--muted);margin:0;">Nothing added yet.</p>' : '')
-    + (p.condition ? '<div style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></div>'
+    + (p.condition ? '<div class="row between" style="align-items:center;"><span style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></span><button type="button" class="chip" style="font-size:10px;padding:3px 8px;" data-action="ov-show-tracking-pick">Change</button></div>'
+        + (OV_SHOW_TRACKING_PICK ? '<select class="select" id="ov-tracking-select" style="margin-top:6px;"><option value="">\u2014 None (remove tracking) \u2014</option><option value="ctev"'+(p.condition==='ctev'?' selected':'')+'>CTEV</option><option value="ra"'+(p.condition==='ra'?' selected':'')+'>RA</option><option value="osteoporosis"'+(p.condition==='osteoporosis'?' selected':'')+'>Osteoporosis</option><option value="trauma"'+(p.condition==='trauma'?' selected':'')+'>Trauma</option></select>' : '')
         : (!isSurgical ? (OV_SHOW_TRACKING_PICK
             ? '<select class="select" id="ov-tracking-select"><option value="">\u2014 Pick \u2014</option><option value="ctev">CTEV</option><option value="ra">RA</option><option value="osteoporosis">Osteoporosis</option><option value="trauma">Trauma</option></select>'
             : '<button class="chip" data-action="ov-show-tracking-pick">'+ic('plus')+' Track a condition</button>') : ''));
@@ -11053,11 +11055,39 @@ document.addEventListener('change', async (e) => {
       await dbPutPatient(p); await refreshPatients();
       OV_SHOW_TRACKING_PICK = false;
       await render();
+    } else if (p.condition) {
+      const confirmed = await showConfirmDialog({
+        title: 'Remove special tracking?',
+        message: 'The '+p.condition.toUpperCase()+' tab will be hidden. Any data already recorded there is kept, not deleted \u2014 you can re-enable it later.',
+        confirmText: 'Remove',
+        cancelText: 'Cancel',
+        destructive: true
+      });
+      if (!confirmed) { await render(); return; }
+      p.condition = '';
+      await dbPutPatient(p); await refreshPatients();
+      OV_SHOW_TRACKING_PICK = false;
+      await render();
     }
     return;
   }
   if (t.dataset && t.dataset.field) {
+    if (t.dataset.field === 'status' && t.value === 'Lost to follow-up') {
+      const p = getPatient(SELECTED_ID);
+      const confirmed = await showConfirmDialog({
+        title: 'Mark as Lost?',
+        message: (p ? p.name : 'This patient') + ' will be removed from Needs Attention tracking until a new follow-up is logged.',
+        confirmText: 'Mark Lost',
+        cancelText: 'Cancel',
+        destructive: true
+      });
+      if (!confirmed) { await render(); return; }
+    }
     await patchField(t.dataset.field, t.value);
+    t.style.transition = 'border-color 200ms, box-shadow 200ms';
+    t.style.borderColor = 'var(--emerald)';
+    t.style.boxShadow = '0 0 0 2px rgba(22,163,74,0.15)';
+    setTimeout(() => { t.style.borderColor = ''; t.style.boxShadow = ''; }, 900);
     if (t.dataset.field === 'procedure') recordTextUsed(PROCEDURE_LIB_KEY, t.value);
     if (t.dataset.field === 'diagnosis') {
       recordTextUsed(DIAGNOSIS_LIB_KEY, t.value);
@@ -11081,7 +11111,12 @@ document.addEventListener('change', async (e) => {
       }
     }
     if (t.dataset.field === 'chiefComplaints') recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, t.value);
-    if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality' || t.dataset.field === 'heightCm' || t.dataset.field === 'weightKg' || t.dataset.field === 'surgeryType') { await render(); }
+    if (t.dataset.field === 'whatsapp' || t.dataset.field === 'nextFollowUpDate' || t.dataset.field === 'laterality' || t.dataset.field === 'heightCm' || t.dataset.field === 'weightKg' || t.dataset.field === 'surgeryType') {
+      if (t.dataset.field === 'whatsapp' && t.value.trim() && toWaNumber(t.value).length < 10) {
+        toast('\u26a0\ufe0f Doesn\u2019t look like a complete number \u2014 WhatsApp features may not work');
+      }
+      await render();
+    }
     return;
   }
   if (t.dataset && t.dataset.imgUpload) {
@@ -11257,6 +11292,16 @@ document.addEventListener('input', (e) => {
       if (resEl) resEl.innerHTML = usearchResultsHtml();
     }, 300);
   }
+  if (e.target.id === 'search-input') {
+    clearTimeout(SEARCH_DEBOUNCE_TIMER);
+    const val = e.target.value;
+    SEARCH_DEBOUNCE_TIMER = setTimeout(() => {
+      SEARCH = val;
+      render();
+      const newInput = document.getElementById('search-input');
+      if (newInput) { newInput.focus(); newInput.setSelectionRange(newInput.value.length, newInput.value.length); }
+    }, 300);
+  }
   if (e.target.id === 'quick-picker-input') {
     QUICK_PICKER_QUERY = e.target.value;
     clearTimeout(QUICK_PICKER_DEBOUNCE_TIMER);
@@ -11279,10 +11324,10 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'ap-duration') { AP_TEMP.symptomDuration = e.target.value; }
 });
 document.addEventListener('mousedown', (e) => {
-  if (e.target.closest && e.target.closest('.autocomplete-item')) { e.preventDefault(); }
+  if (e.target.closest && (e.target.closest('.autocomplete-item') || e.target.closest('[data-action="quick-fill-text"]'))) { e.preventDefault(); }
 });
 document.addEventListener('touchstart', (e) => {
-  if (e.target.closest && e.target.closest('.autocomplete-item')) { e.preventDefault(); }
+  if (e.target.closest && (e.target.closest('.autocomplete-item') || e.target.closest('[data-action="quick-fill-text"]'))) { e.preventDefault(); }
 }, { passive: false });
 document.addEventListener('blur', async (e) => {
   if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
