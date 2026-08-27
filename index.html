@@ -6135,7 +6135,7 @@ async function renderPrescriptionsTab(p) {
     const profile = loadProfile();
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
-      + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
+      + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" max="'+todayStr()+'" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
       + ((p.prescriptions||[]).length ? '<button class="btn btn-sm" style="margin-bottom:12px;" data-action="repeat-last-rx">'+ic('copy')+' Repeat last prescription ('+fmtDate(p.prescriptions[p.prescriptions.length-1].date)+')</button>' : '')
       + (isAiTier() ? '<div style="margin-bottom:12px;">'+aiButtonHtml('ai-draft-rx','AI: Draft from diagnosis/notes',true,null,'claude')+'</div>' : '')
       + renderRxTemplatesRow()
@@ -9167,7 +9167,21 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
-  if (action === 'imgrec-set-subview') { IMAGES_RECORDS_SUBVIEW = el.dataset.value; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
+  if (action === 'imgrec-set-subview') { 
+    const hasStagedPhotos = FU_INV_PHOTOS.length > 0 || AP_INVESTIGATIONS.length > 0 || RX_PHOTOS.length > 0 || INV_PHOTOS.length > 0;
+    if (hasStagedPhotos && el.dataset.value !== IMAGES_RECORDS_SUBVIEW && !el.dataset.confirmed) {
+      el.dataset.confirmed = '1';
+      const original = el.textContent;
+      el.textContent = 'Tap again (unsaved photos)';
+      el.style.color = 'var(--red)';
+      setTimeout(() => { if (el.dataset) { delete el.dataset.confirmed; el.textContent = original; el.style.color = ''; } }, 3000);
+      return;
+    }
+    IMAGES_RECORDS_SUBVIEW = el.dataset.value;
+    const p = getPatient(SELECTED_ID);
+    await renderTabBody(p);
+    return;
+  }
   
   if (action === 'clear-followup-context') { 
     LATEST_FOLLOWUP_DATE = null; 
@@ -9707,6 +9721,7 @@ document.addEventListener('click', async (e) => {
     }
     await refreshPatients();
     FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
+    LATEST_FOLLOWUP_DATE = fu.date;
     await renderTabBody(getPatient(SELECTED_ID));
     if (nextFuDefaulted) {
       toastWithButton(
@@ -9922,7 +9937,7 @@ document.addEventListener('click', async (e) => {
         const inv = (p.investigations||[]).find(i => i.id === imgRecord.investigationId);
         if (inv) inv.imageCount = remaining.filter(i => i.investigationId === imgRecord.investigationId).length;
       } else {
-        p.preOpImageCount = remaining.filter(i => !i.followUpId && !i.investigationId).length;
+        p.preOpImageCount = remaining.filter(i => !i.followUpId && !i.investigationId && !i.isWoundPhoto && !i.isIntraOp).length;
       }
       await dbPutPatient(p); await refreshPatients();
     }
@@ -10775,14 +10790,28 @@ function readProfileFromDom() {
     const p = getPatient(SELECTED_ID);
     const last = (p.prescriptions||[])[p.prescriptions.length-1];
     if (!last) return;
+    RX_TEMP.date = todayStr();
     RX_TEMP.medicines = last.medicines.map(m => ({ ...m, id: uid() }));
     RX_TEMP.advice = last.advice || '';
+    RX_TEMP.followUpDate = last.followUpDate || '';
     toast('Copied last prescription \u2014 review before saving');
     await renderTabBody(p);
     return;
   }
   if (action === 'open-add-rx') { const p0 = getPatient(SELECTED_ID); initRxTemp(p0 ? p0.nextFollowUpDate : ''); RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = true; await renderTabBody(p0); return; }
   if (action === 'cancel-add-rx') {
+    const adviceEl = document.getElementById('rx-advice');
+    const hasAdvice = adviceEl && adviceEl.value.trim().length > 0;
+    const hasPhotos = RX_PHOTOS.length > 0;
+    const hasMedicines = RX_TEMP.medicines.some(m => m.name.trim() || m.dose.trim() || m.frequency.trim());
+    if ((hasAdvice || hasPhotos || hasMedicines) && !el.dataset.confirmed) {
+      el.dataset.confirmed = '1';
+      const original = el.textContent;
+      el.textContent = 'Tap again to discard';
+      el.style.color = 'var(--red)';
+      setTimeout(() => { if (el.dataset) { delete el.dataset.confirmed; el.textContent = original; el.style.color = ''; } }, 3000);
+      return;
+    }
     await discardStagedPhotos(RX_PHOTOS);
     RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return;
   }
@@ -10825,6 +10854,7 @@ function readProfileFromDom() {
     const followUpDate = document.getElementById('rx-followUpDate').value;
     const medicines = RX_TEMP.medicines.filter(m => m.name.trim());
     if (!medicines.length) { toast('Add at least one medicine name'); return; }
+    if (!date || !date.trim()) { toast('Select a date for this prescription'); return; }
     recordMedicinesUsed(medicines);
     const p = getPatient(SELECTED_ID);
     const rx = { id: uid(), date, medicines, advice, followUpDate, imageCount: RX_PHOTOS.length, createdAt: Date.now() };
@@ -10837,8 +10867,10 @@ function readProfileFromDom() {
     await dbPutPatient(p);
     // Already saved to IndexedDB when picked \u2014 reusing ph.tempId just links them to this prescription.
     for (const ph of RX_PHOTOS) {
-      await dbAddImage({ id: ph.tempId, patientId: p.id, prescriptionId: rx.id, blob: ph.blob, createdAt: Date.now() });
+      await dbAddImage({ id: ph.tempId, patientId: p.id, prescriptionId: rx.id, blob: ph.blob, createdAt: Date.now(), imageCategory: 'prescriptions' });
     }
+    rx.imageCount = (await dbGetImagesByPatient(p.id)).filter(i => i.prescriptionId === rx.id).length;
+    await dbPutPatient(p);
     await refreshPatients();
     RX_PHOTOS = [];
     ADD_PRESCRIPTION_OPEN = false;
@@ -10864,7 +10896,13 @@ function readProfileFromDom() {
   }
   if (action === 'delete-rx' && el.dataset.confirm) {
     const p = getPatient(SELECTED_ID);
-    p.prescriptions = (p.prescriptions||[]).filter(r => r.id !== el.dataset.id);
+    const rxId = el.dataset.id;
+    const allImages = await dbGetImagesByPatient(p.id);
+    const rxImages = allImages.filter(im => im.prescriptionId === rxId);
+    p.prescriptions = (p.prescriptions||[]).filter(r => r.id !== rxId);
+    for (const img of rxImages) {
+      await dbDeleteImage(img.id);
+    }
     await dbPutPatient(p);
     await refreshPatients();
     ARMED_DELETE = null;
@@ -11151,13 +11189,14 @@ document.addEventListener('change', async (e) => {
     for (const file of files) {
       const blob = isVideo ? file : await resizeImageFile(file);
       const rec = { id: uid(), patientId: p.id, followUpId: null, blob, createdAt: Date.now() };
-      if (category === 'ot') { rec.isIntraOp = true; }
+      if (category === 'ot') { rec.isIntraOp = true; rec.imageCategory = 'ot'; }
       else if (category === 'wound') { rec.isWoundPhoto = true; rec.imageCategory = 'wound'; }
       else { rec.imageCategory = category; if (t.dataset.xraySubtype) rec.xraySubtype = t.dataset.xraySubtype; }
       await dbAddImage(rec);
     }
     p.preOpImageCount = (await dbGetImagesByPatient(p.id)).filter(i=>!i.followUpId && !i.investigationId && !i.isWoundPhoto && !i.isIntraOp).length;
     await dbPutPatient(p); await refreshPatients();
+    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11174,6 +11213,7 @@ document.addEventListener('change', async (e) => {
     const fu = (p.followUps||[]).find(f => f.id === fuId);
     if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
     await dbPutPatient(p); await refreshPatients();
+    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11190,6 +11230,7 @@ document.addEventListener('change', async (e) => {
     const fu = (p.followUps||[]).find(f => f.id === fuId);
     if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
     await dbPutPatient(p); await refreshPatients();
+    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11206,6 +11247,7 @@ document.addEventListener('change', async (e) => {
     const fu = (p.followUps||[]).find(f => f.id === fuId);
     if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
     await dbPutPatient(p); await refreshPatients();
+    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11225,6 +11267,7 @@ document.addEventListener('change', async (e) => {
       await dbAddImage({ id: uid(), patientId: p.id, dexaScanId, blob, createdAt: Date.now(), imageCategory: 'dexa-report' });
     }
     await refreshPatients();
+    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11239,6 +11282,7 @@ document.addEventListener('change', async (e) => {
       await dbAddImage({ id: uid(), patientId: p.id, ctevSessionId, blob, createdAt: Date.now(), imageCategory: 'cast' });
     }
     await refreshPatients();
+    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11250,11 +11294,12 @@ document.addEventListener('change', async (e) => {
     toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
     for (const file of files) {
       const blob = await resizeImageFile(file);
-      await dbAddImage({ id: uid(), patientId: p.id, investigationId: invId, blob, createdAt: Date.now() });
+      await dbAddImage({ id: uid(), patientId: p.id, investigationId: invId, blob, createdAt: Date.now(), imageCategory: 'investigations' });
     }
     const inv = (p.investigations||[]).find(i => i.id === invId);
     if (inv) inv.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.investigationId===invId).length;
     await dbPutPatient(p); await refreshPatients();
+    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11266,11 +11311,12 @@ document.addEventListener('change', async (e) => {
     toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
     for (const file of files) {
       const blob = await resizeImageFile(file);
-      await dbAddImage({ id: uid(), patientId: p.id, prescriptionId: rxId, blob, createdAt: Date.now() });
+      await dbAddImage({ id: uid(), patientId: p.id, prescriptionId: rxId, blob, createdAt: Date.now(), imageCategory: 'prescriptions' });
     }
     const rx = (p.prescriptions||[]).find(r => r.id === rxId);
     if (rx) rx.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.prescriptionId===rxId).length;
     await dbPutPatient(p); await refreshPatients();
+    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
