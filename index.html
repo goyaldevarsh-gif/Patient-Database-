@@ -2064,8 +2064,10 @@ function quickPickerResultsHtml() {
 }
 let SHOW_LEGEND = false;
 let EDITING_PATIENT_CODE = false;
+let EDITING_PATIENT_NAME = false;
 function resetPerPatientUiState() {
   EDITING_PATIENT_CODE = false;
+  EDITING_PATIENT_NAME = false;
   OV_EXPANDED = new Set(['snapshot']);
   OV_SHOW_PAYMENT = false;
   OV_SHOW_TRACKING_PICK = false;
@@ -7354,7 +7356,9 @@ function renderDetailShell(p) {
         : (p.patientCode
             ? '<button style="background:none;border:none;padding:0;font-weight:800;font-size:14px;color:var(--accent-dark);font-family:\'JetBrains Mono\',monospace;" data-action="edit-patient-code">'+esc(p.patientCode)+'</button>'
             : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>'))
-    + '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escName(p.name)+' <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>'
+    + (EDITING_PATIENT_NAME
+        ? '<div class="row gap2" style="margin-top:2px;"><input class="input" id="patient-name-input" value="'+esc(p.name)+'" style="flex:1;font-size:14px;padding:6px 10px;" placeholder="Patient name"><button class="icon-btn" style="color:var(--emerald);flex:none;" data-action="save-patient-name" title="Save">'+ic('check')+'</button><button class="icon-btn" style="flex:none;" data-action="cancel-edit-patient-name" title="Cancel">'+ic('x')+'</button></div>'
+        : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" data-action="edit-patient-name" title="Tap to fix spelling">'+escName(p.name)+' '+ic('pencil')+' <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>')
     + (diagnosisLine ? '<p style="font-size:12px;color:#334155;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(diagnosisLine)+'</p>' : '')
     + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;display:flex;align-items:center;gap:6px;">'
       + (isSurgical?'Surgical case':'OPD case')
@@ -8867,8 +8871,8 @@ document.addEventListener('click', async (e) => {
     render();
     return;
   }
-  if (action === 'edit-patient-code') { EDITING_PATIENT_CODE = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'cancel-edit-patient-code') { EDITING_PATIENT_CODE = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'edit-patient-code') { EDITING_PATIENT_CODE = true; await render(); return; }
+  if (action === 'cancel-edit-patient-code') { EDITING_PATIENT_CODE = false; await render(); return; }
   if (action === 'save-patient-code') {
     const input = document.getElementById('patient-code-input');
     const val = input ? input.value.trim() : '';
@@ -8879,8 +8883,22 @@ document.addEventListener('click', async (e) => {
     p.patientCode = val;
     await dbPutPatient(p); await refreshPatients();
     EDITING_PATIENT_CODE = false;
-    await renderTabBody(getPatient(SELECTED_ID));
+    await render();
     toast('Patient ID updated');
+    return;
+  }
+  if (action === 'edit-patient-name') { EDITING_PATIENT_NAME = true; await render(); setTimeout(() => { const inp = document.getElementById('patient-name-input'); if (inp) { inp.focus(); inp.select(); } }, 30); return; }
+  if (action === 'cancel-edit-patient-name') { EDITING_PATIENT_NAME = false; await render(); return; }
+  if (action === 'save-patient-name') {
+    const input = document.getElementById('patient-name-input');
+    const val = input ? input.value.trim() : '';
+    if (!val) { toast('Name can\u2019t be blank'); return; }
+    const p = getPatient(SELECTED_ID);
+    p.name = val;
+    await dbPutPatient(p); await refreshPatients();
+    EDITING_PATIENT_NAME = false;
+    await render();
+    toast('Name updated');
     return;
   }
   if (action === 'convert-to-surgical') {
