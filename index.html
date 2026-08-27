@@ -4359,19 +4359,7 @@ function daysBetween(d1, d2) {
 
 /* ================= Dashboard quick-action patient cards ================= */
 let QUICK_FU_PATIENT_ID = null;
-let QUICK_LOG_FU_PATIENT_ID = null;
-let QUICK_LOG_FU_DATE = '';
-let QUICK_LOG_FU_FINDINGS = '';
-let QUICK_LOG_FU_NEXT_DATE = '';
 let LATEST_FOLLOWUP_DATE = null;  // Track for auto-linking images
-
-// Voice recording for findings
-let VOICE_REC_STATE = null;  // 'idle' | 'recording' | 'processing'
-let VOICE_RECORDER = null;
-let VOICE_AUDIO_CHUNKS = [];
-let VOICE_REC_START_TIME = 0;
-let VOICE_REC_TIMER = null;
-let VOICE_REC_TARGET_TEXTAREA = null;
 
 
 function patientQuickActionsRowHtml(p) {
@@ -4394,57 +4382,6 @@ function renderDashboardPatientQuickCard(p) {
     + patientQuickActionsRowHtml(p)
     + '</div>';
 }
-function renderQuickLogFuModal() {
-  let root = document.getElementById('quick-log-fu-modal-root');
-  if (!root) { root = document.createElement('div'); root.id = 'quick-log-fu-modal-root'; document.body.appendChild(root); }
-  if (!QUICK_LOG_FU_PATIENT_ID) { root.innerHTML = ''; return; }
-  const p = getPatient(QUICK_LOG_FU_PATIENT_ID);
-  if (!p) { root.innerHTML = ''; QUICK_LOG_FU_PATIENT_ID = null; return; }
-  
-  // Determine recording button state
-  let recordBtn = '';
-  if (VOICE_REC_STATE === 'recording') {
-    const elapsed = Math.floor((Date.now() - VOICE_REC_START_TIME) / 1000);
-    recordBtn = '<button type="button" class="btn btn-block" style="background:#ef4444;border-color:#ef4444;color:#fff;font-weight:700;padding:14px;font-size:14px;" data-action="stop-findings-voice">'
-      + '🔴 Stop Recording ('+elapsed+'s)'
-      + '</button>';
-  } else if (VOICE_REC_STATE === 'processing') {
-    recordBtn = '<button type="button" class="btn btn-block" disabled style="padding:14px;font-size:14px;">'
-      + '🔄 Transcribing...'
-      + '</button>';
-  } else {
-    recordBtn = '<button type="button" class="btn btn-block btn-primary" style="padding:14px;font-size:14px;" data-action="start-findings-voice">'
-      + (QUICK_LOG_FU_FINDINGS ? '🎤 Record Again' : '🎤 Start Recording')
-      + '</button>';
-  }
-  
-  root.innerHTML = '<div class="ocr-overlay">'
-    + '<div class="ocr-card">'
-    + '<div class="row between" style="margin-bottom:10px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('check')+' Log Follow-up</h3><button class="icon-btn" data-action="close-quick-log-fu">'+ic('x')+'</button></div>'
-    + '<p style="font-size:11.5px;color:var(--muted);margin:8px 0 16px;">Patient: <b>'+esc(p.name)+'</b></p>'
-    
-    // Visit date
-    + '<div style="margin-bottom:14px;"><label class="field-label">Visit date</label><input class="input" type="date" id="quick-log-fu-date" max="'+todayStr()+'" value="'+QUICK_LOG_FU_DATE+'" style="width:100%;"></div>'
-    
-    // Voice recording section (PROMINENT)
-    + '<div style="margin-bottom:14px;border:2px solid var(--accent-soft,#eef2ff);border-radius:12px;padding:12px;background:var(--accent-bg,#f0f4ff);">'
-    + '<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px;">'+ic('mic')+' RECORD FINDINGS</div>'
-    + recordBtn
-    + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0;text-align:center;">Tap to record clinical findings • Auto-transcribed</p>'
-    + '</div>'
-    
-    // Findings textarea (for editing/display)
-    + '<div style="margin-bottom:14px;"><label class="field-label">Findings (Transcribed or Manual)</label><textarea class="textarea" id="quick-log-fu-findings" rows="3" maxlength="2000" placeholder="Findings will appear here after recording, or type manually...">'+esc(QUICK_LOG_FU_FINDINGS)+'</textarea>'
-    + '<p style="font-size:10px;color:var(--muted);margin-top:4px;">'+QUICK_LOG_FU_FINDINGS.length+' / 2000 characters</p>'
-    + '</div>'
-    
-    // Next FU date
-    + '<div style="margin-bottom:14px;"><label class="field-label">Next follow-up date</label><input class="input" type="date" id="quick-log-fu-next-date" value="'+QUICK_LOG_FU_NEXT_DATE+'" style="width:100%;"></div>'
-    
-    // Action buttons
-    + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="close-quick-log-fu">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="save-quick-log-fu" data-patient-id="'+p.id+'">Save</button></div>'
-    + '</div></div>';
-}
 
 function renderQuickFuModal() {
   let root = document.getElementById('quick-modal-root');
@@ -4462,158 +4399,6 @@ function renderQuickFuModal() {
   setupFollowupFormValidation();
 }
 
-// Voice recording for follow-up findings
-async function startFindingsVoiceRecording() {
-  try {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      toast('Microphone not available on this device');
-      return;
-    }
-    
-    const stream = await navigator.mediaDevices.getUserMedia({ 
-      audio: { echoCancellation: true, noiseSuppression: true } 
-    });
-    
-    VOICE_RECORDER = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-    VOICE_AUDIO_CHUNKS = [];
-    
-    VOICE_RECORDER.ondataavailable = (e) => VOICE_AUDIO_CHUNKS.push(e.data);
-    VOICE_RECORDER.start();
-    
-    VOICE_REC_STATE = 'recording';
-    VOICE_REC_START_TIME = Date.now();
-    VOICE_REC_TARGET_TEXTAREA = document.getElementById('quick-log-fu-findings');
-    
-    haptic(10);
-    renderQuickLogFuModal();
-    
-    // Update timer every 100ms
-    const timerInterval = setInterval(() => {
-      if (VOICE_REC_STATE === 'recording') {
-        renderQuickLogFuModal();
-      } else {
-        clearInterval(timerInterval);
-      }
-    }, 100);
-    
-    // Auto-stop after 2 minutes max
-    VOICE_REC_TIMER = setTimeout(() => {
-      stopFindingsVoiceRecording();
-      toast('Recording stopped (2 min limit reached)');
-    }, 120000);
-    
-  } catch (err) {
-    console.error('Mic access denied:', err);
-    toast('Microphone access denied. Check app permissions or try a different browser.');
-  }
-}
-
-async function stopFindingsVoiceRecording() {
-  if (!VOICE_RECORDER || VOICE_REC_STATE !== 'recording') return;
-  
-  VOICE_RECORDER.stop();
-  VOICE_REC_STATE = 'processing';
-  clearTimeout(VOICE_REC_TIMER);
-  
-  const stream = VOICE_RECORDER.stream;
-  stream.getTracks().forEach(t => t.stop());
-  
-  renderQuickLogFuModal();
-  
-  // Wait for all data to be collected
-  await new Promise(r => setTimeout(r, 300));
-  
-  const blob = new Blob(VOICE_AUDIO_CHUNKS, { type: 'audio/webm' });
-  if (blob.size < 1000) {
-    VOICE_REC_STATE = null;
-    VOICE_RECORDER = null;
-    toast('Recording too short. Tap mic again to try.');
-    renderQuickLogFuModal();
-    return;
-  }
-  
-  haptic(15);
-  
-  // Convert blob to base64
-  const reader = new FileReader();
-  reader.onload = async () => {
-    try {
-      const base64Audio = reader.result.split(',')[1];
-      const user = firebase.auth().currentUser;
-      
-      if (!user) {
-        toast('Sign in required. Try again.');
-        VOICE_REC_STATE = null;
-        VOICE_RECORDER = null;
-        renderQuickLogFuModal();
-        return;
-      }
-      
-      const idToken = await user.getIdToken();
-      
-      // Use Cloud Run function to transcribe via Gemini
-      const response = await fetch('https://ask-gemini-851974181391.asia-south2.run.app/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + idToken },
-        body: JSON.stringify({
-          data: {
-            model: 'gemini-2.0-flash',
-            systemPrompt: `You are a medical transcription assistant for orthopaedic clinical documentation.
-Transcribe the audio recording of a doctor's clinical examination findings.
-- Be accurate but fix any mumbles or unclear speech
-- Preserve medical terminology (ORIF, ROM, sutures, PWB, etc.)
-- Format as brief clinical notes, use bullet points for multiple findings
-- Keep it professional and concise
-- If audio is unclear, respond: "Could not transcribe clearly"`,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'audio',
-                    data: base64Audio,
-                    mimeType: 'audio/webm'
-                  },
-                  { type: 'text', text: 'Transcribe these clinical examination findings.' }
-                ]
-              }
-            ]
-          }
-        })
-      });
-      
-      const data = await response.json();
-      let transcribed = '';
-      
-      if (data.result && data.result.text) {
-        transcribed = data.result.text.trim();
-      } else if (data.result && typeof data.result === 'string') {
-        transcribed = data.result.trim();
-      }
-      
-      if (transcribed && !transcribed.includes('Could not transcribe')) {
-        const textarea = document.getElementById('quick-log-fu-findings');
-        if (textarea) {
-          const existing = textarea.value.trim();
-          textarea.value = (existing ? existing + '\n\n' : '') + transcribed;
-        }
-        QUICK_LOG_FU_FINDINGS = transcribed;
-        toast('✓ Voice transcribed. Edit if needed.');
-      } else {
-        toast('Could not transcribe audio. Tap mic again or type manually.');
-      }
-    } catch (err) {
-      console.error('Transcription error:', err);
-      toast('Transcription failed. Check network or try typing manually.');
-    } finally {
-      VOICE_REC_STATE = null;
-      VOICE_RECORDER = null;
-      renderQuickLogFuModal();
-    }
-  };
-  
-  reader.readAsDataURL(blob);
-}
 
 function rxWaMessage(patient, rx, profile) {
   let lines = [];
@@ -5619,7 +5404,7 @@ function renderOverviewTab(p) {
     + '<span>'+(p.nextFollowUpDate ? (ic('calendar')+' '+fmtDate(p.nextFollowUpDate)) : (ic('plus')+' Set follow-up date'))+'</span>'
     + ic('chevron')
     + '</button>'
-    + '<button type="button" class="btn btn-sm btn-block" style="margin-top:6px;background:var(--accent);border-color:var(--accent);color:#fff;" data-action="quick-log-fu" data-patient-id="'+p.id+'">'
+    + '<button type="button" class="btn btn-sm btn-block" style="margin-top:6px;background:var(--accent);border-color:var(--accent);color:#fff;" data-action="log-followup-visit" data-patient-id="'+p.id+'">'
     + ic('plus')+' Log Follow-up Visit'
     + '</button>'
     + (overdue && overdueDays(p.nextFollowUpDate) >= 3 ? '<div class="row" style="gap:6px;margin-top:8px;">'
@@ -6023,11 +5808,10 @@ function renderSmartFollowupFormLayer1(p) {
     + '<label class="field-label">Next follow-up?</label>'
     + '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">'
     + '<button type="button" class="chip" data-action="fu-next-quick" data-days="3">+3 Days</button>'
+    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="5">+5 Days</button>'
     + '<button type="button" class="chip" data-action="fu-next-quick" data-days="7">+1 Week</button>'
-    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="14">+2 Weeks</button>'
     + '<button type="button" class="chip" data-action="fu-next-quick" data-days="21">+3 Weeks</button>'
     + '<button type="button" class="chip" data-action="fu-next-quick" data-days="30">+1 Month</button>'
-    + (isAiTier() ? '<button type="button" class="chip" data-action="ai-suggest-followup">✨ Suggest</button>' : '')
     + '</div>'
     + '<input class="input" type="date" id="fu-next-followup" value="'+(suggestedNextDate||'')+'" placeholder="Or pick date">'
     + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">'+ic('sparkle')+' Auto-suggested \u2014 tap a chip above or edit the date to change it</p>'
@@ -9607,87 +9391,13 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'quick-log-fu') { 
-    QUICK_LOG_FU_PATIENT_ID = el.dataset.patientId;
-    QUICK_LOG_FU_DATE = todayStr();
-    QUICK_LOG_FU_FINDINGS = '';
-    QUICK_LOG_FU_NEXT_DATE = '';
-    renderQuickLogFuModal(); 
-    return; 
-  }
-
-  if (action === 'close-quick-log-fu') { 
-    QUICK_LOG_FU_PATIENT_ID = null; 
-    renderQuickLogFuModal(); 
-    return; 
-  }
-
-  if (action === 'save-quick-log-fu') {
-    const p = getPatient(el.dataset.patientId);
-    if (!p) { toast('Patient not found'); return; }
-    
-    const dateEl = document.getElementById('quick-log-fu-date');
-    const findingsEl = document.getElementById('quick-log-fu-findings');
-    const nextDateEl = document.getElementById('quick-log-fu-next-date');
-    
-    const date = dateEl ? dateEl.value : '';
-    const findings = findingsEl ? findingsEl.value.trim() : '';
-    const nextDate = nextDateEl ? nextDateEl.value : '';
-    
-    if (!date) { toast('Visit date required'); return; }
-    
-    // Create follow-up entry
-    const fu = {
-      id: uid(),
-      date: date,
-      notes: findings,
-      visitLabel: 'Follow-up',
-      createdAt: Date.now()
-    };
-    
-    p.followUps = (p.followUps || []);
-    p.followUps.push(fu);
-    
-    if (nextDate) {
-      p.nextFollowUpDate = nextDate;
-      p.followUpSnoozeCount = 0;
-    }
-    
-    dbPutPatient(p).then(() => {
-      refreshPatients();
-      QUICK_LOG_FU_PATIENT_ID = null;
-      haptic(15);
-      
-      // Store the follow-up date for image linking
-      LATEST_FOLLOWUP_DATE = date;
-      
-      // Show toast with Add Images button
-      toastWithButton(
-        '✓ Follow-up logged for '+p.name,
-        '+ Add Images',
-        () => {
-          // When user taps Add Images button
-          TAB = 'imagesrecords';
-          VIEW = 'detail';
-          SELECTED_ID = p.id;
-          render();
-        },
-        4000  // Show for 4 seconds (longer than default 1.8s)
-      );
-      
-      renderQuickLogFuModal();
-      render();
-    });
-    return;
-  }
-
-  if (action === 'start-findings-voice') {
-    startFindingsVoiceRecording();
-    return;
-  }
-
-  if (action === 'stop-findings-voice') {
-    stopFindingsVoiceRecording();
+  if (action === 'log-followup-visit') {
+    SELECTED_ID = el.dataset.patientId;
+    TAB = 'followups';
+    VIEW = 'detail';
+    FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'Follow-up';
+    ADD_FOLLOWUP_OPEN = true;
+    await render();
     return;
   }
 
@@ -9863,39 +9573,6 @@ document.addEventListener('click', async (e) => {
     return;
   }
   
-  if (action === 'ai-suggest-followup') {
-    const p = getPatient(SELECTED_ID);
-    const originalHtml = el.innerHTML;
-    el.innerHTML = '<span class="spinner"></span>';
-    el.disabled = true;
-    const statusEl = document.getElementById('ai-followup-suggestion');
-    try {
-      const askClaude = callGeminiDirect;
-      const sys = 'You suggest a follow-up interval for an orthopaedic patient\u2019s next visit, based on their diagnosis/procedure and how far along they are. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON: {"date":"YYYY-MM-DD","reason":"a short 4-8 word reason"}. Be clinically reasonable (e.g. early post-op check sooner, stable chronic follow-up further out, suture removal ~2 weeks, implant/union check longer).';
-      const pod = calcPOD(p, todayStr());
-      const context = 'Case type: ' + (p.caseType==='surgical'?'Surgical':'OPD') + '\nDiagnosis: ' + (p.diagnosis||p.chiefComplaints||'\u2014')
-        + (p.caseType==='surgical' ? ('\nProcedure: ' + (p.procedure||'\u2014') + '\nSurgery date: ' + fmtDate(p.surgeryDate) + (pod!=null ? ('\nCurrent post-op day: ' + pod) : '')) : '')
-        + '\nFollow-up visits so far: ' + (p.followUps||[]).length
-        + (p.followUps && p.followUps.length ? ('\nLast visit notes: ' + (p.followUps[p.followUps.length-1].notes || '\u2014')) : '');
-      const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 100 });
-      let raw = (result.data.text || '').trim();
-      raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
-      const parsed = JSON.parse(raw);
-      const dateEl = document.getElementById('fu-next-followup');
-      if (dateEl && parsed.date) {
-        dateEl.value = parsed.date;
-        const prev = document.getElementById('fu-next-followup-preview');
-        if (prev) prev.textContent = relfuPreviewText(parsed.date);
-      }
-      if (statusEl) statusEl.textContent = parsed.reason ? ('Suggested: ' + fmtDate(parsed.date) + ' \u2014 ' + parsed.reason) : '';
-    } catch (err) {
-      console.error('AI follow-up suggestion failed:', err);
-      toast('AI suggestion failed \u2014 try again');
-    }
-    el.innerHTML = originalHtml;
-    el.disabled = false;
-    return;
-  }
   if (action === 'submit-fu') {
     const p = getPatient(SELECTED_ID);
     const label = document.getElementById('fu-label').value.trim() || 'Follow-up';
