@@ -9831,13 +9831,17 @@ document.addEventListener('click', async (e) => {
   }
   
   if (action === 'fu-status-select') {
+    haptic(10);
     const status = el.dataset.status;
     const labelEl = document.getElementById('fu-label');
+    const row = el.parentElement;
+    if (row) row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
     
     // Auto-fill label based on status
     if (status === 'Issue') {
       if (labelEl) labelEl.value = 'Follow-up - Concern';
-    } else if (status === 'Improving') {
+    } else {
       const p = getPatient(SELECTED_ID);
       const suggested = suggestVisitLabel(p);
       if (labelEl) labelEl.value = suggested || '1 Week';
@@ -9847,11 +9851,15 @@ document.addEventListener('click', async (e) => {
   }
   
   if (action === 'fu-next-quick') {
+    haptic(10);
     const days = parseInt(el.dataset.days, 10);
     const nextDate = new Date(todayStr());
     nextDate.setDate(nextDate.getDate() + days);
     const nextEl = document.getElementById('fu-next-followup');
     if (nextEl) nextEl.value = nextDate.toISOString().split('T')[0];
+    const row = el.parentElement;
+    if (row) row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    el.classList.add('active');
     return;
   }
   
