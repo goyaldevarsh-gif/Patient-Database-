@@ -9194,9 +9194,8 @@ document.addEventListener('click', async (e) => {
     let detected = await aiAutoDetectRegions(text);
     if (!detected) detected = autoDetectRegions(text);
     el.innerHTML = originalHtml; el.disabled = false;
-    p.regions = p.regions || [];
-    detected.forEach(r => { if (!p.regions.includes(r)) p.regions.push(r); });
     if (!detected.length) { toast('Couldn\u2019t auto-detect \u2014 pick manually'); return; }
+    p.regions = detected.slice();
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
