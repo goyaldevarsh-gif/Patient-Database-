@@ -2454,6 +2454,18 @@ function ageFieldHtml(p) {
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
 function overdueDays(dateStr) { if (!dateStr) return 0; const d = new Date(dateStr); if (isNaN(d)) return 0; const diff = Math.round((new Date(todayStr()) - d) / 86400000); return diff > 0 ? diff : 0; }
+function daysAgoLabel(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return '';
+  const diff = Math.round((new Date(todayStr()) - d) / 86400000);
+  if (diff === 0) return 'today';
+  if (diff === 1) return '1 day ago';
+  if (diff > 1 && diff < 30) return diff + ' days ago';
+  if (diff < 0) return '';
+  const months = Math.round(diff / 30);
+  return months + (months === 1 ? ' month ago' : ' months ago');
+}
 function greetingWord() { const h = new Date().getHours(); if (h < 12) return 'Good morning'; if (h < 17) return 'Good afternoon'; return 'Good evening'; }
 
 /* ---- Dashboard + Practice Insights ---- */
@@ -5033,9 +5045,10 @@ let AP_DUPLICATE_FROM = null;
 let AP_INVESTIGATIONS = [];
 let AP_INV_CATEGORY = 'xray';
 let AP_INV_XRAY_SUBTYPE = 'General OPD';
-let AP_INV_ACTIVE_GROUP = null;
+let AP_INV_ACTIVE_GROUP = 'imaging';
 let AP_SHOW_PAYMENT = false;
 let AP_OPEN_SECTION = 1; // which numbered accordion section is expanded in the Add Case form
+let AP_DIAG_CONFIRMED = false; // set true after user taps Save once with empty diagnosis; reset on cancel/init
 const AP_INV_GROUPS = [
   { key:'imaging', label:'Imaging', categories:['xray','ct','mri','usg'] },
   { key:'clinical', label:'Clinical Images / Wound', categories:['clinical','wound'] },
@@ -5049,12 +5062,15 @@ function initApTemp() {
   AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
   AP_OPEN_SECTION = 1;
+  AP_DIAG_CONFIRMED = false;
   AP_INVESTIGATIONS = [];
   AP_INV_CATEGORY = 'xray';
   AP_INV_XRAY_SUBTYPE = 'General OPD';
-  AP_INV_ACTIVE_GROUP = null;
+  AP_INV_ACTIVE_GROUP = 'imaging';
   AP_SHOW_PAYMENT = false;
   AI_SANITY_CHECK_RESULT = null;
+  AI_INVESTIGATION_SUGGESTIONS = null;
+  AI_EXAM_SUGGESTIONS = null;
 }
 function syncApTempFromDom() {
   ['name','age','ageMonths','occupation','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital','nextFollowUpDate'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : f === 'nextFollowUpDate' ? 'ap-next-fu-date' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
@@ -5175,7 +5191,7 @@ function renderAddView() {
       + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label><div class="row gap2">'
-      + '<input class="input" type="number" min="0" id="ap-age" placeholder="Years" value="'+esc(AP_TEMP.age)+'" style="flex:1;">'
+      + '<input class="input" type="number" min="0" max="120" id="ap-age" placeholder="Years" value="'+esc(AP_TEMP.age)+'" style="flex:1;">'
       + '<input class="input" type="number" min="0" max="11" id="ap-ageMonths" placeholder="Months" value="'+esc(AP_TEMP.ageMonths)+'" style="flex:1;">'
       + '</div></div>'
       + '<div><label class="field-label">Sex</label><div class="seg">'
@@ -5209,7 +5225,11 @@ function renderAddView() {
             + (open ? (
                 '<div style="margin-top:10px;">'
                 + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' + g.categories.map(c => '<button type="button" class="chip'+(AP_INV_CATEGORY===c?' active':'')+'" data-action="ap-inv-set-category" data-value="'+c+'">'+apInvCatLabel(c)+'</button>').join('') + '</div>'
-                + (AP_INV_CATEGORY === 'xray' && g.categories.includes('xray') ? '<div style="margin-bottom:8px;"><select class="select" id="ap-inv-xray-subtype">'+XRAY_SUBTYPES.filter(s => !isSurgical || s !== 'General OPD').map(s=>'<option'+(AP_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>' : '')
+                + (AP_INV_CATEGORY === 'xray' && g.categories.includes('xray') ? (() => {
+                    const validSubtypes = XRAY_SUBTYPES.filter(s => !isSurgical || s !== 'General OPD');
+                    if (!validSubtypes.includes(AP_INV_XRAY_SUBTYPE)) AP_INV_XRAY_SUBTYPE = validSubtypes[0];
+                    return '<div style="margin-bottom:8px;"><select class="select" id="ap-inv-xray-subtype">'+validSubtypes.map(s=>'<option'+(AP_INV_XRAY_SUBTYPE===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>';
+                  })() : '')
                 + '<div id="ap-inv-thumbs">'+categorizedThumbsHtml(groupPhotos, 'ap-inv-remove-photo')+'</div>'
                 + '</div>'
               ) : '')
@@ -5294,7 +5314,7 @@ function renderAddView() {
     + '<div style="flex:none;width:150px;"><label class="field-label">'+(isSurgical?'Surgery date':'Visit date')+'</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
     + '</div>'
 
-    + '<div style="margin-bottom:16px;"><label class="field-label">Next follow-up date (optional)</label><input class="input" type="date" id="ap-next-fu-date" value="'+esc(AP_TEMP.nextFollowUpDate)+'"></div>'
+    + '<div style="margin-bottom:16px;"><label class="field-label">Next follow-up date (optional)</label><input class="input" type="date" id="ap-next-fu-date" min="'+todayStr()+'" value="'+esc(AP_TEMP.nextFollowUpDate)+'"></div>'
 
     + accordionHtml
     + aiAssistantPill
@@ -5791,8 +5811,8 @@ function renderSmartFollowupFormLayer1(p) {
     + '<button type="button" class="chip" data-action="fu-quick-date" data-date="'+(new Date(new Date().getTime()-86400000).toISOString().split('T')[0])+'">Yesterday</button>'
     + '<button type="button" class="chip" data-action="fu-toggle-date-picker">Custom</button>'
     + '</div>'
-    + '<input class="input" type="date" id="fu-date" value="'+todayStr()+'" style="display:none;margin-bottom:10px;">'
-    + (pod !== null ? '<p style="font-size:11px;color:var(--muted);margin:-6px 0 10px;">Post-op Day: <b class="mono">'+pod+'</b></p>' : '')
+    + '<input class="input" type="date" id="fu-date" value="'+todayStr()+'" max="'+todayStr()+'" style="display:none;margin-bottom:10px;">'
+    + (pod !== null && pod >= 0 ? '<p style="font-size:11px;color:var(--muted);margin:-6px 0 10px;">Post-op Day: <b class="mono">'+pod+'</b></p>' : '')
     + '</div>'
     + '<div style="margin-bottom:16px;">'
     + '<label class="field-label">How is the patient doing?</label>'
@@ -5813,28 +5833,33 @@ function renderSmartFollowupFormLayer1(p) {
     + '<button type="button" class="chip" data-action="fu-next-quick" data-days="21">+3 Weeks</button>'
     + '<button type="button" class="chip" data-action="fu-next-quick" data-days="30">+1 Month</button>'
     + '</div>'
-    + '<input class="input" type="date" id="fu-next-followup" value="'+(suggestedNextDate||'')+'" placeholder="Or pick date">'
+    + '<input class="input" type="date" id="fu-next-followup" value="'+(suggestedNextDate||'')+'" min="'+todayStr()+'" placeholder="Or pick date">'
     + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">'+ic('sparkle')+' Auto-suggested \u2014 tap a chip above or edit the date to change it</p>'
     + '</div>';
 }
 
 function renderSmartFollowupFormLayer2(p) {
   let html = '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px;">';
+  const lastFu = (p.followUps && p.followUps.length) ? p.followUps[p.followUps.length - 1] : null;
   
   if (p.caseType === 'surgical') {
+    const lastWound = (lastFu && lastFu.woundStatus && WOUND_STATUS_OPTIONS.includes(lastFu.woundStatus)) ? lastFu.woundStatus : 'N/A';
     html += '<label class="field-label">Wound / Suture Status</label>'
-      + '<select class="select" id="fu-woundstatus" style="margin-bottom:10px;">'
-      + WOUND_STATUS_OPTIONS.map(s => '<option' + (s==='N/A' ? ' selected' : '') + '>' + s + '</option>').join('')
-      + '</select>';
+      + '<select class="select" id="fu-woundstatus" style="margin-bottom:4px;">'
+      + WOUND_STATUS_OPTIONS.map(s => '<option' + (s===lastWound ? ' selected' : '') + '>' + s + '</option>').join('')
+      + '</select>'
+      + (lastFu && lastWound !== 'N/A' ? '<p style="font-size:10px;color:var(--muted);margin:0 0 10px;">Carried forward from last visit \u2014 change if different</p>' : '<div style="margin-bottom:6px;"></div>');
   }
   
   if (p.surgeryType === 'Trauma' || p.condition === 'trauma') {
+    const lastUnion = (lastFu && lastFu.unionStatus && UNION_STATUS_OPTIONS.includes(lastFu.unionStatus)) ? lastFu.unionStatus : 'Not assessed';
     html += '<div class="row" style="margin-bottom:2px;">'
       + '<label class="field-label" style="margin-bottom:0;">Union Status</label>'
       + '</div>'
       + '<select class="select" id="fu-unionstatus" style="margin-bottom:4px;">'
-      + UNION_STATUS_OPTIONS.map(s => '<option' + (s==='Not assessed' ? ' selected' : '') + '>' + s + '</option>').join('')
-      + '</select>';
+      + UNION_STATUS_OPTIONS.map(s => '<option' + (s===lastUnion ? ' selected' : '') + '>' + s + '</option>').join('')
+      + '</select>'
+      + (lastFu && lastUnion !== 'Not assessed' ? '<p style="font-size:10px;color:var(--muted);margin:0 0 4px;">Carried forward from last visit \u2014 change if different</p>' : '');
   }
   
   html += '</div>';
@@ -5925,16 +5950,18 @@ async function renderFollowupsTab(p) {
     }
     list += '<div class="fu-card">'
       + '<div class="row between" style="cursor:pointer;" data-action="toggle-fu" data-id="'+f.id+'">'
-      + '<span style="font-weight:800;">'+esc(f.label)+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+fmtDate(f.date)+(pod!=null?' \u00b7 Post-op Day '+pod:'')+'</span></span>'
+      + '<span style="font-weight:800;">'+esc(f.label)+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+fmtDate(f.date)+(daysAgoLabel(f.date) ? ' ('+daysAgoLabel(f.date)+')' : '')+(pod!=null && pod>=0?' \u00b7 Post-op Day '+pod:'')+'</span></span>'
       + '<div class="row gap2">'
       + (f.woundStatus && f.woundStatus !== 'N/A' ? '<span class="badge '+woundBadgeClass(f.woundStatus)+'" style="font-size:10px;">'+esc(f.woundStatus)+'</span>' : '')
       + (f.unionStatus && f.unionStatus !== 'Not assessed' ? '<span class="badge '+unionBadgeClass(f.unionStatus)+'" style="font-size:10px;">'+esc(f.unionStatus)+'</span>' : '')
-      + '<span class="badge badge-slate">'+ic('camera')+(f.imageCount||0)+'</span>'
+      + (f.imageCount ? '<span class="badge badge-slate">'+ic('camera')+f.imageCount+'</span>' : '')
       + confirmBtn('delete-fu', f.id)
       + '</div></div>'
       + body
       + '</div>';
   });
+
+  if (!list && !ADD_FOLLOWUP_OPEN) list = compactEmptyState('calendar', 'No follow-ups logged yet.');
 
   return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
 }
@@ -9045,8 +9072,19 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-compare-picker') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'imagesrecords'; await render(); return; }
   if (action === 'close-compare-view') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'imagesrecords'; await render(); return; }
   if (action === 'cancel-add') {
+    syncApTempFromDom();
+    const hasData = (AP_TEMP.name && AP_TEMP.name.trim()) || (AP_TEMP.diagnosis && AP_TEMP.diagnosis.trim())
+      || (AP_TEMP.chiefComplaints && AP_TEMP.chiefComplaints.trim()) || AP_PHOTOS.length || AP_INVESTIGATIONS.length;
+    if (hasData && !el.dataset.confirmed) {
+      el.dataset.confirmed = '1';
+      const original = el.textContent;
+      el.textContent = 'Tap again to discard';
+      el.style.color = 'var(--red)';
+      setTimeout(() => { if (el.dataset) { delete el.dataset.confirmed; el.textContent = original; el.style.color = ''; } }, 3000);
+      return;
+    }
     await discardStagedPhotos(AP_PHOTOS); await discardStagedPhotos(AP_INVESTIGATIONS);
-    AP_PHOTOS = []; AP_INVESTIGATIONS = []; AP_DUPLICATE_FROM = null; VIEW='list'; render(); return;
+    AP_PHOTOS = []; AP_INVESTIGATIONS = []; AP_DUPLICATE_FROM = null; AP_DIAG_CONFIRMED = false; VIEW='list'; render(); return;
   }
   if (action === 'open-patient') {
     const p2 = getPatient(el.dataset.id);
@@ -9249,7 +9287,14 @@ document.addEventListener('click', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'ap-set-side') { syncApTempFromDom(); AP_TEMP.side = el.dataset.value; render(); return; }
+  if (action === 'ap-set-side') {
+    syncApTempFromDom(); AP_TEMP.side = el.dataset.value;
+    if (AP_TEMP.condition === 'ctev') {
+      const map = { Left:'unilateral-left', Right:'unilateral-right', Bilateral:'bilateral' };
+      if (map[el.dataset.value]) AP_TEMP.laterality = map[el.dataset.value];
+    }
+    render(); return;
+  }
   if (action === 'ap-toggle-region') {
     syncApTempFromDom();
     const v = el.dataset.value;
@@ -9265,19 +9310,29 @@ document.addEventListener('click', async (e) => {
     let detected = await aiAutoDetectRegions(text);
     if (!detected) detected = autoDetectRegions(text);
     el.innerHTML = originalHtml; el.disabled = false;
-    detected.forEach(r => { if (!AP_TEMP.regions.includes(r)) AP_TEMP.regions.push(r); });
-    if (!detected.length) toast('Couldn\u2019t auto-detect \u2014 pick manually');
+    if (detected.length) { AP_TEMP.regions = detected.slice(); }
+    else { toast('Couldn\u2019t auto-detect \u2014 pick manually'); }
     render();
     return;
   }
-  if (action === 'ap-set-laterality') { syncApTempFromDom(); AP_TEMP.laterality = el.dataset.value; render(); return; }
+  if (action === 'ap-set-laterality') {
+    syncApTempFromDom(); AP_TEMP.laterality = el.dataset.value;
+    const map = { 'unilateral-left':'Left', 'unilateral-right':'Right', 'bilateral':'Bilateral' };
+    if (map[el.dataset.value]) AP_TEMP.side = map[el.dataset.value];
+    render(); return;
+  }
   if (action === 'ap-set-special') { 
     const value = el.dataset.value;
     if (['ctev','ra','osteoporosis'].includes(value) && !isProOrAbove()) {
       toast('Special Tracking is a Pro feature. Upgrade to use this.');
       return;
     }
-    syncApTempFromDom(); AP_TEMP.condition = value; render(); 
+    syncApTempFromDom(); AP_TEMP.condition = value;
+    if (value === 'ctev') {
+      const map = { Left:'unilateral-left', Right:'unilateral-right', Bilateral:'bilateral' };
+      if (map[AP_TEMP.side]) AP_TEMP.laterality = map[AP_TEMP.side];
+    }
+    render(); 
     return; 
   }
 
@@ -9322,6 +9377,14 @@ document.addEventListener('click', async (e) => {
     }
     if (!AP_TEMP.name.trim()) { AP_OPEN_SECTION = 1; render(); toast('Name is required'); return; }
     if (!AP_TEMP.age || !String(AP_TEMP.age).trim()) { AP_OPEN_SECTION = 1; render(); toast('Age is required'); return; }
+    if (!AP_TEMP.diagnosis.trim() && !AP_DIAG_CONFIRMED) {
+      AP_DIAG_CONFIRMED = true;
+      AP_OPEN_SECTION = 2; render();
+      toast('No diagnosis entered \u2014 tap Save again to continue anyway');
+      setTimeout(() => { AP_DIAG_CONFIRMED = false; }, 6000);
+      return;
+    }
+    AP_DIAG_CONFIRMED = false;
     const dupCount = PATIENTS.filter(x => x.id !== AP_TEMP.id && x.name && x.name.toLowerCase() === AP_TEMP.name.trim().toLowerCase()).length;
     if (dupCount > 0) { toast('Note: Another patient named "'+AP_TEMP.name.trim()+'" already exists. Check before saving.'); }
     if (AP_TEMP.caseType === 'surgical' && AP_TEMP.procedure) { const dupDiag = PATIENTS.find(x => x.id !== AP_TEMP.id && x.name === AP_TEMP.name && x.procedure === AP_TEMP.procedure && x.diagnosis === AP_TEMP.diagnosis); if (dupDiag) { toast('Note: This patient already has a case for "' + AP_TEMP.procedure + '". Check if it\u2019s a duplicate.'); } }
@@ -9506,6 +9569,17 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'open-add-fu') { FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'Follow-up'; ADD_FOLLOWUP_OPEN = true; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
   if (action === 'cancel-add-fu') {
+    const notesEl = document.getElementById('fu-notes');
+    const hasNotes = notesEl && notesEl.value.trim().length > 0;
+    const hasPhotos = FU_INV_PHOTOS.length > 0;
+    if ((hasNotes || hasPhotos) && !el.dataset.confirmed) {
+      el.dataset.confirmed = '1';
+      const original = el.textContent;
+      el.textContent = 'Tap again to discard';
+      el.style.color = 'var(--red)';
+      setTimeout(() => { if (el.dataset) { delete el.dataset.confirmed; el.textContent = original; el.style.color = ''; } }, 3000);
+      return;
+    }
     await discardStagedPhotos(FU_INV_PHOTOS);
     FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return;
   }
@@ -9586,6 +9660,7 @@ document.addEventListener('click', async (e) => {
     const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rom, imageCount: FU_INV_PHOTOS.length, createdAt: Date.now() };
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
+    if (p.status === 'Lost to follow-up' || p.status === 'Completed') { p.status = 'Active'; }
     const nextFuEl = document.getElementById('fu-next-followup');
     let nextFuDefaulted = false;
     if (nextFuEl && nextFuEl.value) {
@@ -9621,6 +9696,19 @@ document.addEventListener('click', async (e) => {
         () => { TAB = 'overview'; render(); },
         5000
       );
+    } else {
+      haptic(15);
+      const reminderLink = followUpReminderLink(p);
+      if (reminderLink) {
+        toastWithButton(
+          '\u2713 Follow-up logged \u2014 next visit ' + fmtDate(p.nextFollowUpDate),
+          'Send Reminder',
+          () => { window.open(reminderLink, '_blank'); },
+          5000
+        );
+      } else {
+        toast('\u2713 Follow-up logged \u2014 next visit ' + fmtDate(p.nextFollowUpDate));
+      }
     }
     return;
   }
