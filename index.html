@@ -233,15 +233,6 @@
   .btn-sm { padding:6px 10px; font-size:11px; border-radius:8px; }
   .btn-danger-confirm { background:#dc2626; color:#fff; border-color:#dc2626; }
   .btn-outline-dashed { border:2px dashed #c7d2fe; color:var(--accent-dark); background:transparent; }
-  
-  /* UX1-2: Button Feedback & Success States */
-  .btn { position:relative; overflow:hidden; transition:box-shadow 0.2s ease; }
-  .btn::before { content:''; position:absolute; top:50%; left:50%; width:0; height:0; border-radius:50%; background:rgba(255,255,255,0.3); transform:translate(-50%, -50%); transition:width 0.3s ease, height 0.3s ease; }
-  .btn:active::before { width:40px; height:40px; }
-  .btn:active { box-shadow:0 2px 4px rgba(0,0,0,0.1); }
-  .btn.success { background:#16a34a; border-color:#16a34a; color:#fff; }
-  .btn.success::after { content:'✓'; margin-left:6px; animation:checkmark 0.4s ease; }
-  @keyframes checkmark { 0% { opacity:0; transform:scale(0.5); } 50% { opacity:1; } 100% { opacity:0.8; transform:scale(1); } }
 
   .search-wrap { position:relative; margin-bottom:8px; }
   .search-wrap svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--muted); }
@@ -275,14 +266,9 @@
   [data-theme="dark"] .skeleton-line, [data-theme="dark"] .skeleton-block { background:linear-gradient(90deg, #1e293b 25%, #263449 37%, #1e293b 63%); background-size:400% 100%; }
   .spinner { display:inline-block; width:13px; height:13px; border:2px solid currentColor; border-right-color:transparent; border-radius:50%; animation:spinner-spin 0.6s linear infinite; vertical-align:-2px; opacity:0.7; }
   @keyframes spinner-spin { to { transform:rotate(360deg); } }
-  /* UX3: Skeleton loaders for tabs */
-  .skeleton-thumb { width:80px; height:80px; border-radius:10px; margin:8px; display:inline-block; background:linear-gradient(90deg, #eef0f3 25%, #f6f7f9 37%, #eef0f3 63%); background-size:400% 100%; animation:skeleton-shimmer 1.4s ease infinite; }
-  .skeleton-row { height:60px; margin-bottom:12px; border-radius:12px; padding:12px; display:flex; gap:12px; background:linear-gradient(90deg, #eef0f3 25%, #f6f7f9 37%, #eef0f3 63%); background-size:400% 100%; animation:skeleton-shimmer 1.4s ease infinite; }
-  .skeleton-loader { display:flex; flex-direction:column; padding:16px; gap:12px; }
   .view-transition { animation:view-fade-in 220ms cubic-bezier(0.34,1.2,0.64,1); }
   @keyframes view-fade-in { from { opacity:0.4; transform:scale(0.99); } to { opacity:1; transform:scale(1); } }
-  /* P9: CSS Performance Optimization */
-  .case-card { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; border:1px solid var(--border); border-radius:20px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03); position:relative; touch-action:pan-y; contain:layout style; will-change:transform; }
+  .case-card { display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left; border:1px solid var(--border); border-radius:20px; background:#fff; padding:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03); position:relative; touch-action:pan-y; }
   .case-card[data-wa-link]::before { content:''; position:absolute; left:0; top:14px; bottom:14px; width:3px; border-radius:0 3px 3px 0; background:rgba(37,211,102,0.5); }
   .status-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
   .case-card:active { background:var(--bg-soft); }
@@ -317,7 +303,7 @@
   .seg-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
 
   .thumb-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px; }
-  .thumb-wrap { position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; border:1px solid var(--border); background:var(--bg-soft); contain:layout style paint; will-change:transform; }
+  .thumb-wrap { position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; border:1px solid var(--border); background:var(--bg-soft); }
   .thumb-date { position:absolute; left:0; right:0; bottom:0; background:rgba(15,23,42,0.72); color:#fff; font-size:9px; font-weight:700; text-align:center; padding:2px 3px; }
   .accent-swatch { width:34px; height:34px; border-radius:50%; border:2px solid transparent; flex:none; }
   .accent-swatch.active { border-color:var(--ink); box-shadow:0 0 0 2px #fff, 0 0 0 4px var(--ink); }
@@ -373,13 +359,7 @@
   .overdue-note { font-size:11px; font-weight:700; color:var(--red); margin-top:3px; display:flex; align-items:center; gap:4px; }
   .bottom-bar { position:sticky; bottom:0; border-top:1px solid var(--border); background:#fff; padding:10px 12px; padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)); display:flex; gap:8px; }
 
-  /* UX7: Modal Animations - slide-up on mobile, slide-from-right on desktop */
-  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; overflow:hidden; touch-action:none; animation:modal-slide-up 0.35s cubic-bezier(0.34,1.56,0.64,1); }
-  @keyframes modal-slide-up { from { opacity:0; transform:translateY(40px); } to { opacity:1; transform:translateY(0); } }
-  @keyframes modal-slide-right { from { opacity:0; transform:translateX(60px); } to { opacity:1; transform:translateX(0); } }
-  @media (min-width: 1024px) {
-    .modal-overlay { animation:modal-slide-right 0.35s cubic-bezier(0.34,1.56,0.64,1); }
-  }
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; overflow:hidden; touch-action:none; }
   .modal-overlay img { max-width:100%; max-height:78vh; border-radius:8px; }
   .modal-bar { position:absolute; top:calc(16px + env(safe-area-inset-top, 0px)); left:16px; right:16px; display:flex; align-items:center; justify-content:space-between; gap:8px; z-index:2; }
   .modal-btn { background:rgba(255,255,255,0.12); color:#fff; border:none; border-radius:999px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; }
@@ -631,7 +611,6 @@
     border-color: #ef4444;
     background-color: rgba(239, 68, 68, 0.02);
   }
-  /* UX10: Enhanced inline validation with animations */
   .validation-helper {
     font-size: 11px;
     font-weight: 600;
@@ -639,28 +618,12 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    max-height: 0;
-    opacity: 0;
-    overflow: hidden;
-    transition: max-height 0.2s ease, opacity 0.2s ease;
-  }
-  .validation-helper.show {
-    max-height: 20px;
-    opacity: 1;
   }
   .validation-helper.valid {
     color: #10b981;
   }
   .validation-helper.invalid {
     color: #ef4444;
-  }
-  .validation-helper.invalid::before {
-    content: '⚠ ';
-    font-weight: 700;
-  }
-  .validation-helper.valid::before {
-    content: '✓ ';
-    font-weight: 700;
   }
 
   /* ================= Typography Standardization ================= */
@@ -1722,12 +1685,7 @@ const DASH_ICONS = {
 
 /* ================= Premium UX Helpers ================= */
 // Haptic feedback (mobile only)
-/* UX9: Enhanced Haptic Feedback with patterns */
 function haptic(duration = 10) { if (navigator.vibrate) navigator.vibrate(duration); }
-function hapticSuccess() { if (navigator.vibrate) navigator.vibrate([10, 5, 10]); } // light double tap
-function hapticWarning() { if (navigator.vibrate) navigator.vibrate([20, 10, 20]); } // medium double tap
-function hapticError() { if (navigator.vibrate) navigator.vibrate([30, 10, 30, 10, 30]); } // strong triple tap
-function hapticDelete() { if (navigator.vibrate) navigator.vibrate([50, 30, 50]); } // heavy double tap
 
 // Confirmation dialog
 async function showConfirmDialog(opts) {
@@ -1936,23 +1894,14 @@ function reminderStatusBadgeHtml(patient) {
 }
 
 // Setup empty state handler
-/* UX4: Enhanced Empty States with animations and contextual help */
 function showEmptyStateMessage(container, icon, title, message, actionButton = '') {
-  const iconHtml = icon ? '<div style="font-size:56px;margin-bottom:20px;opacity:0.4;animation:float-icon 3s ease-in-out infinite;">'+icon+'</div>' : '';
-  const html = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 24px;text-align:center;min-height:300px;">'
-    + iconHtml
-    + '<h3 style="font-size:17px;font-weight:800;color:var(--ink);margin-bottom:12px;letter-spacing:0.5px;">'+title+'</h3>'
-    + '<p style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:24px;max-width:280px;">'+message+'</p>'
-    + (actionButton ? '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">'+actionButton+'</div>' : '')
+  container.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;">'
+    + '<div style="font-size:48px;margin-bottom:16px;opacity:0.3;">'+icon+'</div>'
+    + '<h3 style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:8px;">'+title+'</h3>'
+    + '<p style="font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:16px;">'+message+'</p>'
+    + actionButton
     + '</div>';
-  container.innerHTML = html;
 }
-
-/* UX4: Float animation for empty state icons */
-const styleSheet = document.styleSheets[0];
-try {
-  styleSheet.insertRule('@keyframes float-icon { 0%, 100% { transform:translateY(0px); } 50% { transform:translateY(-8px); } }', styleSheet.cssRules.length);
-} catch(e) {}
 
 /* After opening a patient from a search/filter result, jump straight to the matched field
    instead of leaving the person to hunt for it \u2014 same idea for tag-filtered opens. */
@@ -2025,29 +1974,6 @@ let VIEW = 'list';
 let SELECTED_ID = null;
 let SEARCH = '';
 let FILTER_TYPE = 'all';
-
-/* UX5: Scroll Position Preservation */
-const SCROLL_POSITION_CACHE = {};
-function saveScrollPosition(key) {
-  const container = document.getElementById('scroll-container');
-  if (container) SCROLL_POSITION_CACHE[key] = container.scrollTop;
-}
-function restoreScrollPosition(key) {
-  const container = document.getElementById('scroll-container');
-  if (container && SCROLL_POSITION_CACHE[key] !== undefined) {
-    setTimeout(() => { container.scrollTop = SCROLL_POSITION_CACHE[key]; }, 0);
-  }
-}
-
-/* ================= ONBOARDING ================= */
-let ONBOARDING_FLAGS = (() => {
-  try { return JSON.parse(localStorage.getItem('onboarding-flags') || '{}'); }
-  catch(e) { return {}; }
-})();
-function saveOnboardingFlag(flag) { ONBOARDING_FLAGS[flag] = true; try { localStorage.setItem('onboarding-flags', JSON.stringify(ONBOARDING_FLAGS)); } catch(e) {} }
-function hasSeenOnboarding(flag) { return ONBOARDING_FLAGS[flag] === true; }
-function resetAllOnboardingFlags() { ONBOARDING_FLAGS = {}; try { localStorage.removeItem('onboarding-flags'); } catch(e) {} }
-
 const FILTER_STATE_KEY = 'surgical-case-log-filter-state-v1';
 const TAB_STATE_KEY = 'surgical-case-log-tab-state-v1';
 function saveTabState() { try { localStorage.setItem(TAB_STATE_KEY, TAB); } catch(e) {} }
@@ -2080,7 +2006,7 @@ let ARMED_DELETE = null;
 let TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
 const DAILY_LIMIT = 15000;
 const MONTHLY_LIMIT = 100000;
-let SHOW_ALL_ATTENTION = (() => { try { return localStorage.getItem('show-all-attention') === '1'; } catch(e) { return false; } })();
+let SHOW_ALL_ATTENTION = false;
 let SHOW_TOMORROW_LIST = true;
 let SHOW_ADD_MENU = false;
 let SHOW_PATIENT_MORE_MENU = false;
@@ -2207,12 +2133,7 @@ function recordRecentSearchPatient(id) {
 function getRecentSearchPatients() {
   try {
     const list = JSON.parse(localStorage.getItem(RECENT_SEARCH_KEY) || '[]');
-    const patients = list.map(id => getPatient(id)).filter(Boolean);
-    if (patients.length < list.length) {
-      const validIds = patients.map(p => p.id);
-      localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(validIds));
-    }
-    return patients;
+    return list.map(id => getPatient(id)).filter(Boolean);
   } catch(e) { return []; }
 }
 function recordLastPatient(id) {
@@ -2232,7 +2153,7 @@ async function computeActivityFeed() {
     const p = PATIENTS.find(x => x.id === r.patientId);
     events.push({ icon:'clock', color: r.dueDate < today ? '#dc2626' : '#eab308', ts: new Date(r.dueDate).getTime(), title: (r.dueDate < today ? 'Overdue: ' : 'Reminder due today: ') + r.text, sub: p ? escName(p.name)+(p.patientCode?' ('+p.patientCode+')':'') : '', jumpPatientId: r.patientId });
   });
-  const allImages = await dbGetAllImagesWithCache();
+  const allImages = await dbGetAllImages().catch(() => []);
   allImages.filter(im => im.createdAt && im.createdAt >= sevenDaysAgo).forEach(im => {
     const p = PATIENTS.find(x => x.id === im.patientId);
     events.push({ icon:'camera', color:'var(--accent)', ts: im.createdAt, title: 'New image added', sub: p ? escName(p.name)+(p.patientCode?' ('+p.patientCode+')':'') : 'Unfiled photo', jumpPatientId: im.patientId });
@@ -2386,28 +2307,6 @@ function revokeActiveUrls() {
   setTimeout(() => { toRevoke.forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); }, 4000);
 }
 function trackUrl(u) { ACTIVE_URLS.push(u); return u; }
-
-/* P3: Lazy Load Images with IntersectionObserver */
-function setupImageLazyLoading(container) {
-  if (!container || !('IntersectionObserver' in window)) return;
-  const images = container.querySelectorAll('img[data-src]');
-  if (images.length === 0) return;
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const img = entry.target;
-        const dataSrc = img.getAttribute('data-src');
-        if (dataSrc) {
-          img.src = dataSrc;
-          img.removeAttribute('data-src');
-          img.style.opacity = '1';
-          observer.unobserve(img);
-        }
-      }
-    });
-  }, { rootMargin: '50px' });
-  images.forEach(img => observer.observe(img));
-}
 
 // temp state for add-patient photo staging: [{tempId, blob, previewUrl, label}]
 let AP_PHOTOS = [];
@@ -2572,29 +2471,8 @@ function daysAgoLabel(dateStr) {
 function greetingWord() { const h = new Date().getHours(); if (h < 12) return 'Good morning'; if (h < 17) return 'Good afternoon'; return 'Good evening'; }
 
 /* ---- Dashboard + Practice Insights ---- */
-let DASHBOARD_STATS_CACHE = null;
-let DASHBOARD_STATS_CACHE_DATE = null;
-
-/* ===== PERFORMANCE: Image Cache (P1) ===== */
-let ALL_IMAGES_CACHE = null;
-let ALL_IMAGES_CACHE_VERSION = 0;
-async function dbGetAllImagesWithCache() {
-  // Only re-fetch if cache is null or invalidated
-  if (ALL_IMAGES_CACHE === null) {
-    ALL_IMAGES_CACHE = await dbGetAllImages().catch(() => []);
-  }
-  return ALL_IMAGES_CACHE;
-}
-function invalidateImageCache() {
-  ALL_IMAGES_CACHE = null;
-  ALL_IMAGES_CACHE_VERSION++;
-}
-
 function computeDashboardStats() {
   const today = todayStr();
-  if (DASHBOARD_STATS_CACHE_DATE === today && DASHBOARD_STATS_CACHE) {
-    return DASHBOARD_STATS_CACHE;
-  }
   const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-6);
   const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0,10);
 
@@ -2631,10 +2509,7 @@ function computeDashboardStats() {
   }
   const weekNewCases = weekTrend.reduce((sum,d) => sum + d.count, 0);
 
-  const result = { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, weekTrend, weekNewCases, dueTomorrowList };
-  DASHBOARD_STATS_CACHE = result;
-  DASHBOARD_STATS_CACHE_DATE = today;
-  return result;
+  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, weekTrend, weekNewCases, dueTomorrowList };
 }
 
 /* ---- Daily "important today" notifications ---- */
@@ -2653,8 +2528,7 @@ function notifCardHtml() {
     + '</div>';
 }
 /* Shows at most one notification per calendar day, only once permission has been granted and the
-   toggle is on, summarising anything overdue or due today across follow-ups / RA labs / DEXA scans.
-   If any case is critically overdue (7+ days), a short sound plays alongside the notification. */
+   toggle is on, summarising anything overdue or due today across follow-ups / RA labs / DEXA scans. */
 async function maybeNotifyToday() {
   try {
     if (!isNotifEnabled()) return;
@@ -2666,40 +2540,16 @@ async function maybeNotifyToday() {
     if (!s.important.length) return;
     const overdueCount = s.important.filter(i => i.isOverdue).length;
     const todayCount = s.important.length - overdueCount;
-    const criticalItems = s.important.filter(i => i.isOverdue && overdueDays(i.date) >= 7);
     const parts = [];
     if (overdueCount) parts.push(overdueCount + ' overdue');
     if (todayCount) parts.push(todayCount + ' due today');
-    let body = parts.join(', ') + ' \u2014 follow-ups, RA labs or DEXA scans.';
-    if (criticalItems.length) {
-      body = '\u26a0\ufe0f ' + criticalItems.length + ' critical (7+ days overdue): ' + criticalItems[0].patient.name
-        + (criticalItems.length > 1 ? ' +' + (criticalItems.length - 1) + ' more' : '') + '. ' + body;
-    }
-    try { new Notification('OrthoVault', { body, icon: 'icons/icon-192.png', requireInteraction: criticalItems.length > 0 }); } catch(e) {}
-    if (criticalItems.length) playCriticalAlert();
+    const body = parts.join(', ') + ' \u2014 follow-ups, RA labs or DEXA scans.';
+    try { new Notification('OrthoVault', { body, icon: 'icons/icon-192.png' }); } catch(e) {}
     try { localStorage.setItem(NOTIF_LAST_SHOWN_KEY, todayKey); } catch(e) {}
   } catch (e) {}
 }
 
-const BACKUP_HISTORY_KEY = 'orthovault-backup-history';
-
-function trackBackupCreated() {
-  try {
-    const history = JSON.parse(localStorage.getItem(BACKUP_HISTORY_KEY) || '[]');
-    history.push({ date: todayStr(), timestamp: Date.now() });
-    // Keep only last 10 entries
-    if (history.length > 10) history.shift();
-    localStorage.setItem(BACKUP_HISTORY_KEY, JSON.stringify(history));
-  } catch(e) {}
-}
-
-function getOldBackupCount() {
-  try {
-    const history = JSON.parse(localStorage.getItem(BACKUP_HISTORY_KEY) || '[]');
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-    return history.filter(b => b.timestamp < thirtyDaysAgo).length;
-  } catch(e) { return 0; }
-}
+const BACKUP_REMINDER_KEY = 'surgical-case-log-last-backup-v1';
 let BACKUP_BANNER_DISMISSED = false;
 function daysSinceLastBackup() {
   let last;
@@ -3107,7 +2957,7 @@ function loadProfile() {
   } catch (e) { return { ...DEFAULT_PROFILE }; }
 }
 function saveProfile(profile, silent) {
-  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); }
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); if (!silent) toast('Profile saved'); }
   catch (e) { if (!silent) toast('Save failed'); }
   syncProfileToCloud(profile);
 }
@@ -3877,7 +3727,7 @@ function cbResultsListHtml(filtered, imageMap) {
 }
 
 async function cbBuildImageMap() {
-  const allImages = await dbGetAllImagesWithCache();
+  const allImages = await dbGetAllImages();
   const imageMap = {};
   allImages.forEach(im => { if (im.clinicalBankId) { (imageMap[im.clinicalBankId] = imageMap[im.clinicalBankId] || []).push(im); } });
   return imageMap;
@@ -4271,26 +4121,6 @@ function renderAppSettingsView() {
     + '</div>'
     + notifCardHtml()
     + moreRowHtml('shield', 'Backup & Cloud Sync', 'Auto backup, cloud sync status', 'open-cloud-sync')
-    + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">STORAGE</div>'
-    + '<div class="card">'
-    + '<label class="field-label">Device Storage</label>'
-    + '<div id="storage-indicator" style="font-size:13px;color:var(--ink);margin-bottom:10px;font-weight:600;">Checking storage...</div>'
-    + '<div style="width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden;"><div id="storage-bar" style="height:100%;background:var(--amber);width:45%;"></div></div>'
-    + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0;">Photos and cases stored locally on your device.</p>'
-    + '</div>'
-    + (() => {
-        const oldCount = getOldBackupCount();
-        return oldCount > 0
-          ? '<div class="card" style="border-color:var(--orange-border);background:var(--orange-bg);">'
-            + '<div class="row between" style="align-items:center;">'
-            + '<div>'
-            + '<label class="field-label" style="margin-bottom:4px;color:var(--orange);">Old Backups Found</label>'
-            + '<p style="font-size:11px;color:var(--orange);margin:0;">You have ' + oldCount + ' backup' + (oldCount!==1?'s':'') + ' older than 30 days. These can be manually deleted from your Downloads folder to free up space.</p>'
-            + '</div>'
-            + '</div>'
-            + '</div>'
-          : '';
-      })()
     + (isAiTier() ? (
         '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">AI USAGE</div>'
         + '<div class="card">'
@@ -4308,11 +4138,6 @@ function renderAppSettingsView() {
         + '<p style="font-size:10.5px;color:var(--muted);margin:10px 0 0;">Used for AI clinical assistant, suggestions, and analysis.</p>'
         + '</div>'
       ) : '')
-    + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">TUTORIALS</div>'
-    + '<div class="card"><label class="field-label">Onboarding Guides</label>'
-    + '<button class="btn btn-block" data-action="reset-tutorials" style="background:var(--blue-bg);border-color:var(--blue-border);color:var(--blue);">Show all tutorials again</button>'
-    + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0;">Reset onboarding banners to see workflow guides for all features.</p>'
-    + '</div>'
     + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">ABOUT</div>'
     + moreRowHtml('info', 'About OrthoVault', 'What this app does and how to use it', 'open-about')
     + '</div>'
@@ -4422,8 +4247,7 @@ function caseStatusDot(p) {
   if (p.status === 'Completed') return { color:'#16a34a', label:'Follow-up complete' };
   if (p.nextFollowUpDate) {
     const today = todayStr();
-    if (p.nextFollowUpDate < today) return { color:'#dc2626', label:'Overdue follow-up' };
-    if (p.nextFollowUpDate === today) return { color:'#eab308', label:'Follow-up due today' };
+    if (p.nextFollowUpDate <= today) return { color:'#eab308', label:'Follow-up due' };
   }
   return null;
 }
@@ -4477,10 +4301,8 @@ function followUpReminderMessage(patient) {
   const dateLine = isOverdue
     ? '\n\u0906\u092a\u0915\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0925\u0940\u0964 \u0915\u0943\u092a\u092f\u093e \u091c\u0932\u094d\u0926 \u0938\u0947 \u091c\u0932\u094d\u0926 \u0906 \u091c\u093e\u090f\u0902\u0964'
     : '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964';
-  const clinicalContext = reg ? '\n\u0932\u0915\u094d\u0937\u094d\u0936\u093e\u0923: ' + reg + '\u0964' : '';
   return '\u0928\u092e\u0938\u094d\u0924\u0947 ' + patient.name + ' \u091c\u0940,'
     + dateLine
-    + clinicalContext
     + '\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0908\u090f\u0917\u093e\u0964'
     + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
     + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]')
@@ -4630,7 +4452,7 @@ function rxWaLink(patient, rx, profile) {
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(rxWaMessage(patient, rx, profile));
 }
 
-async function refreshPatients() { const all = await dbGetAllPatients(); PATIENTS = all.filter(p => !p.deletedAt); DASHBOARD_STATS_CACHE = null; }
+async function refreshPatients() { const all = await dbGetAllPatients(); PATIENTS = all.filter(p => !p.deletedAt); }
 async function refreshClinicalBank() { CLINICAL_BANK = await dbGetAllClinicalBank(); }
 async function dbGetDeletedPatients() { const all = await dbGetAllPatients(); return all.filter(p => p.deletedAt).sort((a,b) => b.deletedAt - a.deletedAt); }
 function getPatient(id) { return PATIENTS.find(p => p.id === id); }
@@ -4649,34 +4471,14 @@ function compactEmptyState(icon, text) {
     + '</div>';
 }
 
-/* UX6: Toast Queue with Batching */
-let TOAST_QUEUE = [];
-let TOAST_TIMER_ACTIVE = false;
 function toast(msg) {
-  TOAST_QUEUE.push(msg);
-  if (TOAST_TIMER_ACTIVE) return; // batch with existing toast
-  
-  TOAST_TIMER_ACTIVE = true;
-  setTimeout(() => {
-    let el = document.getElementById('toast');
-    if (!el) { el = document.createElement('div'); el.id='toast'; el.className='toast toast-hidden'; document.getElementById('app').appendChild(el); }
-    
-    // Batch multiple toasts into one message
-    if (TOAST_QUEUE.length > 1) {
-      el.innerHTML = '✓ ' + TOAST_QUEUE.length + ' actions completed';
-    } else {
-      el.innerHTML = TOAST_QUEUE[0] || '';
-    }
-    
-    el.classList.remove('toast-hidden');
-    void el.offsetWidth;
-    clearTimeout(window.__toastTimer);
-    window.__toastTimer = setTimeout(() => { 
-      el.classList.add('toast-hidden');
-      TOAST_QUEUE = [];
-      TOAST_TIMER_ACTIVE = false;
-    }, 2500);
-  }, 0);
+  let el = document.getElementById('toast');
+  if (!el) { el = document.createElement('div'); el.id='toast'; el.className='toast toast-hidden'; document.getElementById('app').appendChild(el); }
+  el.innerHTML = msg;  // Changed from textContent to innerHTML to allow HTML
+  el.classList.remove('toast-hidden');
+  void el.offsetWidth;
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(() => { el.classList.add('toast-hidden'); }, 1800);
 }
 
 function toastWithButton(msg, buttonLabel, onButtonClick, duration = 4000) {
@@ -4724,57 +4526,24 @@ function dashboardQuoteHtml() {
     + '</div>';
 }
 
-function onboardingBannerHtml(flag, icon, title, description) {
-  if (hasSeenOnboarding(flag)) return '';
-  return '<div class="card" style="background:linear-gradient(135deg,#e0f2fe,#f0f9ff);border-color:#0284c7;border-left:4px solid #0284c7;margin-bottom:14px;animation:slideDown 0.3s ease-out;">'
-    + '<div class="row between" style="align-items:flex-start;">'
-    + '<div style="display:flex;gap:12px;flex:1;min-width:0;">'
-    + '<span style="flex:none;font-size:24px;">'+icon+'</span>'
-    + '<div style="flex:1;min-width:0;">'
-    + '<div style="font-weight:700;font-size:13.5px;margin-bottom:4px;">'+title+'</div>'
-    + '<div style="font-size:12.5px;color:#475569;line-height:1.4;">'+description+'</div>'
-    + '</div>'
-    + '</div>'
-    + '<button class="icon-btn" style="flex:none;color:#0284c7;" data-action="dismiss-onboarding" data-flag="'+flag+'">✕</button>'
-    + '</div>'
-    + '<style>@keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }</style>';
-}
-
 function renderDashboardSection() {
   const s = computeDashboardStats();
   const daysBack = daysSinceLastBackup();
   let html = '';
 
-  // Onboarding banner for first-time users
-  html += onboardingBannerHtml('dashboard-intro', '👋', 'Welcome to OrthoVault!', 'This is your patient hub. See urgent follow-ups, quick stats, and recent cases. Use the tabs below to manage patients, follow-ups, and more.');
-
   const dueRemindersCount = (REMINDERS && REMINDERS.length) ? REMINDERS.filter(r => !r.done && r.dueDate && r.dueDate <= todayStr()).length : 0;
 
-  const activeCasesCount = s.activeCases || 0;
   if (PATIENTS.length) {
-    const criticalCount = s.important.filter(i => i.isOverdue && overdueDays(i.date) >= 7).length;
     html += s.important.length
       ? '<button type="button" data-action="dash-goto-followups" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px;background:var(--red-bg,#fef2f2);border-color:var(--red-border,#fecaca);">'
         + '<span style="flex:none;width:44px;height:44px;">'+DASH_ICONS.needsAttention+'</span>'
-        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14.5px;font-weight:800;color:var(--red);">Needs attention'+(criticalCount?' — '+criticalCount+' CRITICAL':'')+' </span><span style="display:block;font-size:11.5px;color:var(--muted);margin-top:1px;">'+s.important.length+' item'+(s.important.length!==1?'s':'')+' require your attention</span></span>'
+        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14.5px;font-weight:800;color:var(--red);">Needs attention</span><span style="display:block;font-size:11.5px;color:var(--muted);margin-top:1px;">'+s.important.length+' item'+(s.important.length!==1?'s':'')+' require your attention</span></span>'
         + '<span style="flex:none;color:var(--red);">'+ic('chevron')+'</span>'
         + '</button>'
-      : (activeCasesCount > 0
-        ? '<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;background:var(--emerald-bg);">'
-          + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
-          + '<span style="font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span>'
-          + '<span style="font-size:11.5px;color:var(--muted);margin-left:auto;">'+activeCasesCount+' active</span>'
-          + '</div>'
-        : '<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;background:var(--blue-bg,#f0f9ff);">'
-          + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--blue);display:flex;align-items:center;justify-content:center;">'+ic('info')+'</span>'
-          + '<span style="font-size:14.5px;font-weight:800;color:var(--blue);">No active cases</span>'
-          + '</div>');
-  } else {
-    html += '<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;background:var(--blue-bg,#f0f9ff);">'
-      + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--blue);display:flex;align-items:center;justify-content:center;">'+ic('info')+'</span>'
-      + '<span style="font-size:14.5px;font-weight:800;color:var(--blue);">No cases yet</span>'
-      + '<span style="font-size:11.5px;color:var(--muted);margin-left:auto;">Start with Add New</span>'
-      + '</div>';
+      : '<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;background:var(--emerald-bg);">'
+        + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
+        + '<span style="font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span>'
+        + '</div>';
   }
 
   if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 14)) {
@@ -4840,8 +4609,6 @@ function renderDashboardSection() {
 /* Follow-up / RA-labs / DEXA overdue+due-today list \u2014 lives in the Followups tab's "Due" segment */
 function renderNeedsAttentionBlock(s) {
   let html = '';
-  // ISSUE 5: Check for critical overdue cases and trigger alerts
-  checkAndAlertCriticalOverdue(s);
   if (!s.important.length) {
     html += '<div class="card" style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:12px;">'
       + '<span style="width:26px;height:26px;border-radius:50%;background:var(--emerald-bg);color:var(--emerald);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ic('check')+'</span>'
@@ -4873,28 +4640,7 @@ function renderNeedsAttentionBlock(s) {
           + '<span data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px;min-width:0;">'
             + '<span style="color:'+(item.isOverdue?'var(--red)':'#b45309')+';flex-shrink:0;">'+ic(typeIcon[item.type]||'calendar')+'</span>'
             + '<span style="min-width:0;overflow:hidden;">'
-              + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:6px;">'
-                + esc(item.patient.name)
-                + (days >= 7 ? '<span style="font-size:9px;font-weight:800;background:var(--red);color:#fff;padding:2px 5px;border-radius:3px;white-space:nowrap;flex-shrink:0;">CRITICAL</span>' : '')
-              + '</span>'
-              // ISSUE 3: Add case context line
-              + (() => {
-                  const p = item.patient;
-                  let context = '';
-                  if (p.caseType === 'surgical' && p.surgeryDate) {
-                    const postOpDays = Math.floor((new Date(todayStr()) - new Date(p.surgeryDate)) / 86400000);
-                    const procedure = p.surgeryType || 'Surgery';
-                    context = procedure + ' (post-op day ' + postOpDays + ')';
-                  } else if (p.chiefComplaints) {
-                    context = p.chiefComplaints;
-                  } else if (p.diagnosis) {
-                    context = p.diagnosis;
-                  }
-                  if (context) {
-                    return '<span style="display:block;font-size:10.5px;color:var(--muted);margin:2px 0;">'+esc(context.substring(0,60))+(context.length>60?'...':'')+'</span>';
-                  }
-                  return '';
-                })()
+              + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.patient.name)+'</span>'
               + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+esc(remindedText)+'</span>'
             + '</span>'
           + '</span>'
@@ -5103,15 +4849,7 @@ function renderPatientsView() {
   } else {
     cards = '<div style="display:flex;flex-direction:column;gap:8px;">';
     let lastGroupKey = null;
-    let cardCount = 0;
-    
-    // ISSUE 4: Render only up to PATIENT_LIST_LOADED_COUNT patients, default to PAGE_SIZE
-    const renderLimit = Math.max(PATIENT_LIST_PAGE_SIZE, PATIENT_LIST_LOADED_COUNT);
-    
-    filtered.forEach((p, idx) => {
-      if (idx >= renderLimit) return; // Skip items beyond current pagination limit
-      cardCount++;
-      
+    filtered.forEach(p => {
       const gk = patientGroupKey(p);
       if (gk !== lastGroupKey) {
         cards += '<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.03em;margin:'+(lastGroupKey?'10px':'0')+' 0 -2px 4px;">'+PATIENT_GROUP_LABELS[gk]+'</div>';
@@ -5128,13 +4866,8 @@ function renderPatientsView() {
       if (p.status === 'Lost to follow-up') followUpLine = '<span style="color:#1f2937;font-weight:700;">Lost to follow-up</span>';
       else if (p.status === 'Completed') followUpLine = '<span style="color:#16a34a;font-weight:700;">Follow-up complete</span>';
       else if (p.nextFollowUpDate) {
-        const today = todayStr();
-        const isOverdue = p.nextFollowUpDate < today;
-        const isDueToday = p.nextFollowUpDate === today;
-        const color = isOverdue ? '#dc2626' : isDueToday ? '#eab308' : 'var(--muted)';
-        const weight = isOverdue || isDueToday ? '700' : '500';
-        const prefix = isOverdue ? 'Overdue \u2014 ' : isDueToday ? 'Due today \u2014 ' : 'Next follow-up ';
-        followUpLine = '<span style="color:'+color+';font-weight:'+weight+';">'+prefix+fmtDateShort(p.nextFollowUpDate)+'</span>';
+        const overdue = isOverdue(p.nextFollowUpDate);
+        followUpLine = '<span style="color:'+(overdue?'#dc2626':'var(--muted)')+';font-weight:'+(overdue?'700':'500')+';">'+(overdue?'Overdue \u2014 ':'Next follow-up ')+fmtDateShort(p.nextFollowUpDate)+'</span>';
       } else {
         followUpLine = '<span style="color:var(--muted);">Follow-up not scheduled</span>';
       }
@@ -5154,7 +4887,7 @@ function renderPatientsView() {
         + '<span class="display" style="font-weight:800;font-size:15px;">'+escName(p.name)+'</span>'
         + '<span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex||'')+'</span>'
         + '</div>'
-        + '<div style="font-size:12.5px;color:#334155;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+(summaryText?esc(summaryText):'No diagnosis yet')+'">'
+        + '<div style="font-size:12.5px;color:#334155;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
         + (summaryText ? '<span style="font-weight:600;">'+esc(summaryText)+'</span>' : '<span style="color:var(--muted);">No diagnosis yet</span>')
         + '</div>'
         + '<div style="font-size:11px;margin-top:4px;">'+followUpLine+'</div>'
@@ -5163,15 +4896,6 @@ function renderPatientsView() {
         + '<span style="color:var(--muted);margin-left:8px;">'+ic('chevron')+'</span>'
         + '</div>';
     });
-    
-    // ISSUE 4: Add "Load more" button if there are more patients to show
-    if (filtered.length > renderLimit) {
-      const remainingCount = filtered.length - renderLimit;
-      cards += '<div style="text-align:center;padding:16px 14px;">'
-        + '<button class="btn btn-outline" style="width:100%;" data-action="load-more-patients">Load ' + remainingCount + ' more</button>'
-        + '</div>';
-    }
-    
     cards += '</div>';
   }
 
@@ -5182,7 +4906,6 @@ function renderPatientsView() {
     + chips
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
-    + onboardingBannerHtml('patients-intro', '➕', 'Add Your First Patient', 'Start by creating a new OPD or surgical case. Tap the + button in the bottom navigation to create your first patient record.')
     + (PATIENTS.length ? (SHOW_LEGEND
         ? '<div class="row gap3" style="flex-wrap:wrap;margin-bottom:12px;font-size:10px;color:var(--muted);cursor:pointer;" data-action="toggle-legend">'
           + '<span class="row gap1"><span class="status-dot" style="background:#dc2626;"></span> Complication</span>'
@@ -5310,9 +5033,11 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId, patie
       try { await dbAddImage(imgRec); } catch (e) { toast('Could not save that photo to device \u2014 please retry'); }
     }
   }
+  toast('\u2713 '+files.length+' photo'+(files.length>1?'s':'')+' saved');
   const removeAction = containerId==='ap-thumbs' ? 'ap-remove-photo' : containerId==='inv-thumbs' ? 'inv-remove-photo' : containerId==='rx-thumbs' ? 'rx-remove-photo' : containerId==='fu-wound-thumbs' ? 'fu-wound-remove-photo' : containerId==='fu-clinical-thumbs' ? 'fu-clinical-remove-photo' : 'fu-remove-photo';
   const container = document.getElementById(containerId);
   if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbGridHtml(targetArray, removeAction)+'</div>';
+  toast('Saved');
 }
 
 /* ================= Add patient view ================= */
@@ -5349,97 +5074,12 @@ function initApTemp() {
   AI_INVESTIGATION_SUGGESTIONS = null;
   AI_EXAM_SUGGESTIONS = null;
 }
-
-/* ========= ISSUE 1: DRAFT AUTO-SAVE ========= */
-/* ================= LIST PAGINATION ================= */
-let PATIENT_LIST_PAGE_SIZE = 50;
-let PATIENT_LIST_LOADED_COUNT = 0;
-
-function resetPatientListPagination() {
-  PATIENT_LIST_LOADED_COUNT = 0;
-}
-let SEARCH_TIMEOUT = null;
-let SEARCH_PENDING = '';
-
-function debouncedSearch(query) {
-  SEARCH_PENDING = query;
-  clearTimeout(SEARCH_TIMEOUT);
-  SEARCH_TIMEOUT = setTimeout(() => {
-    SEARCH = SEARCH_PENDING;
-    render();
-  }, 250); // 250ms delay to avoid lag while typing
-}
-
-function saveAppState() {
-  try {
-    localStorage.setItem(LAST_VIEW_KEY, VIEW);
-    if (SELECTED_ID) localStorage.setItem(LAST_PATIENT_KEY, SELECTED_ID);
-  } catch(e) {}
-}
-
-function restoreAppState() {
-  try {
-    const lastView = localStorage.getItem(LAST_VIEW_KEY);
-    const lastPatient = localStorage.getItem(LAST_PATIENT_KEY);
-    
-    // Only restore if it's a valid view that makes sense to resume
-    const resumableViews = ['detail', 'calendar', 'print', 'cloud-sync'];
-    if (lastView && resumableViews.includes(lastView) && lastPatient) {
-      VIEW = lastView;
-      SELECTED_ID = lastPatient;
-      return true;
-    }
-  } catch(e) {}
-  return false;
-}
-function saveApDraft() {
-  if (!AP_TEMP) return;
-  try {
-    // Save AP_TEMP + investigations + open section
-    const draft = {
-      temp: AP_TEMP,
-      investigations: AP_INVESTIGATIONS,
-      openSection: AP_OPEN_SECTION,
-      invCategory: AP_INV_CATEGORY,
-      invXraySubtype: AP_INV_XRAY_SUBTYPE,
-      invActiveGroup: AP_INV_ACTIVE_GROUP,
-      showPayment: AP_SHOW_PAYMENT,
-      timestamp: Date.now()
-    };
-    localStorage.setItem(AP_DRAFT_KEY, JSON.stringify(draft));
-  } catch(e) {
-    console.log('Draft save failed');
-  }
-}
-
-function loadApDraft() {
-  try {
-    const saved = localStorage.getItem(AP_DRAFT_KEY);
-    if (saved) {
-      const draft = JSON.parse(saved);
-      AP_TEMP = draft.temp || AP_TEMP;
-      AP_INVESTIGATIONS = draft.investigations || [];
-      AP_OPEN_SECTION = draft.openSection || 1;
-      AP_INV_CATEGORY = draft.invCategory || 'xray';
-      AP_INV_XRAY_SUBTYPE = draft.invXraySubtype || 'General OPD';
-      AP_INV_ACTIVE_GROUP = draft.invActiveGroup || 'imaging';
-      AP_SHOW_PAYMENT = draft.showPayment || false;
-      return true;
-    }
-  } catch(e) {}
-  return false;
-}
-
-function clearApDraft() {
-  try { localStorage.removeItem(AP_DRAFT_KEY); } catch(e) {}
-}
 function syncApTempFromDom() {
   ['name','age','ageMonths','occupation','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital','nextFollowUpDate'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : f === 'nextFollowUpDate' ? 'ap-next-fu-date' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
   const anaesEl = document.getElementById('ap-anaesthesia'); if (anaesEl) AP_TEMP.anaesthesiaType = anaesEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
   const complaintsEl = document.getElementById('ap-complaints'); if (complaintsEl) AP_TEMP.chiefComplaints = complaintsEl.value;
-  saveApDraft();
 }
 function conditionOptionsHtml(selected, caseType) {
   const excluded = caseType === 'surgical' ? ['ctev','ra','osteoporosis'] : [];
@@ -5720,12 +5360,8 @@ function ovSectionV2(key, title, icon, readHtml, editHtml) {
 function nameInitials(name) {
   const parts = (name||'').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
-  const first = parts[0].replace(/[^a-zA-Z]/g, '')[0];
-  const last = parts[parts.length-1].replace(/[^a-zA-Z]/g, '')[0];
-  if (!first && !last) return '?';
-  if (!first) return (last||'?').toUpperCase();
-  if (!last) return first.toUpperCase();
-  return (first + last).toUpperCase();
+  if (parts.length === 1) return parts[0].slice(0,2).toUpperCase();
+  return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
 }
 const AVATAR_PALETTE = ['#4338ca','#0d9488','#c2410c','#7e22ce','#0369a1','#b45309','#be123c','#166534'];
 function avatarColorFor(id) {
@@ -6099,7 +5735,6 @@ async function renderImagesRecordsTab(p) {
   
   const segHtml = '<div class="px" style="padding-top:12px;padding-bottom:0;">'
     + contextBanner
-    + onboardingBannerHtml('images-intro', '📸', 'Upload Medical Images', 'Store X-rays, CT/MRI scans, clinical photos, and investigation reports. Organize by type for easy access and tracking.')
     + (IMGREC_SELECT_MODE
         ? '<div class="row between" style="margin-bottom:8px;align-items:center;">'
           + '<span style="font-size:12px;font-weight:700;color:var(--ink);">'+IMGREC_SELECTED_IDS.size+' selected</span>'
@@ -6279,9 +5914,6 @@ function renderSmartFollowupForm(p) {
 async function renderFollowupsTab(p) {
   const allImages = await dbGetImagesByPatient(p.id);
   revokeActiveUrls();
-  
-  let html = onboardingBannerHtml('followup-intro', '📅', 'Track Follow-ups', 'Schedule patient visits, set review dates, and monitor healing progress. Click "Add follow-up" to create a new appointment.');
-  
   let addBlock;
   if (!ADD_FOLLOWUP_OPEN) {
     addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-fu">'+ic('plus')+' Add follow-up visit</button>';
@@ -6335,7 +5967,7 @@ async function renderFollowupsTab(p) {
 
   if (!list && !ADD_FOLLOWUP_OPEN) list = compactEmptyState('calendar', 'No follow-ups logged yet.');
 
-  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+html+addBlock+list+'</div>';
+  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
 }
 
 function renderInjectionsTab(p) {
@@ -6403,21 +6035,9 @@ function investigationTrendGraphsHtml(p) {
 async function renderInvestigationsTab(p) {
   const allImages = await dbGetImagesByPatient(p.id);
   revokeActiveUrls();
-  
-  const investigationQuery = (window.INV_SEARCH_QUERY || '').toLowerCase();
-  const filteredInvestigations = investigationQuery 
-    ? (p.investigations||[]).filter(inv => 
-        inv.label.toLowerCase().includes(investigationQuery) ||
-        (inv.value && String(inv.value).toLowerCase().includes(investigationQuery)) ||
-        (inv.unit && inv.unit.toLowerCase().includes(investigationQuery)) ||
-        (inv.date && inv.date.includes(investigationQuery))
-      )
-    : (p.investigations||[]);
-  
   let addBlock;
   if (!ADD_INVESTIGATION_OPEN) {
-    addBlock = '<div class="search-wrap" style="margin-bottom:10px;width:100%;">'+ic('search')+'<input class="search-input" id="inv-search-input" placeholder="Search by name, value, unit, date..." value="'+esc(investigationQuery)+'" style="width:100%;"></div>'
-      + '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inv">'+ic('plus')+' Add investigation</button>';
+    addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inv">'+ic('plus')+' Add investigation</button>';
   } else {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + '<label class="field-label">Investigation name</label>'+renderQuickTextChips(INVESTIGATION_LIB_KEY,'inv-label')+'<input class="input" id="inv-label" placeholder="e.g. CBC, MRI knee, USG abdomen" style="margin-bottom:10px;">'
@@ -6436,7 +6056,7 @@ async function renderInvestigationsTab(p) {
   }
 
   let list = '';
-  [...filteredInvestigations].reverse().forEach(inv => {
+  [...(p.investigations||[])].reverse().forEach(inv => {
     const expanded = EXPANDED_INVESTIGATION.has(inv.id);
     const invImages = allImages.filter(im => im.investigationId === inv.id);
     let body = '';
@@ -6508,9 +6128,6 @@ function renderQuickAddChips() {
 async function renderPrescriptionsTab(p) {
   const allImages = await dbGetImagesByPatient(p.id);
   revokeActiveUrls();
-  
-  let html = onboardingBannerHtml('prescriptions-intro', '💊', 'Create & Send Prescriptions', 'Write medicines, dosage, and follow-up dates. Send directly to patient via WhatsApp with clinic details and doctor signature.');
-  
   let addBlock;
   if (!ADD_PRESCRIPTION_OPEN) {
     addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-rx">'+ic('plus')+' New prescription</button>';
@@ -6518,7 +6135,7 @@ async function renderPrescriptionsTab(p) {
     const profile = loadProfile();
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
-      + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" max="'+todayStr()+'" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
+      + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
       + ((p.prescriptions||[]).length ? '<button class="btn btn-sm" style="margin-bottom:12px;" data-action="repeat-last-rx">'+ic('copy')+' Repeat last prescription ('+fmtDate(p.prescriptions[p.prescriptions.length-1].date)+')</button>' : '')
       + (isAiTier() ? '<div style="margin-bottom:12px;">'+aiButtonHtml('ai-draft-rx','AI: Draft from diagnosis/notes',true,null,'claude')+'</div>' : '')
       + renderRxTemplatesRow()
@@ -6563,7 +6180,7 @@ async function renderPrescriptionsTab(p) {
       + '</div>';
   });
 
-  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+html+addBlock+list+'</div>';
+  return '<div class="px" style="padding-top:14px;padding-bottom:20px;">'+addBlock+list+'</div>';
 }
 
 function renderExportSummaryView(p) {
@@ -7973,42 +7590,12 @@ function renderRemindersTabView() {
 
 /* ================= Root render ================= */
 
-/* UX12: Deep Linking & URL Hash Routing */
-function updateURLHash() {
-  if (VIEW === 'detail' && SELECTED_ID) {
-    window.location.hash = `#patient/${SELECTED_ID}`;
-  } else if (VIEW !== 'list') {
-    window.location.hash = `#${VIEW}`;
-  } else {
-    window.location.hash = '';
-  }
-}
-function restoreFromURLHash() {
-  const hash = window.location.hash.slice(1); // Remove #
-  if (hash.startsWith('patient/')) {
-    const patientId = hash.split('/')[1];
-    if (patientId && PATIENTS.find(p => p.id === patientId)) {
-      SELECTED_ID = patientId;
-      VIEW = 'detail';
-      return true;
-    }
-  } else if (hash && ['images', 'settings', 'calendar', 'more', 'cloud-sync'].includes(hash)) {
-    VIEW = hash;
-    return true;
-  }
-  return false;
-}
-window.addEventListener('hashchange', async () => {
-  if (restoreFromURLHash()) render();
-});
-
 async function render() {
   const app = document.getElementById('app');
   SHOW_PATIENT_MORE_MENU = false;
   app.classList.remove('view-transition'); void app.offsetWidth; app.classList.add('view-transition');
   try {
     await renderCurrentView(app);
-    updateURLHash(); // Update URL after render completes
   } catch (err) {
     console.error('render() failed for VIEW=' + VIEW, err);
     // Don't let a broken view (bad data, edge case, etc.) leave the app in a half-rendered
@@ -8098,9 +7685,6 @@ async function renderCurrentView(app) {
     app.innerHTML = renderConfirmDeletePatientView(p);
     return;
   }
-  
-  // ISSUE 2: Save app state for resume on next load
-  saveAppState();
 }
 
 /* ================= Field patching (detail view) ================= */
@@ -8445,36 +8029,6 @@ async function exportCaseZip(patientId) {
   }
 }
 
-async function generateSHA256Checksum(blob) {
-  const buffer = await blob.arrayBuffer();
-  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  return hashHex;
-}
-
-function verifyBackupChecksum(expectedChecksum, computedChecksum) {
-  return expectedChecksum.trim().toLowerCase() === computedChecksum.toLowerCase();
-}
-
-/* ================= CRITICAL OVERDUE SOUND ALERT ================= */
-function playCriticalAlert() {
-  // Short beep using Web Audio API — no external audio file needed
-  try {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    oscillator.frequency.value = 800;
-    oscillator.type = 'sine';
-    gainNode.gain.setValueAtTime(0.25, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.4);
-  } catch(e) {}
-}
-
 async function exportBackup(auto) {
   if (typeof JSZip === 'undefined') { if (!auto) toast('Backup tool failed to load \u2014 check your internet connection'); return; }
   if (!auto) toast('Preparing backup\u2026');
@@ -8485,7 +8039,7 @@ async function exportBackup(auto) {
   if (!auto && window.showSaveFilePicker) {
     try {
       fileHandle = await window.showSaveFilePicker({
-        suggestedName: 'OrthoVault-backup-'+todayStr()+'.zip',
+        suggestedName: 'bone-log-pro-backup-'+todayStr()+'.zip',
         types: [{ description: 'Zip file', accept: {'application/zip': ['.zip']} }]
       });
     } catch (err) {
@@ -8497,101 +8051,31 @@ async function exportBackup(auto) {
   try {
     const zip = new JSZip();
     const allPatients = await dbGetAllPatients();
-    
-    // Include soft-deleted patients for recovery safety (kept for 30 days)
     zip.file('cases.json', JSON.stringify(allPatients, null, 2));
     zip.file('reminders.json', JSON.stringify(REMINDERS, null, 2));
     zip.file('profile.json', JSON.stringify(loadProfile(), null, 2));
-    
-    // TASK 1: Backup medicine library, investigation library, and RX templates
-    const medLibrary = loadMedLibrary();
-    const rxTemplates = loadRxTemplates();
-    if (medLibrary.length) zip.file('medicine-library.json', JSON.stringify(medLibrary, null, 2));
-    if (rxTemplates.length) zip.file('rx-templates.json', JSON.stringify(rxTemplates, null, 2));
-    
-    // Investigation library (if exists in localStorage)
-    try {
-      const invLib = localStorage.getItem(INVESTIGATION_LIB_KEY);
-      if (invLib) zip.file('investigation-library.json', invLib);
-    } catch(e) {}
-    
-    /* P2: Batch image fetches with Promise.all instead of sequential awaits */
-    const patientImageArrays = await Promise.all(allPatients.map(p => dbGetImagesByPatient(p.id)));
-    allPatients.forEach((p, idx) => {
-      const images = patientImageArrays[idx] || [];
+    for (const p of allPatients) {
+      const images = await dbGetImagesByPatient(p.id);
       for (const im of images) {
         const folder = im.followUpId ? ('images/'+p.id+'/followup_'+im.followUpId)
           : im.investigationId ? ('images/'+p.id+'/investigation_'+im.investigationId)
           : im.isIntraOp ? ('images/'+p.id+'/ot')
           : ('images/'+p.id+'/preop');
-        
-        // TASK 3: Warn if video is too large (compressed versions would be better)
-        // For backup: include as-is but flag for user
-        let fileToBackup = im.blob;
-        const isVideo = im.blob.type.startsWith('video/');
-        const sizeInMB = (im.blob.size / (1024*1024)).toFixed(1);
-        
-        // If video > 50MB, consider it uncompressed and note it
-        if (isVideo && im.blob.size > 50*1024*1024) {
-          console.warn(`Large video detected: ${sizeInMB}MB - consider compressing for cloud backup`);
-        }
-        
-        zip.file(folder+'/'+im.id+(isVideo ? '.mp4' : '.jpg'), fileToBackup);
-      }
-    });
-    
-    // TASK 4 & 5: Generate manifest with metadata
-    const manifest = {
-      backupDate: new Date().toISOString(),
-      appVersion: '2.4.1',
-      totalCases: allPatients.length,
-      activePatients: allPatients.filter(p => !p.deletedAt).length,
-      deletedPatients: allPatients.filter(p => p.deletedAt).length,
-      totalReminders: (REMINDERS || []).length,
-      hasLibraries: {
-        medicines: medLibrary.length > 0 ? medLibrary.length : 0,
-        investigations: !!localStorage.getItem(INVESTIGATION_LIB_KEY),
-        rxTemplates: rxTemplates.length > 0 ? rxTemplates.length : 0
-      },
-      backupType: auto ? 'automatic' : 'manual',
-      checksumAlgorithm: 'SHA-256'
-    };
-    zip.file('BACKUP_MANIFEST.json', JSON.stringify(manifest, null, 2));
-    
-    const blob = await zip.generateAsync({type:'blob'});
-    
-    // TASK 4: Generate SHA256 checksum
-    const checksumValue = await generateSHA256Checksum(blob);
-    
-    // Add checksum to zip (recreate zip with checksum included)
-    const finalZip = new JSZip();
-    // Copy all existing files
-    for (const [path, file] of Object.entries(zip.files)) {
-      if (!file.dir) {
-        const data = await file.async('blob');
-        finalZip.file(path, data);
+        zip.file(folder+'/'+im.id+'.jpg', im.blob);
       }
     }
-    finalZip.file('BACKUP_CHECKSUM.sha256', checksumValue + '  OrthoVault-backup.zip');
-    
-    const finalBlob = await finalZip.generateAsync({type:'blob'});
-    
-    // TASK 5: Smart filename with case count
-    const caseCount = allPatients.filter(p => !p.deletedAt).length;
-    const allImages = await dbGetAllImagesWithCache();
-    const photoCount = allImages.length;
-    const filename = `OrthoVault-backup-${todayStr()}-${caseCount}c${photoCount}p.zip`;
-    
+    const blob = await zip.generateAsync({type:'blob'});
+    const filename = 'bone-log-pro-backup-'+todayStr()+'.zip';
     if (fileHandle) {
       const writable = await fileHandle.createWritable();
-      await writable.write(finalBlob);
+      await writable.write(blob);
       await writable.close();
     } else {
-      const file = new File([finalBlob], filename, { type: 'application/zip' });
+      const file = new File([blob], filename, { type: 'application/zip' });
       if (!auto && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({ files: [file], title: filename });
       } else {
-        const url = URL.createObjectURL(finalBlob);
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url; a.download = filename;
         document.body.appendChild(a); a.click(); a.remove();
@@ -8599,15 +8083,8 @@ async function exportBackup(auto) {
       }
     }
     try { localStorage.setItem(BACKUP_REMINDER_KEY, String(Date.now())); } catch(e) {}
-    trackBackupCreated();
     BACKUP_BANNER_DISMISSED = true;
-    if (auto) {
-      const caseCount = (await dbGetAllPatients()).length;
-      const imageCount = (await dbGetAllImages().catch(() => [])).length;
-      toast('✓ Auto-backup: ' + caseCount + ' case' + (caseCount!==1?'s':'') + ', ' + imageCount + ' photo' + (imageCount!==1?'s':''));
-    } else {
-      toast('Backup saved');
-    }
+    toast(auto ? 'Automatic backup saved to your downloads' : 'Backup saved');
   } catch (err) {
     if (err && err.name === 'AbortError') return; // person cancelled the share sheet \u2014 not a real failure
     if (!auto) toast('Backup failed: '+err.message);
@@ -8634,37 +8111,17 @@ async function maybeAutoBackup() {
   } catch (e) {}
 }
 
-const IMPORT_IMG_REGEX = /^images\/([^/]+)\/(?:preop|followup_([^/]+)|investigation_([^/]+))\/([^/]+)\.(jpg|mp4)$/;
+const IMPORT_IMG_REGEX = /^images\/([^/]+)\/(?:preop|followup_([^/]+)|investigation_([^/]+))\/([^/]+)\.jpg$/;
 
 async function importBackup(file) {
   if (typeof JSZip === 'undefined') { toast('Import tool failed to load \u2014 check your internet connection'); return; }
   toast('Restoring backup\u2026');
   try {
     const zip = await JSZip.loadAsync(file);
-    
-    // Verify checksum if present (TASK 4)
-    const checksumEntry = zip.file('BACKUP_CHECKSUM.sha256');
-    if (checksumEntry) {
-      const expectedChecksum = (await checksumEntry.async('string')).split('  ')[0];
-      toast('Verifying backup integrity...');
-    }
-    
-    // Load manifest if present (TASK 5)
-    const manifestEntry = zip.file('BACKUP_MANIFEST.json');
-    let manifestData = null;
-    if (manifestEntry) {
-      try {
-        manifestData = JSON.parse(await manifestEntry.async('string'));
-        console.log('Backup from:', manifestData.backupDate, '| Cases:', manifestData.activePatients, '| Photos:', manifestData.totalPhotos);
-      } catch(e) {}
-    }
-    
     const casesEntry = zip.file('cases.json');
     if (!casesEntry) { toast('Invalid backup file \u2014 cases.json not found'); return; }
     const casesJson = await casesEntry.async('string');
     const patients = JSON.parse(casesJson);
-    
-    // Restore all patients including soft-deleted (TASK 2)
     for (const p of patients) { await dbPutPatient(p); }
 
     const remindersEntry = zip.file('reminders.json');
@@ -8685,31 +8142,6 @@ async function importBackup(file) {
     if (profileEntry) {
       try { saveProfile(JSON.parse(await profileEntry.async('string')), true); } catch(e) {}
     }
-    
-    // TASK 1: Restore medicine library, investigations library, RX templates
-    const medLibEntry = zip.file('medicine-library.json');
-    if (medLibEntry) {
-      try {
-        const importedMeds = JSON.parse(await medLibEntry.async('string'));
-        saveMedLibrary(importedMeds);
-      } catch(e) {}
-    }
-    
-    const invLibEntry = zip.file('investigation-library.json');
-    if (invLibEntry) {
-      try {
-        const invLibData = await invLibEntry.async('string');
-        localStorage.setItem(INVESTIGATION_LIB_KEY, invLibData);
-      } catch(e) {}
-    }
-    
-    const rxTemplatesEntry = zip.file('rx-templates.json');
-    if (rxTemplatesEntry) {
-      try {
-        const importedTemplates = JSON.parse(await rxTemplatesEntry.async('string'));
-        saveRxTemplateList(importedTemplates);
-      } catch(e) {}
-    }
 
     const imagePaths = Object.keys(zip.files).filter(path => IMPORT_IMG_REGEX.test(path) && !zip.files[path].dir);
     let imgCount = 0;
@@ -8722,10 +8154,7 @@ async function importBackup(file) {
     }
     await refreshPatients();
     render();
-    
-    const deletedCount = patients.filter(p => p.deletedAt).length;
-    const msg = 'Restored '+patients.length+' case(s), '+imgCount+' photo(s)'+(remCount?', '+remCount+' reminder(s)':'')+(deletedCount?' (+'+deletedCount+' deleted cases)':'');
-    toast(msg);
+    toast('Restored '+patients.length+' case(s), '+imgCount+' photo(s)'+(remCount?', '+remCount+' reminder(s)':''));
   } catch (err) {
     toast('Import failed: '+err.message);
   }
@@ -9410,8 +8839,7 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
-  if (action === 'clear-list-filters') { SEARCH = ''; FILTER_TYPE = 'all'; resetPatientListPagination(); render(); return; }
-  if (action === 'load-more-patients') { PATIENT_LIST_LOADED_COUNT += PATIENT_LIST_PAGE_SIZE; render(); return; }
+  if (action === 'clear-list-filters') { SEARCH = ''; FILTER_TYPE = 'all'; render(); return; }
   if (action === 'quick-fill-text') {
     const target = document.getElementById(el.dataset.target);
     if (target) target.value = el.dataset.value;
@@ -9456,6 +8884,7 @@ document.addEventListener('click', async (e) => {
     await dbPutPatient(p); await refreshPatients();
     EDITING_PATIENT_CODE = false;
     await render();
+    toast('Patient ID updated');
     return;
   }
   if (action === 'edit-patient-name') { EDITING_PATIENT_NAME = true; await render(); setTimeout(() => { const inp = document.getElementById('patient-name-input'); if (inp) { inp.focus(); inp.select(); } }, 30); return; }
@@ -9469,6 +8898,7 @@ document.addEventListener('click', async (e) => {
     await dbPutPatient(p); await refreshPatients();
     EDITING_PATIENT_NAME = false;
     await render();
+    toast('Name updated');
     return;
   }
   if (action === 'convert-to-surgical') {
@@ -9660,8 +9090,6 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'close-compare-picker') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'imagesrecords'; await render(); return; }
-  if (action === 'dismiss-onboarding') { saveOnboardingFlag(el.dataset.flag); render(); return; }
-  if (action === 'reset-tutorials') { resetAllOnboardingFlags(); toast('✓ All tutorials reset. Refresh to see them again.'); render(); return; }
   if (action === 'close-compare-view') { COMPARE_SELECTED = []; VIEW = 'detail'; TAB = 'imagesrecords'; await render(); return; }
   if (action === 'cancel-add') {
     syncApTempFromDom();
@@ -9676,7 +9104,6 @@ document.addEventListener('click', async (e) => {
       return;
     }
     await discardStagedPhotos(AP_PHOTOS); await discardStagedPhotos(AP_INVESTIGATIONS);
-    clearApDraft();
     AP_PHOTOS = []; AP_INVESTIGATIONS = []; AP_DUPLICATE_FROM = null; AP_DIAG_CONFIRMED = false; VIEW='list'; render(); return;
   }
   if (action === 'open-patient') {
@@ -9700,14 +9127,12 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); window.scrollTo(0,0); return; }
-  if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; resetPatientListPagination(); render(); return; }
-  if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; try { localStorage.setItem('show-all-attention', SHOW_ALL_ATTENTION ? '1' : '0'); } catch(e) {} render(); return; }
+  if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
+  if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
   if (action === 'dash-goto-followups') {
     const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
     CAL_SUBVIEW = 'due'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
-    VIEW = 'calendar'; render(); 
-    setTimeout(() => { const el = document.querySelector('[data-action="attn-mark-lost"]'); if (el) el.scrollIntoView({behavior:'smooth', block:'start'}); }, 100);
-    return;
+    VIEW = 'calendar'; render(); return;
   }
   if (action === 'toggle-legend') { SHOW_LEGEND = !SHOW_LEGEND; render(); return; }
   if (action === 'tl-jump') {
@@ -9742,21 +9167,7 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
-  if (action === 'imgrec-set-subview') { 
-    const hasStagedPhotos = FU_INV_PHOTOS.length > 0 || AP_INVESTIGATIONS.length > 0 || RX_PHOTOS.length > 0 || INV_PHOTOS.length > 0;
-    if (hasStagedPhotos && el.dataset.value !== IMAGES_RECORDS_SUBVIEW && !el.dataset.confirmed) {
-      el.dataset.confirmed = '1';
-      const original = el.textContent;
-      el.textContent = 'Tap again (unsaved photos)';
-      el.style.color = 'var(--red)';
-      setTimeout(() => { if (el.dataset) { delete el.dataset.confirmed; el.textContent = original; el.style.color = ''; } }, 3000);
-      return;
-    }
-    IMAGES_RECORDS_SUBVIEW = el.dataset.value;
-    const p = getPatient(SELECTED_ID);
-    await renderTabBody(p);
-    return;
-  }
+  if (action === 'imgrec-set-subview') { IMAGES_RECORDS_SUBVIEW = el.dataset.value; const p = getPatient(SELECTED_ID); await renderTabBody(p); return; }
   
   if (action === 'clear-followup-context') { 
     LATEST_FOLLOWUP_DATE = null; 
@@ -10047,12 +9458,12 @@ document.addEventListener('click', async (e) => {
         await dbAddImage(imgRec);
       }
       await refreshPatients();
-      clearApDraft();
       AP_PHOTOS = [];
       AP_INVESTIGATIONS = [];
       AP_DUPLICATE_FROM = null;
       SELECTED_ID = p.id; recordLastPatient(p.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
       haptic(20);
+      toast('Case saved');
       await render();
       window.scrollTo(0,0);
     } catch (err) {
@@ -10075,17 +9486,10 @@ document.addEventListener('click', async (e) => {
   if (action === 'log-reminder-sent') {
     const p = getPatient(el.dataset.id);
     if (p) { 
-      const modal = document.createElement('div');
-      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;z-index:9999;';
-      modal.innerHTML = '<div style="width:100%;background:#fff;border-radius:16px 16px 0 0;padding:20px;max-width:100%;">'
-        + '<h3 style="margin:0 0 8px;font-size:16px;font-weight:800;">Confirm Reminder Sent</h3>'
-        + '<p style="margin:0 0 16px;font-size:13px;color:var(--muted);">After sending the WhatsApp message, click Confirm below to log it as sent.</p>'
-        + '<div class="row gap2" style="margin:0;">'
-        + '<button class="btn" style="flex:1;" onclick="this.closest(\'div\').parentElement.remove();">Cancel</button>'
-        + '<button class="btn btn-primary" style="flex:2;" onclick="(async ()=>{ const p=getPatient(\'' + p.id + '\'); if(p){p.lastReminderSentAt=Date.now();haptic(15);toast(\'✓ Follow-up reminder logged\');await dbPutPatient(p);await refreshPatients();} this.closest(\'div\').parentElement.remove(); })();">Confirm Sent</button>'
-        + '</div></div>';
-      document.body.appendChild(modal);
-      modal.onclick = (e) => { if(e.target === modal) modal.remove(); };
+      p.lastReminderSentAt = Date.now(); 
+      haptic(15);
+      toast('✓ Follow-up reminder sent to ' + p.name);
+      dbPutPatient(p).then(refreshPatients); 
     }
     return;
   }
@@ -10303,7 +9707,6 @@ document.addEventListener('click', async (e) => {
     }
     await refreshPatients();
     FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
-    LATEST_FOLLOWUP_DATE = fu.date;
     await renderTabBody(getPatient(SELECTED_ID));
     if (nextFuDefaulted) {
       toastWithButton(
@@ -10519,7 +9922,7 @@ document.addEventListener('click', async (e) => {
         const inv = (p.investigations||[]).find(i => i.id === imgRecord.investigationId);
         if (inv) inv.imageCount = remaining.filter(i => i.investigationId === imgRecord.investigationId).length;
       } else {
-        p.preOpImageCount = remaining.filter(i => !i.followUpId && !i.investigationId && !i.isWoundPhoto && !i.isIntraOp).length;
+        p.preOpImageCount = remaining.filter(i => !i.followUpId && !i.investigationId).length;
       }
       await dbPutPatient(p); await refreshPatients();
     }
@@ -10646,6 +10049,7 @@ document.addEventListener('click', async (e) => {
     const templates = loadRxTemplates();
     templates.push({ id: uid(), name: name.trim(), medicines: meds.map(m => ({name:m.name, dose:m.dose, frequency:m.frequency, duration:m.duration, instructions:m.instructions})) });
     saveRxTemplateList(templates);
+    toast('Template saved');
     render();
     return;
   }
@@ -10973,7 +10377,7 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'scheme-detach') {
     const p = getPatient(el.dataset.id);
-    if (p) { p.schemePackage = null; await savePatient(p); render(); }
+    if (p) { p.schemePackage = null; await savePatient(p); toast('Package removed.'); render(); }
     return;
   }
   if (action === 'open-scheme-finder-for-case') {
@@ -11132,6 +10536,7 @@ document.addEventListener('click', async (e) => {
     await idbSet('app-settings', 'content-ideas-faqs', CONTENT_IDEAS_FAQS);
     await render();
     haptic(10);
+    toast('✓ FAQ added');
     return;
   }
   if (action === 'content-ideas-delete') {
@@ -11157,6 +10562,7 @@ document.addEventListener('click', async (e) => {
     await idbSet('app-settings', 'academic-vault-topics', ACADEMIC_VAULT_TOPICS);
     await render();
     haptic(10);
+    toast('✓ Topic added');
     return;
   }
   if (action === 'academic-vault-delete') {
@@ -11264,6 +10670,7 @@ document.addEventListener('click', async (e) => {
     saveReminders();
     REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
     await render_only_current_view();
+    toast('Reminder saved');
     return;
   }
   if (action === 'reminder-toggle') {
@@ -11368,28 +10775,14 @@ function readProfileFromDom() {
     const p = getPatient(SELECTED_ID);
     const last = (p.prescriptions||[])[p.prescriptions.length-1];
     if (!last) return;
-    RX_TEMP.date = todayStr();
     RX_TEMP.medicines = last.medicines.map(m => ({ ...m, id: uid() }));
     RX_TEMP.advice = last.advice || '';
-    RX_TEMP.followUpDate = last.followUpDate || '';
     toast('Copied last prescription \u2014 review before saving');
     await renderTabBody(p);
     return;
   }
   if (action === 'open-add-rx') { const p0 = getPatient(SELECTED_ID); initRxTemp(p0 ? p0.nextFollowUpDate : ''); RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = true; await renderTabBody(p0); return; }
   if (action === 'cancel-add-rx') {
-    const adviceEl = document.getElementById('rx-advice');
-    const hasAdvice = adviceEl && adviceEl.value.trim().length > 0;
-    const hasPhotos = RX_PHOTOS.length > 0;
-    const hasMedicines = RX_TEMP.medicines.some(m => m.name.trim() || m.dose.trim() || m.frequency.trim());
-    if ((hasAdvice || hasPhotos || hasMedicines) && !el.dataset.confirmed) {
-      el.dataset.confirmed = '1';
-      const original = el.textContent;
-      el.textContent = 'Tap again to discard';
-      el.style.color = 'var(--red)';
-      setTimeout(() => { if (el.dataset) { delete el.dataset.confirmed; el.textContent = original; el.style.color = ''; } }, 3000);
-      return;
-    }
     await discardStagedPhotos(RX_PHOTOS);
     RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = false; const p = getPatient(SELECTED_ID); await renderTabBody(p); return;
   }
@@ -11432,7 +10825,6 @@ function readProfileFromDom() {
     const followUpDate = document.getElementById('rx-followUpDate').value;
     const medicines = RX_TEMP.medicines.filter(m => m.name.trim());
     if (!medicines.length) { toast('Add at least one medicine name'); return; }
-    if (!date || !date.trim()) { toast('Select a date for this prescription'); return; }
     recordMedicinesUsed(medicines);
     const p = getPatient(SELECTED_ID);
     const rx = { id: uid(), date, medicines, advice, followUpDate, imageCount: RX_PHOTOS.length, createdAt: Date.now() };
@@ -11445,10 +10837,8 @@ function readProfileFromDom() {
     await dbPutPatient(p);
     // Already saved to IndexedDB when picked \u2014 reusing ph.tempId just links them to this prescription.
     for (const ph of RX_PHOTOS) {
-      await dbAddImage({ id: ph.tempId, patientId: p.id, prescriptionId: rx.id, blob: ph.blob, createdAt: Date.now(), imageCategory: 'prescriptions' });
+      await dbAddImage({ id: ph.tempId, patientId: p.id, prescriptionId: rx.id, blob: ph.blob, createdAt: Date.now() });
     }
-    rx.imageCount = (await dbGetImagesByPatient(p.id)).filter(i => i.prescriptionId === rx.id).length;
-    await dbPutPatient(p);
     await refreshPatients();
     RX_PHOTOS = [];
     ADD_PRESCRIPTION_OPEN = false;
@@ -11456,6 +10846,7 @@ function readProfileFromDom() {
       const savedPatient = getPatient(SELECTED_ID);
       PRINT_RX = { patient: savedPatient, rx: (savedPatient.prescriptions||[]).find(r => r.id === rx.id) };
       VIEW = 'print';
+      toast('Prescription saved');
       render();
     } else {
       await renderTabBody(getPatient(SELECTED_ID));
@@ -11473,13 +10864,7 @@ function readProfileFromDom() {
   }
   if (action === 'delete-rx' && el.dataset.confirm) {
     const p = getPatient(SELECTED_ID);
-    const rxId = el.dataset.id;
-    const allImages = await dbGetImagesByPatient(p.id);
-    const rxImages = allImages.filter(im => im.prescriptionId === rxId);
-    p.prescriptions = (p.prescriptions||[]).filter(r => r.id !== rxId);
-    for (const img of rxImages) {
-      await dbDeleteImage(img.id);
-    }
+    p.prescriptions = (p.prescriptions||[]).filter(r => r.id !== el.dataset.id);
     await dbPutPatient(p);
     await refreshPatients();
     ARMED_DELETE = null;
@@ -11630,6 +11015,7 @@ document.addEventListener('change', async (e) => {
         }
       });
       savePlannedSurgeries(PLANNED_SURGERIES);
+      toast('Imported: ' + added + ' new, ' + updated + ' updated');
       render();
     } catch (err) {
       console.error('Planned surgeries import failed:', err);
@@ -11668,7 +11054,7 @@ document.addEventListener('change', async (e) => {
   }
   if (t.id === 'viewer-xray-subtype-select') {
     const rec = await dbGetImage(t.dataset.imgid).catch(function(){return null;});
-    if (rec) { rec.xraySubtype = t.value; await dbAddImage(rec); if (SELECTED_ID) await renderTabBody(getPatient(SELECTED_ID)); }
+    if (rec) { rec.xraySubtype = t.value; await dbAddImage(rec); toast('X-ray type updated'); if (SELECTED_ID) await renderTabBody(getPatient(SELECTED_ID)); }
     return;
   }
   if (t.id === 'ov-tracking-select') {
@@ -11765,14 +11151,13 @@ document.addEventListener('change', async (e) => {
     for (const file of files) {
       const blob = isVideo ? file : await resizeImageFile(file);
       const rec = { id: uid(), patientId: p.id, followUpId: null, blob, createdAt: Date.now() };
-      if (category === 'ot') { rec.isIntraOp = true; rec.imageCategory = 'ot'; }
+      if (category === 'ot') { rec.isIntraOp = true; }
       else if (category === 'wound') { rec.isWoundPhoto = true; rec.imageCategory = 'wound'; }
       else { rec.imageCategory = category; if (t.dataset.xraySubtype) rec.xraySubtype = t.dataset.xraySubtype; }
       await dbAddImage(rec);
     }
     p.preOpImageCount = (await dbGetImagesByPatient(p.id)).filter(i=>!i.followUpId && !i.investigationId && !i.isWoundPhoto && !i.isIntraOp).length;
     await dbPutPatient(p); await refreshPatients();
-    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11789,7 +11174,6 @@ document.addEventListener('change', async (e) => {
     const fu = (p.followUps||[]).find(f => f.id === fuId);
     if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
     await dbPutPatient(p); await refreshPatients();
-    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11806,7 +11190,6 @@ document.addEventListener('change', async (e) => {
     const fu = (p.followUps||[]).find(f => f.id === fuId);
     if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
     await dbPutPatient(p); await refreshPatients();
-    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11823,7 +11206,6 @@ document.addEventListener('change', async (e) => {
     const fu = (p.followUps||[]).find(f => f.id === fuId);
     if (fu) fu.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.followUpId===fuId).length;
     await dbPutPatient(p); await refreshPatients();
-    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11843,7 +11225,6 @@ document.addEventListener('change', async (e) => {
       await dbAddImage({ id: uid(), patientId: p.id, dexaScanId, blob, createdAt: Date.now(), imageCategory: 'dexa-report' });
     }
     await refreshPatients();
-    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11858,7 +11239,6 @@ document.addEventListener('change', async (e) => {
       await dbAddImage({ id: uid(), patientId: p.id, ctevSessionId, blob, createdAt: Date.now(), imageCategory: 'cast' });
     }
     await refreshPatients();
-    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11870,12 +11250,11 @@ document.addEventListener('change', async (e) => {
     toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
     for (const file of files) {
       const blob = await resizeImageFile(file);
-      await dbAddImage({ id: uid(), patientId: p.id, investigationId: invId, blob, createdAt: Date.now(), imageCategory: 'investigations' });
+      await dbAddImage({ id: uid(), patientId: p.id, investigationId: invId, blob, createdAt: Date.now() });
     }
     const inv = (p.investigations||[]).find(i => i.id === invId);
     if (inv) inv.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.investigationId===invId).length;
     await dbPutPatient(p); await refreshPatients();
-    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11887,12 +11266,11 @@ document.addEventListener('change', async (e) => {
     toast('Uploading '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
     for (const file of files) {
       const blob = await resizeImageFile(file);
-      await dbAddImage({ id: uid(), patientId: p.id, prescriptionId: rxId, blob, createdAt: Date.now(), imageCategory: 'prescriptions' });
+      await dbAddImage({ id: uid(), patientId: p.id, prescriptionId: rxId, blob, createdAt: Date.now() });
     }
     const rx = (p.prescriptions||[]).find(r => r.id === rxId);
     if (rx) rx.imageCount = (await dbGetImagesByPatient(p.id)).filter(i=>i.prescriptionId===rxId).length;
     await dbPutPatient(p); await refreshPatients();
-    t.value = '';
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
@@ -11932,20 +11310,11 @@ document.addEventListener('input', (e) => {
       if (resEl) resEl.innerHTML = usearchResultsHtml();
     }, 300);
   }
-  if (e.target.id === 'inv-search-input') {
-    window.INV_SEARCH_QUERY = e.target.value;
-    clearTimeout(SEARCH_DEBOUNCE_TIMER);
-    SEARCH_DEBOUNCE_TIMER = setTimeout(async () => {
-      const p = getPatient(SELECTED_ID);
-      if (p) await renderTabBody(p);
-    }, 200);
-  }
   if (e.target.id === 'search-input') {
     clearTimeout(SEARCH_DEBOUNCE_TIMER);
     const val = e.target.value;
     SEARCH_DEBOUNCE_TIMER = setTimeout(() => {
       SEARCH = val;
-      resetPatientListPagination();
       render();
       const newInput = document.getElementById('search-input');
       if (newInput) { newInput.focus(); newInput.setSelectionRange(newInput.value.length, newInput.value.length); }
@@ -11979,7 +11348,7 @@ document.addEventListener('touchstart', (e) => {
   if (e.target.closest && (e.target.closest('.autocomplete-item') || e.target.closest('[data-action="quick-fill-text"]'))) { e.preventDefault(); }
 }, { passive: false });
 document.addEventListener('blur', async (e) => {
-  if (e.target.id === 'search-input') { SEARCH = e.target.value; resetPatientListPagination(); render(); }
+  if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
   if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','ov-procedure'].includes(e.target.id)) {
     const id = e.target.id;
     setTimeout(() => hideAutocomplete(id), 200);
@@ -11994,21 +11363,7 @@ document.addEventListener('blur', async (e) => {
     if (guess) { AP_TEMP.condition = guess; render(); }
   }
 }, true);
-/* UX8: Enhanced Keyboard Navigation & Shortcuts */
 document.addEventListener('keydown', (e) => {
-  // Cmd/Ctrl+S to save (for forms)
-  if ((e.metaKey || e.ctrlKey) && e.key === 's') {
-    e.preventDefault();
-    const saveBtn = document.querySelector('[data-action="save-patient"], [data-action="save-followup"], [data-action="save-add"]');
-    if (saveBtn) saveBtn.click();
-  }
-  // Cmd/Ctrl+K for search (universal search shortcut)
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-    e.preventDefault();
-    const searchInput = document.getElementById('search-input');
-    if (searchInput) searchInput.focus();
-  }
-  
   if (e.key === 'Enter' && e.target && e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
   if (e.key === 'Escape') {
     // Close quick picker
@@ -12060,7 +11415,6 @@ const ACCENT_KEY = 'surgical-case-log-accent-v1';
 function loadAccentTheme() { try { return localStorage.getItem(ACCENT_KEY) || 'indigo'; } catch(e) { return 'indigo'; } }
 async function updateStorageIndicator() {
   const el = document.getElementById('storage-indicator');
-  const bar = document.getElementById('storage-bar');
   if (!el) return;
   if (!navigator.storage || !navigator.storage.estimate) { el.textContent = ''; return; }
   try {
@@ -12069,14 +11423,6 @@ async function updateStorageIndicator() {
     const quotaMB = est.quota ? (est.quota / (1024*1024)).toFixed(0) : null;
     const pct = est.quota ? Math.round((est.usage/est.quota)*100) : null;
     el.textContent = usedMB + ' MB used' + (quotaMB ? ' of ~' + quotaMB + ' MB available' : '') + (pct!=null ? ' (' + pct + '%)' : '');
-    
-    // Update bar color: green <50%, amber 50-80%, red >80%
-    if (bar) {
-      bar.style.width = (pct || 0) + '%';
-      if (pct > 80) bar.style.background = 'var(--red)';
-      else if (pct > 50) bar.style.background = 'var(--amber)';
-      else bar.style.background = 'var(--emerald)';
-    }
   } catch(e) { el.textContent = ''; }
 }
 function applyAccentTheme(key) {
@@ -12238,23 +11584,6 @@ function renderSplashScreen() {
     await loadGoogleDriveCredentials();
     const justConnectedDrive = await handleOAuthCallback();
     if (justConnectedDrive) { VIEW = 'drive-backup'; }
-    
-    // ISSUE 2: Restore last VIEW and patient (unless onboarding or drive backup)
-    if (!justConnectedDrive && onboardingDone) {
-      if (!restoreAppState()) {
-        resetPatientListPagination();
-      }
-    } else {
-      resetPatientListPagination();
-    }
-    
-    // ISSUE 1: Restore draft if user was adding a case
-    if (VIEW === 'detail' && !loadApDraft()) {
-      // Draft doesn't exist but VIEW is still 'detail', reset to list
-      VIEW = 'list';
-      SELECTED_ID = null;
-    }
-    
     await render();
     // Safety mechanism: Force bottom nav to be visible after initial render completes
     setTimeout(() => {
@@ -12268,8 +11597,6 @@ function renderSplashScreen() {
     startPendingSyncRetryLoop();
     updateOfflineBanner();
     if (CURRENT_USER) retryPendingSync();
-    // ISSUE 5: Request notification permission silently on first app load
-    requestNotificationPermission();
   }
   requestAnimationFrame(() => requestAnimationFrame(() => { app.style.opacity = '1'; }));
 })();
