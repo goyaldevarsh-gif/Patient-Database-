@@ -4151,6 +4151,57 @@ function renderAppSettingsView() {
     + '</div>'
     + '</div>';
 }
+/* Local (manual export) backup status \u2014 shown to every user regardless of tier/sign-in,
+   since Export Backup is a Free-tier feature. Answers: last backup kab hua, kitna data hai,
+   kitni storage use ho rahi hai, pending hai ya nahi. */
+async function localBackupStatusCard() {
+  const daysBack = daysSinceLastBackup();
+  let lastBackupTs = null;
+  try { lastBackupTs = localStorage.getItem(BACKUP_REMINDER_KEY); } catch(e) {}
+  const lastBackupLabel = !lastBackupTs ? 'Never backed up'
+    : fmtDate(parseInt(lastBackupTs,10)) + (daysBack===0 ? ' (today)' : daysBack===1 ? ' (yesterday)' : ' ('+daysBack+' days ago)');
+
+  const totalImages = (await dbGetAllImages().catch(() => [])).length;
+  const totalCases = PATIENTS.length;
+
+  let storageLabel = '\u2014';
+  if (navigator.storage && navigator.storage.estimate) {
+    try {
+      const est = await navigator.storage.estimate();
+      const usedMB = (est.usage / (1024*1024)).toFixed(1);
+      const quotaMB = est.quota ? (est.quota / (1024*1024)).toFixed(0) : null;
+      storageLabel = usedMB + ' MB' + (quotaMB ? ' of ~' + quotaMB + ' MB' : '');
+    } catch(e) {}
+  }
+
+  const isPending = daysBack === null || daysBack >= 1;
+
+  return '<div><label class="field-label">Local Backup Status</label>'
+    + '<div class="card" style="padding:0;overflow:hidden;">'
+    + '<div class="row between" style="padding:12px 14px;border-bottom:1px solid var(--border);">'
+      + '<span style="font-size:13px;font-weight:600;">Last backup</span>'
+      + '<span class="row gap1" style="font-size:12px;'+(isPending?'color:#b45309;font-weight:700;':'color:var(--emerald);font-weight:700;')+'">'+lastBackupLabel+' '+ic(isPending?'alert':'check')+'</span>'
+    + '</div>'
+    + '<div class="row between" style="padding:12px 14px;border-bottom:1px solid var(--border);">'
+      + '<span style="font-size:13px;font-weight:600;">Cases in app</span>'
+      + '<span class="mono" style="font-size:12px;color:var(--muted);">'+totalCases+'</span>'
+    + '</div>'
+    + '<div class="row between" style="padding:12px 14px;border-bottom:1px solid var(--border);">'
+      + '<span style="font-size:13px;font-weight:600;">Photos & files</span>'
+      + '<span class="mono" style="font-size:12px;color:var(--muted);">'+totalImages+'</span>'
+    + '</div>'
+    + '<div class="row between" style="padding:12px 14px;">'
+      + '<span style="font-size:13px;font-weight:600;">Storage used on device</span>'
+      + '<span class="mono" style="font-size:12px;color:var(--muted);">'+storageLabel+'</span>'
+    + '</div>'
+    + '</div>'
+    + '<button class="btn btn-block" style="margin-top:8px;" data-action="export-backup">'+ic('download')+' Export Backup Now</button>'
+    + (isPending
+        ? '<p style="font-size:10.5px;color:#b45309;margin:6px 0 0;">Backup pending \u2014 export to keep today\'s cases safe.</p>'
+        : '<p style="font-size:10.5px;color:var(--emerald);margin:6px 0 0;">You\'re up to date.</p>')
+    + '</div>';
+}
+
 async function renderCloudSyncView() {
   const pending = loadPendingSync();
   const pendingCount = (type) => pending.filter(x => x.type === type).length;
@@ -4160,15 +4211,17 @@ async function renderCloudSyncView() {
     ['Photos & Files', totalImages, totalImages - pendingCount('image')],
     ['Doctor Profile', 1, pendingCount('profile') ? 0 : 1],
   ];
+  const backupCardHtml = await localBackupStatusCard();
   
   // Not signed in: show sign-in prompt
   if (!CURRENT_USER) {
     return '<div style="padding-bottom:20px;">'
       + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
       + '<button class="icon-btn" data-action="close-cloud-sync">'+ic('back')+'</button>'
-      + '<h2 style="font-size:16px;font-weight:800;margin:0;">Cloud Sync (AI tier)</h2>'
+      + '<h2 style="font-size:16px;font-weight:800;margin:0;">Backup & Cloud Sync</h2>'
       + '</div></div>'
-      + '<div class="px" style="padding-top:12px;">'
+      + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
+      + backupCardHtml
       + syncCardHtml()
       + '</div>'
       + '</div>';
@@ -4179,9 +4232,10 @@ async function renderCloudSyncView() {
     return '<div style="padding-bottom:20px;">'
       + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
       + '<button class="icon-btn" data-action="close-cloud-sync">'+ic('back')+'</button>'
-      + '<h2 style="font-size:16px;font-weight:800;margin:0;">Cloud Sync (AI tier)</h2>'
+      + '<h2 style="font-size:16px;font-weight:800;margin:0;">Backup & Cloud Sync</h2>'
       + '</div></div>'
-      + '<div class="px" style="padding-top:12px;">'
+      + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
+      + backupCardHtml
       + '<div class="card" style="text-align:center;">'
       + '<div style="font-size:14px;color:var(--muted);line-height:1.6;">Cloud Sync is an <b>AI tier</b> feature. Real-time multi-device sync of all your patient data, powered by Firebase. Upgrade to enable.</div>'
       + '</div>'
@@ -4193,9 +4247,10 @@ async function renderCloudSyncView() {
   return '<div style="padding-bottom:20px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="close-cloud-sync">'+ic('back')+'</button>'
-    + '<h2 style="font-size:16px;font-weight:800;margin:0;">Cloud Sync</h2>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">Backup & Cloud Sync</h2>'
     + '</div></div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
+    + backupCardHtml
     + syncCardHtml()
     + (CURRENT_USER ? (
         '<div><label class="field-label">Sync Status</label>'
@@ -4546,10 +4601,10 @@ function renderDashboardSection() {
         + '</div>';
   }
 
-  if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 14)) {
+  if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 1)) {
     html += '<div class="backup-banner">'
       + ic('download')
-      + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+(daysBack===null ? 'No backup has been saved yet.' : 'Last backup was '+daysBack+' days ago \u2014 the automatic 3-day backup may not be working on this device.')+' Back up now to keep your data safe.</span>'
+      + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+(daysBack===null ? 'No backup taken yet.' : 'Backup pending for '+daysBack+' day'+(daysBack>1?'s':'')+'.')+' Keep your cases safe \u2014 export takes a few seconds.</span>'
       + '<button class="btn btn-sm" data-action="export-backup">Export</button>'
       + '<button class="icon-btn" style="width:28px;height:28px;" data-action="dismiss-backup-banner">'+ic('x')+'</button>'
       + '</div>';
@@ -8096,15 +8151,11 @@ async function exportBackup(auto) {
    button-press needed. This can only run while the app is open; it cannot back up on its own if the
    app stays closed for days, since there is no server behind this app to trigger it. */
 async function maybeAutoBackup() {
-  const AUTO_BACKUP_INTERVAL_DAYS = 1; // was 3 \u2014 tightened so a missed cloud sync has a same-day local safety net too
   try {
     if (!PATIENTS.length) return;
-    const daysBack = daysSinceLastBackup();
-    if (daysBack === null || daysBack >= AUTO_BACKUP_INTERVAL_DAYS) {
-      await exportBackup(true);
-      await render();
-    }
-    // Also backup to Google Drive if connected
+    // Local zip auto-download removed \u2014 was silently triggering downloads without asking.
+    // Now the dashboard reminder banner handles nudging the user to back up manually.
+    // Google Drive silent cloud backup still runs (no popup/download, so not intrusive).
     if (GOOGLE_DRIVE_ACCESS_TOKEN) {
       await maybeAutoBackupToDrive();
     }
