@@ -2006,7 +2006,7 @@ let ARMED_DELETE = null;
 let TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
 const DAILY_LIMIT = 15000;
 const MONTHLY_LIMIT = 100000;
-let SHOW_ALL_ATTENTION = false;
+let SHOW_ALL_ATTENTION = (() => { try { return localStorage.getItem('show-all-attention') === '1'; } catch(e) { return false; } })();
 let SHOW_TOMORROW_LIST = true;
 let SHOW_ADD_MENU = false;
 let SHOW_PATIENT_MORE_MENU = false;
@@ -2133,7 +2133,12 @@ function recordRecentSearchPatient(id) {
 function getRecentSearchPatients() {
   try {
     const list = JSON.parse(localStorage.getItem(RECENT_SEARCH_KEY) || '[]');
-    return list.map(id => getPatient(id)).filter(Boolean);
+    const patients = list.map(id => getPatient(id)).filter(Boolean);
+    if (patients.length < list.length) {
+      const validIds = patients.map(p => p.id);
+      localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(validIds));
+    }
+    return patients;
   } catch(e) { return []; }
 }
 function recordLastPatient(id) {
@@ -2471,8 +2476,14 @@ function daysAgoLabel(dateStr) {
 function greetingWord() { const h = new Date().getHours(); if (h < 12) return 'Good morning'; if (h < 17) return 'Good afternoon'; return 'Good evening'; }
 
 /* ---- Dashboard + Practice Insights ---- */
+let DASHBOARD_STATS_CACHE = null;
+let DASHBOARD_STATS_CACHE_DATE = null;
+
 function computeDashboardStats() {
   const today = todayStr();
+  if (DASHBOARD_STATS_CACHE_DATE === today && DASHBOARD_STATS_CACHE) {
+    return DASHBOARD_STATS_CACHE;
+  }
   const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-6);
   const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0,10);
 
@@ -2509,7 +2520,10 @@ function computeDashboardStats() {
   }
   const weekNewCases = weekTrend.reduce((sum,d) => sum + d.count, 0);
 
-  return { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, weekTrend, weekNewCases, dueTomorrowList };
+  const result = { dueToday, overdue, raDueToday, raOverdue, dexaDueToday, dexaOverdue, important, surgeriesThisWeek, activeCases, weekTrend, weekNewCases, dueTomorrowList };
+  DASHBOARD_STATS_CACHE = result;
+  DASHBOARD_STATS_CACHE_DATE = today;
+  return result;
 }
 
 /* ---- Daily "important today" notifications ---- */
@@ -2957,7 +2971,7 @@ function loadProfile() {
   } catch (e) { return { ...DEFAULT_PROFILE }; }
 }
 function saveProfile(profile, silent) {
-  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); if (!silent) toast('Profile saved'); }
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); }
   catch (e) { if (!silent) toast('Save failed'); }
   syncProfileToCloud(profile);
 }
@@ -4247,7 +4261,8 @@ function caseStatusDot(p) {
   if (p.status === 'Completed') return { color:'#16a34a', label:'Follow-up complete' };
   if (p.nextFollowUpDate) {
     const today = todayStr();
-    if (p.nextFollowUpDate <= today) return { color:'#eab308', label:'Follow-up due' };
+    if (p.nextFollowUpDate < today) return { color:'#dc2626', label:'Overdue follow-up' };
+    if (p.nextFollowUpDate === today) return { color:'#eab308', label:'Follow-up due today' };
   }
   return null;
 }
@@ -4301,8 +4316,10 @@ function followUpReminderMessage(patient) {
   const dateLine = isOverdue
     ? '\n\u0906\u092a\u0915\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0925\u0940\u0964 \u0915\u0943\u092a\u092f\u093e \u091c\u0932\u094d\u0926 \u0938\u0947 \u091c\u0932\u094d\u0926 \u0906 \u091c\u093e\u090f\u0902\u0964'
     : '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDate(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0939\u0948\u0964';
+  const clinicalContext = reg ? '\n\u0932\u0915\u094d\u0937\u094d\u0936\u093e\u0923: ' + reg + '\u0964' : '';
   return '\u0928\u092e\u0938\u094d\u0924\u0947 ' + patient.name + ' \u091c\u0940,'
     + dateLine
+    + clinicalContext
     + '\n\u0906\u0924\u0947 \u0938\u092e\u092f \u0905\u092a\u0928\u0947 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray, MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f \u0914\u0930 \u0926\u0935\u093e\u0907\u092f\u093e\u0902 \u0938\u093e\u0925 \u0932\u0947\u0915\u0930 \u0906\u0908\u090f\u0917\u093e\u0964'
     + '\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
     + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]')
@@ -4452,7 +4469,7 @@ function rxWaLink(patient, rx, profile) {
   return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(rxWaMessage(patient, rx, profile));
 }
 
-async function refreshPatients() { const all = await dbGetAllPatients(); PATIENTS = all.filter(p => !p.deletedAt); }
+async function refreshPatients() { const all = await dbGetAllPatients(); PATIENTS = all.filter(p => !p.deletedAt); DASHBOARD_STATS_CACHE = null; }
 async function refreshClinicalBank() { CLINICAL_BANK = await dbGetAllClinicalBank(); }
 async function dbGetDeletedPatients() { const all = await dbGetAllPatients(); return all.filter(p => p.deletedAt).sort((a,b) => b.deletedAt - a.deletedAt); }
 function getPatient(id) { return PATIENTS.find(p => p.id === id); }
@@ -4533,6 +4550,7 @@ function renderDashboardSection() {
 
   const dueRemindersCount = (REMINDERS && REMINDERS.length) ? REMINDERS.filter(r => !r.done && r.dueDate && r.dueDate <= todayStr()).length : 0;
 
+  const activeCasesCount = s.activeCases || 0;
   if (PATIENTS.length) {
     html += s.important.length
       ? '<button type="button" data-action="dash-goto-followups" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px;background:var(--red-bg,#fef2f2);border-color:var(--red-border,#fecaca);">'
@@ -4540,10 +4558,22 @@ function renderDashboardSection() {
         + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14.5px;font-weight:800;color:var(--red);">Needs attention</span><span style="display:block;font-size:11.5px;color:var(--muted);margin-top:1px;">'+s.important.length+' item'+(s.important.length!==1?'s':'')+' require your attention</span></span>'
         + '<span style="flex:none;color:var(--red);">'+ic('chevron')+'</span>'
         + '</button>'
-      : '<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;background:var(--emerald-bg);">'
-        + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
-        + '<span style="font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span>'
-        + '</div>';
+      : (activeCasesCount > 0
+        ? '<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;background:var(--emerald-bg);">'
+          + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
+          + '<span style="font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span>'
+          + '<span style="font-size:11.5px;color:var(--muted);margin-left:auto;">'+activeCasesCount+' active</span>'
+          + '</div>'
+        : '<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;background:var(--blue-bg,#f0f9ff);">'
+          + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--blue);display:flex;align-items:center;justify-content:center;">'+ic('info')+'</span>'
+          + '<span style="font-size:14.5px;font-weight:800;color:var(--blue);">No active cases</span>'
+          + '</div>');
+  } else {
+    html += '<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;background:var(--blue-bg,#f0f9ff);">'
+      + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--blue);display:flex;align-items:center;justify-content:center;">'+ic('info')+'</span>'
+      + '<span style="font-size:14.5px;font-weight:800;color:var(--blue);">No cases yet</span>'
+      + '<span style="font-size:11.5px;color:var(--muted);margin-left:auto;">Start with Add New</span>'
+      + '</div>';
   }
 
   if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 14)) {
@@ -4866,8 +4896,13 @@ function renderPatientsView() {
       if (p.status === 'Lost to follow-up') followUpLine = '<span style="color:#1f2937;font-weight:700;">Lost to follow-up</span>';
       else if (p.status === 'Completed') followUpLine = '<span style="color:#16a34a;font-weight:700;">Follow-up complete</span>';
       else if (p.nextFollowUpDate) {
-        const overdue = isOverdue(p.nextFollowUpDate);
-        followUpLine = '<span style="color:'+(overdue?'#dc2626':'var(--muted)')+';font-weight:'+(overdue?'700':'500')+';">'+(overdue?'Overdue \u2014 ':'Next follow-up ')+fmtDateShort(p.nextFollowUpDate)+'</span>';
+        const today = todayStr();
+        const isOverdue = p.nextFollowUpDate < today;
+        const isDueToday = p.nextFollowUpDate === today;
+        const color = isOverdue ? '#dc2626' : isDueToday ? '#eab308' : 'var(--muted)';
+        const weight = isOverdue || isDueToday ? '700' : '500';
+        const prefix = isOverdue ? 'Overdue \u2014 ' : isDueToday ? 'Due today \u2014 ' : 'Next follow-up ';
+        followUpLine = '<span style="color:'+color+';font-weight:'+weight+';">'+prefix+fmtDateShort(p.nextFollowUpDate)+'</span>';
       } else {
         followUpLine = '<span style="color:var(--muted);">Follow-up not scheduled</span>';
       }
@@ -4887,7 +4922,7 @@ function renderPatientsView() {
         + '<span class="display" style="font-weight:800;font-size:15px;">'+escName(p.name)+'</span>'
         + '<span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex||'')+'</span>'
         + '</div>'
-        + '<div style="font-size:12.5px;color:#334155;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+        + '<div style="font-size:12.5px;color:#334155;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="'+(summaryText?esc(summaryText):'No diagnosis yet')+'">'
         + (summaryText ? '<span style="font-weight:600;">'+esc(summaryText)+'</span>' : '<span style="color:var(--muted);">No diagnosis yet</span>')
         + '</div>'
         + '<div style="font-size:11px;margin-top:4px;">'+followUpLine+'</div>'
@@ -5033,11 +5068,9 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId, patie
       try { await dbAddImage(imgRec); } catch (e) { toast('Could not save that photo to device \u2014 please retry'); }
     }
   }
-  toast('\u2713 '+files.length+' photo'+(files.length>1?'s':'')+' saved');
   const removeAction = containerId==='ap-thumbs' ? 'ap-remove-photo' : containerId==='inv-thumbs' ? 'inv-remove-photo' : containerId==='rx-thumbs' ? 'rx-remove-photo' : containerId==='fu-wound-thumbs' ? 'fu-wound-remove-photo' : containerId==='fu-clinical-thumbs' ? 'fu-clinical-remove-photo' : 'fu-remove-photo';
   const container = document.getElementById(containerId);
   if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbGridHtml(targetArray, removeAction)+'</div>';
-  toast('Saved');
 }
 
 /* ================= Add patient view ================= */
@@ -5360,8 +5393,12 @@ function ovSectionV2(key, title, icon, readHtml, editHtml) {
 function nameInitials(name) {
   const parts = (name||'').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
-  if (parts.length === 1) return parts[0].slice(0,2).toUpperCase();
-  return (parts[0][0] + parts[parts.length-1][0]).toUpperCase();
+  const first = parts[0].replace(/[^a-zA-Z]/g, '')[0];
+  const last = parts[parts.length-1].replace(/[^a-zA-Z]/g, '')[0];
+  if (!first && !last) return '?';
+  if (!first) return (last||'?').toUpperCase();
+  if (!last) return first.toUpperCase();
+  return (first + last).toUpperCase();
 }
 const AVATAR_PALETTE = ['#4338ca','#0d9488','#c2410c','#7e22ce','#0369a1','#b45309','#be123c','#166534'];
 function avatarColorFor(id) {
@@ -6035,9 +6072,21 @@ function investigationTrendGraphsHtml(p) {
 async function renderInvestigationsTab(p) {
   const allImages = await dbGetImagesByPatient(p.id);
   revokeActiveUrls();
+  
+  const investigationQuery = (window.INV_SEARCH_QUERY || '').toLowerCase();
+  const filteredInvestigations = investigationQuery 
+    ? (p.investigations||[]).filter(inv => 
+        inv.label.toLowerCase().includes(investigationQuery) ||
+        (inv.value && String(inv.value).toLowerCase().includes(investigationQuery)) ||
+        (inv.unit && inv.unit.toLowerCase().includes(investigationQuery)) ||
+        (inv.date && inv.date.includes(investigationQuery))
+      )
+    : (p.investigations||[]);
+  
   let addBlock;
   if (!ADD_INVESTIGATION_OPEN) {
-    addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inv">'+ic('plus')+' Add investigation</button>';
+    addBlock = '<div class="search-wrap" style="margin-bottom:10px;width:100%;">'+ic('search')+'<input class="search-input" id="inv-search-input" placeholder="Search by name, value, unit, date..." value="'+esc(investigationQuery)+'" style="width:100%;"></div>'
+      + '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inv">'+ic('plus')+' Add investigation</button>';
   } else {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
       + '<label class="field-label">Investigation name</label>'+renderQuickTextChips(INVESTIGATION_LIB_KEY,'inv-label')+'<input class="input" id="inv-label" placeholder="e.g. CBC, MRI knee, USG abdomen" style="margin-bottom:10px;">'
@@ -6056,7 +6105,7 @@ async function renderInvestigationsTab(p) {
   }
 
   let list = '';
-  [...(p.investigations||[])].reverse().forEach(inv => {
+  [...filteredInvestigations].reverse().forEach(inv => {
     const expanded = EXPANDED_INVESTIGATION.has(inv.id);
     const invImages = allImages.filter(im => im.investigationId === inv.id);
     let body = '';
@@ -8884,7 +8933,6 @@ document.addEventListener('click', async (e) => {
     await dbPutPatient(p); await refreshPatients();
     EDITING_PATIENT_CODE = false;
     await render();
-    toast('Patient ID updated');
     return;
   }
   if (action === 'edit-patient-name') { EDITING_PATIENT_NAME = true; await render(); setTimeout(() => { const inp = document.getElementById('patient-name-input'); if (inp) { inp.focus(); inp.select(); } }, 30); return; }
@@ -8898,7 +8946,6 @@ document.addEventListener('click', async (e) => {
     await dbPutPatient(p); await refreshPatients();
     EDITING_PATIENT_NAME = false;
     await render();
-    toast('Name updated');
     return;
   }
   if (action === 'convert-to-surgical') {
@@ -9128,11 +9175,13 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); window.scrollTo(0,0); return; }
   if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
-  if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
+  if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; try { localStorage.setItem('show-all-attention', SHOW_ALL_ATTENTION ? '1' : '0'); } catch(e) {} render(); return; }
   if (action === 'dash-goto-followups') {
     const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
     CAL_SUBVIEW = 'due'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
-    VIEW = 'calendar'; render(); return;
+    VIEW = 'calendar'; render(); 
+    setTimeout(() => { const el = document.querySelector('[data-action="attn-mark-lost"]'); if (el) el.scrollIntoView({behavior:'smooth', block:'start'}); }, 100);
+    return;
   }
   if (action === 'toggle-legend') { SHOW_LEGEND = !SHOW_LEGEND; render(); return; }
   if (action === 'tl-jump') {
@@ -9477,7 +9526,6 @@ document.addEventListener('click', async (e) => {
       AP_DUPLICATE_FROM = null;
       SELECTED_ID = p.id; recordLastPatient(p.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
       haptic(20);
-      toast('Case saved');
       await render();
       window.scrollTo(0,0);
     } catch (err) {
@@ -9500,10 +9548,17 @@ document.addEventListener('click', async (e) => {
   if (action === 'log-reminder-sent') {
     const p = getPatient(el.dataset.id);
     if (p) { 
-      p.lastReminderSentAt = Date.now(); 
-      haptic(15);
-      toast('✓ Follow-up reminder sent to ' + p.name);
-      dbPutPatient(p).then(refreshPatients); 
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:flex-end;z-index:9999;';
+      modal.innerHTML = '<div style="width:100%;background:#fff;border-radius:16px 16px 0 0;padding:20px;max-width:100%;">'
+        + '<h3 style="margin:0 0 8px;font-size:16px;font-weight:800;">Confirm Reminder Sent</h3>'
+        + '<p style="margin:0 0 16px;font-size:13px;color:var(--muted);">After sending the WhatsApp message, click Confirm below to log it as sent.</p>'
+        + '<div class="row gap2" style="margin:0;">'
+        + '<button class="btn" style="flex:1;" onclick="this.closest(\'div\').parentElement.remove();">Cancel</button>'
+        + '<button class="btn btn-primary" style="flex:2;" onclick="(async ()=>{ const p=getPatient(\'' + p.id + '\'); if(p){p.lastReminderSentAt=Date.now();haptic(15);toast(\'✓ Follow-up reminder logged\');await dbPutPatient(p);await refreshPatients();} this.closest(\'div\').parentElement.remove(); })();">Confirm Sent</button>'
+        + '</div></div>';
+      document.body.appendChild(modal);
+      modal.onclick = (e) => { if(e.target === modal) modal.remove(); };
     }
     return;
   }
@@ -10064,7 +10119,6 @@ document.addEventListener('click', async (e) => {
     const templates = loadRxTemplates();
     templates.push({ id: uid(), name: name.trim(), medicines: meds.map(m => ({name:m.name, dose:m.dose, frequency:m.frequency, duration:m.duration, instructions:m.instructions})) });
     saveRxTemplateList(templates);
-    toast('Template saved');
     render();
     return;
   }
@@ -10392,7 +10446,7 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'scheme-detach') {
     const p = getPatient(el.dataset.id);
-    if (p) { p.schemePackage = null; await savePatient(p); toast('Package removed.'); render(); }
+    if (p) { p.schemePackage = null; await savePatient(p); render(); }
     return;
   }
   if (action === 'open-scheme-finder-for-case') {
@@ -10551,7 +10605,6 @@ document.addEventListener('click', async (e) => {
     await idbSet('app-settings', 'content-ideas-faqs', CONTENT_IDEAS_FAQS);
     await render();
     haptic(10);
-    toast('✓ FAQ added');
     return;
   }
   if (action === 'content-ideas-delete') {
@@ -10577,7 +10630,6 @@ document.addEventListener('click', async (e) => {
     await idbSet('app-settings', 'academic-vault-topics', ACADEMIC_VAULT_TOPICS);
     await render();
     haptic(10);
-    toast('✓ Topic added');
     return;
   }
   if (action === 'academic-vault-delete') {
@@ -10685,7 +10737,6 @@ document.addEventListener('click', async (e) => {
     saveReminders();
     REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
     await render_only_current_view();
-    toast('Reminder saved');
     return;
   }
   if (action === 'reminder-toggle') {
@@ -10878,7 +10929,6 @@ function readProfileFromDom() {
       const savedPatient = getPatient(SELECTED_ID);
       PRINT_RX = { patient: savedPatient, rx: (savedPatient.prescriptions||[]).find(r => r.id === rx.id) };
       VIEW = 'print';
-      toast('Prescription saved');
       render();
     } else {
       await renderTabBody(getPatient(SELECTED_ID));
@@ -11053,7 +11103,6 @@ document.addEventListener('change', async (e) => {
         }
       });
       savePlannedSurgeries(PLANNED_SURGERIES);
-      toast('Imported: ' + added + ' new, ' + updated + ' updated');
       render();
     } catch (err) {
       console.error('Planned surgeries import failed:', err);
@@ -11092,7 +11141,7 @@ document.addEventListener('change', async (e) => {
   }
   if (t.id === 'viewer-xray-subtype-select') {
     const rec = await dbGetImage(t.dataset.imgid).catch(function(){return null;});
-    if (rec) { rec.xraySubtype = t.value; await dbAddImage(rec); toast('X-ray type updated'); if (SELECTED_ID) await renderTabBody(getPatient(SELECTED_ID)); }
+    if (rec) { rec.xraySubtype = t.value; await dbAddImage(rec); if (SELECTED_ID) await renderTabBody(getPatient(SELECTED_ID)); }
     return;
   }
   if (t.id === 'ov-tracking-select') {
@@ -11355,6 +11404,14 @@ document.addEventListener('input', (e) => {
       const resEl = document.getElementById('usearch-results');
       if (resEl) resEl.innerHTML = usearchResultsHtml();
     }, 300);
+  }
+  if (e.target.id === 'inv-search-input') {
+    window.INV_SEARCH_QUERY = e.target.value;
+    clearTimeout(SEARCH_DEBOUNCE_TIMER);
+    SEARCH_DEBOUNCE_TIMER = setTimeout(async () => {
+      const p = getPatient(SELECTED_ID);
+      if (p) await renderTabBody(p);
+    }, 200);
   }
   if (e.target.id === 'search-input') {
     clearTimeout(SEARCH_DEBOUNCE_TIMER);
