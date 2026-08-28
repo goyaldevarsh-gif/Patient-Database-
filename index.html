@@ -4515,7 +4515,16 @@ function getPatient(id) { return PATIENTS.find(p => p.id === id); }
    reference, not a copy), so a full re-fetch of every patient from IndexedDB on every
    single field edit was pure wasted work \u2014 that's what made Overview feel slow to
    respond as the patient count grew. Just persist it. */
-async function savePatient(p) { await dbPutPatient(p); }
+async function savePatient(p) {
+  try {
+    await dbPutPatient(p);
+    return true;
+  } catch (err) {
+    console.error('savePatient failed', err);
+    toast('\u26a0\ufe0f Could not save \u2014 check storage space and try again');
+    return false;
+  }
+}
 
 /* ================= Toast ================= */
 
@@ -7746,9 +7755,12 @@ async function renderCurrentView(app) {
 
 async function patchField(field, value) {
   const p = getPatient(SELECTED_ID);
-  if (!p) return;
+  if (!p) return false;
+  const prevValue = p[field];
   p[field] = value;
-  await savePatient(p);
+  const ok = await savePatient(p);
+  if (!ok) p[field] = prevValue; // roll back in-memory change so UI doesn't imply it saved
+  return ok;
 }
 
 /* ================= Image viewer modal ================= */
@@ -9728,6 +9740,12 @@ document.addEventListener('click', async (e) => {
     const unionStatus = unionStatusEl ? unionStatusEl.value : '';
     const rom = null;
     const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rom, imageCount: FU_INV_PHOTOS.length, createdAt: Date.now() };
+    // Snapshot so we can roll back the in-memory patient object if the save below fails \u2014
+    // otherwise the UI would show a follow-up that was never actually persisted.
+    const prevStatus = p.status;
+    const prevNextFollowUpDate = p.nextFollowUpDate;
+    const prevSnoozeCount = p.followUpSnoozeCount;
+    const prevLastReminderSentAt = p.lastReminderSentAt;
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
     if (p.status === 'Lost to follow-up' || p.status === 'Completed') { p.status = 'Active'; }
@@ -9748,37 +9766,51 @@ document.addEventListener('click', async (e) => {
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
-    await dbPutPatient(p);
-    // Already saved to IndexedDB when picked \u2014 reusing ph.tempId just links them to this follow-up.
-    for (const ph of FU_INV_PHOTOS) {
-      const imgRec = { id: ph.tempId, patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: ph.category };
-      if (ph.category === 'xray' && ph.xraySubtype) imgRec.xraySubtype = ph.xraySubtype;
-      if (ph.category === 'wound') imgRec.isWoundPhoto = true;
-      await dbAddImage(imgRec);
-    }
-    await refreshPatients();
-    FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
-    await renderTabBody(getPatient(SELECTED_ID));
-    if (nextFuDefaulted) {
-      toastWithButton(
-        '\u26a0\ufe0f Next follow-up not set \u2014 defaulted to ' + fmtDate(p.nextFollowUpDate) + ' (' + (p.caseType === 'surgical' ? '7' : '5') + ' days)',
-        'Edit date',
-        () => { TAB = 'overview'; render(); },
-        5000
-      );
-    } else {
-      haptic(15);
-      const reminderLink = followUpReminderLink(p);
-      if (reminderLink) {
+    try {
+      await dbPutPatient(p);
+      // Already saved to IndexedDB when picked \u2014 reusing ph.tempId just links them to this follow-up.
+      for (const ph of FU_INV_PHOTOS) {
+        const imgRec = { id: ph.tempId, patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: ph.category };
+        if (ph.category === 'xray' && ph.xraySubtype) imgRec.xraySubtype = ph.xraySubtype;
+        if (ph.category === 'wound') imgRec.isWoundPhoto = true;
+        await dbAddImage(imgRec);
+      }
+      await refreshPatients();
+      FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
+      await renderTabBody(getPatient(SELECTED_ID));
+      if (nextFuDefaulted) {
         toastWithButton(
-          '\u2713 Follow-up logged \u2014 next visit ' + fmtDate(p.nextFollowUpDate),
-          'Send Reminder',
-          () => { window.open(reminderLink, '_blank'); },
+          '\u26a0\ufe0f Next follow-up not set \u2014 defaulted to ' + fmtDate(p.nextFollowUpDate) + ' (' + (p.caseType === 'surgical' ? '7' : '5') + ' days)',
+          'Edit date',
+          () => { TAB = 'overview'; render(); },
           5000
         );
       } else {
-        toast('\u2713 Follow-up logged \u2014 next visit ' + fmtDate(p.nextFollowUpDate));
+        haptic(15);
+        const reminderLink = followUpReminderLink(p);
+        if (reminderLink) {
+          toastWithButton(
+            '\u2713 Follow-up logged \u2014 next visit ' + fmtDate(p.nextFollowUpDate),
+            'Send Reminder',
+            () => { window.open(reminderLink, '_blank'); },
+            5000
+          );
+        } else {
+          toast('\u2713 Follow-up logged \u2014 next visit ' + fmtDate(p.nextFollowUpDate));
+        }
       }
+    } catch (err) {
+      console.error('submit-fu failed', err);
+      // Roll back the in-memory mutation \u2014 nothing was actually persisted, so the UI
+      // shouldn't show the follow-up as added. The form stays open so the doctor can retry.
+      p.followUps.pop();
+      p.status = prevStatus;
+      p.nextFollowUpDate = prevNextFollowUpDate;
+      p.followUpSnoozeCount = prevSnoozeCount;
+      p.lastReminderSentAt = prevLastReminderSentAt;
+      el.innerHTML = originalHtml;
+      el.disabled = false;
+      toast('\u26a0\ufe0f Could not save follow-up \u2014 try again');
     }
     return;
   }
@@ -11152,11 +11184,17 @@ document.addEventListener('change', async (e) => {
       });
       if (!confirmed) { await render(); return; }
     }
-    await patchField(t.dataset.field, t.value);
+    const patchOk = await patchField(t.dataset.field, t.value);
     t.style.transition = 'border-color 200ms, box-shadow 200ms';
-    t.style.borderColor = 'var(--emerald)';
-    t.style.boxShadow = '0 0 0 2px rgba(22,163,74,0.15)';
+    if (patchOk) {
+      t.style.borderColor = 'var(--emerald)';
+      t.style.boxShadow = '0 0 0 2px rgba(22,163,74,0.15)';
+    } else {
+      t.style.borderColor = '#dc2626';
+      t.style.boxShadow = '0 0 0 2px rgba(220,38,38,0.15)';
+    }
     setTimeout(() => { t.style.borderColor = ''; t.style.boxShadow = ''; }, 900);
+    if (!patchOk) return; // don't record usage / trigger side-effects on a save that didn't happen
     if (t.dataset.field === 'procedure') recordTextUsed(PROCEDURE_LIB_KEY, t.value);
     if (t.dataset.field === 'diagnosis') {
       recordTextUsed(DIAGNOSIS_LIB_KEY, t.value);
