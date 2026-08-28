@@ -376,9 +376,9 @@
   /* UX7: Modal Animations - slide-up on mobile, slide-from-right on desktop */
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; overflow:hidden; touch-action:none; animation:modal-slide-up 0.35s cubic-bezier(0.34,1.56,0.64,1); }
   @keyframes modal-slide-up { from { opacity:0; transform:translateY(40px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes modal-slide-right { from { opacity:0; transform:translateX(60px); } to { opacity:1; transform:translateX(0); } }
   @media (min-width: 1024px) {
     .modal-overlay { animation:modal-slide-right 0.35s cubic-bezier(0.34,1.56,0.64,1); }
-    @keyframes modal-slide-right { from { opacity:0; transform:translateX(60px); } to { opacity:1; transform:translateX(0); } }
   }
   .modal-overlay img { max-width:100%; max-height:78vh; border-radius:8px; }
   .modal-bar { position:absolute; top:calc(16px + env(safe-area-inset-top, 0px)); left:16px; right:16px; display:flex; align-items:center; justify-content:space-between; gap:8px; z-index:2; }
@@ -1938,7 +1938,6 @@ function reminderStatusBadgeHtml(patient) {
 // Setup empty state handler
 /* UX4: Enhanced Empty States with animations and contextual help */
 function showEmptyStateMessage(container, icon, title, message, actionButton = '') {
-  ensureFloatIconAnimation();
   const iconHtml = icon ? '<div style="font-size:56px;margin-bottom:20px;opacity:0.4;animation:float-icon 3s ease-in-out infinite;">'+icon+'</div>' : '';
   const html = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 24px;text-align:center;min-height:300px;">'
     + iconHtml
@@ -1950,16 +1949,10 @@ function showEmptyStateMessage(container, icon, title, message, actionButton = '
 }
 
 /* UX4: Float animation for empty state icons */
-function ensureFloatIconAnimation() {
-  if (window.__FLOAT_ICON_ADDED) return;
-  try {
-    const styleSheet = document.styleSheets[0];
-    if (styleSheet && styleSheet.cssRules) {
-      styleSheet.insertRule('@keyframes float-icon { 0%, 100% { transform:translateY(0px); } 50% { transform:translateY(-8px); } }', styleSheet.cssRules.length);
-      window.__FLOAT_ICON_ADDED = true;
-    }
-  } catch(e) {}
-}
+const styleSheet = document.styleSheets[0];
+try {
+  styleSheet.insertRule('@keyframes float-icon { 0%, 100% { transform:translateY(0px); } 50% { transform:translateY(-8px); } }', styleSheet.cssRules.length);
+} catch(e) {}
 
 /* After opening a patient from a search/filter result, jump straight to the matched field
    instead of leaving the person to hunt for it \u2014 same idea for tag-filtered opens. */
