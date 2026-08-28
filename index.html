@@ -1938,6 +1938,7 @@ function reminderStatusBadgeHtml(patient) {
 // Setup empty state handler
 /* UX4: Enhanced Empty States with animations and contextual help */
 function showEmptyStateMessage(container, icon, title, message, actionButton = '') {
+  ensureFloatIconAnimation();
   const iconHtml = icon ? '<div style="font-size:56px;margin-bottom:20px;opacity:0.4;animation:float-icon 3s ease-in-out infinite;">'+icon+'</div>' : '';
   const html = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:56px 24px;text-align:center;min-height:300px;">'
     + iconHtml
@@ -1949,10 +1950,16 @@ function showEmptyStateMessage(container, icon, title, message, actionButton = '
 }
 
 /* UX4: Float animation for empty state icons */
-const styleSheet = document.styleSheets[0];
-try {
-  styleSheet.insertRule('@keyframes float-icon { 0%, 100% { transform:translateY(0px); } 50% { transform:translateY(-8px); } }', styleSheet.cssRules.length);
-} catch(e) {}
+function ensureFloatIconAnimation() {
+  if (window.__FLOAT_ICON_ADDED) return;
+  try {
+    const styleSheet = document.styleSheets[0];
+    if (styleSheet && styleSheet.cssRules) {
+      styleSheet.insertRule('@keyframes float-icon { 0%, 100% { transform:translateY(0px); } 50% { transform:translateY(-8px); } }', styleSheet.cssRules.length);
+      window.__FLOAT_ICON_ADDED = true;
+    }
+  } catch(e) {}
+}
 
 /* After opening a patient from a search/filter result, jump straight to the matched field
    instead of leaving the person to hunt for it \u2014 same idea for tag-filtered opens. */
