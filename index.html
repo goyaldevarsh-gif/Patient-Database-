@@ -1835,6 +1835,16 @@ function setupAddCaseFormValidation() {
         return { valid: true, message: 'Diagnosis OK' };
       });
     }
+
+    const whatsappEl = document.getElementById('ap-whatsapp');
+    if (whatsappEl) {
+      setupValidationListener(whatsappEl, (value) => {
+        if (!value) return { valid: false, message: '' }; // optional \u2014 empty stays neutral, no red/green border
+        const digits = toWaNumber(value);
+        if (digits.length < 10 || digits.length > 15) return { valid: false, message: 'Doesn\u2019t look like a complete number' };
+        return { valid: true, message: 'Looks good' };
+      });
+    }
     
     // Auto-focus patient name field
     if (nameEl) {
@@ -2108,7 +2118,7 @@ let PLANNED_SURGERIES = [];
 let PS_ADD_OPEN = false;
 let PS_TEMP = { name:'', age:'', sex:'', diagnosis:'', plan:'', mobile:'', date:'' };
 let PS_EDIT_ID = null;
-let EXPORT_SUMMARY_SECTIONS = new Set(['details','diagnosis','followups','investigations','prescriptions','notes']);
+let EXPORT_SUMMARY_SECTIONS = new Set(['details','diagnosis','followups','investigations','prescriptions']);
 let EXPORT_SUMMARY_LAYOUT = 'standard'; // 'standard' | 'detailed'
 let EDU_SEARCH = null; // null = use patient's diagnosis as default query
 let EDU_MULTISELECT = false;
@@ -4610,7 +4620,8 @@ function renderDashboardSection() {
         + '</div>';
   }
 
-  if (!BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 1)) {
+  const showBackupBanner = !BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 1);
+  if (showBackupBanner) {
     html += '<div class="backup-banner">'
       + ic('download')
       + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+(daysBack===null ? 'No backup taken yet.' : 'Backup pending for '+daysBack+' day'+(daysBack>1?'s':'')+'.')+' Keep your cases safe \u2014 export takes a few seconds.</span>'
@@ -4619,11 +4630,13 @@ function renderDashboardSection() {
       + '</div>';
   }
 
+  // Only surface the sync banner when the backup banner isn't already showing \u2014
+  // stacking two amber-style alerts at once felt noisy, and backup is the higher priority nudge.
   const pendingCount = CURRENT_USER ? pendingSyncCount() : 0;
-  if (pendingCount > 0) {
-    html += '<div class="backup-banner">'
-      + ic('shield')
-      + '<span style="flex:1;font-size:12px;color:#7c4a03;">'+pendingCount+' item'+(pendingCount>1?'s':'')+' not yet backed up to cloud (weak/no connection when saved) \u2014 retrying automatically. Keep this device online for a bit, or tap Retry.</span>'
+  if (pendingCount > 0 && !showBackupBanner) {
+    html += '<div class="backup-banner" style="background:var(--accent-bg);border-color:var(--accent-border);">'
+      + '<span style="flex:none;color:var(--accent);">'+ic('shield')+'</span>'
+      + '<span style="flex:1;font-size:12px;color:var(--accent-dark);">'+pendingCount+' item'+(pendingCount>1?'s':'')+' not yet backed up to cloud (weak/no connection when saved) \u2014 retrying automatically. Keep this device online for a bit, or tap Retry.</span>'
       + '<button class="btn btn-sm" data-action="retry-pending-sync">Retry</button>'
       + '</div>';
   }
@@ -4645,21 +4658,21 @@ function renderDashboardSection() {
     + '</div>';
 
   html += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:0 0 8px;">MANAGE &amp; TRACK</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">'
-    + '<button type="button" class="card" style="text-align:left;padding:12px 10px;position:relative;" data-action="nav-patients">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">'
+    + '<button type="button" class="card" style="text-align:left;padding:14px 12px;position:relative;background:rgba(37,99,235,0.06);border-color:rgba(37,99,235,0.2);" data-action="nav-patients">'
       + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.patients+'</span>'
       + '<span style="display:block;font-size:12.5px;font-weight:800;color:var(--ink);">Patients</span>'
       + '<span style="display:block;font-size:10px;color:var(--muted);margin-top:1px;">View &amp; manage</span>'
       + '</button>'
-    + '<button type="button" class="card" style="text-align:left;padding:12px 10px;position:relative;" data-action="open-followups">'
+    + '<button type="button" class="card" style="text-align:left;padding:14px 12px;position:relative;background:rgba(217,119,6,0.07);border-color:rgba(217,119,6,0.2);" data-action="open-followups">'
       + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.followUp+'</span>'
-      + (s.important.length ? '<span style="position:absolute;top:10px;right:10px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(s.important.length>9?'9+':s.important.length)+'</span>' : '')
+      + (s.important.length ? '<span style="position:absolute;top:8px;right:8px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(s.important.length>9?'9+':s.important.length)+'</span>' : '')
       + '<span style="display:block;font-size:12.5px;font-weight:800;color:var(--ink);">Follow Ups</span>'
       + '<span style="display:block;font-size:10px;color:var(--muted);margin-top:1px;">Schedule &amp; manage</span>'
       + '</button>'
-    + '<button type="button" class="card" style="text-align:left;padding:12px 10px;position:relative;" data-action="open-reminders-tab">'
+    + '<button type="button" class="card" style="text-align:left;padding:14px 12px;position:relative;background:var(--accent-bg);border-color:var(--accent-border);" data-action="open-reminders-tab">'
       + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.reminder+'</span>'
-      + (dueRemindersCount ? '<span style="position:absolute;top:10px;right:10px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(dueRemindersCount>9?'9+':dueRemindersCount)+'</span>' : '')
+      + (dueRemindersCount ? '<span style="position:absolute;top:8px;right:8px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(dueRemindersCount>9?'9+':dueRemindersCount)+'</span>' : '')
       + '<span style="display:block;font-size:12.5px;font-weight:800;color:var(--ink);">Reminders</span>'
       + '<span style="display:block;font-size:10px;color:var(--muted);margin-top:1px;">Set &amp; manage</span>'
       + '</button>'
@@ -4857,6 +4870,8 @@ const PATIENT_GROUP_LABELS = { overdue:'Needs Attention', today:'Today', week:'T
 
 function renderListView() {
   const ownerProfile = loadProfile();
+  const todayLabel = new Date().toLocaleDateString('en-IN', { weekday:'short', day:'numeric', month:'short' })
+    + ' \u00b7 ' + new Date().toLocaleTimeString('en-IN', { hour:'numeric', minute:'2-digit' });
   return '<div style="padding-bottom:32px;">'
     + '<div class="sticky-top px" style="padding:16px 16px 10px;">'
     + '<div class="row between" style="align-items:center;">'
@@ -4864,6 +4879,7 @@ function renderListView() {
     + '<div style="text-align:right;">'
     + (ownerProfile.doctorName ? '<p style="font-size:12px;font-weight:700;color:var(--ink);margin:0;">'+esc(ownerProfile.doctorName)+'</p>' : '')
     + '<p style="font-size:10.5px;color:var(--muted);margin:1px 0 0;"><span style="font-weight:800;color:var(--accent);font-size:12px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p>'
+    + '<p style="font-size:9.5px;color:var(--muted);opacity:0.7;margin:1px 0 0;">'+todayLabel+'</p>'
     + '</div>'
     + '</div>'
     + '<div class="row gap2" style="margin-top:10px;"><button type="button" class="search-wrap search-input" style="display:block;flex:1;text-align:left;cursor:pointer;" data-action="dash-search-tap">'+ic('search')+'<span style="color:var(--muted);font-size:13px;">Search patient by name, ID, diagnosis\u2026</span></button>'
@@ -4968,6 +4984,15 @@ function renderPatientsView() {
     + '<div class="row gap3" style="margin-bottom:10px;align-items:center;"><button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Patients</h2><span style="font-size:12px;color:var(--muted);">'+PATIENTS.length+' total</span></div>'
     + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
+    + ((SEARCH || FILTER_TYPE !== 'all') ? (
+        '<div class="row between" style="margin-top:8px;padding:0 2px;">'
+        + '<span style="font-size:11px;color:var(--muted);">Showing <b style="color:var(--ink);">'+filtered.length+'</b> of '+PATIENTS.length
+          + (FILTER_TYPE !== 'all' ? ' \u00b7 filter: <b style="color:var(--accent);">'+esc(FILTER_TYPE)+'</b>' : '')
+          + (SEARCH ? ' \u00b7 search: \u201c'+esc(SEARCH)+'\u201d' : '')
+          + '</span>'
+        + '<button type="button" style="font-size:11px;color:var(--accent);font-weight:700;background:none;border:none;padding:0;" data-action="clear-list-filters">Clear</button>'
+        + '</div>'
+      ) : '')
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
     + (PATIENTS.length ? (SHOW_LEGEND
@@ -5052,21 +5077,31 @@ async function handleCategorizedPhotoChange(fileInput, targetArray, category, xr
   const files = Array.from(fileInput.files || []);
   if (!files.length) return;
   toast('Saving '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
-  for (const file of files) {
-    const blob = await resizeImageFile(file);
-    const previewUrl = trackUrl(URL.createObjectURL(blob));
-    const id = uid();
-    targetArray.push({ tempId: id, blob, previewUrl, category, xraySubtype: category === 'xray' ? xraySubtype : null });
-    if (patientId) {
-      const imgRec = { id, patientId, followUpId: null, investigationId: null, blob, createdAt: Date.now(), imageCategory: category };
-      if (category === 'xray' && xraySubtype) imgRec.xraySubtype = xraySubtype;
-      if (category === 'wound') imgRec.isWoundPhoto = true;
-      try { await dbAddImage(imgRec); } catch (e) { toast('Could not save that photo to device \u2014 please retry'); }
-    }
-  }
+  let failCount = 0;
+  // Resize + save all files in parallel instead of one at a time \u2014 noticeably faster for
+  // multi-select uploads (e.g. picking 5 X-rays at once).
+  const results = await Promise.all(files.map(async (file) => {
+    try {
+      const blob = await resizeImageFile(file);
+      const previewUrl = trackUrl(URL.createObjectURL(blob));
+      const id = uid();
+      if (patientId) {
+        const imgRec = { id, patientId, followUpId: null, investigationId: null, blob, createdAt: Date.now(), imageCategory: category };
+        if (category === 'xray' && xraySubtype) imgRec.xraySubtype = xraySubtype;
+        if (category === 'wound') imgRec.isWoundPhoto = true;
+        try { await dbAddImage(imgRec); } catch (e) { failCount++; return null; }
+      }
+      return { tempId: id, blob, previewUrl, category, xraySubtype: category === 'xray' ? xraySubtype : null };
+    } catch (e) { failCount++; return null; }
+  }));
+  results.forEach(entry => { if (entry) targetArray.push(entry); });
   const container = document.getElementById(containerId);
   if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbsFn()+'</div>';
-  toast('Saved');
+  if (failCount > 0) {
+    toast('\u26a0\ufe0f ' + (files.length - failCount) + '/' + files.length + ' photos saved \u2014 ' + failCount + ' failed, try again');
+  } else {
+    toast('Saved');
+  }
 }
 /* Deletes any photos that were already committed to IndexedDB while filling in a form
    that the person then explicitly cancelled (see the discussion above
@@ -5087,21 +5122,28 @@ async function handlePhotoInputChange(fileInput, targetArray, containerId, patie
   const files = Array.from(fileInput.files || []);
   if (!files.length) return;
   toast('Saving '+files.length+' photo'+(files.length>1?'s':'')+'\u2026');
-  for (const file of files) {
-    const blob = await resizeImageFile(file);
-    const previewUrl = trackUrl(URL.createObjectURL(blob));
-    const id = uid();
-    targetArray.push({ tempId: id, blob, previewUrl, label:'' });
-    if (patientId) {
-      const imgRec = Object.assign({ id, patientId, followUpId: null, investigationId: null, blob, createdAt: Date.now() }, extraFields || {});
-      try { await dbAddImage(imgRec); } catch (e) { toast('Could not save that photo to device \u2014 please retry'); }
-    }
-  }
-  toast('\u2713 '+files.length+' photo'+(files.length>1?'s':'')+' saved');
+  let failCount = 0;
+  const results = await Promise.all(files.map(async (file) => {
+    try {
+      const blob = await resizeImageFile(file);
+      const previewUrl = trackUrl(URL.createObjectURL(blob));
+      const id = uid();
+      if (patientId) {
+        const imgRec = Object.assign({ id, patientId, followUpId: null, investigationId: null, blob, createdAt: Date.now() }, extraFields || {});
+        try { await dbAddImage(imgRec); } catch (e) { failCount++; return null; }
+      }
+      return { tempId: id, blob, previewUrl, label:'' };
+    } catch (e) { failCount++; return null; }
+  }));
+  results.forEach(entry => { if (entry) targetArray.push(entry); });
   const removeAction = containerId==='ap-thumbs' ? 'ap-remove-photo' : containerId==='inv-thumbs' ? 'inv-remove-photo' : containerId==='rx-thumbs' ? 'rx-remove-photo' : containerId==='fu-wound-thumbs' ? 'fu-wound-remove-photo' : containerId==='fu-clinical-thumbs' ? 'fu-clinical-remove-photo' : 'fu-remove-photo';
   const container = document.getElementById(containerId);
   if (container) container.outerHTML = '<div id="'+containerId+'">'+thumbGridHtml(targetArray, removeAction)+'</div>';
-  toast('Saved');
+  if (failCount > 0) {
+    toast('\u26a0\ufe0f ' + (files.length - failCount) + '/' + files.length + ' photos saved \u2014 ' + failCount + ' failed, try again');
+  } else {
+    toast('\u2713 '+files.length+' photo'+(files.length>1?'s':'')+' saved');
+  }
 }
 
 /* ================= Add patient view ================= */
@@ -5113,7 +5155,7 @@ let AP_INV_CATEGORY = 'xray';
 let AP_INV_XRAY_SUBTYPE = 'General OPD';
 let AP_INV_ACTIVE_GROUP = 'imaging';
 let AP_SHOW_PAYMENT = false;
-let AP_OPEN_SECTION = 1; // which numbered accordion section is expanded in the Add Case form
+let AP_OPEN_SECTION = 2; // which numbered accordion section is expanded (section 1, Patient details, is now always pinned/visible)
 let AP_DIAG_CONFIRMED = false; // set true after user taps Save once with empty diagnosis; reset on cancel/init
 const AP_INV_GROUPS = [
   { key:'imaging', label:'Imaging', categories:['xray','ct','mri','usg'] },
@@ -5127,7 +5169,7 @@ function initApTemp() {
   // would lose them for good. See handlePhotoInputChange / handleCategorizedPhotoChange.
   AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
-  AP_OPEN_SECTION = 1;
+  AP_OPEN_SECTION = 2;
   AP_DIAG_CONFIRMED = false;
   AP_INVESTIGATIONS = [];
   AP_INV_CATEGORY = 'xray';
@@ -5264,7 +5306,7 @@ function renderAddView() {
       + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
       + '</div>'
       + '<div><label class="field-label">Occupation (optional)</label><input class="input" id="ap-occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(AP_TEMP.occupation)+'"></div>'
-      + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"></div>'
+      + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
       + '</div>';
 
   const complaintsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
@@ -5337,17 +5379,24 @@ function renderAddView() {
       + '</div>'
     );
 
-  const sections = [
-    [1, 'userPlus', 'Patient details', detailsHtml],
+  const accordionSections = [
     [2, 'alert', tab2Label, complaintsHtml],
     [3, 'flask', 'Investigations', investigationsHtml],
     [4, isSurgical ? 'scalpel' : 'clock', tab3Label, trackingHtml],
     [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'],
   ];
 
-  const accordionHtml = sections.map(([n, icon, title, body]) => {
+  // Patient Details (section 1) stays pinned and always expanded \u2014 name/age are the fields
+  // a doctor most often wants to glance back at while filling the rest, so they shouldn't
+  // require re-opening an accordion section to see.
+  const pinnedDetailsHtml = '<div class="card" style="padding:13px 14px 16px;margin-bottom:10px;border-color:var(--accent-border);">'
+    + '<div class="row gap2" style="gap:10px;margin-bottom:10px;"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:rgba(67,56,202,0.12);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">1</span><span style="font-size:14px;font-weight:800;color:var(--ink);">Patient details</span></div>'
+    + detailsHtml
+    + '</div>';
+
+  const accordionHtml = accordionSections.map(([n, icon, title, body]) => {
     const open = AP_OPEN_SECTION === n;
-    return '<div class="card" style="padding:0;margin-bottom:10px;overflow:hidden;">'
+    return '<div class="card" style="padding:0;margin-bottom:10px;overflow:hidden;" id="ap-section-'+n+'">'
       + '<button type="button" class="row between" style="width:100%;padding:13px 14px;background:'+(open?'rgba(67,56,202,0.05)':'none')+';border:none;text-align:left;" data-action="ap-toggle-section" data-value="'+n+'">'
       + '<span class="row gap2" style="gap:10px;"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:rgba(67,56,202,0.12);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">'+n+'</span><span style="font-size:14px;font-weight:800;color:var(--ink);">'+title+'</span></span>'
       + '<span style="color:var(--muted);transform:rotate('+(open?'-90':'90')+'deg);transition:transform 150ms;">'+ic('chevron')+'</span>'
@@ -5382,6 +5431,7 @@ function renderAddView() {
 
     + '<div style="margin-bottom:16px;"><label class="field-label">Next follow-up date (optional)</label><input class="input" type="date" id="ap-next-fu-date" min="'+todayStr()+'" value="'+esc(AP_TEMP.nextFollowUpDate)+'"></div>'
 
+    + pinnedDetailsHtml
     + accordionHtml
     + aiAssistantPill
     + '</div>'
@@ -5515,7 +5565,7 @@ function renderOverviewTab(p) {
 
   let communicateBody = '<div class="card">'
     + '<label class="field-label">WhatsApp number</label>'
-    + '<input class="input" type="tel" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'" style="margin-bottom:10px;">'
+    + '<input class="input" type="tel" id="ov-whatsapp" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'"><p class="validation-helper" id="ov-whatsapp-helper" style="margin-bottom:10px;"></p>'
     + (waLink(p)
         ? '<div class="row gap2"><a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:2;">'+ic('message')+' Message on WhatsApp</a><a href="tel:+'+esc(toWaNumber(p.whatsapp))+'" class="btn" style="flex:1;text-decoration:none;" title="Call">'+ic('phone')+'</a></div>'
         : '<p style="font-size:11px;color:var(--muted);">Save a number to send messages.</p>')
@@ -5743,7 +5793,7 @@ const ALL_XRAY_SUBTYPES = XRAY_SUBTYPES.concat('Follow-up'); // for manually rel
 function thumbWrapHtml(im) {
   const url = trackUrl(URL.createObjectURL(im.blob));
   const isVid = im.blob && im.blob.type && im.blob.type.indexOf('video/') === 0;
-  const inner = isVid ? '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1e293b;color:#fff;">'+ic('video')+'</div>' : '<img src="'+url+'">';
+  const inner = isVid ? '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#1e293b;color:#fff;">'+ic('video')+'</div>' : '<img src="'+url+'" loading="lazy" decoding="async">';
   if (IMGREC_SELECT_MODE) {
     const selected = IMGREC_SELECTED_IDS.has(im.id);
     return '<div class="thumb-wrap" data-action="toggle-select-image" data-imgid="'+im.id+'" style="cursor:pointer;'+(selected?'outline:3px solid var(--accent);outline-offset:-3px;':'')+'">'
@@ -8764,7 +8814,7 @@ document.addEventListener('click', async (e) => {
     const p = getPatient(el.dataset.id);
     if (!p) return;
     const link = followUpReminderLink(p);
-    if (link) window.open(link, '_blank');
+    if (link) { p.lastReminderSentAt = Date.now(); dbPutPatient(p).then(refreshPatients); window.open(link, '_blank'); }
     return;
   }
   if (action === 'ai-sanity-check') {
@@ -9457,19 +9507,41 @@ document.addEventListener('click', async (e) => {
       const guess = autoDetectCondition(AP_TEMP.diagnosis + ' ' + (AP_TEMP.chiefComplaints||''));
       if (guess) AP_TEMP.condition = guess;
     }
-    if (!AP_TEMP.name.trim()) { AP_OPEN_SECTION = 1; render(); toast('Name is required'); return; }
-    if (!AP_TEMP.age || !String(AP_TEMP.age).trim()) { AP_OPEN_SECTION = 1; render(); toast('Age is required'); return; }
+    if (!AP_TEMP.name.trim()) {
+      toast('Name is required');
+      const nameEl = document.getElementById('ap-name');
+      if (nameEl) { nameEl.scrollIntoView({behavior:'smooth', block:'center'}); nameEl.focus(); }
+      return;
+    }
+    if (!AP_TEMP.age || !String(AP_TEMP.age).trim()) {
+      toast('Age is required');
+      const ageEl = document.getElementById('ap-age');
+      if (ageEl) { ageEl.scrollIntoView({behavior:'smooth', block:'center'}); ageEl.focus(); }
+      return;
+    }
     if (!AP_TEMP.diagnosis.trim() && !AP_DIAG_CONFIRMED) {
       AP_DIAG_CONFIRMED = true;
       AP_OPEN_SECTION = 2; render();
       toast('No diagnosis entered \u2014 tap Save again to continue anyway');
+      setTimeout(() => {
+        const sectionEl = document.getElementById('ap-section-2');
+        if (sectionEl) sectionEl.scrollIntoView({behavior:'smooth', block:'start'});
+      }, 60);
       setTimeout(() => { AP_DIAG_CONFIRMED = false; }, 6000);
       return;
     }
     AP_DIAG_CONFIRMED = false;
     const dupCount = PATIENTS.filter(x => x.id !== AP_TEMP.id && x.name && x.name.toLowerCase() === AP_TEMP.name.trim().toLowerCase()).length;
     if (dupCount > 0) { toast('Note: Another patient named "'+AP_TEMP.name.trim()+'" already exists. Check before saving.'); }
-    if (AP_TEMP.caseType === 'surgical' && AP_TEMP.procedure) { const dupDiag = PATIENTS.find(x => x.id !== AP_TEMP.id && x.name === AP_TEMP.name && x.procedure === AP_TEMP.procedure && x.diagnosis === AP_TEMP.diagnosis); if (dupDiag) { toast('Note: This patient already has a case for "' + AP_TEMP.procedure + '". Check if it\u2019s a duplicate.'); } }
+    const normName = AP_TEMP.name.trim().toLowerCase();
+    const normDiag = (AP_TEMP.diagnosis || '').trim().toLowerCase();
+    if (AP_TEMP.caseType === 'surgical' && AP_TEMP.procedure) {
+      const dupDiag = PATIENTS.find(x => x.id !== AP_TEMP.id && x.name && x.name.trim().toLowerCase() === normName && (x.procedure||'').trim().toLowerCase() === AP_TEMP.procedure.trim().toLowerCase() && (x.diagnosis||'').trim().toLowerCase() === normDiag);
+      if (dupDiag) { toast('Note: This patient already has a case for "' + AP_TEMP.procedure + '". Check if it\u2019s a duplicate.'); }
+    } else if (AP_TEMP.caseType === 'opd' && normDiag) {
+      const dupOpd = PATIENTS.find(x => x.id !== AP_TEMP.id && x.caseType === 'opd' && x.name && x.name.trim().toLowerCase() === normName && (x.diagnosis||'').trim().toLowerCase() === normDiag);
+      if (dupOpd) { toast('Note: This patient already has an OPD case for this diagnosis. Check if it\u2019s a duplicate.'); }
+    }
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
@@ -9768,17 +9840,22 @@ document.addEventListener('click', async (e) => {
     el.disabled = true;
     try {
       await dbPutPatient(p);
-      // Already saved to IndexedDB when picked \u2014 reusing ph.tempId just links them to this follow-up.
+      // Follow-up itself is now safely persisted. Photo saves happen in their own try/catch below
+      // so a photo failure can't roll back the follow-up that already succeeded \u2014 it would be
+      // misleading to tell the doctor "could not save follow-up" when it actually was saved.
+      let photoFailCount = 0;
       for (const ph of FU_INV_PHOTOS) {
         const imgRec = { id: ph.tempId, patientId: p.id, followUpId: fu.id, blob: ph.blob, createdAt: Date.now(), imageCategory: ph.category };
         if (ph.category === 'xray' && ph.xraySubtype) imgRec.xraySubtype = ph.xraySubtype;
         if (ph.category === 'wound') imgRec.isWoundPhoto = true;
-        await dbAddImage(imgRec);
+        try { await dbAddImage(imgRec); } catch (photoErr) { console.error('follow-up photo save failed', photoErr); photoFailCount++; }
       }
       await refreshPatients();
       FU_INV_PHOTOS = []; ADD_FOLLOWUP_OPEN = false;
       await renderTabBody(getPatient(SELECTED_ID));
-      if (nextFuDefaulted) {
+      if (photoFailCount > 0) {
+        toast('\u26a0\ufe0f Follow-up saved, but ' + photoFailCount + ' photo' + (photoFailCount>1?'s':'') + ' couldn\u2019t upload \u2014 try adding again from the follow-up');
+      } else if (nextFuDefaulted) {
         toastWithButton(
           '\u26a0\ufe0f Next follow-up not set \u2014 defaulted to ' + fmtDate(p.nextFollowUpDate) + ' (' + (p.caseType === 'surgical' ? '7' : '5') + ' days)',
           'Edit date',
@@ -9792,7 +9869,7 @@ document.addEventListener('click', async (e) => {
           toastWithButton(
             '\u2713 Follow-up logged \u2014 next visit ' + fmtDate(p.nextFollowUpDate),
             'Send Reminder',
-            () => { window.open(reminderLink, '_blank'); },
+            () => { p.lastReminderSentAt = Date.now(); dbPutPatient(p).then(refreshPatients); window.open(reminderLink, '_blank'); },
             5000
           );
         } else {
@@ -9990,6 +10067,14 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'viewer-delete') {
+    const confirmed = await showConfirmDialog({
+      title: 'Delete this photo?',
+      message: 'This photo will be permanently removed from the patient\u2019s record. This can\u2019t be undone.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      destructive: true
+    });
+    if (!confirmed) return;
     const imgId = el.dataset.imgid;
     const p = getPatient(SELECTED_ID);
     const allImagesBefore = await dbGetImagesByPatient(p.id);
@@ -11366,6 +11451,26 @@ document.addEventListener('change', async (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'ov-whatsapp') {
+    clearTimeout(window.__ovWhatsappValidateTimer);
+    window.__ovWhatsappValidateTimer = setTimeout(() => {
+      const val = e.target.value.trim();
+      const helper = document.getElementById('ov-whatsapp-helper');
+      if (!val) {
+        e.target.classList.remove('valid','invalid');
+        if (helper) { helper.className = 'validation-helper'; helper.innerHTML = ''; }
+        return;
+      }
+      const digits = toWaNumber(val);
+      if (digits.length < 10 || digits.length > 15) {
+        e.target.classList.add('invalid'); e.target.classList.remove('valid');
+        if (helper) { helper.className = 'validation-helper invalid'; helper.innerHTML = '\u2717 Doesn\u2019t look like a complete number'; }
+      } else {
+        e.target.classList.add('valid'); e.target.classList.remove('invalid');
+        if (helper) { helper.className = 'validation-helper valid'; helper.innerHTML = '\u2713 Looks good'; }
+      }
+    }, 300);
+  }
   if (e.target.dataset && e.target.dataset.relfu === 'num') {
     const target = e.target.dataset.relfuTarget;
     const unitEl = document.getElementById(target+'-unit');
