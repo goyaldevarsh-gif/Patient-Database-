@@ -104,8 +104,8 @@
 
   async function canUseAI() {
     if (!isAiTier()) { toast('AI features are for AI tier. Upgrade to enable.'); return false; }
-    if (TOKEN_USAGE.dailyCount >= DAILY_LIMIT) { toast('Daily token limit (15,000) reached. Resets tomorrow.'); return false; }
-    if (TOKEN_USAGE.monthlyCount >= MONTHLY_LIMIT) { toast('Monthly token limit (100,000) reached. Resets next month.'); return false; }
+    if (TOKEN_USAGE.dailyCount >= DAILY_LIMIT) { toast('Daily token limit (' + DAILY_LIMIT.toLocaleString('en-IN') + ') reached. Resets tomorrow.'); return false; }
+    if (TOKEN_USAGE.monthlyCount >= MONTHLY_LIMIT) { toast('Monthly token limit (' + MONTHLY_LIMIT.toLocaleString('en-IN') + ') reached. Resets next month.'); return false; }
     return true;
   }
 
@@ -782,7 +782,18 @@ async function storeOf(name, mode) { const db = await openDB(); return db.transa
 function reqToPromise(req) { return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); }
 
 async function dbGetAllPatients() { const s = await storeOf('patients','readonly'); return reqToPromise(s.getAll()); }
-async function dbPutPatient(p) { const s = await storeOf('patients','readwrite'); const r = await reqToPromise(s.put(p)); syncPatientToCloud(p); return r; }
+async function dbPutPatient(p) {
+  try {
+    const s = await storeOf('patients','readwrite');
+    const r = await reqToPromise(s.put(p));
+    syncPatientToCloud(p);
+    return r;
+  } catch (err) {
+    console.error('dbPutPatient failed:', err);
+    if (typeof toast === 'function') toast('\u26a0\ufe0f Save failed \u2014 ' + (err && err.message ? err.message : 'storage error') + '. Data may not be saved!');
+    throw err;
+  }
+}
 async function dbDeletePatient(id) { const s = await storeOf('patients','readwrite'); const r = await reqToPromise(s.delete(id)); deletePatientFromCloud(id); return r; }
 
 async function dbGetAllClinicalBank() { const s = await storeOf('clinicalBank','readonly'); return reqToPromise(s.getAll()); }
@@ -2016,8 +2027,8 @@ let ARMED_DELETE = null;
 
 // Token usage tracking (AI tier only)
 let TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
-const DAILY_LIMIT = 15000;
-const MONTHLY_LIMIT = 100000;
+const DAILY_LIMIT = 100000;
+const MONTHLY_LIMIT = 1000000;
 let SHOW_ALL_ATTENTION = false;
 let SHOW_TOMORROW_LIST = true;
 let SHOW_ADD_MENU = false;
@@ -2699,7 +2710,7 @@ async function classifyMasterVoiceIntent(transcript) {
     const askClaude = callGeminiDirect;
     const currentPatient = (VIEW === 'detail' && SELECTED_ID) ? getPatient(SELECTED_ID) : null;
     const contextLine = currentPatient ? ('\n\nContext: the doctor currently has ' + currentPatient.name + '\u2019s case open on screen \u2014 so "iska"/"is patient ka"/"isko"/"this patient" refers to ' + currentPatient.name + ' unless a different name is clearly said.') : '';
-    const sys = 'You interpret a spoken or typed command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "set_followup" | "summarize_patient" | "referral_letter" | "query_patients" | "list_by_condition" | "generate_digest_report" | "add_investigation" | "add_injection" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-assistant","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "patientAge": number or null, "patientSex": "M" or "F" or null, "diagnosis": string or null, "chiefComplaints": string or null, "side": "Left" or "Right" or "Bilateral" or null, "followUpDate": "YYYY-MM-DD" or null, "referralSpecialist": string or null, "referralReason": string or null, "condition": one of "ctev","ra","osteo","trauma", or null, "queryFilter": string or null (free-text description of what to filter/search for across all patients, e.g. "opd cases", "knee surgeries last month"), "investigationName": string or null, "investigationValue": string or null, "investigationUnit": string or null, "injectionType": string or null, "injectionSite": string or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen \u2014 if any clinical details were captured, mention that they\u2019ve been filled in and just need a quick check, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: any generic "patient add karna hai" / "naya case banao" / "add a new patient" \u2192 new_case. Extract EVERY clinical detail mentioned in the same breath \u2014 age, sex, diagnosis, side, chief complaints \u2014 into the matching fields above, even if a lot was said at once. "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "calendar/reminders/follow-ups dikhao" \u2192 open_view view=calendar. "sab patients ke baare mein sawaal poochna hai" \u2192 open_view view=ai-query. "kuch bhi pooch sakta hoon" / general clinical/technique question not tied to a specific patient \u2192 open_view view=ai-assistant. "X ko [date] follow-up ke liye bulao" \u2192 set_followup with patientQuery=X and followUpDate resolved from today\u2019s date (kal/tomorrow, N din baad, agle hafte, explicit dates, etc). "iska/is patient ka summary banao" \u2192 summarize_patient with patientQuery=name if said, else null (falls back to currently open patient). "iska referral letter banao [specialist] ke liye" \u2192 referral_letter with patientQuery, referralSpecialist, referralReason. "sab CTEV/RA/osteoporosis/trauma cases dikhao" / "list of X condition patients" \u2192 list_by_condition with condition set. "OPD cases dikhao" / "last month ke surgical cases" / any broader filtered listing of patients not tied to one named condition \u2192 query_patients with queryFilter describing what was asked. "practice ka report do" / "is week ka summary" \u2192 generate_digest_report. "iska/is patient ka investigation/lab add karo [name] [value] [unit]" \u2192 add_investigation with patientQuery (falls back to open patient), investigationName, investigationValue, investigationUnit. "isko/is patient ko injection do [type] [site]" \u2192 add_injection with patientQuery, injectionType, injectionSite. If genuinely ambiguous or unsupported (editing/deleting a specific field other than follow-up date, etc.), use "unclear".' + contextLine;
+    const sys = 'You interpret a spoken or typed command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "set_followup" | "summarize_patient" | "referral_letter" | "query_patients" | "list_by_condition" | "generate_digest_report" | "add_investigation" | "add_injection" | "update_field" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-assistant","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "patientAge": number or null, "patientSex": "M" or "F" or null, "diagnosis": string or null, "chiefComplaints": string or null, "side": "Left" or "Right" or "Bilateral" or null, "followUpDate": "YYYY-MM-DD" or null, "referralSpecialist": string or null, "referralReason": string or null, "condition": one of "ctev","ra","osteo","trauma", or null, "queryFilter": string or null (free-text description of what to filter/search for across all patients, e.g. "opd cases", "knee surgeries last month"), "investigationName": string or null, "investigationValue": string or null, "investigationUnit": string or null, "injectionType": string or null, "injectionSite": string or null, "fieldName": one of "whatsapp","diagnosis","chiefComplaints","notes","status","side", or null, "fieldValue": string or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen \u2014 if any clinical details were captured, mention that they\u2019ve been filled in and just need a quick check, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: any generic "patient add karna hai" / "naya case banao" / "add a new patient" \u2192 new_case. Extract EVERY clinical detail mentioned in the same breath \u2014 age, sex, diagnosis, side, chief complaints \u2014 into the matching fields above, even if a lot was said at once. "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "calendar/reminders/follow-ups dikhao" \u2192 open_view view=calendar. "sab patients ke baare mein sawaal poochna hai" \u2192 open_view view=ai-query. "kuch bhi pooch sakta hoon" / general clinical/technique question not tied to a specific patient \u2192 open_view view=ai-assistant. "X ko [date] follow-up ke liye bulao" \u2192 set_followup with patientQuery=X and followUpDate resolved from today\u2019s date (kal/tomorrow, N din baad, agle hafte, explicit dates, etc). "iska/is patient ka summary banao" \u2192 summarize_patient with patientQuery=name if said, else null (falls back to currently open patient). "iska referral letter banao [specialist] ke liye" \u2192 referral_letter with patientQuery, referralSpecialist, referralReason. "sab CTEV/RA/osteoporosis/trauma cases dikhao" / "list of X condition patients" \u2192 list_by_condition with condition set. "OPD cases dikhao" / "last month ke surgical cases" / any broader filtered listing of patients not tied to one named condition \u2192 query_patients with queryFilter describing what was asked. "practice ka report do" / "is week ka summary" \u2192 generate_digest_report. "iska/is patient ka investigation/lab add karo [name] [value] [unit]" \u2192 add_investigation with patientQuery (falls back to open patient), investigationName, investigationValue, investigationUnit. "isko/is patient ko injection do [type] [site]" \u2192 add_injection with patientQuery, injectionType, injectionSite. "X ka phone/whatsapp number update karo [number]" / "iska diagnosis change karo [new diagnosis]" / "isme note add karo [text]" / "status active/inactive karo" / "side change karo left/right/bilateral" \u2192 update_field with patientQuery (falls back to open patient), fieldName set to the matching field, and fieldValue holding the new value exactly as said (for whatsapp, digits only). If genuinely ambiguous or unsupported (editing a field not in the fieldName list, deleting records, etc.), use "unclear".' + contextLine;
     const result = await askClaude({ systemPrompt: sys, userMessage: transcript, maxTokens: 350 });
     let raw = (result.data.text || '').trim();
     raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
@@ -2833,13 +2844,17 @@ async function executeMasterVoiceAction() {
       if (target) {
         try {
           if (r.action === 'add_investigation') {
-            const inv = { id: uid(), label: r.investigationName || 'Investigation', paramName: r.investigationName || '', date: todayStr(), notes: '', value: r.investigationValue || '', unit: r.investigationUnit || '', imageCount: 0 };
+            const invLabel = r.investigationName || 'Investigation';
+            const inv = { id: uid(), label: invLabel, paramName: '', date: todayStr(), notes: '', value: r.investigationValue || '', unit: r.investigationUnit || '', imageCount: 0 };
             target.investigations = target.investigations || [];
             target.investigations.push(inv);
+            recordTextUsed(INVESTIGATION_LIB_KEY, invLabel);
           } else {
-            const inj = { id: uid(), type: r.injectionType || '', site: r.injectionSite || '', date: todayStr(), notes: '' };
+            const injLabel = [r.injectionType, r.injectionSite].filter(Boolean).join(' \u2014 ') || 'Injection';
+            const inj = { id: uid(), label: injLabel, date: todayStr(), notes: '' };
             target.injections = target.injections || [];
             target.injections.push(inj);
+            recordTextUsed(INJECTION_LIB_KEY, injLabel);
           }
           await dbPutPatient(target);
           await refreshPatients();
@@ -2850,6 +2865,41 @@ async function executeMasterVoiceAction() {
           console.error('Voice add_investigation/add_injection failed:', err);
           toast('Save failed \u2014 try again');
         }
+      }
+    } else if (r.action === 'update_field') {
+      let target = null;
+      if (r.patientQuery) {
+        const q = r.patientQuery.toLowerCase();
+        const matches = PATIENTS.filter(p => p.name && p.name.toLowerCase().includes(q));
+        if (matches.length === 1) { target = matches[0]; }
+        else { SEARCH = r.patientQuery; VIEW = 'list'; toast(matches.length === 0 ? 'Patient not found \u2014 showing search instead' : matches.length + ' matches found \u2014 open the right one'); }
+      } else if (VIEW === 'detail' && SELECTED_ID) {
+        target = getPatient(SELECTED_ID);
+      } else {
+        toast('Kis patient ke liye, naam bhi boliye');
+      }
+      const allowedFields = ['whatsapp', 'diagnosis', 'chiefComplaints', 'notes', 'status', 'side'];
+      if (target && r.fieldName && allowedFields.includes(r.fieldName) && r.fieldValue) {
+        try {
+          let value = r.fieldValue;
+          if (r.fieldName === 'whatsapp') value = value.replace(/[^0-9+]/g, '');
+          if (r.fieldName === 'status') value = /inactive|closed|band/i.test(value) ? 'Inactive' : 'Active';
+          if (r.fieldName === 'side') {
+            const sv = value.toLowerCase();
+            value = sv.includes('bilat') ? 'Bilateral' : sv.includes('left') || sv.includes('baayan') ? 'Left' : sv.includes('right') || sv.includes('daaya') ? 'Right' : value;
+          }
+          target[r.fieldName] = value;
+          await dbPutPatient(target);
+          await refreshPatients();
+          SELECTED_ID = target.id;
+          VIEW = 'detail';
+          toast(target.name + '\u2019s ' + r.fieldName + ' updated');
+        } catch (err) {
+          console.error('Voice update_field failed:', err);
+          toast('Update failed \u2014 try again');
+        }
+      } else if (target) {
+        toast('Field ya value samajh nahi aaya \u2014 dobara try karein');
       }
     }
   }
@@ -3393,7 +3443,7 @@ function renderPatientAiToolsView() {
 
   const summaryContent = AI_PATIENT_SUMMARY
     ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-patient-summary-text')+'</div><div class="card" id="ai-patient-summary-text" style="white-space:pre-wrap;font-size:12.5px;">'+esc(AI_PATIENT_SUMMARY)+'</div>'
-    : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">A quick 2-3 sentence clinical recap for your own reference.</p>'+aiButtonHtml('ai-summarize-patient','Generate summary',false,null,'claude'));
+    : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">A quick 2-3 sentence clinical recap for your own reference.</p>'+aiButtonHtml('ai-summarize-patient','Generate summary',false,null,'gemini'));
 
   const referralContent = '<label class="field-label">Refer to (specialty / doctor name)</label>'
     + '<input class="input" id="ai-referral-specialist" placeholder="e.g. Rheumatologist, Physiotherapy, Dr. Sharma" value="'+esc(AI_REFERRAL_SPECIALIST)+'" style="margin-bottom:8px;">'
@@ -3402,7 +3452,7 @@ function renderPatientAiToolsView() {
     + (AI_REFERRAL_LETTER
         ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-referral-letter-text')+'</div><div class="card" id="ai-referral-letter-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_REFERRAL_LETTER)+'</div>'
           + '<button class="btn btn-block" data-action="print-referral-letter">'+ic('printer')+' Print with letterhead</button>'
-        : aiButtonHtml('ai-generate-referral','Draft referral letter',false,null,'claude'));
+        : aiButtonHtml('ai-generate-referral','Draft referral letter',false,null,'gemini'));
 
   const body = aiToolAccordionHtml('summary', 'sparkle', 'Summarize this patient', summaryContent)
     + aiToolAccordionHtml('referral', 'printer', 'Referral letter', referralContent);
@@ -3675,6 +3725,7 @@ async function renderMoreView() {
         + moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import')
         + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
         + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
+        + moreRowHtml('shield', 'Find Duplicate Patients', 'Scan for likely-duplicate cases by name and merge them safely', 'open-duplicate-finder')
     },
     { key:'reference', title:'Reference & Research', icon:'bookmark', rows:
         moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
@@ -5362,8 +5413,8 @@ function apDiagAiSuggestBlockHtml() {
   if (!isAiTier() || !(AP_TEMP.diagnosis || AP_TEMP.chiefComplaints)) return '';
   return '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);">'
     + '<div class="row gap2" style="flex-wrap:wrap;">'
-    + (AI_INVESTIGATION_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-investigations','Investigations',false,null,'claude') : '')
-    + (AI_EXAM_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-exam','What to examine',false,null,'claude') : '')
+    + (AI_INVESTIGATION_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-investigations','Investigations',false,null,'gemini') : '')
+    + (AI_EXAM_SUGGESTIONS === null ? aiButtonHtml('ai-suggest-exam','What to examine',false,null,'gemini') : '')
     + '</div>'
     + (AI_INVESTIGATION_SUGGESTIONS && AI_INVESTIGATION_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">Investigations (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_INVESTIGATION_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
     + (AI_EXAM_SUGGESTIONS && AI_EXAM_SUGGESTIONS.length ? '<div style="margin-top:6px;"><label class="field-label" style="margin-bottom:2px;">To examine (reference)</label><ul style="margin:0;padding-left:16px;font-size:12px;color:#334155;">'+AI_EXAM_SUGGESTIONS.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ul></div>' : '')
@@ -6353,7 +6404,7 @@ async function renderPrescriptionsTab(p) {
       + (!profileIsComplete(profile) ? '<div class="cspine-alert" style="margin-bottom:10px;">'+ic('alert')+' Doctor profile incomplete \u2014 <button data-action="open-settings" style="text-decoration:underline;background:none;border:none;color:inherit;font-weight:700;padding:0;">complete it first</button>, or the letterhead will be incomplete.</div>' : '')
       + '<label class="field-label">Date</label><input class="input" type="date" id="rx-date" value="'+esc(RX_TEMP.date)+'" style="margin-bottom:12px;">'
       + ((p.prescriptions||[]).length ? '<button class="btn btn-sm" style="margin-bottom:12px;" data-action="repeat-last-rx">'+ic('copy')+' Repeat last prescription ('+fmtDate(p.prescriptions[p.prescriptions.length-1].date)+')</button>' : '')
-      + (isAiTier() ? '<div style="margin-bottom:12px;">'+aiButtonHtml('ai-draft-rx','AI: Draft from diagnosis/notes',true,null,'claude')+'</div>' : '')
+      + (isAiTier() ? '<div style="margin-bottom:12px;">'+aiButtonHtml('ai-draft-rx','AI: Draft from diagnosis/notes',true,null,'gemini')+'</div>' : '')
       + renderRxTemplatesRow()
       + renderQuickAddChips()
       + '<div id="rx-med-rows">'+renderRxMedRows()+'</div>'
@@ -7837,6 +7888,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'ai-query') { app.innerHTML = renderAiQueryView(); return; }
   if (VIEW === 'ai-digest') { app.innerHTML = renderAiDigestView(); return; }
   if (VIEW === 'ai-assistant') { app.innerHTML = renderAiAssistantView(); return; }
+  if (VIEW === 'duplicate-finder') { app.innerHTML = await renderDuplicateFinderView(); return; }
   if (VIEW === 'ai-hub') { app.innerHTML = renderAiHubView(); return; }
   if (VIEW === 'content-ideas') { app.innerHTML = renderContentIdeasTab(); return; }
   if (VIEW === 'academic-vault') { app.innerHTML = renderAcademicVaultTab(); return; }
@@ -8086,6 +8138,93 @@ function csvCell(v) {
   const s = (v==null?'':String(v)).replace(/"/g,'""');
   return '"' + s + '"';
 }
+/* ================= Duplicate Patient Finder & Merge ================= */
+let DUP_MERGE_PRIMARY = {}; // groupIndex -> patientId chosen as primary
+let DUP_MERGING = null; // groupIndex currently merging (shows spinner)
+
+function normalizeNameForDup(name) {
+  return (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+function findDuplicatePatientGroups() {
+  const byName = {};
+  PATIENTS.forEach(p => {
+    const key = normalizeNameForDup(p.name);
+    if (!key) return;
+    (byName[key] = byName[key] || []).push(p);
+  });
+  return Object.values(byName).filter(g => g.length > 1);
+}
+
+async function renderDuplicateFinderView() {
+  const groups = findDuplicatePatientGroups();
+  let body;
+  if (!groups.length) {
+    body = '<div class="card" style="text-align:center;padding:30px 16px;color:var(--muted);">'+ic('shield')+'<p style="margin-top:10px;font-size:13px;">No likely duplicates found \u2014 matched by exact patient name.</p></div>';
+  } else {
+    body = groups.map((g, gi) => {
+      const primaryId = DUP_MERGE_PRIMARY[gi] || g[0].id;
+      const rows = g.map(p => {
+        const isPrimary = p.id === primaryId;
+        return '<label class="card" style="display:flex;align-items:flex-start;gap:10px;margin-bottom:8px;'+(isPrimary?'border-color:var(--accent);background:rgba(67,56,202,0.04);':'')+'">'
+          + '<input type="radio" name="dup-primary-'+gi+'" data-action="dup-set-primary" data-group="'+gi+'" data-id="'+p.id+'" style="margin-top:3px;" '+(isPrimary?'checked':'')+'>'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-weight:700;font-size:13px;">'+esc(p.name)+' <span style="font-weight:400;color:var(--muted);font-size:11px;">'+esc(p.patientCode||'')+'</span></div>'
+          + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">'+formatAge(p)+(p.sex?', '+esc(p.sex):'')+' \u00b7 '+(p.caseType==='surgical'?'Surgical':'OPD')+(p.diagnosis?' \u00b7 '+esc(p.diagnosis):'')+'</div>'
+          + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+(p.followUps||[]).length+' follow-ups \u00b7 '+(p.investigations||[]).length+' investigations \u00b7 '+(p.injections||[]).length+' injections \u00b7 created '+fmtDate(new Date(p.createdAt||0).toISOString().split('T')[0])+'</div>'
+          + (isPrimary ? '<div style="font-size:10.5px;color:var(--accent-dark);font-weight:700;margin-top:4px;">'+ic('check')+' Kept as primary</div>' : '')
+          + '</div></label>';
+      }).join('');
+      return '<div style="margin-bottom:20px;">'
+        + '<div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:700;">POSSIBLE DUPLICATE \u2014 '+g.length+' records named "'+esc(g[0].name)+'"</div>'
+        + rows
+        + '<button class="btn btn-primary btn-block btn-sm" data-action="dup-merge-group" data-group="'+gi+'" '+(DUP_MERGING===gi?'disabled':'')+'>'+(DUP_MERGING===gi?'<span class="spinner"></span> Merging\u2026':ic('check')+' Merge into primary \u2014 others will be deleted')+'</button>'
+        + '</div>';
+    }).join('<div style="border-top:1px dashed var(--border);margin:16px 0;"></div>');
+  }
+  return '<div class="px" style="padding-top:16px;padding-bottom:60px;">'
+    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-duplicate-finder">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Find Duplicate Patients</h2><span style="width:36px;"></span></div>'
+    + '<div class="card" style="background:#fffbeb;border-color:#fde68a;margin-bottom:14px;"><p style="font-size:11.5px;color:#92400e;margin:0;line-height:1.5;">Matched by exact patient name. Pick which record to keep as <b>primary</b> \u2014 follow-ups, investigations, injections and photos from the other record(s) are merged into it, then the duplicates are deleted. This cannot be undone.</p></div>'
+    + body
+    + '</div>';
+}
+
+async function mergeDuplicateGroup(groupIndex) {
+  const groups = findDuplicatePatientGroups();
+  const group = groups[groupIndex];
+  if (!group) return;
+  const primaryId = DUP_MERGE_PRIMARY[groupIndex] || group[0].id;
+  const primary = group.find(p => p.id === primaryId);
+  const dupes = group.filter(p => p.id !== primaryId);
+  if (!primary || !dupes.length) return;
+  DUP_MERGING = groupIndex;
+  await render();
+  try {
+    for (const dup of dupes) {
+      primary.followUps = (primary.followUps || []).concat(dup.followUps || []);
+      primary.investigations = (primary.investigations || []).concat(dup.investigations || []);
+      primary.prescriptions = (primary.prescriptions || []).concat(dup.prescriptions || []);
+      primary.injections = (primary.injections || []).concat(dup.injections || []);
+      primary.tags = Array.from(new Set([...(primary.tags||[]), ...(dup.tags||[])]));
+      // Move over any images pointing at the duplicate patient
+      const imgs = await dbGetImagesByPatient(dup.id);
+      for (const img of imgs) {
+        img.patientId = primary.id;
+        await dbAddImage(img);
+      }
+      await dbDeletePatient(dup.id);
+    }
+    await dbPutPatient(primary);
+    await refreshPatients();
+    toast('Merged ' + dupes.length + ' duplicate' + (dupes.length>1?'s':'') + ' into ' + primary.name);
+  } catch (err) {
+    console.error('Merge duplicate patients failed:', err);
+    toast('Merge failed \u2014 try again');
+  }
+  DUP_MERGING = null;
+  delete DUP_MERGE_PRIMARY[groupIndex];
+  await render();
+}
+
 function exportResearchCasesCsv() {
   const flagged = PATIENTS.filter(p => p.researchFlag);
   const headers = ['Patient ID','Name','Age','Sex','Diagnosis','Chief Complaints','Procedure','Case Type','Date','Why interesting'];
@@ -9923,18 +10062,6 @@ document.addEventListener('click', async (e) => {
     return;
   }
   
-  if (action === 'fu-next-quick') {
-    haptic(10);
-    const days = parseInt(el.dataset.days, 10);
-    const nextDate = new Date(todayStr());
-    nextDate.setDate(nextDate.getDate() + days);
-    const nextEl = document.getElementById('fu-next-followup');
-    if (nextEl) nextEl.value = nextDate.toISOString().split('T')[0];
-    const row = el.parentElement;
-    if (row) row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-    el.classList.add('active');
-    return;
-  }
   
   if (action === 'submit-fu') {
     const p = getPatient(SELECTED_ID);
@@ -10339,6 +10466,10 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+  if (action === 'open-duplicate-finder') { DUP_MERGE_PRIMARY = {}; DUP_MERGING = null; VIEW = 'duplicate-finder'; await render(); window.scrollTo(0,0); return; }
+  if (action === 'close-duplicate-finder') { VIEW = 'more'; render(); return; }
+  if (action === 'dup-set-primary') { DUP_MERGE_PRIMARY[el.dataset.group] = el.dataset.id; await render(); return; }
+  if (action === 'dup-merge-group') { await mergeDuplicateGroup(parseInt(el.dataset.group, 10)); return; }
   if (action === 'export-case-log') { 
     if (!isProOrAbove()) { toast('Export Case Log is a Pro feature. Upgrade to enable.'); return; }
     exportCaseLogCsv(); 
