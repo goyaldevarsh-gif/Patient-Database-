@@ -371,8 +371,8 @@
   .img-note-caption { position:absolute; top:calc(64px + env(safe-area-inset-top, 0px)); left:16px; right:16px; z-index:2; background:rgba(245,158,11,0.95); color:#1e293b; font-weight:700; font-size:13px; padding:10px 14px; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,0.25); display:flex; align-items:flex-start; gap:6px; }
   .modal-label { color:#fff; font-size:12px; margin-top:10px; opacity:0.8; }
 
-  .toast { position:fixed; bottom:14px; left:50%; transform:translateX(-50%) translateY(0); z-index:40; background:rgba(15,23,42,0.94); color:#fff; font-size:12px; font-weight:600; padding:8px 16px; border-radius:999px; opacity:1; transition:opacity 200ms ease, transform 200ms ease; max-width:90vw; overflow:hidden; text-overflow:ellipsis; white-space:normal; display:flex; align-items:center; justify-content:space-between; gap:8px; }
-  .toast.toast-hidden { opacity:0; transform:translateX(-50%) translateY(6px); pointer-events:none; }
+  .toast { position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(0); z-index:40; background:#1e293b; color:#fff; font-size:13px; font-weight:600; padding:12px 18px; border-radius:10px; opacity:1; transition:opacity 250ms ease, transform 250ms ease; max-width:85vw; overflow:hidden; text-overflow:ellipsis; white-space:normal; display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow:0 8px 24px rgba(0,0,0,0.25); border:1px solid rgba(255,255,255,0.1); line-height:1.4; }
+  .toast.toast-hidden { opacity:0; transform:translateX(-50%) translateY(8px); pointer-events:none; }
 
   .ocr-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.55); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px); z-index:60; display:flex; align-items:flex-end; justify-content:center; }
   .ocr-card { background:var(--bg,#fff); width:100%; max-width:520px; max-height:88vh; overflow-y:auto; border-radius:20px 20px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); box-shadow:0 -8px 30px rgba(0,0,0,0.25); }
@@ -1984,6 +1984,8 @@ let VIEW = 'list';
 let SELECTED_ID = null;
 let SEARCH = '';
 let FILTER_TYPE = 'all';
+let MASTER_AI_OPEN = false;
+let MASTER_AI_INPUT = '';
 const FILTER_STATE_KEY = 'surgical-case-log-filter-state-v1';
 const TAB_STATE_KEY = 'surgical-case-log-tab-state-v1';
 function saveTabState() { try { localStorage.setItem(TAB_STATE_KEY, TAB); } catch(e) {} }
@@ -2358,7 +2360,7 @@ function newPatientShape() {
     side:'N/A', surgeryDate: todayStr(), status:'Active', notes:'', whatsapp:'',
     lastReminderSentAt: null, followUpSnoozeCount: 0, researchFlag: false, researchNote: '',
     nextFollowUpDate:'',
-    preOpImageCount:0, followUps:[], investigations:[], prescriptions:[],
+    preOpImageCount:0, followUps:[], investigations:[], prescriptions:[], injections:[],
     ctev: null, ra: null, osteo: null,
     preOpWound: { status:'', notes:'' },
     tags: [],
@@ -2413,9 +2415,10 @@ function topTextChips(key, n) {
 function renderQuickTextChips(key, targetId) {
   const chips = topTextChips(key, 6);
   if (!chips.length) return '';
-  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;">'
-    + chips.map(c => '<button type="button" class="chip" data-action="quick-fill-text" data-target="'+targetId+'" data-value="'+esc(c.value)+'">'+esc(c.value)+'</button>').join('')
-    + '</div>';
+  return '<details style="margin:0 0 6px;"><summary style="cursor:pointer;font-size:10px;color:var(--muted);font-weight:600;user-select:none;padding:2px 0;">Previous: '+chips.length+' suggestions</summary>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px;">'
+    + chips.map(c => '<button type="button" class="chip" style="font-size:10px;padding:3px 8px;" data-action="quick-fill-text" data-target="'+targetId+'" data-value="'+esc(c.value)+'">'+esc(c.value)+'</button>').join('')
+    + '</div></details>';
 }
 /* Live-filtering autocomplete, shown under a field as the person types (2+ chars) */
 function autocompleteBoxHtml(targetId) {
@@ -2630,7 +2633,7 @@ function speakButtonHtml(sourceId, lang) {
   return '<button type="button" class="icon-btn speak-btn" data-action="speak-text" data-source="'+sourceId+'" data-lang="'+(lang||'en-IN')+'" title="Read aloud" style="font-size:16px;">\ud83d\udd0a</button>';
 }
 async function generatePatientSummaryText(p) {
-  const askClaude = firebaseFunctions.httpsCallable('askClaude');
+  const askClaude = callGeminiDirect;
   const sys = 'You write a crisp 2-3 sentence clinical summary of an orthopaedic patient for the treating doctor\u2019s own quick reference \u2014 not for another audience. Cover: who they are, what\u2019s going on, and current status/what\u2019s next. Plain text only, no markdown, no headers.';
   const context = 'Name: ' + p.name + '\nAge/Sex: ' + formatAge(p) + ' / ' + (p.sex||'') + '\nCase type: ' + (p.caseType==='surgical'?'Surgical':'OPD')
     + '\nDiagnosis: ' + (p.diagnosis || p.chiefComplaints || '\u2014')
@@ -2643,7 +2646,7 @@ async function generatePatientSummaryText(p) {
   return (result.data.text || '').trim();
 }
 async function generateReferralLetterText(p, specialist, reason) {
-  const askClaude = firebaseFunctions.httpsCallable('askClaude');
+  const askClaude = callGeminiDirect;
   const isSurgical = p.caseType === 'surgical';
   const sys = 'You draft a short, professional medical referral letter from one doctor to another, to be printed on the referring doctor\u2019s letterhead. Include: a brief greeting to the specialist, a concise case summary (relevant history, diagnosis, findings, treatment so far), the specific reason for referral, and a polite closing requesting their evaluation/opinion. Plain text only, no markdown, no placeholders in brackets except where truly unavoidable.';
   const context = 'Patient: ' + p.name + ', ' + formatAge(p) + ' / ' + (p.sex||'')
@@ -2696,8 +2699,8 @@ async function classifyMasterVoiceIntent(transcript) {
     const askClaude = callGeminiDirect;
     const currentPatient = (VIEW === 'detail' && SELECTED_ID) ? getPatient(SELECTED_ID) : null;
     const contextLine = currentPatient ? ('\n\nContext: the doctor currently has ' + currentPatient.name + '\u2019s case open on screen \u2014 so "iska"/"is patient ka"/"isko"/"this patient" refers to ' + currentPatient.name + ' unless a different name is clearly said.') : '';
-    const sys = 'You interpret a spoken command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "set_followup" | "summarize_patient" | "referral_letter" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-assistant","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "patientAge": number or null, "patientSex": "M" or "F" or null, "diagnosis": string or null, "chiefComplaints": string or null, "side": "Left" or "Right" or "Bilateral" or null, "followUpDate": "YYYY-MM-DD" or null, "referralSpecialist": string or null, "referralReason": string or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the spoken command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen \u2014 if any clinical details were captured (age/sex/diagnosis/side), mention that they\u2019ve been filled in and just need a quick check, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: any generic "patient add karna hai" / "naya case banao" / "add a new patient" \u2014 \u2192 new_case. Extract EVERY clinical detail mentioned in the same breath \u2014 age, sex, diagnosis, side, chief complaints \u2014 into the matching fields above, even if a lot was said at once; don\u2019t discard anything just because the command is long. "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "calendar/reminders/follow-ups dikhao" \u2192 open_view view=calendar. "sab patients ke baare mein sawaal poochna hai" / "apne pure patient list mein se dhoondo" (a question spanning the whole patient list, not one specific patient and not a general knowledge question) \u2192 open_view view=ai-query. "kuch bhi pooch sakta hoon" / a general clinical/technique question not tied to a specific patient or the patient list \u2192 open_view view=ai-assistant. "X ko/is patient ko [date/relative-date] follow-up ke liye bulao" / "X ka follow-up [date] rakho" \u2192 set_followup with patientQuery=X and followUpDate computed from today\u2019s date given above (resolve "kal"/"tomorrow", "N din baad", "agle hafte", explicit dates, etc. into an actual YYYY-MM-DD). "iska/is patient ka summary/summary banao/case recap do" \u2192 summarize_patient with patientQuery=name if a name was said, else null (falls back to the currently open patient from context). "iska/is patient ka referral letter banao [specialist] ke liye [reason]" / "refer to [specialist]" \u2192 referral_letter with patientQuery (same rule as above), referralSpecialist, and referralReason if mentioned. If genuinely ambiguous or unsupported (e.g. asking to edit/delete a specific field other than follow-up date, or anything not covered above), use "unclear".' + contextLine;
-    const result = await askClaude({ systemPrompt: sys, userMessage: transcript, maxTokens: 300 });
+    const sys = 'You interpret a spoken or typed command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "set_followup" | "summarize_patient" | "referral_letter" | "query_patients" | "list_by_condition" | "generate_digest_report" | "add_investigation" | "add_injection" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-assistant","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "patientAge": number or null, "patientSex": "M" or "F" or null, "diagnosis": string or null, "chiefComplaints": string or null, "side": "Left" or "Right" or "Bilateral" or null, "followUpDate": "YYYY-MM-DD" or null, "referralSpecialist": string or null, "referralReason": string or null, "condition": one of "ctev","ra","osteo","trauma", or null, "queryFilter": string or null (free-text description of what to filter/search for across all patients, e.g. "opd cases", "knee surgeries last month"), "investigationName": string or null, "investigationValue": string or null, "investigationUnit": string or null, "injectionType": string or null, "injectionSite": string or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen \u2014 if any clinical details were captured, mention that they\u2019ve been filled in and just need a quick check, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: any generic "patient add karna hai" / "naya case banao" / "add a new patient" \u2192 new_case. Extract EVERY clinical detail mentioned in the same breath \u2014 age, sex, diagnosis, side, chief complaints \u2014 into the matching fields above, even if a lot was said at once. "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "calendar/reminders/follow-ups dikhao" \u2192 open_view view=calendar. "sab patients ke baare mein sawaal poochna hai" \u2192 open_view view=ai-query. "kuch bhi pooch sakta hoon" / general clinical/technique question not tied to a specific patient \u2192 open_view view=ai-assistant. "X ko [date] follow-up ke liye bulao" \u2192 set_followup with patientQuery=X and followUpDate resolved from today\u2019s date (kal/tomorrow, N din baad, agle hafte, explicit dates, etc). "iska/is patient ka summary banao" \u2192 summarize_patient with patientQuery=name if said, else null (falls back to currently open patient). "iska referral letter banao [specialist] ke liye" \u2192 referral_letter with patientQuery, referralSpecialist, referralReason. "sab CTEV/RA/osteoporosis/trauma cases dikhao" / "list of X condition patients" \u2192 list_by_condition with condition set. "OPD cases dikhao" / "last month ke surgical cases" / any broader filtered listing of patients not tied to one named condition \u2192 query_patients with queryFilter describing what was asked. "practice ka report do" / "is week ka summary" \u2192 generate_digest_report. "iska/is patient ka investigation/lab add karo [name] [value] [unit]" \u2192 add_investigation with patientQuery (falls back to open patient), investigationName, investigationValue, investigationUnit. "isko/is patient ko injection do [type] [site]" \u2192 add_injection with patientQuery, injectionType, injectionSite. If genuinely ambiguous or unsupported (editing/deleting a specific field other than follow-up date, etc.), use "unclear".' + contextLine;
+    const result = await askClaude({ systemPrompt: sys, userMessage: transcript, maxTokens: 350 });
     let raw = (result.data.text || '').trim();
     raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
     MASTER_VOICE_RESULT = JSON.parse(raw);
@@ -2782,6 +2785,70 @@ async function executeMasterVoiceAction() {
             console.error('Voice AI generation failed:', err);
             toast('AI generation failed \u2014 try again');
           }
+        }
+      }
+    } else if (r.action === 'query_patients' || r.action === 'list_by_condition') {
+      MASTER_VOICE_STATE = 'thinking';
+      updateMasterVoiceUI();
+      try {
+        const askClaude = callGeminiDirect;
+        const dataSummary = buildPatientDataSummaryForAi();
+        const sys = 'You are a data assistant for a single orthopaedic doctor\u2019s own patient log. Below is their patient list, one per line: PatientID | Name | Sex | Age | CaseType | Diagnosis | Side | SpecialCondition | SurgeryType | Classification | Procedure | date:SurgeryDate | next-fu:NextFollowUpDate | tags:Tag1,Tag2\n\nAnswer using ONLY this data. If listing patients, include Name and PatientID. Be concise. If nothing matches, say so plainly. Do not invent data not present in the list.\n\nPATIENT LIST:\n' + dataSummary;
+        const question = r.action === 'list_by_condition' ? ('List all patients with condition: ' + (r.condition || r.queryFilter || '')) : (r.queryFilter || MASTER_VOICE_TRANSCRIPT || 'Show matching patients');
+        AI_QUERY_TEXT = question;
+        const result = await askClaude({ systemPrompt: sys, userMessage: question, maxTokens: 1024 });
+        AI_QUERY_ANSWER = result.data.text || '(empty response)';
+        VIEW = 'ai-query';
+      } catch (err) {
+        console.error('Voice query_patients failed:', err);
+        toast('Query failed \u2014 try again');
+      }
+    } else if (r.action === 'generate_digest_report') {
+      MASTER_VOICE_STATE = 'thinking';
+      updateMasterVoiceUI();
+      try {
+        const askClaude = callGeminiDirect;
+        const stats = computeWeeklyDigestStats();
+        const sys = 'You write a short, friendly 2-3 sentence practice summary for a doctor, based on these exact pre-computed numbers (do not recalculate or guess, just phrase them naturally). Mention anything that needs attention (like overdue follow-ups) supportively, not alarmingly. Return plain text only, no markdown.';
+        const context = 'Surgeries in the last 7 days: ' + stats.surgeriesThisWeek + '\nNew OPD cases in the last 7 days: ' + stats.newOpdThisWeek + '\nOverdue follow-ups: ' + stats.overdueFollowUps + '\nFollow-ups due in the next 7 days: ' + stats.dueNext7Days + '\nTotal patients in the log: ' + stats.totalPatients;
+        const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 200 });
+        AI_DIGEST_SUMMARY = (result.data.text || '').trim();
+        VIEW = 'ai-digest';
+      } catch (err) {
+        console.error('Voice digest generation failed:', err);
+        toast('Report generation failed \u2014 try again');
+      }
+    } else if (r.action === 'add_investigation' || r.action === 'add_injection') {
+      let target = null;
+      if (r.patientQuery) {
+        const q = r.patientQuery.toLowerCase();
+        const matches = PATIENTS.filter(p => p.name && p.name.toLowerCase().includes(q));
+        if (matches.length === 1) { target = matches[0]; }
+        else { SEARCH = r.patientQuery; VIEW = 'list'; toast(matches.length === 0 ? 'Patient not found \u2014 showing search instead' : matches.length + ' matches found \u2014 open the right one'); }
+      } else if (VIEW === 'detail' && SELECTED_ID) {
+        target = getPatient(SELECTED_ID);
+      } else {
+        toast('Kis patient ke liye, naam bhi boliye');
+      }
+      if (target) {
+        try {
+          if (r.action === 'add_investigation') {
+            const inv = { id: uid(), label: r.investigationName || 'Investigation', paramName: r.investigationName || '', date: todayStr(), notes: '', value: r.investigationValue || '', unit: r.investigationUnit || '', imageCount: 0 };
+            target.investigations = target.investigations || [];
+            target.investigations.push(inv);
+          } else {
+            const inj = { id: uid(), type: r.injectionType || '', site: r.injectionSite || '', date: todayStr(), notes: '' };
+            target.injections = target.injections || [];
+            target.injections.push(inj);
+          }
+          await dbPutPatient(target);
+          await refreshPatients();
+          SELECTED_ID = target.id;
+          VIEW = 'detail';
+          toast((r.action === 'add_investigation' ? 'Investigation' : 'Injection') + ' added for ' + target.name);
+        } catch (err) {
+          console.error('Voice add_investigation/add_injection failed:', err);
+          toast('Save failed \u2014 try again');
         }
       }
     }
@@ -3086,6 +3153,24 @@ function renderAiHubView() {
     + '</div></div>'
     + '</div>'
     + '</div>';
+}
+
+function masterAiModalHtml() {
+  if (!MASTER_AI_OPEN) return '';
+  return '<div style="position:fixed;inset:0;z-index:998;background:rgba(0,0,0,0.4);display:flex;align-items:flex-end;" data-action="close-master-ai-modal">'
+    + '<div style="width:100%;max-width:520px;margin:0 auto;background:var(--bg);border-radius:16px 16px 0 0;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);" onclick="event.stopPropagation();">'
+    + '<div style="position:sticky;top:0;background:var(--bg);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">'+ic('sparkle')+' AI \u2014 type what you need</h2>'
+    + '<button class="icon-btn" data-action="close-master-ai-modal">'+ic('close')+'</button>'
+    + '</div>'
+    + '<div style="padding:16px;">'
+    + '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">e.g. "add patient 45M knee pain OPD ACL tear" \u00b7 "CTEV cases last 3 months" \u00b7 "iska summary do" \u00b7 "Patel ka follow-up Monday rakho"</div>'
+    + '<textarea class="textarea" id="master-ai-input" rows="4" placeholder="Type your request\u2026" autofocus style="margin-bottom:10px;">'+esc(MASTER_AI_INPUT)+'</textarea>'
+    + '<div class="row gap2">'
+    + '<button class="icon-btn" style="flex:none;width:44px;height:44px;background:var(--bg-soft);border-radius:12px;" data-action="master-ai-use-mic" title="Speak instead">'+ic('mic')+'</button>'
+    + '<button class="btn btn-primary" style="flex:1;" data-action="master-ai-analyze">'+ic('sparkle')+' Send</button>'
+    + '</div>'
+    + '</div></div></div>';
 }
 
 function schemeQuickMatch(queryText, limit) {
@@ -5338,7 +5423,14 @@ function renderAddView() {
               ) : '')
             + '</div>';
         }).join('')
-      + '<p style="font-size:11px;color:var(--muted);margin:0;">Injections aren\u2019t added here \u2014 log them from the patient\u2019s record after the case is saved.</p>'
+      + '<details style="border-radius:8px;background:rgba(59,130,246,0.04);border:1px solid rgba(59,130,246,0.15);margin-top:8px;"><summary style="cursor:pointer;font-weight:700;padding:10px 12px;color:#1d4ed8;">'+ic('plus')+' Quick add injection (optional)</summary>'
+      + '<div style="padding:0 12px 12px;">'
+      + '<label class="field-label" style="font-size:11px;color:var(--muted);">Injection type & site</label>'+renderQuickTextChips(INJECTION_LIB_KEY,'ap-inj-label')
+      + '<input class="input" id="ap-inj-label" placeholder="e.g. Intra-articular steroid — Right knee" style="margin-bottom:8px;" data-field="apInjLabel">'
+      + autocompleteBoxHtml('ap-inj-label')
+      + '<label class="field-label" style="font-size:11px;color:var(--muted);margin-top:8px;">Notes (optional)</label>'
+      + '<textarea class="textarea" id="ap-inj-notes" rows="2" placeholder="e.g. 40mg triamcinolone" style="font-size:12px;" data-field="apInjNotes"></textarea>'
+      + '</div></details>'
       + '</div>';
 
   const trackingHtml = isSurgical ? (
@@ -5424,11 +5516,13 @@ function renderAddView() {
     + '<div style="flex:none;width:150px;"><label class="field-label">'+(isSurgical?'Surgery date':'Visit date')+'</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
     + '</div>'
 
-    + '<div style="margin-bottom:16px;"><label class="field-label">Next follow-up date (optional)</label><input class="input" type="date" id="ap-next-fu-date" min="'+todayStr()+'" value="'+esc(AP_TEMP.nextFollowUpDate)+'"></div>'
-
     + pinnedDetailsHtml
     + accordionHtml
     + aiAssistantPill
+    + '<div class="card" style="padding:13px 14px 16px;margin-top:10px;">'
+    + '<label class="field-label">Next follow-up date (optional)</label>'
+    + relativeFollowupPickerHtml('ap-next-fu-date', AP_TEMP.nextFollowUpDate, false)
+    + '</div>'
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
     + '<button class="btn" style="flex:1;" data-action="cancel-add">Cancel</button>'
@@ -5504,7 +5598,7 @@ function renderOverviewTab(p) {
     + regionSpecialtyChipsHtml(p.regions||[], 'ov-toggle-region', 'ov-auto-region')
     + (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
     + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
-    + '<div><label class="field-label">Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
+    + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);font-weight:600;">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
     + '</div>'
     + (isSurgical ? (
         '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
@@ -5571,7 +5665,8 @@ function renderOverviewTab(p) {
         + '</div>' : '')
     + '</div>';
 
-  let usefulBody = reminderMiniCardHtml(p);
+  let usefulBody = reminderMiniCardHtml(p)
+    + (isAiTier() ? universalAiMenuHtml(p.id) : '');
 
   // ---- Compact read-only summary (default view), redesigned to match a multi-column dashboard card layout ----
   const regionsSpecLine = (p.regions||[]).length ? (p.regions||[]).join(', ') : '';
@@ -5606,7 +5701,11 @@ function renderOverviewTab(p) {
     + '</button>'
     + '</div>';
 
-  const clinicalRead = (!isSurgical ? '<div class="row" style="gap:10px;">'
+  const clinicalRead = '<div style="background:rgba(67,56,202,0.05);border:1px solid rgba(67,56,202,0.15);border-radius:10px;padding:10px 12px;margin-bottom:10px;">'
+    + '<div style="font-size:10.5px;color:var(--muted);margin-bottom:4px;font-weight:600;text-transform:uppercase;">Diagnosis</div>'
+    + '<div style="font-size:14px;font-weight:800;color:var(--accent-dark);">'+esc(p.diagnosis||'\u2014')+'</div>'
+    + '</div>'
+    + (!isSurgical ? '<div class="row" style="gap:10px;">'
       + '<div style="flex:1;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Chief Complaint</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.chiefComplaints||'\u2014')+'</div></div>'
       + '<div style="flex:none;max-width:35%;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Duration</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.symptomDuration||'\u2014')+'</div></div>'
       + '</div>' : '')
@@ -5676,11 +5775,13 @@ function renderOverviewTab(p) {
       ) : '')
     + ovSectionV2('snapshot', 'Patient Snapshot', 'userPlus', snapshotRead, snapshotBody)
     + ovSectionV2('clinical', 'Clinical', 'file', clinicalRead, clinicalBody)
-    + ovSectionV2('communicate', 'Communicate', 'message', communicateRead, communicateBody)
-    + ovSectionV2('useful', 'Reminders', 'calendar', usefulRead, usefulBody)
+    + ovSectionV2('communicate', 'Contact Details', 'message', communicateRead, communicateBody)
+    + ovSectionV2('useful', 'Reminders & Follow-ups', 'calendar', usefulRead, usefulBody)
     + (hasTracking ? ovSectionV2('tracking', 'Special Tracking', 'clock', trackingBody, null) : '')
-    + '<div style="text-align:center;padding-top:6px;">'
-    + (!isSurgical ? '<button class="btn btn-sm" style="background:transparent;border-color:transparent;color:var(--muted);font-size:11.5px;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical\u2026</button>' : convertToOpdButtonHtml(p))
+    + '<div class="card" style="background:rgba(226,232,240,0.4);border-color:#cbd5e1;margin-top:8px;padding:10px 12px;">'
+    + '<div style="display:flex;flex-direction:column;gap:8px;">'
+    + (!isSurgical ? '<button class="btn btn-sm btn-block" style="font-size:12px;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical</button>' : convertToOpdButtonHtml(p))
+    + '</div>'
     + '</div>'
     + '</div>';
 }
@@ -5700,22 +5801,29 @@ let MASTER_VOICE_STATE = 'idle'; // idle | listening | thinking | confirming
 let MASTER_VOICE_TRANSCRIPT = '';
 let MASTER_VOICE_RESULT = null;
 let MASTER_VOICE_EDITING = false;
-let AI_ASSISTANT_QUESTION = '';
-let AI_ASSISTANT_ANSWER = null;
+function universalAiMenuHtml(patientId) {
+  const p = getPatient(patientId);
+  if (!p) return '';
+  if (!isAiTier()) return '<p style="font-size:11px;color:var(--muted);">AI features require AI tier upgrade.</p>';
+  
+  return '<button type="button" class="btn btn-block" style="background:rgba(67,56,202,0.1);border-color:#c7d2fe;color:var(--accent-dark);font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;" data-action="ai-open-free-form">'+ic('sparkle')+' Ask Claude anything</button>';
+}
+
+let AI_GENERAL_QUESTION_OPEN = false;
 function hasRealSurgicalData(p) {
   return !!(p.procedure && p.procedure.trim()) || (p.preOpImageCount > 0) || !!(p.insuranceType && p.insuranceType.trim()) || !!p.paymentMethod;
 }
 function convertToOpdButtonHtml(p) {
   if (!hasRealSurgicalData(p)) {
-    return '<button class="btn btn-sm" style="background:transparent;color:var(--accent-dark);font-weight:700;" data-action="convert-to-opd" data-id="'+p.id+'">'+ic('back')+' Convert to OPD</button>';
+    return '<button class="btn btn-sm btn-block" style="font-size:12px;color:var(--accent-dark);font-weight:600;" data-action="convert-to-opd" data-id="'+p.id+'">'+ic('back')+' Convert to OPD</button>';
   }
   if (ARMED_DELETE === 'convert-to-opd:'+p.id) {
-    return '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
-      + '<button class="btn btn-sm btn-danger-confirm" data-action="convert-to-opd" data-id="'+p.id+'" data-confirm="1">'+ic('check')+' Confirm \u2014 hide surgical details</button>'
-      + '<span style="font-size:10px;color:var(--muted);">Procedure/photos stay saved, just hidden until converted back</span>'
+    return '<div style="display:flex;flex-direction:column;gap:6px;">'
+      + '<button class="btn btn-sm btn-block btn-danger-confirm" style="font-size:12px;" data-action="convert-to-opd" data-id="'+p.id+'" data-confirm="1">'+ic('check')+' Confirm — hide surgical details</button>'
+      + '<span style="font-size:10px;color:var(--muted);padding:0 4px;">Procedure/photos stay saved, just hidden until converted back</span>'
       + '</div>';
   }
-  return '<button class="btn btn-sm" style="background:transparent;color:var(--accent-dark);font-weight:700;" data-action="arm-delete" data-arm="convert-to-opd:'+p.id+'">'+ic('back')+' Convert to OPD</button>';
+  return '<button class="btn btn-sm btn-block" style="font-size:12px;color:var(--accent-dark);font-weight:600;" data-action="arm-delete" data-arm="convert-to-opd:'+p.id+'">'+ic('back')+' Convert to OPD</button>';
 }
 
 function classificationCardHtml(p) {
@@ -5852,11 +5960,11 @@ async function renderImagesRecordsTab(p) {
           + '<button class="btn btn-sm" data-action="imgrec-cancel-select">Cancel</button>'
           + '<button class="btn btn-sm"'+(IMGREC_SELECTED_IDS.size?' style="background:#25D366;border-color:#25D366;color:#fff;"':' disabled style="opacity:0.4;"')+' data-action="imgrec-share-selected" data-id="'+p.id+'">'+ic('upload')+' Share</button>'
           + '</div></div>'
-        : '<div class="row between" style="margin-bottom:8px;">'
+        : '<div class="row between" style="margin-bottom:8px;align-items:center;">'
           + '<span style="font-size:11px;color:var(--muted);">All photos, X-rays &amp; labs for this case</span>'
-          + '<div class="row gap2">'
-          + '<button class="btn btn-sm" data-action="imgrec-enter-select">'+ic('check')+' Select</button>'
-          + '<button class="btn btn-sm" data-action="download-case-zip" data-id="'+p.id+'">'+ic('download')+' Download all</button>'
+          + '<div class="row gap1" style="opacity:0.5;">'
+          + '<button class="icon-btn" style="font-size:13px;" data-action="imgrec-enter-select" title="Select images">'+ic('check')+'</button>'
+          + '<button class="icon-btn" style="font-size:13px;" data-action="download-case-zip" data-id="'+p.id+'" title="Download all">'+ic('download')+'</button>'
           + '</div></div>')
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
     + IMGREC_GROUPS.map(g => '<button class="chip'+(activeGroup && activeGroup.key===g.key?' active':'')+'" data-action="imgrec-set-subview" data-value="'+g.categories[0]+'">'+g.label+'</button>').join('')
@@ -5940,15 +6048,8 @@ function renderSmartFollowupFormLayer1(p) {
     + '</div>'
     + '<div style="margin-bottom:16px;">'
     + '<label class="field-label">Next follow-up?</label>'
-    + '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">'
-    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="3">+3 Days</button>'
-    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="5">+5 Days</button>'
-    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="7">+1 Week</button>'
-    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="21">+3 Weeks</button>'
-    + '<button type="button" class="chip" data-action="fu-next-quick" data-days="30">+1 Month</button>'
-    + '</div>'
-    + '<input class="input" type="date" id="fu-next-followup" value="'+(suggestedNextDate||'')+'" min="'+todayStr()+'" placeholder="Or pick date">'
-    + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">'+ic('sparkle')+' Auto-suggested \u2014 tap a chip above or edit the date to change it</p>'
+    + relativeFollowupPickerHtml('fu-next-followup', suggestedNextDate||'', false)
+    + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">'+ic('sparkle')+' Auto-suggested \u2014 enter a number and unit to change it</p>'
     + '</div>';
 }
 
@@ -6150,18 +6251,20 @@ async function renderInvestigationsTab(p) {
     addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inv">'+ic('plus')+' Add investigation</button>';
   } else {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-      + '<label class="field-label">Investigation name</label>'+renderQuickTextChips(INVESTIGATION_LIB_KEY,'inv-label')+'<input class="input" id="inv-label" placeholder="e.g. CBC, MRI knee, USG abdomen" style="margin-bottom:10px;">'
-      + '<div style="display:flex;flex-wrap:wrap;gap:6px;margin:-4px 0 10px;">'
-      + LAB_PARAMETERS.map(([n,u]) => '<button type="button" class="tag-chip" data-action="inv-pick-param" data-value="'+esc(n)+'" data-unit="'+esc(u)+'">'+esc(n)+'</button>').join('')
+      + '<label class="field-label" style="font-weight:700;">Investigation Type</label><input class="input" id="inv-label" placeholder="e.g. CBC, Blood Sugar, Lipid Profile" style="margin-bottom:12px;">'
+      + '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:12px;">'
+      + '<label class="field-label">Parameter Details</label>'
+      + '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:8px;">'
+      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Parameter name</label><input class="input" id="inv-param" placeholder="e.g. Hemoglobin" style="font-size:12px;"></div>'
+      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Value</label><input class="input" id="inv-value" type="text" inputmode="decimal" placeholder="e.g. 12.5" style="font-size:12px;"></div>'
+      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Unit</label><input class="input" id="inv-unit" placeholder="e.g. g/dL" style="font-size:12px;"></div>'
       + '</div>'
-      + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:10px;">'
-      + '<div><label class="field-label">Value (optional)</label><input class="input" id="inv-value" type="text" inputmode="decimal" placeholder="e.g. 45"></div>'
-      + '<div><label class="field-label">Unit</label><input class="input" id="inv-unit" placeholder="e.g. mm/hr"></div>'
       + '</div>'
-      + '<label class="field-label">Date</label><input class="input" type="date" id="inv-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
-      + '<label class="field-label">Photos / report images</label><div id="inv-thumbs">'+thumbGridHtml(INV_PHOTOS,'inv-remove-photo')+'</div>'
-      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('inv-notes')+'</div><textarea class="textarea" id="inv-notes" rows="2" maxlength="2000" placeholder="Key findings, impression\u2026"></textarea>'
-      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-inv">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-inv">Save investigation</button></div>'
+      + '<label class="field-label">Test Date</label><input class="input" type="date" id="inv-date" value="'+todayStr()+'" style="margin-bottom:12px;">'
+      + '<label class="field-label">Photos / Reports (optional)</label><div id="inv-thumbs">'+thumbGridHtml(INV_PHOTOS,'inv-remove-photo')+'</div>'
+      + '<label class="add-photo-tile" style="width:100%;justify-content:center;margin:8px 0;">'+ic('plus')+'<span>Add photo, PDF, or document</span><input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" multiple data-inv-input style="display:none;"></label>'
+      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('inv-notes')+'</div><textarea class="textarea" id="inv-notes" rows="2" maxlength="2000" placeholder="Reference range, interpretation\u2026"></textarea>'
+      + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-inv">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-inv">Save test result</button></div>'
       + '</div>';
   }
 
@@ -6183,7 +6286,10 @@ async function renderInvestigationsTab(p) {
     }
     list += '<div class="fu-card">'
       + '<div class="row between" style="cursor:pointer;" data-action="toggle-inv" data-id="'+inv.id+'">'
-      + '<span style="font-weight:800;">'+esc(inv.label)+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+fmtDate(inv.date)+(inv.value?' \u00b7 '+esc(inv.value)+(inv.unit?' '+esc(inv.unit):''):'')+'</span></span>'
+      + '<div style="flex:1;min-width:0;">'
+      + '<div style="font-weight:800;font-size:12.5px;">'+esc(inv.label)+(inv.paramName?' \u2014 '+esc(inv.paramName):'')+' <span style="font-weight:400;color:var(--muted);">'+fmtDate(inv.date)+'</span></div>'
+      + (inv.value ? '<div style="font-size:11px;color:#334155;margin-top:2px;"><b>'+esc(inv.value)+'</b>'+(inv.unit?' '+esc(inv.unit):'')+'</div>' : '')
+      + '</div>'
       + '<div class="row gap2">'
       + '<span class="badge badge-slate">'+ic('camera')+(inv.imageCount||0)+'</span>'
       + confirmBtn('delete-inv', inv.id)
@@ -8549,21 +8655,24 @@ function updateMasterVoiceUI() {
     if (btn) btn.style.bottom = (VIEW === 'detail') ? 'calc(86px + env(safe-area-inset-bottom, 0px))' : 'calc(20px + env(safe-area-inset-bottom, 0px))';
   }
   const overlayWrap = document.getElementById('master-voice-overlay-wrap');
-  if (overlayWrap) overlayWrap.innerHTML = renderMasterVoiceOverlay();
+  if (overlayWrap) overlayWrap.innerHTML = masterAiModalHtml() + renderMasterVoiceOverlay();
 }
 (function setupAiFabPressHold() {
   const btn = document.getElementById('master-voice-fab');
   if (!btn) return;
-  // Every tap just starts voice listening directly \u2014 no menu, no separate patient-panel
-  // popup. The AI figures out what to do from what\u2019s said (including patient-context
-  // commands like "iska summary do" when a patient page is already open).
+  // Tap opens a text box (type what you need) \u2014 the mic icon inside that
+  // box switches to voice input if preferred. AI figures out what to do from
+  // what's typed/said (including patient-context commands like "iska summary
+  // do" when a patient page is already open).
   let firing = false;
   const fire = (e) => {
     if (e) e.preventDefault();
     if (firing) return;
     firing = true;
     setTimeout(() => { firing = false; }, 400);
-    startMasterVoice();
+    MASTER_AI_OPEN = true;
+    MASTER_AI_INPUT = '';
+    render();
   };
   btn.addEventListener('touchend', fire);
   btn.addEventListener('click', fire);
@@ -8739,7 +8848,7 @@ document.addEventListener('click', async (e) => {
     el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = callGeminiDirect;
       const sys = 'You are a reference assistant for an orthopaedic doctor. Given a diagnosis, list 2-5 investigations that are typically indicated for that presentation, as a JSON array of short strings, e.g. ["X-ray AP/Lateral","MRI if suspicion of AVN"]. This is a general reference only, not a directive \u2014 the doctor decides what is actually needed for this specific patient. Return ONLY the JSON array, no other text.';
       const context = 'Diagnosis: ' + (p.diagnosis||'\u2014') + (p.regions && p.regions.length ? ('\nRegion: ' + p.regions.join(', ')) : '');
       const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 200 });
@@ -8764,7 +8873,7 @@ document.addEventListener('click', async (e) => {
     el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = callGeminiDirect;
       const sys = 'You are a reference assistant for an orthopaedic doctor doing a clinical examination, mainly for OPD cases but usable for surgical cases too where relevant. Given the complaints/diagnosis, list the 3-6 MOST IMPORTANT things to specifically examine for this presentation \u2014 e.g. specific special tests, ROM to check, neurovascular checks, gait, deformity, or red-flag signs to rule out. Be concrete and specific to this presentation, not generic ("inspect, palpate, move" is too generic). Return a JSON array of short strings, e.g. ["Check for effusion and quadriceps wasting","McMurray\u2019s test for meniscal tear","Distal NV status"]. This is a reference/checklist aid only, not a directive. Return ONLY the JSON array, no other text.';
       const context = 'Chief complaints: ' + (p.chiefComplaints||'\u2014') + '\nDiagnosis: ' + (p.diagnosis||'\u2014') + (p.regions && p.regions.length ? ('\nRegion: ' + p.regions.join(', ')) : '') + (p.side && p.side !== 'N/A' ? ('\nSide: ' + p.side) : '') + '\nAge/Sex: ' + formatAge(p) + ' / ' + (p.sex||'\u2014');
       const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 220 });
@@ -8819,7 +8928,7 @@ document.addEventListener('click', async (e) => {
     el.innerHTML = '<span class="spinner"></span> Checking\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = callGeminiDirect;
       const sys = 'You are a data-entry sanity checker for a clinical case form. You do NOT give clinical opinions or diagnoses. Given the form field values below, check ONLY for internal logical inconsistencies or likely typos \u2014 for example: the diagnosis mentions a body part that does not match the selected Region/Specialty, or Side is set but the diagnosis text mentions the opposite side. If you find a clear mismatch, describe it in one short sentence per issue. If nothing looks inconsistent, respond with exactly: "No mismatches found." Do not comment on fields that are simply empty, only on genuine contradictions between fields that are filled in.';
       const context = [
         'Name: ' + (AP_TEMP.name||'\u2014'),
@@ -8850,7 +8959,7 @@ document.addEventListener('click', async (e) => {
     el.disabled = true;
     if (resultEl) resultEl.textContent = '';
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = callGeminiDirect;
       const result = await askClaude({ userMessage: 'Reply with exactly one short sentence confirming you received this test message.' });
       if (resultEl) { resultEl.style.color = 'var(--emerald,#16a34a)'; resultEl.textContent = '\u2713 ' + result.data.text; }
       toast('AI connection working!');
@@ -8882,7 +8991,29 @@ document.addEventListener('click', async (e) => {
   if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
   if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; VIEW = 'ai-digest'; render(); return; }
   if (action === 'open-ai-assistant') { AI_ASSISTANT_ANSWER = null; VIEW = 'ai-assistant'; render(); return; }
+  if (action === 'ai-general-question') { AI_ASSISTANT_ANSWER = null; AI_ASSISTANT_QUESTION = ''; VIEW = 'ai-assistant'; await render(); window.scrollTo(0,0); return; }
+  if (action === 'ai-open-free-form') { AI_ASSISTANT_ANSWER = null; AI_ASSISTANT_QUESTION = ''; VIEW = 'ai-assistant'; await render(); window.scrollTo(0,0); return; }
   if (action === 'close-ai-assistant') { VIEW = 'list'; render(); return; }
+  if (action === 'open-master-ai') { MASTER_AI_OPEN = true; MASTER_AI_INPUT = ''; render(); return; }
+  if (action === 'close-master-ai-modal') { MASTER_AI_OPEN = false; render(); return; }
+  if (action === 'master-ai-use-mic') { MASTER_AI_OPEN = false; render(); startMasterVoice(); return; }
+  if (action === 'master-ai-analyze') {
+    const inputEl = document.getElementById('master-ai-input');
+    MASTER_AI_INPUT = inputEl ? inputEl.value.trim() : '';
+    if (!MASTER_AI_INPUT) { toast('Describe what you need'); return; }
+    const btn = el;
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner"></span> Understanding\u2026';
+    btn.disabled = true;
+    MASTER_AI_OPEN = false;
+    render();
+    MASTER_VOICE_TRANSCRIPT = MASTER_AI_INPUT;
+    MASTER_VOICE_STATE = 'thinking';
+    updateMasterVoiceUI();
+    await classifyMasterVoiceIntent(MASTER_AI_INPUT);
+    MASTER_AI_INPUT = '';
+    return;
+  }
   if (action === 'ask-ai-assistant') {
     const inputEl = document.getElementById('ai-assistant-input');
     AI_ASSISTANT_QUESTION = inputEl ? inputEl.value.trim() : '';
@@ -8891,7 +9022,7 @@ document.addEventListener('click', async (e) => {
     el.innerHTML = '<span class="spinner"></span> Thinking\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = callGeminiDirect;
       const sys = 'You are a clinical assistant for a practicing orthopaedic surgeon, helping them think through cases and surgical technique \u2014 you do NOT make the final call, and you never present anything as the single correct answer; the surgeon\u2019s own judgement, training, and institutional protocol always take priority. Two kinds of questions may come in \u2014 read the question and respond in the matching format:\n\n(A) A CLINICAL CASE (history/exam/imaging findings, asking what to consider): use these headed sections \u2014 Likely diagnoses (plural, framed as possibilities to weigh), Important differentials to rule out, Relevant examination/tests to narrow it down, Investigations to consider, Treatment options (present the range, not one directive), Red flags to watch for, Important things not to miss.\n\n(B) A SURGICAL APPROACH/TECHNIQUE question (asking how a procedure is done): describe the STANDARD, widely-taught approach only (as in established references like Campbell\u2019s Operative Orthopaedics or AO principles) \u2014 never a personal or novel variation presented as authoritative. Use these headed sections \u2014 Position, Approach/Incision, Layer-by-layer dissection, Structures at risk, Core steps, Common pitfalls/technical pearls, Closure. Explicitly note that technique varies by surgeon/institution and this is a general teaching reference, not a substitute for training or senior guidance \u2014 especially for anything the surgeon isn\u2019t already confident about.\n\nBe clinically thorough but concise, plain text with simple headers, no markdown formatting. If literature or technique is genuinely divided, say so plainly.';
       const result = await askClaude({ systemPrompt: sys, userMessage: AI_ASSISTANT_QUESTION, maxTokens: 1400 });
       AI_ASSISTANT_ANSWER = result.data.text || '(empty response)';
@@ -8934,7 +9065,7 @@ document.addEventListener('click', async (e) => {
     el.innerHTML = '<span class="spinner"></span> Reading your patient list\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = callGeminiDirect;
       const dataSummary = buildPatientDataSummaryForAi();
       const sys = 'You are a data assistant for a single orthopaedic doctor\u2019s own patient log. Below is their patient list, one per line: PatientID | Name | Sex | Age | CaseType | Diagnosis | Side | SpecialCondition | SurgeryType | Classification | Procedure | date:SurgeryDate | next-fu:NextFollowUpDate | tags:Tag1,Tag2\n\nAnswer the doctor\u2019s question using ONLY this data. If listing patients, include Name and PatientID. Be concise. If nothing matches, say so plainly. Do not invent data not present in the list.\n\nPATIENT LIST:\n' + dataSummary;
       const result = await askClaude({ systemPrompt: sys, userMessage: AI_QUERY_TEXT, maxTokens: 1024 });
@@ -9574,6 +9705,14 @@ document.addEventListener('click', async (e) => {
     if (p.condition === 'ctev') p.ctev = newCtevShape();
     if (p.condition === 'ra') p.ra = newRaShape();
     if (p.condition === 'osteoporosis') p.osteo = newOsteoShape();
+    // Add injection from quick field BEFORE saving patient
+    const injLabel = document.getElementById('ap-inj-label');
+    const injNotes = document.getElementById('ap-inj-notes');
+    if (injLabel && injLabel.value.trim()) {
+      if (!p.injections) p.injections = [];
+      p.injections.push({ id: uid(), label: injLabel.value.trim(), date: todayStr(), notes: injNotes ? injNotes.value.trim() : '' });
+      recordTextUsed(INJECTION_LIB_KEY, injLabel.value.trim());
+    }
     try {
       await dbPutPatient(p);
       // These photos are already in IndexedDB (saved the moment they were picked \u2014
@@ -9938,12 +10077,14 @@ document.addEventListener('click', async (e) => {
   if (action === 'submit-inv') {
     const p = getPatient(SELECTED_ID);
     const label = document.getElementById('inv-label').value.trim() || 'Investigation';
+    const paramName = document.getElementById('inv-param').value.trim();
     const date = document.getElementById('inv-date').value;
     const notes = document.getElementById('inv-notes').value;
     const value = document.getElementById('inv-value').value.trim();
     const unit = document.getElementById('inv-unit').value.trim();
-    const inv = { id: uid(), label, date, notes, value, unit, imageCount: INV_PHOTOS.length };
+    const inv = { id: uid(), label, paramName, date, notes, value, unit, imageCount: INV_PHOTOS.length };
     recordTextUsed(INVESTIGATION_LIB_KEY, label);
+    if (paramName) recordTextUsed(INVESTIGATION_LIB_KEY, paramName);
     p.investigations = p.investigations || [];
     p.investigations.push(inv);
     const originalHtml = el.innerHTML;
@@ -10914,7 +11055,7 @@ function readProfileFromDom() {
     el.innerHTML = '<span class="spinner"></span> Drafting\u2026';
     el.disabled = true;
     try {
-      const askClaude = firebaseFunctions.httpsCallable('askClaude');
+      const askClaude = callGeminiDirect;
       const sys = 'You help a doctor draft a prescription for their own review and editing \u2014 you are not prescribing anything yourself, only suggesting a starting draft based on common practice for the given presentation. Given the diagnosis and clinical notes below, suggest 1-4 commonly-used medicines, and brief general advice. Return ONLY JSON, no markdown fences: {"medicines": [{"name": string, "dose": string, "frequency": string, "duration": string, "instructions": string}], "advice": string}. Use standard abbreviations for frequency (e.g. "1-0-1", "OD", "BD", "TDS"). This is a draft only \u2014 the doctor will review and edit before finalizing.';
       const context = 'Diagnosis: ' + (p.diagnosis||'\u2014') + '\nNotes: ' + (p.notes||'\u2014');
       const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 500 });
