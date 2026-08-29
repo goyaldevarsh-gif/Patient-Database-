@@ -4966,11 +4966,15 @@ function usearchResultRowHtml(p, q) {
     + '</div></button>';
 }
 /* Screens where the floating search button would be redundant or get in the way */
-const USEARCH_FAB_HIDDEN_VIEWS = ['list','patients','reminders-tab','add','ai-query','ai-digest','ai-assistant','ai-hub','compare-picker','compare-view','print','settings','app-settings','cloud-sync','about','calendar','more','recently-deleted','unfiled-photos','onboarding'];
+const USEARCH_FAB_HIDDEN_VIEWS = ['list','patients','reminders-tab','add','ai-query','ai-digest','ai-assistant','ai-hub','compare-picker','compare-view','print','settings','app-settings','cloud-sync','about','calendar','more','recently-deleted','unfiled-photos','onboarding','duplicate-finder','confirm-delete-patient','drive-backup','drive-restore-list','planned-surgeries','notifications','whats-new','upgrade','scheme-finder','patient-ai-tools','reminder-queue','print-summary','print-referral','export-summary','academic-vault','clinical-bank','clinical-bank-detail','content-ideas','research-cases','privacy-policy','terms'];
 function updateUsearchFabVisibility() {
   const wrap = document.getElementById('usearch-fab-wrap');
   if (!wrap) return;
   wrap.style.display = (APP_LOCKED || USEARCH_FAB_HIDDEN_VIEWS.includes(VIEW)) ? 'none' : 'block';
+  // Patient detail pages have their own ~78px bottom tab bar (Overview/Follow-Up/Images/Timeline)
+  // \u2014 sit the button above it there, same as the AI fab; everywhere else it sits near the true bottom.
+  const btn = document.getElementById('usearch-fab');
+  if (btn) btn.style.bottom = (VIEW === 'detail') ? 'calc(86px + env(safe-area-inset-bottom, 0px))' : 'calc(20px + env(safe-area-inset-bottom, 0px))';
 }
 
 const BOTTOM_NAV_VIEWS = []; // Bottom nav retired \u2014 replaced by the dashboard hub (Add New / Manage & Track cards)
@@ -5098,7 +5102,7 @@ function renderPatientsView() {
         + '<span class="display" style="font-weight:800;font-size:15px;">'+escName(p.name)+'</span>'
         + '<span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex||'')+'</span>'
         + '</div>'
-        + '<div style="font-size:12.5px;color:#334155;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+        + '<div style="font-size:12.5px;color:#334155;margin-top:3px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">'
         + (summaryText ? '<span style="font-weight:600;">'+esc(summaryText)+'</span>' : '<span style="color:var(--muted);">No diagnosis yet</span>')
         + '</div>'
         + '<div style="font-size:11px;margin-top:4px;">'+followUpLine+'</div>'
@@ -5635,7 +5639,7 @@ function relativeDaysUntil(dateStr) {
   return 'in '+Math.round(days/30)+' months';
 }
 function ovSnapCell(icon, label, value, valueColor) {
-  return '<div style="flex:1;min-width:0;"><div class="row gap1" style="color:var(--muted);margin-bottom:2px;">'+ic(icon)+'<span style="font-size:10.5px;">'+label+'</span></div><div style="font-size:13px;font-weight:700;'+(valueColor?'color:'+valueColor+';':'')+'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(value||'\u2014')+'</div></div>';
+  return '<div style="flex:1;min-width:0;"><div class="row gap1" style="color:var(--muted);margin-bottom:2px;">'+ic(icon)+'<span style="font-size:10.5px;">'+label+'</span></div><div style="font-size:13px;font-weight:700;'+(valueColor?'color:'+valueColor+';':'')+'overflow-wrap:break-word;">'+esc(value||'\u2014')+'</div></div>';
 }
 function renderOverviewTab(p) {
   const overdue = isOverdue(p.nextFollowUpDate);
@@ -5722,14 +5726,15 @@ function renderOverviewTab(p) {
   // ---- Compact read-only summary (default view), redesigned to match a multi-column dashboard card layout ----
   const regionsSpecLine = (p.regions||[]).length ? (p.regions||[]).join(', ') : '';
   const fuColor = overdue ? '#dc2626' : (p.nextFollowUpDate ? 'var(--emerald)' : 'var(--muted)');
+  const diagText = displayDiagnosis(p.diagnosis) || (isSurgical?'':p.chiefComplaints);
   const snapshotRead = '<div class="row" style="gap:10px;">'
     + ovSnapCell('userPlus', 'Age / Sex', formatAge(p) + (p.sex ? ' \u00b7 '+p.sex : ''))
     + ovSnapCell('shield', 'Side', p.side && p.side!=='N/A' ? p.side : '')
     + ovSnapCell('tag', isSurgical?'Specialty':'Region', regionsSpecLine)
     + '</div>'
     + '<div style="border-top:1px solid var(--border);"></div>'
+    + (diagText ? '<div><div class="row gap1" style="color:var(--muted);margin-bottom:2px;">'+ic('clipboard')+'<span style="font-size:10.5px;">Diagnosis</span></div><div style="font-size:13.5px;font-weight:700;overflow-wrap:break-word;">'+esc(diagText)+'</div></div>' : '')
     + '<div class="row" style="gap:10px;">'
-    + ovSnapCell('clipboard', 'Diagnosis', displayDiagnosis(p.diagnosis) || (isSurgical?'':p.chiefComplaints))
     + (isSurgical ? ovSnapCell('calendar', 'Surgery Date', p.surgeryDate ? fmtDate(p.surgeryDate) : '') : ovSnapCell('calendar', 'Visit Date', p.surgeryDate ? fmtDate(p.surgeryDate) : ''))
     + ovSnapCell('clock', 'Next Follow-up', overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'Not scheduled'), fuColor)
     + '</div>'
@@ -7625,8 +7630,8 @@ function renderDetailShell(p) {
             : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>'))
     + (EDITING_PATIENT_NAME
         ? '<div class="row gap2" style="margin-top:2px;"><input class="input" id="patient-name-input" value="'+esc(p.name)+'" style="flex:1;font-size:14px;padding:6px 10px;" placeholder="Patient name"><button class="icon-btn" style="color:var(--emerald);flex:none;" data-action="save-patient-name" title="Save">'+ic('check')+'</button><button class="icon-btn" style="flex:none;" data-action="cancel-edit-patient-name" title="Cancel">'+ic('x')+'</button></div>'
-        : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" data-action="edit-patient-name" title="Tap to fix spelling">'+escName(p.name)+' '+ic('pencil')+' <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>')
-    + (diagnosisLine ? '<p style="font-size:12px;color:#334155;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(diagnosisLine)+'</p>' : '')
+        : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;overflow-wrap:break-word;cursor:pointer;" data-action="edit-patient-name" title="Tap to fix spelling">'+escName(p.name)+' '+ic('pencil')+' <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>')
+    + (diagnosisLine ? '<p style="font-size:12px;color:#334155;margin:2px 0 0;overflow-wrap:break-word;">'+esc(diagnosisLine)+'</p>' : '')
     + '<p style="font-size:11px;color:var(--muted);margin:1px 0 0;display:flex;align-items:center;gap:6px;">'
       + (isSurgical?'Surgical case':'OPD case')
       + '<span style="color:var(--border);">\u00b7</span>'
@@ -8181,9 +8186,9 @@ async function renderDuplicateFinderView() {
         + '</div>';
     }).join('<div style="border-top:1px dashed var(--border);margin:16px 0;"></div>');
   }
-  return '<div class="px" style="padding-top:16px;padding-bottom:60px;">'
+  return '<div class="px" style="padding-top:16px;padding-bottom:40px;">'
     + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-duplicate-finder">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Find Duplicate Patients</h2><span style="width:36px;"></span></div>'
-    + '<div class="card" style="background:#fffbeb;border-color:#fde68a;margin-bottom:14px;"><p style="font-size:11.5px;color:#92400e;margin:0;line-height:1.5;">Matched by exact patient name. Pick which record to keep as <b>primary</b> \u2014 follow-ups, investigations, injections and photos from the other record(s) are merged into it, then the duplicates are deleted. This cannot be undone.</p></div>'
+    + '<div class="card" style="background:#fffbeb;border-color:#fde68a;margin-bottom:14px;"><p style="font-size:11.5px;color:#92400e;margin:0;line-height:1.5;">Matched by exact patient name. Pick which record to keep as <b>primary</b> \u2014 follow-ups, investigations, injections and photos from the other record(s) are merged into it. The merged-away record then moves to <b>Recently Deleted</b> (30-day safety net) rather than being erased outright, but note that restoring it later won\u2019t automatically un-merge the data already copied into the primary.</p></div>'
     + body
     + '</div>';
 }
@@ -8211,7 +8216,10 @@ async function mergeDuplicateGroup(groupIndex) {
         img.patientId = primary.id;
         await dbAddImage(img);
       }
-      await dbDeletePatient(dup.id);
+      // Soft-delete the duplicate (same 30-day Recently-Deleted safety net as manual delete),
+      // rather than an unrecoverable hard delete \u2014 a wrong merge can still be undone.
+      dup.deletedAt = Date.now();
+      await dbPutPatient(dup);
     }
     await dbPutPatient(primary);
     await refreshPatients();
@@ -8783,9 +8791,10 @@ function renderMasterVoiceOverlay() {
 function updateMasterVoiceUI() {
   const fabWrap = document.getElementById('master-voice-fab-wrap');
   if (fabWrap) {
-    // Hide entirely on screens that have their own fixed bottom action bar where a generic
-    // AI menu wouldn't make sense anyway (Add Case's Cancel/Save bar, Settings' Save bar).
-    const hideOnViews = ['add', 'settings'];
+    // Hide entirely on screens that have their own fixed bottom action bar, or where a
+    // generic floating AI trigger would visually clash with the screen's own content/buttons
+    // (menus, AI sub-pages that ARE the AI feature already, forms with Save/Cancel bars, etc).
+    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms'];
     const shouldShow = isAiTier() && !APP_LOCKED && !hideOnViews.includes(VIEW);
     fabWrap.style.display = shouldShow ? 'block' : 'none';
     // Patient detail pages have their own ~78px bottom tab bar (Overview/Follow-Up/Images/Timeline)
