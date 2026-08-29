@@ -8177,7 +8177,7 @@ async function renderDuplicateFinderView() {
           + '<div style="flex:1;min-width:0;">'
           + '<div style="font-weight:700;font-size:13px;">'+esc(p.name)+' <span style="font-weight:400;color:var(--muted);font-size:11px;">'+esc(p.patientCode||'')+'</span></div>'
           + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">'+formatAge(p)+(p.sex?', '+esc(p.sex):'')+' \u00b7 '+(p.caseType==='surgical'?'Surgical':'OPD')+(p.diagnosis?' \u00b7 '+esc(p.diagnosis):'')+'</div>'
-          + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+(p.followUps||[]).length+' follow-ups \u00b7 '+(p.investigations||[]).length+' investigations \u00b7 '+(p.injections||[]).length+' injections \u00b7 created '+fmtDate(new Date(p.createdAt||0).toISOString().split('T')[0])+'</div>'
+          + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+(p.followUps||[]).length+' follow-ups \u00b7 '+(p.investigations||[]).length+' investigations \u00b7 '+(p.injections||[]).length+' injections \u00b7 created '+fmtDate(p.createdAt||0)+'</div>'
           + (isPrimary ? '<div style="font-size:10.5px;color:var(--accent-dark);font-weight:700;margin-top:4px;">'+ic('check')+' Kept as primary</div>' : '')
           + '</div></label>';
       }).join('');
