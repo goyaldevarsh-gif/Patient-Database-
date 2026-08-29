@@ -5725,15 +5725,17 @@ function renderOverviewTab(p) {
 
   // ---- Compact read-only summary (default view), redesigned to match a multi-column dashboard card layout ----
   const regionsSpecLine = (p.regions||[]).length ? (p.regions||[]).join(', ') : '';
+  const hasSide = !!(p.side && p.side!=='N/A');
   const fuColor = overdue ? '#dc2626' : (p.nextFollowUpDate ? 'var(--emerald)' : 'var(--muted)');
   const diagText = displayDiagnosis(p.diagnosis) || (isSurgical?'':p.chiefComplaints);
+  const topRowCells = ovSnapCell('userPlus', 'Age / Sex', formatAge(p) + (p.sex ? ' \u00b7 '+p.sex : ''))
+    + (hasSide ? ovSnapCell('shield', 'Side', p.side) : '')
+    + (regionsSpecLine ? ovSnapCell('tag', isSurgical?'Specialty':'Region', regionsSpecLine) : '');
   const snapshotRead = '<div class="row" style="gap:10px;">'
-    + ovSnapCell('userPlus', 'Age / Sex', formatAge(p) + (p.sex ? ' \u00b7 '+p.sex : ''))
-    + ovSnapCell('shield', 'Side', p.side && p.side!=='N/A' ? p.side : '')
-    + ovSnapCell('tag', isSurgical?'Specialty':'Region', regionsSpecLine)
+    + topRowCells
     + '</div>'
     + '<div style="border-top:1px solid var(--border);"></div>'
-    + (diagText ? '<div><div class="row gap1" style="color:var(--muted);margin-bottom:2px;">'+ic('clipboard')+'<span style="font-size:10.5px;">Diagnosis</span></div><div style="font-size:13.5px;font-weight:700;overflow-wrap:break-word;">'+esc(diagText)+'</div></div>' : '')
+    + (diagText ? '<div style="border-left:3px solid var(--accent);padding-left:9px;"><div class="row gap1" style="color:var(--muted);margin-bottom:2px;">'+ic('clipboard')+'<span style="font-size:10.5px;">Diagnosis</span></div><div style="font-size:13.5px;font-weight:700;overflow-wrap:break-word;">'+esc(diagText)+'</div></div>' : '')
     + '<div class="row" style="gap:10px;">'
     + (isSurgical ? ovSnapCell('calendar', 'Surgery Date', p.surgeryDate ? fmtDate(p.surgeryDate) : '') : ovSnapCell('calendar', 'Visit Date', p.surgeryDate ? fmtDate(p.surgeryDate) : ''))
     + ovSnapCell('clock', 'Next Follow-up', overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'Not scheduled'), fuColor)
@@ -5741,7 +5743,7 @@ function renderOverviewTab(p) {
     + (p.nextFollowUpDate ? '<div style="text-align:right;font-size:11px;color:'+fuColor+';font-style:italic;">('+relativeDaysUntil(p.nextFollowUpDate)+')</div>'
         : '<div style="text-align:right;"><button class="btn btn-sm" data-action="quick-fu-open" data-patient-id="'+p.id+'">'+ic('plus')+' Schedule</button></div>')
     + (isSurgical && p.procedure ? '<div style="padding-top:8px;border-top:1px solid var(--border);">'+ovSnapCell('clipboard','Procedure', p.procedure)+'</div>' : '')
-    + (isSurgical && (p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+ovSnapCell('clipboard','Hospital', p.hospital)+ovSnapCell('shield','Anaesthesia', p.anaesthesiaType)+'</div>' : '')
+    + (isSurgical && (p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+(p.hospital?ovSnapCell('clipboard','Hospital', p.hospital):'')+(p.anaesthesiaType?ovSnapCell('shield','Anaesthesia', p.anaesthesiaType):'')+'</div>' : '')
     + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '');
 
   const statCards = '<div style="display:flex;gap:10px;">'
