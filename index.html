@@ -5637,6 +5637,7 @@ function renderOverviewTab(p) {
   const usefulRead = reminderMiniCardHtml(p);
 
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
+    + (p.condition === 'ra' && p.ra && p.ra.cspineFlag ? '<div class="cspine-alert">'+ic('alert')+' C-spine flagged \u2014 inform anaesthesia before any surgery (intubation/positioning precautions).</div>' : '')
     + (isAiTier() ? (
         AI_PATIENT_SUMMARY
           ? '<div class="card" style="padding:11px 14px;">'
@@ -11554,7 +11555,7 @@ document.addEventListener('blur', async (e) => {
   if ((e.target.id === 'ap-diagnosis' || e.target.id === 'ap-complaints') && AP_TEMP && AP_TEMP.caseType === 'opd' && !AP_TEMP.condition) {
     syncApTempFromDom();
     const guess = autoDetectCondition(AP_TEMP.diagnosis + ' ' + (AP_TEMP.chiefComplaints||''));
-    if (guess) { AP_TEMP.condition = guess; render(); }
+    if (guess) { AP_TEMP.condition = guess; render(); toast(guess.toUpperCase()+' tracking enabled based on diagnosis \u2014 change it in Section 4 if wrong.'); }
   }
 }, true);
 document.addEventListener('keydown', (e) => {
