@@ -4611,13 +4611,14 @@ function renderDashboardSection() {
     html += s.important.length
       ? '<button type="button" data-action="dash-goto-followups" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px;background:var(--red-bg,#fef2f2);border-color:var(--red-border,#fecaca);">'
         + '<span style="flex:none;width:44px;height:44px;">'+DASH_ICONS.needsAttention+'</span>'
-        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14.5px;font-weight:800;color:var(--red);">Needs attention</span><span style="display:block;font-size:11.5px;color:var(--muted);margin-top:1px;">'+s.important.length+' item'+(s.important.length!==1?'s':'')+' require your attention</span></span>'
+        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:9.5px;font-weight:800;color:var(--red);letter-spacing:0.05em;opacity:0.75;">FOLLOW-UP STATUS</span><span style="display:block;font-size:14.5px;font-weight:800;color:var(--red);">Needs attention</span><span style="display:block;font-size:11.5px;color:var(--muted);margin-top:1px;">'+s.important.length+' item'+(s.important.length!==1?'s':'')+' require your attention</span></span>'
         + '<span style="flex:none;color:var(--red);">'+ic('chevron')+'</span>'
         + '</button>'
-      : '<div class="card" style="display:flex;align-items:center;gap:12px;margin-bottom:14px;background:var(--emerald-bg);">'
+      : '<button type="button" data-action="dash-goto-followups" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px;background:var(--emerald-bg);">'
         + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
-        + '<span style="font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span>'
-        + '</div>';
+        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:9.5px;font-weight:800;color:var(--emerald);letter-spacing:0.05em;opacity:0.75;">FOLLOW-UP STATUS</span><span style="display:block;font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span></span>'
+        + '<span style="flex:none;color:var(--emerald);">'+ic('chevron')+'</span>'
+        + '</button>';
   }
 
   const showBackupBanner = !BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 1);
@@ -4658,23 +4659,17 @@ function renderDashboardSection() {
     + '</div>';
 
   html += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:0 0 8px;">MANAGE &amp; TRACK</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">'
     + '<button type="button" class="card" style="text-align:left;padding:14px 12px;position:relative;background:rgba(37,99,235,0.06);border-color:rgba(37,99,235,0.2);" data-action="nav-patients">'
       + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.patients+'</span>'
       + '<span style="display:block;font-size:12.5px;font-weight:800;color:var(--ink);">Patients</span>'
       + '<span style="display:block;font-size:10px;color:var(--muted);margin-top:1px;">View &amp; manage</span>'
       + '</button>'
-    + '<button type="button" class="card" style="text-align:left;padding:14px 12px;position:relative;background:rgba(217,119,6,0.07);border-color:rgba(217,119,6,0.2);" data-action="open-followups">'
-      + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.followUp+'</span>'
-      + (s.important.length ? '<span style="position:absolute;top:8px;right:8px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(s.important.length>9?'9+':s.important.length)+'</span>' : '')
-      + '<span style="display:block;font-size:12.5px;font-weight:800;color:var(--ink);">Follow Ups</span>'
-      + '<span style="display:block;font-size:10px;color:var(--muted);margin-top:1px;">Schedule &amp; manage</span>'
-      + '</button>'
-    + '<button type="button" class="card" style="text-align:left;padding:14px 12px;position:relative;background:var(--accent-bg);border-color:var(--accent-border);" data-action="open-reminders-tab">'
-      + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.reminder+'</span>'
+    + '<button type="button" class="card" style="text-align:left;padding:14px 12px;position:relative;background:var(--bg-soft);" data-action="open-reminders-tab">'
+      + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;opacity:0.75;">'+DASH_ICONS.reminder+'</span>'
       + (dueRemindersCount ? '<span style="position:absolute;top:8px;right:8px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(dueRemindersCount>9?'9+':dueRemindersCount)+'</span>' : '')
-      + '<span style="display:block;font-size:12.5px;font-weight:800;color:var(--ink);">Reminders</span>'
-      + '<span style="display:block;font-size:10px;color:var(--muted);margin-top:1px;">Set &amp; manage</span>'
+      + '<span style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Reminders</span>'
+      + '<span style="display:block;font-size:10px;color:var(--muted);margin-top:1px;opacity:0.8;">Set &amp; manage</span>'
       + '</button>'
     + '</div>';
 
@@ -10576,7 +10571,7 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'open-followups') {
     const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
-    CAL_SUBVIEW = 'due'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    CAL_SUBVIEW = 'calendar'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
     VIEW = 'calendar'; render(); return;
   }
   if (action === 'open-reminders-tab') { REMINDER_FORM_OPEN = false; VIEW = 'reminders-tab'; render(); return; }
