@@ -2082,8 +2082,12 @@ function quickPickerResultsHtml() {
   const results = (q ? PATIENTS.filter(p => matchCase(p, q)) : PATIENTS.slice().sort((a,b)=>(b.updatedAt||0)-(a.updatedAt||0))).slice(0, 30);
   if (!results.length) return '<p style="text-align:center;color:var(--muted);font-size:12px;padding:36px 20px;">No matches.</p>';
   return '<div style="display:flex;flex-direction:column;gap:8px;">' + results.map(p => '<button class="case-card" style="width:100%;" data-action="quick-pick-patient" data-id="'+p.id+'">'
-      + '<div style="min-width:0;flex:1;"><div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+escName(p.name)+(p.patientCode?' <span style="font-weight:400;color:var(--muted);font-size:12px;">('+esc(p.patientCode)+')</span>':'')+' </span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
-      + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+esc(sideTag(p))+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||'\u2014'))+'</div></div></button>').join('') + '</div>';
+      + '<div style="min-width:0;flex:1;">'
+      + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+escName(p.name)+(p.patientCode?' <span style="font-weight:400;color:var(--muted);font-size:12px;">('+esc(p.patientCode)+')</span>':'')+' </span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></div>'
+      + (p.diagnosis || p.chiefComplaints
+          ? '<div style="background:rgba(67,56,202,0.09);border-radius:7px;padding:4px 8px;margin-top:4px;font-size:11.5px;font-weight:700;color:var(--accent-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(sideTag(p))+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||''))+'</div>'
+          : '<div style="font-size:11px;color:var(--muted);margin-top:4px;">No diagnosis yet</div>')
+      + '</div></button>').join('') + '</div>';
 }
 let SHOW_LEGEND = false;
 let EDITING_PATIENT_CODE = false;
@@ -2365,7 +2369,7 @@ function peekNextPatientCode() {
 
 function newPatientShape() {
   return {
-    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [],
+    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [],
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active', notes:'', whatsapp:'',
@@ -2395,12 +2399,19 @@ function sideTag(p) {
 function formatAge(p) {
   const y = (p.age !== '' && p.age != null) ? parseInt(p.age) : null;
   const m = (p.ageMonths !== '' && p.ageMonths != null) ? parseInt(p.ageMonths) : null;
+  const d = (p.ageDays !== '' && p.ageDays != null) ? parseInt(p.ageDays) : null;
   const hasY = y != null && !isNaN(y) && y > 0;
   const hasM = m != null && !isNaN(m) && m > 0;
+  const hasD = d != null && !isNaN(d) && d > 0;
+  // Newborns/infants (relevant for CTEV etc) are often only days or weeks old \u2014 don't
+  // force everything through years/months when the person is younger than a month.
+  if (!hasY && !hasM && hasD) return d + (d===1?' day':' days');
+  if (hasY && hasM && hasD) return y + 'y ' + m + 'mo ' + d + 'd';
   if (hasY && hasM) return y + 'y ' + m + 'mo';
+  if (hasM && hasD) return m + 'mo ' + d + 'd';
   if (hasY) return y + ' yrs';
   if (hasM) return m + ' mo';
-  if (y === 0 || m === 0) return '0 yrs';
+  if (y === 0 || m === 0 || d === 0) return '0 yrs';
   return '\u2014';
 }
 
@@ -2473,10 +2484,27 @@ const LAB_PARAMETERS = [
 
 const INJECTION_LIB_KEY = 'surgical-case-log-injection-lib-v1';
 function ageFieldHtml(p) {
-  return '<div><label class="field-label">Age</label><div class="row gap2">'
-    + '<input class="input" type="number" min="0" placeholder="Years" data-field="age" value="'+esc(p.age)+'" style="flex:1;">'
-    + '<input class="input" type="number" min="0" max="11" placeholder="Months" data-field="ageMonths" value="'+esc(p.ageMonths)+'" style="flex:1;">'
-    + '</div></div>';
+  const fieldMap = { years: 'age', months: 'ageMonths', days: 'ageDays' };
+  // Default to Years first (the field doctors usually think in), then whichever unit
+  // already has a value, otherwise keep whatever was last toggled.
+  let unit = AGE_INPUT_UNIT;
+  if (p.age !== '' && p.age != null) unit = 'years';
+  else if (p.ageMonths !== '' && p.ageMonths != null) unit = 'months';
+  else if (p.ageDays !== '' && p.ageDays != null) unit = 'days';
+  const activeField = fieldMap[unit];
+  const maxByUnit = { years: 120, months: 11, days: 30 };
+  const labelByUnit = { years: 'Years', months: 'Months', days: 'Days' };
+  return '<div><label class="field-label">Age</label>'
+    + '<div class="seg" style="margin-bottom:6px;max-width:280px;">'
+    + Object.keys(fieldMap).map(u => {
+        const val = p[fieldMap[u]];
+        const hasVal = val !== '' && val != null && u !== unit;
+        return '<button type="button" class="seg-btn'+(unit===u?' active':'')+'" data-action="set-age-unit" data-value="'+u+'">'+labelByUnit[u]+(hasVal?' <span style="opacity:0.7;">('+esc(val)+')</span>':'')+'</button>';
+      }).join('')
+    + '</div>'
+    + '<input class="input" type="number" min="0" max="'+maxByUnit[unit]+'" placeholder="'+labelByUnit[unit]+'" data-field="'+activeField+'" value="'+esc(p[activeField])+'" style="max-width:140px;">'
+    + (Object.values(fieldMap).filter(f => p[f] !== '' && p[f] != null).length > 1 ? '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Combined: '+esc(formatAge(p))+'</div>' : '')
+    + '</div>';
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
 function getLastFollowUpDate(p) {
@@ -3418,7 +3446,10 @@ function renderReminderQueueView() {
     + '<div class="px" style="padding-top:10px;">'
     + '<div class="card" style="margin-bottom:14px;">'
     + '<div style="font-weight:800;font-size:15px;">'+escName(p.name)+'</div>'
-    + '<div style="font-size:12px;color:var(--muted);margin-top:2px;">'+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||''))+' \u00b7 '+esc(getLastFollowUpDate(p) ? 'Last seen '+fmtDateShort(getLastFollowUpDate(p)) : 'No visits logged')+' \u00b7 Follow-up: '+fmtDate(p.nextFollowUpDate)+'</div>'
+    + (p.diagnosis || p.chiefComplaints
+        ? '<div style="background:rgba(67,56,202,0.09);border-radius:7px;padding:4px 8px;margin-top:5px;font-size:12px;font-weight:700;color:var(--accent-dark);">'+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||''))+'</div>'
+        : '<div style="font-size:12px;color:var(--muted);margin-top:5px;">No diagnosis yet</div>')
+    + '<div style="font-size:11.5px;color:var(--muted);margin-top:5px;">'+esc(getLastFollowUpDate(p) ? 'Last seen '+fmtDateShort(getLastFollowUpDate(p)) : 'No visits logged')+' \u00b7 Follow-up: '+fmtDate(p.nextFollowUpDate)+'</div>'
     + '</div>'
     + '<div class="card" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:16px;">'+esc(message)+'</div>'
     + '<div class="row gap2">'
@@ -4975,7 +5006,9 @@ function usearchResultRowHtml(p, q) {
   return '<button class="case-card" style="width:100%;" data-action="usearch-open-patient" data-id="'+p.id+'" data-field="'+esc(hit ? hit.field : '')+'">'
     + '<div style="min-width:0;flex:1;">'
     + '<div class="row gap2"><span class="display" style="font-weight:800;font-size:14px;">'+escName(p.name)+'</span><span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex)+(p.side && p.side!=='N/A' ? ' \u00b7 '+esc(p.side) : '')+'</span></div>'
-    + '<div style="font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+((p.diagnosis||p.chiefComplaints)?esc(sideTag(p)):'')+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||''))+'</div>'
+    + (p.diagnosis || p.chiefComplaints
+        ? '<div style="background:rgba(67,56,202,0.09);border-radius:7px;padding:4px 8px;margin-top:4px;font-size:11.5px;font-weight:700;color:var(--accent-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(sideTag(p))+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints||''))+'</div>'
+        : '<div style="font-size:11px;color:var(--muted);margin-top:4px;">No diagnosis yet</div>')
     + (hit && !['Name','Diagnosis','Chief complaints'].includes(hit.field) ? '<div style="font-size:10px;color:var(--accent);margin-top:2px;font-weight:600;">'+ic('search')+' Matched in: '+esc(hit.field)+'</div>' : '')
     + '</div></button>';
 }
@@ -5104,9 +5137,9 @@ function renderPatientsView() {
         + '<span class="display" style="font-weight:800;font-size:15px;">'+escName(p.name)+'</span>'
         + '<span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex||'')+'</span>'
         + '</div>'
-        + '<div style="font-size:12.5px;color:#334155;margin-top:3px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">'
-        + (summaryText ? '<span style="font-weight:600;">'+esc(summaryText)+'</span>' : '<span style="color:var(--muted);">No diagnosis yet</span>')
-        + '</div>'
+        + (summaryText
+            ? '<div style="background:rgba(67,56,202,0.09);border-radius:8px;padding:5px 9px;margin-top:5px;font-size:12.5px;font-weight:700;color:var(--accent-dark);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3;">'+esc(summaryText)+'</div>'
+            : '<div style="font-size:12px;color:var(--muted);margin-top:5px;">No diagnosis yet</div>')
         + '<div style="font-size:11px;margin-top:4px;">'+followUpLine+'</div>'
         + patientQuickActionsRowHtml(p)
         + '</div>'
@@ -5300,11 +5333,12 @@ const AP_INV_GROUPS = [
   { key:'labs', label:'Labs / Reports', categories:['investigations'] },
 ];
 function initApTemp() {
+  AGE_INPUT_UNIT = 'years';
   // id is allocated right away (not just at final Save) so that any photos taken
   // during this wizard can be written to IndexedDB immediately, instead of sitting
   // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
   // would lose them for good. See handlePhotoInputChange / handleCategorizedPhotoChange.
-  AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
+  AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
   AP_OPEN_SECTION = 2;
   AP_DIAG_CONFIRMED = false;
@@ -5318,7 +5352,7 @@ function initApTemp() {
   AI_EXAM_SUGGESTIONS = null;
 }
 function syncApTempFromDom() {
-  ['name','age','ageMonths','occupation','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital','nextFollowUpDate'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : f === 'nextFollowUpDate' ? 'ap-next-fu-date' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
+  ['name','age','ageMonths','ageDays','occupation','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital','nextFollowUpDate'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : f === 'nextFollowUpDate' ? 'ap-next-fu-date' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
   const anaesEl = document.getElementById('ap-anaesthesia'); if (anaesEl) AP_TEMP.anaesthesiaType = anaesEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
@@ -5434,14 +5468,29 @@ function renderAddView() {
 
   const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
       + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
-      + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
-      + '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label><div class="row gap2">'
-      + '<input class="input" type="number" min="0" max="120" id="ap-age" placeholder="Years" value="'+esc(AP_TEMP.age)+'" style="flex:1;">'
-      + '<input class="input" type="number" min="0" max="11" id="ap-ageMonths" placeholder="Months" value="'+esc(AP_TEMP.ageMonths)+'" style="flex:1;">'
-      + '</div></div>'
+      + (() => {
+          const fieldMap = { years: 'age', months: 'ageMonths', days: 'ageDays' };
+          let unit = AGE_INPUT_UNIT;
+          if (AP_TEMP.age !== '' && AP_TEMP.age != null) unit = 'years';
+          else if (AP_TEMP.ageMonths !== '' && AP_TEMP.ageMonths != null) unit = 'months';
+          else if (AP_TEMP.ageDays !== '' && AP_TEMP.ageDays != null) unit = 'days';
+          const activeField = fieldMap[unit];
+          const maxByUnit = { years: 120, months: 11, days: 30 };
+          const labelByUnit = { years: 'Years', months: 'Months', days: 'Days' };
+          return '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label>'
+            + '<div class="seg" style="margin-bottom:6px;max-width:280px;">'
+            + Object.keys(fieldMap).map(u => {
+                const val = AP_TEMP[fieldMap[u]];
+                const hasVal = val !== '' && val != null && u !== unit;
+                return '<button type="button" class="seg-btn'+(unit===u?' active':'')+'" data-action="ap-set-age-unit" data-value="'+u+'">'+labelByUnit[u]+(hasVal?' <span style="opacity:0.7;">('+esc(val)+')</span>':'')+'</button>';
+              }).join('')
+            + '</div>'
+            + '<input class="input" type="number" min="0" max="'+maxByUnit[unit]+'" id="ap-'+activeField+'" placeholder="'+labelByUnit[unit]+'" value="'+esc(AP_TEMP[activeField])+'" style="max-width:140px;">'
+            + (Object.values(fieldMap).filter(f => AP_TEMP[f] !== '' && AP_TEMP[f] != null).length > 1 ? '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Combined: '+esc(formatAge(AP_TEMP))+'</div>' : '')
+            + '</div>';
+        })()
       + '<div><label class="field-label">Sex</label><div class="seg">'
       + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
-      + '</div>'
       + '<div><label class="field-label">Occupation (optional)</label><input class="input" id="ap-occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(AP_TEMP.occupation)+'"></div>'
       + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
       + '</div>';
@@ -5591,6 +5640,7 @@ function renderAddView() {
 /* ================= Detail view: tabs ================= */
 
 let OV_EXPANDED = new Set(['snapshot']);
+let AGE_INPUT_UNIT = 'years'; // 'years' | 'months' | 'days' \u2014 which single age box is shown
 let OV_EDIT_SECTIONS = new Set();
 function ovRow(label, value) {
   if (!value) return '';
@@ -8409,9 +8459,19 @@ async function exportCaseZip(patientId) {
   }
 }
 
+function backupFilename(caseCount) {
+  const profile = loadProfile();
+  const docPart = profile.doctorName
+    ? profile.doctorName.trim().replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    : 'Doctor';
+  return 'OV-' + docPart + '-' + caseCount + 'cases-' + todayStr() + '.zip';
+}
 async function exportBackup(auto) {
   if (typeof JSZip === 'undefined') { if (!auto) toast('Backup tool failed to load \u2014 check your internet connection'); return; }
   if (!auto) toast('Preparing backup\u2026');
+
+  const allPatients = await dbGetAllPatients();
+  const filename = backupFilename(allPatients.length);
 
   // Manual export only (needs a direct user gesture): let the person pick exactly where to save,
   // e.g. straight into a Google Drive-synced folder for an automatic off-device copy.
@@ -8419,7 +8479,7 @@ async function exportBackup(auto) {
   if (!auto && window.showSaveFilePicker) {
     try {
       fileHandle = await window.showSaveFilePicker({
-        suggestedName: 'bone-log-pro-backup-'+todayStr()+'.zip',
+        suggestedName: filename,
         types: [{ description: 'Zip file', accept: {'application/zip': ['.zip']} }]
       });
     } catch (err) {
@@ -8430,7 +8490,6 @@ async function exportBackup(auto) {
 
   try {
     const zip = new JSZip();
-    const allPatients = await dbGetAllPatients();
     zip.file('cases.json', JSON.stringify(allPatients, null, 2));
     zip.file('reminders.json', JSON.stringify(REMINDERS, null, 2));
     zip.file('profile.json', JSON.stringify(loadProfile(), null, 2));
@@ -8445,7 +8504,6 @@ async function exportBackup(auto) {
       }
     }
     const blob = await zip.generateAsync({type:'blob'});
-    const filename = 'bone-log-pro-backup-'+todayStr()+'.zip';
     if (fileHandle) {
       const writable = await fileHandle.createWritable();
       await writable.write(blob);
@@ -8608,7 +8666,7 @@ let DRIVE_RESTORE_BUSY = false;
 
 async function listDriveBackups() {
   if (!GOOGLE_DRIVE_ACCESS_TOKEN) return [];
-  const q = encodeURIComponent("name contains 'OrthoVault-backup-' and trashed = false");
+  const q = encodeURIComponent("(name contains 'OV-' or name contains 'OrthoVault-backup-') and trashed = false");
   const fields = encodeURIComponent('files(id,name,createdTime,size)');
   const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=${fields}&orderBy=createdTime desc&pageSize=30`;
   const response = await fetch(url, { headers: { 'Authorization': 'Bearer ' + GOOGLE_DRIVE_ACCESS_TOKEN } });
@@ -8665,7 +8723,7 @@ async function maybeAutoBackupToDrive(force) {
       }
       
       const blob = await zip.generateAsync({type:'blob'});
-      const filename = 'OrthoVault-backup-'+todayStr()+'.zip';
+      const filename = backupFilename(allPatients.length);
       
       if (await uploadBackupToDrive(blob, filename)) {
         localStorage.setItem(LAST_DRIVE_BACKUP_KEY, String(Date.now()));
@@ -9109,7 +9167,7 @@ document.addEventListener('click', async (e) => {
       const sys = 'You are a data-entry sanity checker for a clinical case form. You do NOT give clinical opinions or diagnoses. Given the form field values below, check ONLY for internal logical inconsistencies or likely typos \u2014 for example: the diagnosis mentions a body part that does not match the selected Region/Specialty, or Side is set but the diagnosis text mentions the opposite side. If you find a clear mismatch, describe it in one short sentence per issue. If nothing looks inconsistent, respond with exactly: "No mismatches found." Do not comment on fields that are simply empty, only on genuine contradictions between fields that are filled in.';
       const context = [
         'Name: ' + (AP_TEMP.name||'\u2014'),
-        'Age: ' + (AP_TEMP.age||'\u2014') + ' years' + (AP_TEMP.ageMonths ? ' ' + AP_TEMP.ageMonths + ' months' : ''),
+        'Age: ' + (AP_TEMP.age||'\u2014') + ' years' + (AP_TEMP.ageMonths ? ' ' + AP_TEMP.ageMonths + ' months' : '') + (AP_TEMP.ageDays ? ' ' + AP_TEMP.ageDays + ' days' : ''),
         'Sex: ' + AP_TEMP.sex,
         'Case type: ' + AP_TEMP.caseType,
         'Diagnosis: ' + (AP_TEMP.diagnosis||'\u2014'),
@@ -9597,6 +9655,12 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') AP_TEMP.condition = ''; render(); return; }
+  if (action === 'ap-set-age-unit') {
+    syncApTempFromDom();
+    AGE_INPUT_UNIT = el.dataset.value;
+    render();
+    return;
+  }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
   if (action === 'ap-set-payment') { syncApTempFromDom(); AP_TEMP.paymentMethod = el.dataset.value; render(); return; }
   if (action === 'ap-toggle-section') {
@@ -9666,6 +9730,11 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'ov-toggle-payment') { OV_SHOW_PAYMENT = !OV_SHOW_PAYMENT; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-show-tracking-pick') { OV_SHOW_TRACKING_PICK = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'set-age-unit') {
+    AGE_INPUT_UNIT = el.dataset.value;
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'ov-toggle-section-edit') {
     const key = el.dataset.value;
     if (OV_EDIT_SECTIONS.has(key)) OV_EDIT_SECTIONS.delete(key); else { OV_EDIT_SECTIONS.add(key); OV_EXPANDED.add(key); }
@@ -9857,6 +9926,7 @@ document.addEventListener('click', async (e) => {
     p.name = AP_TEMP.name.trim();
     p.age = AP_TEMP.age;
     p.ageMonths = AP_TEMP.ageMonths;
+    p.ageDays = AP_TEMP.ageDays;
     p.sex = AP_TEMP.sex;
     p.occupation = AP_TEMP.occupation;
     p.diagnosis = AP_TEMP.diagnosis;
@@ -10015,6 +10085,7 @@ document.addEventListener('click', async (e) => {
     initApTemp();
     AP_TEMP.age = src.age;
     AP_TEMP.ageMonths = src.ageMonths;
+    AP_TEMP.ageDays = src.ageDays;
     AP_TEMP.sex = src.sex;
     AP_TEMP.occupation = src.occupation||'';
     AP_TEMP.diagnosis = src.diagnosis;
