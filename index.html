@@ -2030,7 +2030,6 @@ let TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
 const DAILY_LIMIT = 100000;
 const MONTHLY_LIMIT = 1000000;
 let SHOW_ALL_ATTENTION = false;
-let SHOW_TOMORROW_LIST = true;
 let SHOW_ADD_MENU = false;
 let SHOW_PATIENT_MORE_MENU = false;
 let QUICK_PICKER_PURPOSE = null; // 'followup' | 'reminder' | 'investigation'
@@ -7868,6 +7867,23 @@ function reminderMiniCardHtml(p) {
     + '</div>';
 }
 
+function renderTomorrowFollowUpsList() {
+  const s = computeDashboardStats();
+  if (!s.dueTomorrowList.length) return '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:24px;">No follow-ups due tomorrow.</p>';
+  return s.dueTomorrowList.map(p => {
+    const waLink = p.whatsapp ? followUpReminderLink(p) : null;
+    return '<div class="card" style="margin-bottom:8px;">'
+      + '<div class="row between" style="align-items:center;">'
+      + '<div style="min-width:0;flex:1;cursor:pointer;" data-action="open-patient" data-id="'+p.id+'">'
+      + '<div style="font-size:13.5px;font-weight:700;">'+escName(p.name)+'</div>'
+      + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+followUpContextLine(p)+'</div>'
+      + '<div style="margin-top:4px;">'+reminderStatusBadgeHtml(p)+'</div>'
+      + '</div>'
+      + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:none;background:#25D366;border-color:#25D366;color:#fff;" data-action="log-reminder-sent" data-id="'+p.id+'">'+ic('message')+' Send</a>' : '<span class="badge badge-slate" style="font-size:10px;">No WhatsApp</span>')
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
 function renderUpcomingFollowUpsList() {
   const today = todayStr();
   const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })();
@@ -7898,42 +7914,18 @@ function renderUpcomingFollowUpsList() {
 
 function renderCalendarView() {
   const s = computeDashboardStats();
-  let tomorrowHtml = '';
-  if (s.dueTomorrowList.length) {
-    tomorrowHtml = '<div class="row between" style="margin-bottom:10px;gap:8px;">'
-      + '<button type="button" class="row between" style="flex:1;background:var(--amber-bg,#fffbeb);border:1px solid var(--amber-border,#fde68a);border-radius:10px;padding:9px 12px;cursor:pointer;" data-action="toggle-tomorrow-list">'
-      + '<span style="font-size:12px;font-weight:700;color:#b45309;display:flex;align-items:center;gap:6px;">'+ic('clock')+' Tomorrow \u2014 '+s.dueTomorrowList.length+' follow-up'+(s.dueTomorrowList.length>1?'s':'')+' due</span>'
-      + '<span style="color:#b45309;transform:scale(0.75)'+(SHOW_TOMORROW_LIST?' rotate(180deg)':'')+';">'+ic('chevron')+'</span>'
-      + '</button>'
-      + '</div>';
-    if (SHOW_TOMORROW_LIST) {
-      tomorrowHtml += '<div class="card" style="margin-bottom:12px;padding:6px 0;">'
-        + s.dueTomorrowList.map(p => {
-            const waLink = p.whatsapp ? followUpReminderLink(p) : null;
-            return '<div class="row between" style="padding:7px 14px;border-bottom:1px solid var(--border);align-items:center;">'
-              + '<div style="flex:1;min-width:0;overflow:hidden;">'
-              + '<div style="font-size:12.5px;font-weight:600;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px;" data-action="open-patient" data-id="'+p.id+'">'+esc(p.name)+'</div>'
-              + '<div style="font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px;">'+followUpContextLine(p)+'</div>'
-              + '<div>'+reminderStatusBadgeHtml(p)+'</div>'
-              + '</div>'
-              + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+p.id+'" style="flex-shrink:0;color:#25D366;margin-left:8px;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '<span class="badge badge-slate" style="font-size:9px;">No WhatsApp</span>')
-              + '</div>';
-          }).join('')
-        + '</div>';
-    }
-  }
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row between" style="margin-bottom:10px;"><div class="row gap3"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Follow-ups</h2></div><button class="btn btn-sm btn-primary" data-action="add-menu-pick-patient" data-value="followup">'+ic('plus')+' Add</button></div>'
-    + tomorrowHtml
     + '<div class="seg">'
     + '<button class="seg-btn'+(CAL_SUBVIEW==='due'?' active':'')+'" data-action="cal-set-subview" data-value="due">Due'+(s.important.length?' ('+s.important.length+')':'')+'</button>'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='tomorrow'?' active':'')+'" data-action="cal-set-subview" data-value="tomorrow">Tomorrow'+(s.dueTomorrowList.length?' ('+s.dueTomorrowList.length+')':'')+'</button>'
     + '<button class="seg-btn'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming</button>'
     + '<button class="seg-btn'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar</button>'
     + '</div>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
-    + (CAL_SUBVIEW==='due' ? renderNeedsAttentionBlock(s) : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : (renderCalendarGrid() + renderCalendarDayDetail()))
+    + (CAL_SUBVIEW==='due' ? renderNeedsAttentionBlock(s) : CAL_SUBVIEW==='tomorrow' ? renderTomorrowFollowUpsList() : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : (renderCalendarGrid() + renderCalendarDayDetail()))
     + '</div>'
     + '</div>';
 }
@@ -9639,7 +9631,7 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'dash-goto-tomorrow') {
     const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
-    CAL_SUBVIEW = 'due'; SHOW_TOMORROW_LIST = true; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    CAL_SUBVIEW = 'tomorrow'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
     VIEW = 'calendar'; render(); return;
   }
   if (action === 'toggle-legend') { SHOW_LEGEND = !SHOW_LEGEND; render(); return; }
@@ -11218,7 +11210,6 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'close-calendar') { REMINDER_FORM_OPEN = false; VIEW = 'list'; render(); return; }
   if (action === 'cal-set-subview') { CAL_SUBVIEW = el.dataset.value; REMINDER_FORM_OPEN = false; render(); return; }
-  if (action === 'toggle-tomorrow-list') { SHOW_TOMORROW_LIST = !SHOW_TOMORROW_LIST; render(); return; }
   if (action === 'cal-prev-month') { CAL_MONTH--; if (CAL_MONTH<0) { CAL_MONTH=11; CAL_YEAR--; } render(); return; }
   if (action === 'cal-next-month') { CAL_MONTH++; if (CAL_MONTH>11) { CAL_MONTH=0; CAL_YEAR++; } render(); return; }
   if (action === 'cal-today') { const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t; render(); return; }
