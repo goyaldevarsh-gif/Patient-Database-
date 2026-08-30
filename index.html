@@ -4798,18 +4798,29 @@ function renderDashboardSection() {
 
   const dueRemindersCount = (REMINDERS && REMINDERS.length) ? REMINDERS.filter(r => !r.done && r.dueDate && r.dueDate <= todayStr()).length : 0;
 
+  const followUpAttentionCount = s.important.filter(i => i.type === 'Follow-up').length;
+  const tomorrowCount = s.dueTomorrowList.length;
   if (PATIENTS.length) {
-    html += s.important.length
-      ? '<button type="button" data-action="dash-goto-followups" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px;background:var(--red-bg,#fef2f2);border-color:var(--red-border,#fecaca);">'
-        + '<span style="flex:none;width:44px;height:44px;">'+DASH_ICONS.needsAttention+'</span>'
-        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:9.5px;font-weight:800;color:var(--red);letter-spacing:0.05em;opacity:0.75;">FOLLOW-UP STATUS</span><span style="display:block;font-size:14.5px;font-weight:800;color:var(--red);">Needs attention</span><span style="display:block;font-size:11.5px;color:var(--muted);margin-top:1px;">'+s.important.length+' item'+(s.important.length!==1?'s':'')+' require your attention</span></span>'
-        + '<span style="flex:none;color:var(--red);">'+ic('chevron')+'</span>'
-        + '</button>'
-      : '<button type="button" data-action="dash-goto-followups" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px;background:var(--emerald-bg);">'
+    if (followUpAttentionCount === 0 && tomorrowCount === 0) {
+      html += '<button type="button" data-action="dash-goto-followups" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px;background:var(--emerald-bg);">'
         + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
         + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:9.5px;font-weight:800;color:var(--emerald);letter-spacing:0.05em;opacity:0.75;">FOLLOW-UP STATUS</span><span style="display:block;font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span></span>'
         + '<span style="flex:none;color:var(--emerald);">'+ic('chevron')+'</span>'
         + '</button>';
+    } else {
+      html += '<div class="row gap2" style="margin-bottom:14px;">'
+        + '<button type="button" data-action="dash-goto-followups" class="card" style="flex:1;text-align:left;padding:12px 14px;'+(followUpAttentionCount?'background:var(--red-bg,#fef2f2);border-color:var(--red-border,#fecaca);':'background:var(--emerald-bg);')+'">'
+          + '<span style="display:block;font-size:9px;font-weight:800;letter-spacing:0.04em;opacity:0.75;color:'+(followUpAttentionCount?'var(--red)':'var(--emerald)')+';">FOLLOW-UP DUE</span>'
+          + '<span style="display:block;font-size:24px;font-weight:800;line-height:1.25;color:'+(followUpAttentionCount?'var(--red)':'var(--emerald)')+';">'+followUpAttentionCount+'</span>'
+          + '<span style="display:block;font-size:10.5px;color:var(--muted);">overdue + due today</span>'
+          + '</button>'
+        + '<button type="button" data-action="dash-goto-tomorrow" class="card" style="flex:1;text-align:left;padding:12px 14px;'+(tomorrowCount?'background:#fffbeb;border-color:#fde68a;':'')+'">'
+          + '<span style="display:block;font-size:9px;font-weight:800;letter-spacing:0.04em;opacity:0.75;color:'+(tomorrowCount?'#b45309':'var(--muted)')+';">TOMORROW</span>'
+          + '<span style="display:block;font-size:24px;font-weight:800;line-height:1.25;color:'+(tomorrowCount?'#b45309':'var(--ink)')+';">'+tomorrowCount+'</span>'
+          + '<span style="display:block;font-size:10.5px;color:var(--muted);">follow-ups pending</span>'
+          + '</button>'
+        + '</div>';
+    }
   }
 
   const showBackupBanner = !BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 1);
@@ -9624,6 +9635,11 @@ document.addEventListener('click', async (e) => {
   if (action === 'dash-goto-followups') {
     const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
     CAL_SUBVIEW = 'due'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    VIEW = 'calendar'; render(); return;
+  }
+  if (action === 'dash-goto-tomorrow') {
+    const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
+    CAL_SUBVIEW = 'due'; SHOW_TOMORROW_LIST = true; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
     VIEW = 'calendar'; render(); return;
   }
   if (action === 'toggle-legend') { SHOW_LEGEND = !SHOW_LEGEND; render(); return; }
