@@ -3252,8 +3252,8 @@ function renderAiHubView() {
 
 function masterAiModalHtml() {
   if (!MASTER_AI_OPEN) return '';
-  return '<div style="position:fixed;inset:0;z-index:998;background:rgba(0,0,0,0.4);display:flex;align-items:flex-end;" data-action="close-master-ai-modal">'
-    + '<div style="width:100%;max-width:520px;margin:0 auto;background:var(--bg);border-radius:16px 16px 0 0;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);" onclick="event.stopPropagation();">'
+  return '<div style="position:fixed;inset:0;z-index:998;background:rgba(0,0,0,0.4);" data-action="close-master-ai-modal"></div>'
+    + '<div style="position:fixed;left:0;right:0;bottom:0;z-index:999;width:100%;max-width:520px;margin:0 auto;background:var(--bg);border-radius:16px 16px 0 0;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">'
     + '<div style="position:sticky;top:0;background:var(--bg);padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">'
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">'+ic('sparkle')+' AI \u2014 type what you need</h2>'
     + '<button class="icon-btn" data-action="close-master-ai-modal">'+ic('close')+'</button>'
@@ -3265,7 +3265,7 @@ function masterAiModalHtml() {
     + '<button class="icon-btn" style="flex:none;width:44px;height:44px;background:var(--bg-soft);border-radius:12px;" data-action="master-ai-use-mic" title="Speak instead">'+ic('mic')+'</button>'
     + '<button class="btn btn-primary" style="flex:1;" data-action="master-ai-analyze">'+ic('sparkle')+' Send</button>'
     + '</div>'
-    + '</div></div></div>';
+    + '</div></div>';
 }
 
 function schemeQuickMatch(queryText, limit) {
@@ -5473,7 +5473,8 @@ function renderAddView() {
 
   const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
       + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
-      + (() => {
+      + '<div class="row gap2" style="align-items:flex-end;">'
+      + '<div style="flex:1;min-width:0;">' + (() => {
           const fieldMap = { years: 'age', months: 'ageMonths', days: 'ageDays' };
           let unit = AGE_INPUT_UNIT;
           if (!AGE_UNIT_MANUALLY_SET) {
@@ -5484,7 +5485,7 @@ function renderAddView() {
           const activeField = fieldMap[unit];
           const maxByUnit = { years: 120, months: 11, days: 30 };
           const labelByUnit = { years: 'Years', months: 'Months', days: 'Days' };
-          return '<div><label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label>'
+          return '<label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label>'
             + '<div class="seg" style="margin-bottom:6px;max-width:280px;">'
             + Object.keys(fieldMap).map(u => {
                 const val = AP_TEMP[fieldMap[u]];
@@ -5493,11 +5494,12 @@ function renderAddView() {
               }).join('')
             + '</div>'
             + '<input class="input" type="number" min="0" max="'+maxByUnit[unit]+'" id="ap-'+activeField+'" placeholder="'+labelByUnit[unit]+'" value="'+esc(AP_TEMP[activeField])+'" style="max-width:140px;">'
-            + (Object.values(fieldMap).filter(f => AP_TEMP[f] !== '' && AP_TEMP[f] != null).length > 1 ? '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Combined: '+esc(formatAge(AP_TEMP))+'</div>' : '')
-            + '</div>';
+            + (Object.values(fieldMap).filter(f => AP_TEMP[f] !== '' && AP_TEMP[f] != null).length > 1 ? '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Combined: '+esc(formatAge(AP_TEMP))+'</div>' : '');
         })()
-      + '<div><label class="field-label">Sex</label><div class="seg">'
+        + '</div>'
+      + '<div style="flex:none;"><label class="field-label">Sex</label><div class="seg">'
       + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
+      + '</div>'
       + '<div><label class="field-label">Occupation (optional)</label><input class="input" id="ap-occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(AP_TEMP.occupation)+'"></div>'
       + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
       + '</div>';
