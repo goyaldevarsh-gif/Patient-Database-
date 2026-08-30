@@ -2095,6 +2095,7 @@ let EDITING_PATIENT_NAME = false;
 function resetPerPatientUiState() {
   EDITING_PATIENT_CODE = false;
   EDITING_PATIENT_NAME = false;
+  AGE_UNIT_MANUALLY_SET = false;
   OV_EXPANDED = new Set(['snapshot']);
   OV_SHOW_PAYMENT = false;
   OV_SHOW_TRACKING_PICK = false;
@@ -2407,6 +2408,7 @@ function formatAge(p) {
   // force everything through years/months when the person is younger than a month.
   if (!hasY && !hasM && hasD) return d + (d===1?' day':' days');
   if (hasY && hasM && hasD) return y + 'y ' + m + 'mo ' + d + 'd';
+  if (hasY && hasD) return y + 'y ' + d + 'd';
   if (hasY && hasM) return y + 'y ' + m + 'mo';
   if (hasM && hasD) return m + 'mo ' + d + 'd';
   if (hasY) return y + ' yrs';
@@ -2488,9 +2490,11 @@ function ageFieldHtml(p) {
   // Default to Years first (the field doctors usually think in), then whichever unit
   // already has a value, otherwise keep whatever was last toggled.
   let unit = AGE_INPUT_UNIT;
-  if (p.age !== '' && p.age != null) unit = 'years';
-  else if (p.ageMonths !== '' && p.ageMonths != null) unit = 'months';
-  else if (p.ageDays !== '' && p.ageDays != null) unit = 'days';
+  if (!AGE_UNIT_MANUALLY_SET) {
+    if (p.age !== '' && p.age != null) unit = 'years';
+    else if (p.ageMonths !== '' && p.ageMonths != null) unit = 'months';
+    else if (p.ageDays !== '' && p.ageDays != null) unit = 'days';
+  }
   const activeField = fieldMap[unit];
   const maxByUnit = { years: 120, months: 11, days: 30 };
   const labelByUnit = { years: 'Years', months: 'Months', days: 'Days' };
@@ -5334,6 +5338,7 @@ const AP_INV_GROUPS = [
 ];
 function initApTemp() {
   AGE_INPUT_UNIT = 'years';
+  AGE_UNIT_MANUALLY_SET = false;
   // id is allocated right away (not just at final Save) so that any photos taken
   // during this wizard can be written to IndexedDB immediately, instead of sitting
   // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
@@ -5471,9 +5476,11 @@ function renderAddView() {
       + (() => {
           const fieldMap = { years: 'age', months: 'ageMonths', days: 'ageDays' };
           let unit = AGE_INPUT_UNIT;
-          if (AP_TEMP.age !== '' && AP_TEMP.age != null) unit = 'years';
-          else if (AP_TEMP.ageMonths !== '' && AP_TEMP.ageMonths != null) unit = 'months';
-          else if (AP_TEMP.ageDays !== '' && AP_TEMP.ageDays != null) unit = 'days';
+          if (!AGE_UNIT_MANUALLY_SET) {
+            if (AP_TEMP.age !== '' && AP_TEMP.age != null) unit = 'years';
+            else if (AP_TEMP.ageMonths !== '' && AP_TEMP.ageMonths != null) unit = 'months';
+            else if (AP_TEMP.ageDays !== '' && AP_TEMP.ageDays != null) unit = 'days';
+          }
           const activeField = fieldMap[unit];
           const maxByUnit = { years: 120, months: 11, days: 30 };
           const labelByUnit = { years: 'Years', months: 'Months', days: 'Days' };
@@ -5497,10 +5504,12 @@ function renderAddView() {
 
   const complaintsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
       + (!isSurgical ? '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
-      + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div>'
-      + '<div><label class="field-label">Side</label><div class="seg">'
-      + ['Left','Right','Bilateral'].map(s=>'<button class="seg-btn'+(AP_TEMP.side===s?' active':'')+'" data-action="ap-set-side" data-value="'+s+'">'+s+'</button>').join('')
+      + '<div class="row gap2" style="align-items:flex-end;">'
+      + '<div style="flex:1;min-width:0;"><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div>'
+      + '<div style="flex:none;"><label class="field-label">Side</label><div class="seg">'
+      + [['Left','Lt'],['Right','Rt'],['Bilateral','B/l']].map(([full,short])=>'<button type="button" class="seg-btn'+(AP_TEMP.side===full?' active':'')+'" data-action="ap-set-side" data-value="'+full+'">'+short+'</button>').join('')
       + '</div></div>'
+      + '</div>'
       + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
       + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" maxlength="500" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
         + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+apSimilarCasesBlockHtml()+apSchemeSuggestBlockHtml()+'</div>'
@@ -5641,6 +5650,7 @@ function renderAddView() {
 
 let OV_EXPANDED = new Set(['snapshot']);
 let AGE_INPUT_UNIT = 'years'; // 'years' | 'months' | 'days' \u2014 which single age box is shown
+let AGE_UNIT_MANUALLY_SET = false; // once the user taps a unit tab, stop auto-guessing it on every re-render
 let OV_EDIT_SECTIONS = new Set();
 function ovRow(label, value) {
   if (!value) return '';
@@ -5701,10 +5711,14 @@ function renderOverviewTab(p) {
     + ageFieldHtml(p)
     + '<div><label class="field-label">Sex</label><div class="input" style="background:var(--bg-soft);color:var(--muted);">'+esc(p.sex||'\u2014')+'</div></div>'
     + '</div>'
-    + '<div><label class="field-label">Side</label><select class="select" data-field="side">'+['Left','Right','Bilateral','N/A'].map(s=>'<option'+(p.side===s?' selected':'')+'>'+s+'</option>').join('')+'</select></div>'
     + regionSpecialtyChipsHtml(p.regions||[], 'ov-toggle-region', 'ov-auto-region')
     + (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
-    + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
+    + '<div class="row gap2" style="align-items:flex-end;">'
+    + '<div style="flex:1;min-width:0;"><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
+    + '<div style="flex:none;"><label class="field-label">Side</label><div class="seg">'
+    + [['Left','Lt'],['Right','Rt'],['Bilateral','B/l'],['N/A','NA']].map(([full,short])=>'<button type="button" class="seg-btn'+(p.side===full?' active':'')+'" data-action="ov-set-side" data-value="'+full+'">'+short+'</button>').join('')
+    + '</div></div>'
+    + '</div>'
     + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);font-weight:600;">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
     + '</div>'
     + (isSurgical ? (
@@ -9658,6 +9672,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'ap-set-age-unit') {
     syncApTempFromDom();
     AGE_INPUT_UNIT = el.dataset.value;
+    AGE_UNIT_MANUALLY_SET = true;
     render();
     return;
   }
@@ -9732,6 +9747,12 @@ document.addEventListener('click', async (e) => {
   if (action === 'ov-show-tracking-pick') { OV_SHOW_TRACKING_PICK = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'set-age-unit') {
     AGE_INPUT_UNIT = el.dataset.value;
+    AGE_UNIT_MANUALLY_SET = true;
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'ov-set-side') {
+    await patchField('side', el.dataset.value);
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
