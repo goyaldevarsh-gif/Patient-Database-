@@ -2504,12 +2504,13 @@ function ageFieldHtml(p) {
   const activeField = fieldMap[unit];
   const maxByUnit = { years: 120, months: 11, days: 30 };
   const labelByUnit = { years: 'Years', months: 'Months', days: 'Days' };
+  const shortLabelByUnit = { years: 'Y', months: 'Mo', days: 'D' };
   return '<div><label class="field-label">Age</label>'
     + '<div class="seg" style="margin-bottom:6px;max-width:280px;">'
     + Object.keys(fieldMap).map(u => {
         const val = p[fieldMap[u]];
         const hasVal = val !== '' && val != null && u !== unit;
-        return '<button type="button" class="seg-btn'+(unit===u?' active':'')+'" data-action="set-age-unit" data-value="'+u+'">'+labelByUnit[u]+(hasVal?' <span style="opacity:0.7;">('+esc(val)+')</span>':'')+'</button>';
+        return '<button type="button" class="seg-btn'+(unit===u?' active':'')+'" data-action="set-age-unit" data-value="'+u+'">'+shortLabelByUnit[u]+(hasVal?' <span style="opacity:0.7;">('+esc(val)+')</span>':'')+'</button>';
       }).join('')
     + '</div>'
     + '<input class="input" type="number" min="0" max="'+maxByUnit[unit]+'" placeholder="'+labelByUnit[unit]+'" data-field="'+activeField+'" value="'+esc(p[activeField])+'" style="max-width:140px;">'
@@ -5491,12 +5492,13 @@ function renderAddView() {
           const activeField = fieldMap[unit];
           const maxByUnit = { years: 120, months: 11, days: 30 };
           const labelByUnit = { years: 'Years', months: 'Months', days: 'Days' };
+          const shortLabelByUnit = { years: 'Y', months: 'Mo', days: 'D' };
           return '<label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label>'
             + '<div class="seg" style="margin-bottom:6px;max-width:280px;">'
             + Object.keys(fieldMap).map(u => {
                 const val = AP_TEMP[fieldMap[u]];
                 const hasVal = val !== '' && val != null && u !== unit;
-                return '<button type="button" class="seg-btn'+(unit===u?' active':'')+'" data-action="ap-set-age-unit" data-value="'+u+'">'+labelByUnit[u]+(hasVal?' <span style="opacity:0.7;">('+esc(val)+')</span>':'')+'</button>';
+                return '<button type="button" class="seg-btn'+(unit===u?' active':'')+'" data-action="ap-set-age-unit" data-value="'+u+'">'+shortLabelByUnit[u]+(hasVal?' <span style="opacity:0.7;">('+esc(val)+')</span>':'')+'</button>';
               }).join('')
             + '</div>'
             + '<input class="input" type="number" min="0" max="'+maxByUnit[unit]+'" id="ap-'+activeField+'" placeholder="'+labelByUnit[unit]+'" value="'+esc(AP_TEMP[activeField])+'" style="max-width:140px;">'
