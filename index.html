@@ -2094,7 +2094,7 @@ let EDITING_PATIENT_NAME = false;
 function resetPerPatientUiState() {
   EDITING_PATIENT_CODE = false;
   EDITING_PATIENT_NAME = false;
-  AGE_UNIT_MANUALLY_SET = false;
+  CONVERT_SURGICAL_STEP = null;
   OV_EXPANDED = new Set(['snapshot']);
   OV_SHOW_PAYMENT = false;
   OV_SHOW_TRACKING_PICK = false;
@@ -2369,7 +2369,7 @@ function peekNextPatientCode() {
 
 function newPatientShape() {
   return {
-    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [],
+    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [], surgeryStatus:'',
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active', notes:'', whatsapp:'',
@@ -2395,6 +2395,24 @@ function sideTag(p) {
   if (!p.side || p.side === 'N/A') return '';
   const short = p.side === 'Bilateral' ? 'B/L' : p.side === 'Left' ? 'L' : p.side === 'Right' ? 'R' : p.side;
   return '('+short+') ';
+}
+/* Parses free-typed age text like "45", "5y", "1 Yr", "3 months", "15 days", "1yr 3mo"
+   into separate {age, ageMonths, ageDays} values. A bare number with no unit defaults
+   to years, since that covers the overwhelming majority of patients (adults). */
+function parseAgeText(text) {
+  const t = (text || '').trim().toLowerCase();
+  if (!t) return { age: '', ageMonths: '', ageDays: '' };
+  const yMatch = t.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?|yo|y)\b/);
+  const moMatch = t.match(/(\d+)\s*(?:months?|mos?|m)\b/);
+  const dMatch = t.match(/(\d+)\s*(?:days?|d)\b/);
+  let age = yMatch ? yMatch[1] : '';
+  let ageMonths = moMatch ? moMatch[1] : '';
+  let ageDays = dMatch ? dMatch[1] : '';
+  if (!yMatch && !moMatch && !dMatch) {
+    const plain = t.match(/^(\d+(?:\.\d+)?)$/);
+    if (plain) age = plain[1];
+  }
+  return { age, ageMonths, ageDays };
 }
 function formatAge(p) {
   const y = (p.age !== '' && p.age != null) ? parseInt(p.age) : null;
@@ -2491,29 +2509,10 @@ function sideToggleHtml(action, currentSide, includeNA) {
     + '</div>';
 }
 function ageFieldHtml(p) {
-  const fieldMap = { years: 'age', months: 'ageMonths', days: 'ageDays' };
-  // Default to Years first (the field doctors usually think in), then whichever unit
-  // already has a value, otherwise keep whatever was last toggled.
-  let unit = AGE_INPUT_UNIT;
-  if (!AGE_UNIT_MANUALLY_SET) {
-    if (p.age !== '' && p.age != null) unit = 'years';
-    else if (p.ageMonths !== '' && p.ageMonths != null) unit = 'months';
-    else if (p.ageDays !== '' && p.ageDays != null) unit = 'days';
-  }
-  const activeField = fieldMap[unit];
-  const maxByUnit = { years: 120, months: 11, days: 30 };
-  const labelByUnit = { years: 'Years', months: 'Months', days: 'Days' };
-  const shortLabelByUnit = { years: 'Y', months: 'Mo', days: 'D' };
+  const currentText = formatAge(p);
   return '<div><label class="field-label">Age</label>'
-    + '<div class="seg" style="margin-bottom:6px;max-width:280px;">'
-    + Object.keys(fieldMap).map(u => {
-        const val = p[fieldMap[u]];
-        const hasVal = val !== '' && val != null && u !== unit;
-        return '<button type="button" class="seg-btn'+(unit===u?' active':'')+'" data-action="set-age-unit" data-value="'+u+'">'+shortLabelByUnit[u]+(hasVal?' <span style="opacity:0.7;">('+esc(val)+')</span>':'')+'</button>';
-      }).join('')
-    + '</div>'
-    + '<input class="input" type="number" min="0" max="'+maxByUnit[unit]+'" placeholder="'+labelByUnit[unit]+'" data-field="'+activeField+'" value="'+esc(p[activeField])+'" style="max-width:140px;">'
-    + (Object.values(fieldMap).filter(f => p[f] !== '' && p[f] != null).length > 1 ? '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Combined: '+esc(formatAge(p))+'</div>' : '')
+    + '<input class="input" type="text" id="age-text" placeholder="e.g. 45, 6mo, 15 days" value="'+esc(currentText === '\u2014' ? '' : currentText)+'" style="max-width:200px;">'
+    + '<div style="font-size:10.5px;color:var(--muted);margin-top:3px;">Type years, months, or days \u2014 e.g. "45", "6mo", "1yr 3mo", "15 days"</div>'
     + '</div>';
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
@@ -2571,7 +2570,7 @@ function computeDashboardStats() {
     ...raDueToday.map(p => ({ patient:p, type:'RA labs', label:'RA labs due today', isOverdue:false, date:p.ra.nextLabsDate })),
     ...dexaDueToday.map(p => ({ patient:p, type:'DEXA scan', label:'DEXA scan due today', isOverdue:false, date:p.osteo.nextDexaDate })),
   ].sort((a,b) => overdueDays(b.date) - overdueDays(a.date));
-  const surgeriesThisWeek = PATIENTS.filter(p => p.caseType==='surgical' && p.surgeryDate >= sevenDaysAgoStr && p.surgeryDate <= today).length;
+  const surgeriesThisWeek = PATIENTS.filter(p => p.caseType==='surgical' && p.surgeryStatus !== 'awaiting' && p.surgeryDate >= sevenDaysAgoStr && p.surgeryDate <= today).length;
   const activeCases = PATIENTS.filter(p => !p.status || p.status === 'Active' || p.status === 'Active follow-up').length;
 
   /* Daily new-case counts for the last 7 days (oldest first), for the dashboard sparkline */
@@ -3177,7 +3176,7 @@ function computeWeeklyDigestStats() {
   PATIENTS.forEach(p => {
     const d = p.surgeryDate ? new Date(p.surgeryDate) : null;
     if (d && d >= weekAgo && d <= now) {
-      if (p.caseType === 'surgical') surgeriesThisWeek++; else newOpdThisWeek++;
+      if (p.caseType === 'surgical' && p.surgeryStatus !== 'awaiting') surgeriesThisWeek++; else if (p.caseType !== 'surgical') newOpdThisWeek++;
     }
     if (isOverdue(p.nextFollowUpDate)) overdueFollowUps++;
     else if (p.nextFollowUpDate) {
@@ -5150,7 +5149,9 @@ function renderPatientsView() {
         + '<span class="mono" style="font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:0.02em;">'+(p.patientCode?esc(p.patientCode):'\u2014')+'</span>'
         + '<div class="row gap1" style="flex:none;">'
         + (p.surgeryDate ? '<span style="font-size:9.5px;color:var(--muted);">'+esc(fmtDateShort(p.surgeryDate))+'</span>' : '')
-        + '<span class="badge badge-'+(p.caseType==='surgical'?'indigo':'slate')+'" style="font-size:9px;padding:2px 7px;">'+(p.caseType==='surgical'?'Surgical':'OPD')+'</span>'
+        + (p.caseType==='surgical' && p.surgeryStatus==='awaiting'
+            ? '<span class="badge" style="font-size:9px;padding:2px 7px;background:rgba(217,119,6,0.14);color:#92400e;">'+ic('clock')+' Awaiting</span>'
+            : '<span class="badge badge-'+(p.caseType==='surgical'?'indigo':'slate')+'" style="font-size:9px;padding:2px 7px;">'+(p.caseType==='surgical'?'Surgical':'OPD')+'</span>')
         + '</div>'
         + '</div>'
         + '<div class="row gap2" style="margin-top:3px;">'
@@ -5354,8 +5355,6 @@ const AP_INV_GROUPS = [
   { key:'labs', label:'Labs / Reports', categories:['investigations'] },
 ];
 function initApTemp() {
-  AGE_INPUT_UNIT = 'years';
-  AGE_UNIT_MANUALLY_SET = false;
   // id is allocated right away (not just at final Save) so that any photos taken
   // during this wizard can be written to IndexedDB immediately, instead of sitting
   // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
@@ -5491,29 +5490,9 @@ function renderAddView() {
   const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
       + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div class="row gap2" style="align-items:flex-end;">'
-      + '<div style="flex:1;min-width:0;">' + (() => {
-          const fieldMap = { years: 'age', months: 'ageMonths', days: 'ageDays' };
-          let unit = AGE_INPUT_UNIT;
-          if (!AGE_UNIT_MANUALLY_SET) {
-            if (AP_TEMP.age !== '' && AP_TEMP.age != null) unit = 'years';
-            else if (AP_TEMP.ageMonths !== '' && AP_TEMP.ageMonths != null) unit = 'months';
-            else if (AP_TEMP.ageDays !== '' && AP_TEMP.ageDays != null) unit = 'days';
-          }
-          const activeField = fieldMap[unit];
-          const maxByUnit = { years: 120, months: 11, days: 30 };
-          const labelByUnit = { years: 'Years', months: 'Months', days: 'Days' };
-          const shortLabelByUnit = { years: 'Y', months: 'Mo', days: 'D' };
-          return '<label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label>'
-            + '<div class="seg" style="margin-bottom:6px;max-width:280px;">'
-            + Object.keys(fieldMap).map(u => {
-                const val = AP_TEMP[fieldMap[u]];
-                const hasVal = val !== '' && val != null && u !== unit;
-                return '<button type="button" class="seg-btn'+(unit===u?' active':'')+'" data-action="ap-set-age-unit" data-value="'+u+'">'+shortLabelByUnit[u]+(hasVal?' <span style="opacity:0.7;">('+esc(val)+')</span>':'')+'</button>';
-              }).join('')
-            + '</div>'
-            + '<input class="input" type="number" min="0" max="'+maxByUnit[unit]+'" id="ap-'+activeField+'" placeholder="'+labelByUnit[unit]+'" value="'+esc(AP_TEMP[activeField])+'" style="max-width:140px;">'
-            + (Object.values(fieldMap).filter(f => AP_TEMP[f] !== '' && AP_TEMP[f] != null).length > 1 ? '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Combined: '+esc(formatAge(AP_TEMP))+'</div>' : '');
-        })()
+      + '<div style="flex:1;min-width:0;">'
+        + '<label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label>'
+        + '<input class="input" type="text" id="ap-age-text" placeholder="e.g. 45, 6mo, 15 days" value="'+esc(formatAge(AP_TEMP)==='\u2014' ? '' : formatAge(AP_TEMP))+'" style="max-width:200px;">'
         + '</div>'
       + '<div style="flex:none;"><label class="field-label">Sex</label><div class="seg">'
       + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
@@ -5664,8 +5643,7 @@ function renderAddView() {
 /* ================= Detail view: tabs ================= */
 
 let OV_EXPANDED = new Set(['snapshot']);
-let AGE_INPUT_UNIT = 'years'; // 'years' | 'months' | 'days' \u2014 which single age box is shown
-let AGE_UNIT_MANUALLY_SET = false; // once the user taps a unit tab, stop auto-guessing it on every re-render
+let CONVERT_SURGICAL_STEP = null; // null | 'choose' | 'planned-form'
 let OV_EDIT_SECTIONS = new Set();
 function ovRow(label, value) {
   if (!value) return '';
@@ -5780,7 +5758,8 @@ function renderOverviewTab(p) {
             : '<button class="chip" data-action="ov-show-tracking-pick">'+ic('plus')+' Track a condition</button>') : ''));
 
   let trackingBody = ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
-    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? unionProgressCardHtml(p) : '');
+    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') && p.surgeryStatus !== 'awaiting' ? unionProgressCardHtml(p) : '')
+    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') && p.surgeryStatus === 'awaiting' ? '<div class="card" style="text-align:center;color:var(--muted);font-size:11.5px;padding:14px;">Union/RUST tracking shuru hoga jab surgery actually ho jaayegi (abhi Awaiting Surgery hai).</div>' : '');
   const hasTracking = !!(((p.surgeryType === 'Trauma' || p.condition === 'trauma')));
 
   let communicateBody = '<div class="card">'
@@ -5912,9 +5891,26 @@ function renderOverviewTab(p) {
     + ovSectionV2('communicate', 'Contact Details', 'message', communicateRead, communicateBody)
     + ovSectionV2('useful', 'Reminders & Follow-ups', 'calendar', usefulRead, usefulBody)
     + (hasTracking ? ovSectionV2('tracking', 'Special Tracking', 'clock', trackingBody, null) : '')
-    + '<div class="card" style="background:rgba(226,232,240,0.4);border-color:#cbd5e1;margin-top:8px;padding:10px 12px;">'
+    + '<div class="card" style="background:'+(CONVERT_SURGICAL_STEP || (isSurgical && p.surgeryStatus==='awaiting') ? 'rgba(217,119,6,0.06)' : 'rgba(226,232,240,0.4)')+';border-color:'+(CONVERT_SURGICAL_STEP || (isSurgical && p.surgeryStatus==='awaiting') ? '#fde68a' : '#cbd5e1')+';margin-top:8px;padding:10px 12px;">'
     + '<div style="display:flex;flex-direction:column;gap:8px;">'
-    + (!isSurgical ? '<button class="btn btn-sm btn-block" style="font-size:12px;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical</button>' : convertToOpdButtonHtml(p))
+    + (CONVERT_SURGICAL_STEP === 'choose'
+        ? ('<div style="font-size:12.5px;font-weight:700;color:#92400e;">Surgery ho chuki hai ya abhi planned hai?</div>'
+            + '<div class="row gap2">'
+            + '<button class="btn btn-sm" style="flex:1;" data-action="convert-surgical-done">'+ic('check')+' Already Done</button>'
+            + '<button class="btn btn-sm btn-primary" style="flex:1;" data-action="convert-surgical-planned">'+ic('clock')+' Planned / OT Baaki</button>'
+            + '</div>'
+            + '<button class="btn btn-sm" data-action="cancel-convert-surgical">Cancel</button>')
+      : CONVERT_SURGICAL_STEP === 'planned-form'
+        ? ('<div style="font-size:12.5px;font-weight:700;color:#92400e;">Planned surgery details (tentative \u2014 update once OT ho jaaye)</div>'
+            + '<div><label class="field-label">Tentative procedure</label><input class="input" id="ps-tentative-procedure" placeholder="e.g. TKR, ORIF" value="'+esc(p.procedure||'')+'"></div>'
+            + '<div><label class="field-label">Target date (optional)</label><input class="input" type="date" id="ps-tentative-date" value="'+esc(p.surgeryDate||'')+'"></div>'
+            + '<div><label class="field-label">Hospital (optional)</label><input class="input" id="ps-tentative-hospital" placeholder="Hospital name" value="'+esc(p.hospital||'')+'"></div>'
+            + '<button class="btn btn-primary btn-sm btn-block" data-action="save-planned-surgery-details">'+ic('check')+' Save as Awaiting Surgery</button>')
+      : (isSurgical && p.surgeryStatus === 'awaiting')
+        ? ('<div class="row gap2" style="align-items:center;"><span style="flex:none;">'+ic('clock')+'</span><span style="flex:1;font-size:12.5px;font-weight:700;color:#92400e;">Awaiting Surgery \u2014 OT abhi baaki hai</span></div>'
+            + '<div style="font-size:11px;color:var(--muted);">Actual Procedure/Date/Hospital upar edit kar ke, phir neeche mark done kar do.</div>'
+            + '<button class="btn btn-sm btn-primary btn-block" data-action="mark-surgery-done">'+ic('check')+' Mark Surgery Done</button>')
+      : (!isSurgical ? '<button class="btn btn-sm btn-block" style="font-size:12px;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical</button>' : convertToOpdButtonHtml(p)))
     + '</div>'
     + '</div>'
     + '</div>';
@@ -7697,7 +7693,9 @@ function renderDetailShell(p) {
   const isSurgical = p.caseType === 'surgical';
   const diagnosisLine = isSurgical ? (p.procedure || displayDiagnosis(p.diagnosis) || '') : (displayDiagnosis(p.diagnosis || p.chiefComplaints) || '');
   const statusBadgesHtml = '<div style="flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
-    + '<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(67,56,202,0.14);color:var(--accent-dark);white-space:nowrap;">'+(isSurgical?'Surgical Case':'OPD Case')+'</span>'
+    + (isSurgical && p.surgeryStatus === 'awaiting'
+        ? '<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(217,119,6,0.14);color:#92400e;white-space:nowrap;">'+ic('clock')+' Awaiting Surgery</span>'
+        : '<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(67,56,202,0.14);color:var(--accent-dark);white-space:nowrap;">'+(isSurgical?'Surgical':'OPD')+'</span>')
     + '<span style="font-size:9.5px;font-weight:700;padding:2px 6px 2px 7px;border-radius:20px;white-space:nowrap;display:flex;align-items:center;gap:4px;background:'+(currentStatus==='Active'?'rgba(22,163,74,0.12)':currentStatus==='Completed'?'rgba(37,99,235,0.12)':'rgba(31,41,55,0.1)')+';">'
       + '<span style="width:5px;height:5px;border-radius:50%;flex:none;background:'+(currentStatus==='Active'?'#16a34a':currentStatus==='Completed'?'#2563eb':'#1f2937')+';"></span>'
       + '<select class="select" style="font-size:9.5px;padding:0;height:auto;border:none;background:none;font-weight:700;color:'+(currentStatus==='Active'?'#16a34a':currentStatus==='Completed'?'#2563eb':'#1f2937')+';" data-field="status">'+statusOptions+'</select>'
@@ -7716,9 +7714,9 @@ function renderDetailShell(p) {
     + (EDITING_PATIENT_NAME
         ? '<div class="row gap2" style="margin-top:2px;"><input class="input" id="patient-name-input" value="'+esc(p.name)+'" style="flex:1;font-size:14px;padding:6px 10px;" placeholder="Patient name"><button class="icon-btn" style="color:var(--emerald);flex:none;" data-action="save-patient-name" title="Save">'+ic('check')+'</button><button class="icon-btn" style="flex:none;" data-action="cancel-edit-patient-name" title="Cancel">'+ic('x')+'</button></div>'
         : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;overflow-wrap:break-word;cursor:pointer;" data-action="edit-patient-name" title="Tap to fix spelling">'+escName(p.name)+' '+ic('pencil')+' <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>')
-    + (diagnosisLine ? ('<div style="display:flex;align-items:flex-start;gap:9px;background:rgba(67,56,202,0.07);border-radius:12px;padding:9px 10px;margin-top:8px;">'
+    + (diagnosisLine ? ('<div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:9px;background:rgba(67,56,202,0.07);border-radius:12px;padding:9px 10px;margin-top:8px;">'
         + '<div style="flex:none;width:34px;height:34px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;">'+ic('clipboard')+'</div>'
-        + '<div style="flex:1;min-width:0;">'
+        + '<div style="flex:1 1 140px;min-width:140px;">'
           + '<div style="font-size:9px;font-weight:800;letter-spacing:0.4px;color:var(--accent-dark);text-transform:uppercase;">Diagnosis</div>'
           + '<div style="font-size:13px;font-weight:800;color:var(--ink);overflow-wrap:break-word;margin-top:1px;line-height:1.3;">'+esc(diagnosisLine)+'</div>'
         + '</div>'
@@ -9396,9 +9394,12 @@ document.addEventListener('click', async (e) => {
     toast('Name updated');
     return;
   }
-  if (action === 'convert-to-surgical') {
+  if (action === 'convert-to-surgical') { CONVERT_SURGICAL_STEP = 'choose'; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'cancel-convert-surgical') { CONVERT_SURGICAL_STEP = null; await renderTabBody(getPatient(SELECTED_ID)); return; }
+  if (action === 'convert-surgical-done') {
     const p = getPatient(SELECTED_ID);
     p.caseType = 'surgical';
+    p.surgeryStatus = '';
     await dbPutPatient(p);
     const images = await dbGetImagesByPatient(p.id);
     let reclassified = 0;
@@ -9409,9 +9410,52 @@ document.addEventListener('click', async (e) => {
         reclassified++;
       }
     }
+    CONVERT_SURGICAL_STEP = null;
     await refreshPatients();
     render();
     toast(reclassified ? 'Converted to Surgical \u2014 '+reclassified+' General OPD X-ray'+(reclassified>1?'s':'')+' reclassified as Pre-op' : 'Converted to Surgical');
+    return;
+  }
+  if (action === 'convert-surgical-planned') {
+    const p = getPatient(SELECTED_ID);
+    p.caseType = 'surgical';
+    p.surgeryStatus = 'awaiting';
+    await dbPutPatient(p);
+    const images = await dbGetImagesByPatient(p.id);
+    for (const im of images) {
+      if (im.imageCategory === 'xray' && im.xraySubtype === 'General OPD') {
+        im.xraySubtype = 'Pre-op';
+        await dbAddImage(im);
+      }
+    }
+    await refreshPatients();
+    CONVERT_SURGICAL_STEP = 'planned-form';
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
+  if (action === 'save-planned-surgery-details') {
+    const p = getPatient(SELECTED_ID);
+    const procEl = document.getElementById('ps-tentative-procedure');
+    const dateEl = document.getElementById('ps-tentative-date');
+    const hospEl = document.getElementById('ps-tentative-hospital');
+    if (p) {
+      if (procEl) p.procedure = procEl.value;
+      if (dateEl) p.surgeryDate = dateEl.value;
+      if (hospEl) p.hospital = hospEl.value;
+      await savePatient(p);
+    }
+    CONVERT_SURGICAL_STEP = null;
+    await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    toast('Saved \u2014 marked as Awaiting Surgery');
+    return;
+  }
+  if (action === 'mark-surgery-done') {
+    const p = getPatient(SELECTED_ID);
+    if (p) { p.surgeryStatus = ''; await savePatient(p); }
+    await refreshPatients();
+    await renderTabBody(getPatient(SELECTED_ID));
+    toast('Marked as done \u2014 now a normal surgical case');
     return;
   }
   if (action === 'convert-to-opd') {
@@ -9677,13 +9721,6 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') AP_TEMP.condition = ''; render(); return; }
-  if (action === 'ap-set-age-unit') {
-    syncApTempFromDom();
-    AGE_INPUT_UNIT = el.dataset.value;
-    AGE_UNIT_MANUALLY_SET = true;
-    render();
-    return;
-  }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
   if (action === 'ap-set-payment') { syncApTempFromDom(); AP_TEMP.paymentMethod = el.dataset.value; render(); return; }
   if (action === 'ap-toggle-section') {
@@ -9753,12 +9790,6 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'ov-toggle-payment') { OV_SHOW_PAYMENT = !OV_SHOW_PAYMENT; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-show-tracking-pick') { OV_SHOW_TRACKING_PICK = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'set-age-unit') {
-    AGE_INPUT_UNIT = el.dataset.value;
-    AGE_UNIT_MANUALLY_SET = true;
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
   if (action === 'ov-set-side') {
     await patchField('side', el.dataset.value);
     await renderTabBody(getPatient(SELECTED_ID));
@@ -11495,6 +11526,23 @@ document.addEventListener('change', async (e) => {
     return;
   }
 
+  if (t.id === 'ap-age-text') {
+    syncApTempFromDom();
+    const parsed = parseAgeText(t.value);
+    AP_TEMP.age = parsed.age; AP_TEMP.ageMonths = parsed.ageMonths; AP_TEMP.ageDays = parsed.ageDays;
+    render();
+    return;
+  }
+  if (t.id === 'age-text') {
+    const parsed = parseAgeText(t.value);
+    const p = getPatient(SELECTED_ID);
+    if (p) {
+      p.age = parsed.age; p.ageMonths = parsed.ageMonths; p.ageDays = parsed.ageDays;
+      await savePatient(p);
+    }
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (t.id === 'ap-condition') { 
     if (['ctev','ra','osteoporosis'].includes(t.value) && !isProOrAbove()) {
       toast('Special Tracking is a Pro feature. Upgrade to use this.');
