@@ -2491,6 +2491,29 @@ function hideAutocomplete(targetId) {
   const box = document.getElementById(targetId+'-ac');
   if (box) { box.style.display = 'none'; box.innerHTML = ''; }
 }
+async function performQuickFillText(targetId, value) {
+  const target = document.getElementById(targetId);
+  if (target) target.value = value;
+  hideAutocomplete(targetId);
+  if (target && target.id === 'ap-diagnosis') AP_TEMP.diagnosis = value;
+  if (target && target.id === 'ap-procedure') AP_TEMP.procedure = value;
+  if (target && target.id === 'sd-procedure') {
+    await patchField('procedure', value);
+    recordTextUsed(PROCEDURE_LIB_KEY, value);
+    await renderTabBody(getPatient(SELECTED_ID));
+  }
+  if (target && target.id === 'ov-diagnosis') {
+    await patchField('diagnosis', value);
+    recordTextUsed(DIAGNOSIS_LIB_KEY, value);
+    await renderTabBody(getPatient(SELECTED_ID));
+  }
+  if (target && target.id === 'ap-complaints') AP_TEMP.chiefComplaints = value;
+  if (target && target.id === 'ov-complaints') {
+    await patchField('chiefComplaints', value);
+    recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, value);
+    await renderTabBody(getPatient(SELECTED_ID));
+  }
+}
 const DIAGNOSIS_LIB_KEY = 'surgical-case-log-diagnosis-lib-v1';
 const CHIEF_COMPLAINT_LIB_KEY = 'surgical-case-log-complaint-lib-v1';
 const PROCEDURE_LIB_KEY = 'surgical-case-log-procedure-lib-v1';
@@ -7722,7 +7745,7 @@ function renderDetailShell(p) {
   const diagText = isSurgical ? (displayDiagnosis(p.diagnosis) || '') : (displayDiagnosis(p.diagnosis || p.chiefComplaints) || '');
   const procText = isSurgical ? (p.procedure || '') : '';
   const diagnosisLine = diagText || procText;
-  const statusBadgesHtml = '<div style="flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
+  const statusBadgesHtml = '<div style="display:flex;flex-direction:row;gap:6px;align-items:center;flex-wrap:wrap;">'
     + (isSurgical && p.surgeryStatus === 'awaiting'
         ? '<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(217,119,6,0.14);color:#92400e;white-space:nowrap;">'+ic('clock')+' Awaiting Surgery</span>'
         : '<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(67,56,202,0.14);color:var(--accent-dark);white-space:nowrap;">'+(isSurgical?'Surgical':'OPD')+'</span>')
@@ -7744,19 +7767,14 @@ function renderDetailShell(p) {
     + (EDITING_PATIENT_NAME
         ? '<div class="row gap2" style="margin-top:2px;"><input class="input" id="patient-name-input" value="'+esc(p.name)+'" style="flex:1;font-size:14px;padding:6px 10px;" placeholder="Patient name"><button class="icon-btn" style="color:var(--emerald);flex:none;" data-action="save-patient-name" title="Save">'+ic('check')+'</button><button class="icon-btn" style="flex:none;" data-action="cancel-edit-patient-name" title="Cancel">'+ic('x')+'</button></div>'
         : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;overflow-wrap:break-word;cursor:pointer;" data-action="edit-patient-name" title="Tap to fix spelling">'+escName(p.name)+' '+ic('pencil')+' <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>')
-    + (diagnosisLine ? ('<div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:9px;background:rgba(67,56,202,0.07);border-radius:12px;padding:9px 10px;margin-top:8px;">'
-        + '<div style="flex:none;width:34px;height:34px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;">'+ic('clipboard')+'</div>'
-        + '<div style="flex:1 1 140px;min-width:140px;">'
-          + '<div style="font-size:9px;font-weight:800;letter-spacing:0.4px;color:var(--accent-dark);text-transform:uppercase;">Diagnosis</div>'
-          + '<div style="font-size:13px;font-weight:800;color:var(--ink);overflow-wrap:break-word;margin-top:1px;line-height:1.3;">'+esc(diagText || '\u2014')+'</div>'
-          + (isSurgical && procText ? '<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(67,56,202,0.25);">'
-              + '<div style="font-size:9px;font-weight:800;letter-spacing:0.4px;color:var(--accent-dark);text-transform:uppercase;">Procedure</div>'
-              + '<div style="font-size:12px;font-weight:700;color:var(--ink);overflow-wrap:break-word;margin-top:1px;line-height:1.3;">'+esc(procText)+'</div>'
-            + '</div>' : '')
+    + '<div style="margin-top:6px;">'+statusBadgesHtml+'</div>'
+    + (diagnosisLine ? ('<div style="display:flex;align-items:center;gap:9px;background:rgba(67,56,202,0.07);border-radius:12px;padding:8px 10px;margin-top:6px;">'
+        + '<div style="flex:none;width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;">'+ic('clipboard')+'</div>'
+        + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:12.5px;font-weight:800;color:var(--ink);overflow-wrap:break-word;line-height:1.25;">'+esc(diagText || '\u2014')+'</div>'
+          + (isSurgical && procText ? '<div style="font-size:11px;font-weight:600;color:var(--accent-dark);overflow-wrap:break-word;line-height:1.25;margin-top:1px;">'+ic('scalpel')+' '+esc(procText)+'</div>' : '')
         + '</div>'
-        + statusBadgesHtml
-      + '</div>')
-      : ('<div style="margin-top:8px;">'+statusBadgesHtml+'</div>'))
+      + '</div>') : '')
     + '</div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;margin-top:2px;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
     + '<button class="icon-btn" style="color:var(--red);margin-top:2px;" data-action="open-confirm-delete" title="Delete Case">'+ic('trash')+'</button>'
@@ -9371,27 +9389,7 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'clear-list-filters') { SEARCH = ''; FILTER_TYPE = 'all'; render(); return; }
   if (action === 'quick-fill-text') {
-    const target = document.getElementById(el.dataset.target);
-    if (target) target.value = el.dataset.value;
-    hideAutocomplete(el.dataset.target);
-    if (target && target.id === 'ap-diagnosis') AP_TEMP.diagnosis = el.dataset.value;
-    if (target && target.id === 'ap-procedure') AP_TEMP.procedure = el.dataset.value;
-    if (target && target.id === 'ov-procedure') {
-      await patchField('procedure', el.dataset.value);
-      recordTextUsed(PROCEDURE_LIB_KEY, el.dataset.value);
-      await render();
-    }
-    if (target && target.id === 'ov-diagnosis') {
-      await patchField('diagnosis', el.dataset.value);
-      recordTextUsed(DIAGNOSIS_LIB_KEY, el.dataset.value);
-      await render();
-    }
-    if (target && target.id === 'ap-complaints') AP_TEMP.chiefComplaints = el.dataset.value;
-    if (target && target.id === 'ov-complaints') {
-      await patchField('chiefComplaints', el.dataset.value);
-      recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, el.dataset.value);
-      await render();
-    }
+    await performQuickFillText(el.dataset.target, el.dataset.value);
     return;
   }
   if (action === 'assign-patient-code') {
@@ -12056,18 +12054,28 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'ap-complaints') { AP_TEMP.chiefComplaints = e.target.value; updateAutocomplete('ap-complaints', CHIEF_COMPLAINT_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ov-complaints') { updateAutocomplete('ov-complaints', CHIEF_COMPLAINT_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ap-procedure') { AP_TEMP.procedure = e.target.value; updateAutocomplete('ap-procedure', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
-  if (e.target.id === 'ov-procedure') { updateAutocomplete('ov-procedure', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
+  if (e.target.id === 'sd-procedure') { updateAutocomplete('sd-procedure', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ap-duration') { AP_TEMP.symptomDuration = e.target.value; }
 });
 document.addEventListener('mousedown', (e) => {
   if (e.target.closest && (e.target.closest('.autocomplete-item') || e.target.closest('[data-action="quick-fill-text"]'))) { e.preventDefault(); }
 });
 document.addEventListener('touchstart', (e) => {
-  if (e.target.closest && (e.target.closest('.autocomplete-item') || e.target.closest('[data-action="quick-fill-text"]'))) { e.preventDefault(); }
+  const item = e.target.closest && e.target.closest('.autocomplete-item');
+  if (item) {
+    e.preventDefault();
+    // Perform the fill immediately on touch, rather than waiting for the
+    // later 'click' event \u2014 on some fields, blurring the input triggers a
+    // re-render (e.g. auto-detecting a condition from what was typed) that
+    // can destroy this button before 'click' has a chance to fire on it.
+    performQuickFillText(item.dataset.target, item.dataset.value);
+    return;
+  }
+  if (e.target.closest && e.target.closest('[data-action="quick-fill-text"]')) { e.preventDefault(); }
 }, { passive: false });
 document.addEventListener('blur', async (e) => {
   if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
-  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','ov-procedure'].includes(e.target.id)) {
+  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','sd-procedure'].includes(e.target.id)) {
     const id = e.target.id;
     setTimeout(() => hideAutocomplete(id), 200);
   }
