@@ -4996,30 +4996,23 @@ function renderDashboardSection() {
   const overdueCount = s.important.filter(i => i.type === 'Follow-up' && i.isOverdue).length;
   const todayFollowUpCount = s.important.filter(i => i.type === 'Follow-up' && !i.isOverdue).length;
   const tomorrowCount = s.dueTomorrowList.length;
-  if (PATIENTS.length) {
-    if (overdueCount === 0 && todayFollowUpCount === 0 && tomorrowCount === 0) {
-      html += '<button type="button" data-action="dash-goto-overdue" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px;background:var(--emerald-bg);">'
-        + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
-        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:9.5px;font-weight:800;color:var(--emerald);letter-spacing:0.05em;opacity:0.75;">FOLLOW-UP STATUS</span><span style="display:block;font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span></span>'
-        + '<span style="flex:none;color:var(--emerald);">'+ic('chevron')+'</span>'
-        + '</button>';
-    } else {
-      html += '<div class="row gap2" style="margin-bottom:14px;">'
-        + '<button type="button" data-action="dash-goto-overdue" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(overdueCount?'background:var(--red-bg,#fef2f2);border-color:var(--red-border,#fecaca);':'')+'">'
-          + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(overdueCount?'var(--red)':'var(--muted)')+';">OVERDUE</span>'
-          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(overdueCount?'var(--red)':'var(--ink)')+';">'+overdueCount+'</span>'
-          + '</button>'
-        + '<button type="button" data-action="dash-goto-today" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(todayFollowUpCount?'background:#fffbeb;border-color:#fde68a;':'')+'">'
-          + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(todayFollowUpCount?'#b45309':'var(--muted)')+';">TODAY</span>'
-          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(todayFollowUpCount?'#b45309':'var(--ink)')+';">'+todayFollowUpCount+'</span>'
-          + '</button>'
-        + '<button type="button" data-action="dash-goto-tomorrow" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(tomorrowCount?'background:rgba(67,56,202,0.06);border-color:#c7d2fe;':'')+'">'
-          + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(tomorrowCount?'var(--accent-dark)':'var(--muted)')+';">TOMORROW</span>'
-          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(tomorrowCount?'var(--accent-dark)':'var(--ink)')+';">'+tomorrowCount+'</span>'
-          + '</button>'
-        + '</div>';
-    }
-  }
+
+  // ---- 1. ADD NEW (top priority \u2014 the most common thing to do on opening the app) ----
+  html += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:4px 0 8px;">ADD NEW</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">'
+    + '<button type="button" class="card" style="text-align:left;background:rgba(37,99,235,0.06);border-color:rgba(37,99,235,0.2);padding:14px;" data-action="add-menu-new-opd">'
+      + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.opd+'</span>'
+      + '<span style="display:block;font-size:14px;font-weight:800;color:var(--ink);line-height:1.25;margin-bottom:4px;">Add New OPD Case</span>'
+      + '<span style="display:block;font-size:11px;color:var(--muted);margin-bottom:10px;">New case for consultation</span>'
+      + '<span style="width:32px;height:32px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;">'+ic('plus')+'</span>'
+      + '</button>'
+    + '<button type="button" class="card" style="text-align:left;background:rgba(5,150,105,0.06);border-color:rgba(5,150,105,0.2);padding:14px;" data-action="add-menu-new-surgical">'
+      + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.surgical+'</span>'
+      + '<span style="display:block;font-size:14px;font-weight:800;color:var(--ink);line-height:1.25;margin-bottom:4px;">Add New Surgical Case</span>'
+      + '<span style="display:block;font-size:11px;color:var(--muted);margin-bottom:10px;">New case for procedure</span>'
+      + '<span style="width:32px;height:32px;border-radius:50%;background:#059669;color:#fff;display:flex;align-items:center;justify-content:center;">'+ic('plus')+'</span>'
+      + '</button>'
+    + '</div>';
 
   const showBackupBanner = !BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 1);
   if (showBackupBanner) {
@@ -5042,22 +5035,34 @@ function renderDashboardSection() {
       + '</div>';
   }
 
-  html += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:4px 0 8px;">ADD NEW</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">'
-    + '<button type="button" class="card" style="text-align:left;background:rgba(37,99,235,0.06);border-color:rgba(37,99,235,0.2);padding:14px;" data-action="add-menu-new-opd">'
-      + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.opd+'</span>'
-      + '<span style="display:block;font-size:14px;font-weight:800;color:var(--ink);line-height:1.25;margin-bottom:4px;">Add New OPD Case</span>'
-      + '<span style="display:block;font-size:11px;color:var(--muted);margin-bottom:10px;">New case for consultation</span>'
-      + '<span style="width:32px;height:32px;border-radius:50%;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;">'+ic('plus')+'</span>'
-      + '</button>'
-    + '<button type="button" class="card" style="text-align:left;background:rgba(5,150,105,0.06);border-color:rgba(5,150,105,0.2);padding:14px;" data-action="add-menu-new-surgical">'
-      + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.surgical+'</span>'
-      + '<span style="display:block;font-size:14px;font-weight:800;color:var(--ink);line-height:1.25;margin-bottom:4px;">Add New Surgical Case</span>'
-      + '<span style="display:block;font-size:11px;color:var(--muted);margin-bottom:10px;">New case for procedure</span>'
-      + '<span style="width:32px;height:32px;border-radius:50%;background:#059669;color:#fff;display:flex;align-items:center;justify-content:center;">'+ic('plus')+'</span>'
-      + '</button>'
-    + '</div>';
+  // ---- 2. FOLLOW-UPS (clearly labelled so it's obvious what these 3 tiles mean) ----
+  if (PATIENTS.length) {
+    html += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:4px 0 8px;">FOLLOW-UPS</div>';
+    if (overdueCount === 0 && todayFollowUpCount === 0 && tomorrowCount === 0) {
+      html += '<button type="button" data-action="dash-goto-overdue" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:18px;background:var(--emerald-bg);">'
+        + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
+        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:9.5px;font-weight:800;color:var(--emerald);letter-spacing:0.05em;opacity:0.75;">FOLLOW-UP STATUS</span><span style="display:block;font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span></span>'
+        + '<span style="flex:none;color:var(--emerald);">'+ic('chevron')+'</span>'
+        + '</button>';
+    } else {
+      html += '<div class="row gap2" style="margin-bottom:18px;">'
+        + '<button type="button" data-action="dash-goto-overdue" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(overdueCount?'background:var(--red-bg,#fef2f2);border-color:var(--red-border,#fecaca);':'')+'">'
+          + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(overdueCount?'var(--red)':'var(--muted)')+';">OVERDUE</span>'
+          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(overdueCount?'var(--red)':'var(--ink)')+';">'+overdueCount+'</span>'
+          + '</button>'
+        + '<button type="button" data-action="dash-goto-today" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(todayFollowUpCount?'background:#fffbeb;border-color:#fde68a;':'')+'">'
+          + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(todayFollowUpCount?'#b45309':'var(--muted)')+';">TODAY</span>'
+          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(todayFollowUpCount?'#b45309':'var(--ink)')+';">'+todayFollowUpCount+'</span>'
+          + '</button>'
+        + '<button type="button" data-action="dash-goto-tomorrow" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(tomorrowCount?'background:rgba(67,56,202,0.06);border-color:#c7d2fe;':'')+'">'
+          + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(tomorrowCount?'var(--accent-dark)':'var(--muted)')+';">TOMORROW</span>'
+          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(tomorrowCount?'var(--accent-dark)':'var(--ink)')+';">'+tomorrowCount+'</span>'
+          + '</button>'
+        + '</div>';
+    }
+  }
 
+  // ---- 3. MANAGE & TRACK ----
   html += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:0 0 8px;">MANAGE &amp; TRACK</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">'
     + '<button type="button" class="card" style="text-align:left;padding:14px 12px;position:relative;background:rgba(37,99,235,0.06);border-color:rgba(37,99,235,0.2);" data-action="nav-patients">'
