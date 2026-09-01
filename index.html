@@ -2311,7 +2311,7 @@ let REMINDERS = [];
 let CAL_YEAR = new Date().getFullYear();
 let CAL_MONTH = new Date().getMonth(); // 0-indexed
 let CAL_SELECTED_DATE = todayStr();
-let CAL_SUBVIEW = 'due'; // 'due' | 'upcoming' | 'calendar'
+let CAL_SUBVIEW = 'overdue'; // 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'calendar'
 let REMINDER_FORM_OPEN = false;
 let REMINDER_FORM_PATIENT_ID = null; // set when adding a reminder from a patient's page
 let REMINDER_FORM_CATEGORY = 'General';
@@ -4796,26 +4796,29 @@ function renderDashboardSection() {
 
   const dueRemindersCount = (REMINDERS && REMINDERS.length) ? REMINDERS.filter(r => !r.done && r.dueDate && r.dueDate <= todayStr()).length : 0;
 
-  const followUpAttentionCount = s.important.filter(i => i.type === 'Follow-up').length;
+  const overdueCount = s.important.filter(i => i.type === 'Follow-up' && i.isOverdue).length;
+  const todayFollowUpCount = s.important.filter(i => i.type === 'Follow-up' && !i.isOverdue).length;
   const tomorrowCount = s.dueTomorrowList.length;
   if (PATIENTS.length) {
-    if (followUpAttentionCount === 0 && tomorrowCount === 0) {
-      html += '<button type="button" data-action="dash-goto-followups" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px;background:var(--emerald-bg);">'
+    if (overdueCount === 0 && todayFollowUpCount === 0 && tomorrowCount === 0) {
+      html += '<button type="button" data-action="dash-goto-overdue" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:14px;background:var(--emerald-bg);">'
         + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
         + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:9.5px;font-weight:800;color:var(--emerald);letter-spacing:0.05em;opacity:0.75;">FOLLOW-UP STATUS</span><span style="display:block;font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span></span>'
         + '<span style="flex:none;color:var(--emerald);">'+ic('chevron')+'</span>'
         + '</button>';
     } else {
       html += '<div class="row gap2" style="margin-bottom:14px;">'
-        + '<button type="button" data-action="dash-goto-followups" class="card" style="flex:1;text-align:left;padding:12px 14px;'+(followUpAttentionCount?'background:var(--red-bg,#fef2f2);border-color:var(--red-border,#fecaca);':'background:var(--emerald-bg);')+'">'
-          + '<span style="display:block;font-size:9px;font-weight:800;letter-spacing:0.04em;opacity:0.75;color:'+(followUpAttentionCount?'var(--red)':'var(--emerald)')+';">FOLLOW-UP DUE</span>'
-          + '<span style="display:block;font-size:24px;font-weight:800;line-height:1.25;color:'+(followUpAttentionCount?'var(--red)':'var(--emerald)')+';">'+followUpAttentionCount+'</span>'
-          + '<span style="display:block;font-size:10.5px;color:var(--muted);">overdue + due today</span>'
+        + '<button type="button" data-action="dash-goto-overdue" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(overdueCount?'background:var(--red-bg,#fef2f2);border-color:var(--red-border,#fecaca);':'')+'">'
+          + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(overdueCount?'var(--red)':'var(--muted)')+';">OVERDUE</span>'
+          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(overdueCount?'var(--red)':'var(--ink)')+';">'+overdueCount+'</span>'
           + '</button>'
-        + '<button type="button" data-action="dash-goto-tomorrow" class="card" style="flex:1;text-align:left;padding:12px 14px;'+(tomorrowCount?'background:#fffbeb;border-color:#fde68a;':'')+'">'
-          + '<span style="display:block;font-size:9px;font-weight:800;letter-spacing:0.04em;opacity:0.75;color:'+(tomorrowCount?'#b45309':'var(--muted)')+';">TOMORROW</span>'
-          + '<span style="display:block;font-size:24px;font-weight:800;line-height:1.25;color:'+(tomorrowCount?'#b45309':'var(--ink)')+';">'+tomorrowCount+'</span>'
-          + '<span style="display:block;font-size:10.5px;color:var(--muted);">follow-ups pending</span>'
+        + '<button type="button" data-action="dash-goto-today" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(todayFollowUpCount?'background:#fffbeb;border-color:#fde68a;':'')+'">'
+          + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(todayFollowUpCount?'#b45309':'var(--muted)')+';">TODAY</span>'
+          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(todayFollowUpCount?'#b45309':'var(--ink)')+';">'+todayFollowUpCount+'</span>'
+          + '</button>'
+        + '<button type="button" data-action="dash-goto-tomorrow" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(tomorrowCount?'background:rgba(67,56,202,0.06);border-color:#c7d2fe;':'')+'">'
+          + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(tomorrowCount?'var(--accent-dark)':'var(--muted)')+';">TOMORROW</span>'
+          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(tomorrowCount?'var(--accent-dark)':'var(--ink)')+';">'+tomorrowCount+'</span>'
           + '</button>'
         + '</div>';
     }
@@ -4879,21 +4882,23 @@ function renderDashboardSection() {
 }
 
 /* Follow-up / RA-labs / DEXA overdue+due-today list \u2014 lives in the Followups tab's "Due" segment */
-function renderNeedsAttentionBlock(s) {
+function renderNeedsAttentionBlock(s, filterOverdue) {
+  const items = filterOverdue === undefined ? s.important : s.important.filter(i => i.isOverdue === filterOverdue);
   let html = '';
-  if (!s.important.length) {
+  if (!items.length) {
+    const emptyLabel = filterOverdue === true ? 'No overdue follow-ups, RA labs, or DEXA scans.' : filterOverdue === false ? 'Nothing due today.' : 'No overdue follow-ups, RA labs, or DEXA scans today.';
     html += '<div class="card" style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin-bottom:12px;">'
       + '<span style="width:26px;height:26px;border-radius:50%;background:var(--emerald-bg);color:var(--emerald);display:flex;align-items:center;justify-content:center;flex-shrink:0;">'+ic('check')+'</span>'
-      + '<div><p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:0;">All caught up</p><p style="font-size:11px;color:var(--muted);margin:1px 0 0;">No overdue follow-ups, RA labs, or DEXA scans today.</p></div>'
+      + '<div><p style="font-size:12.5px;font-weight:700;color:var(--ink);margin:0;">All caught up</p><p style="font-size:11px;color:var(--muted);margin:1px 0 0;">'+emptyLabel+'</p></div>'
       + '</div>';
     return html;
   }
-  const queueEligible = s.important.filter(item => item.type === 'Follow-up' && item.patient.whatsapp);
+  const queueEligible = items.filter(item => item.type === 'Follow-up' && item.patient.whatsapp);
   if (queueEligible.length) {
     html += '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>';
   }
-  const showAll = SHOW_ALL_ATTENTION || s.important.length <= 3;
-  const shown = showAll ? s.important.slice(0,8) : s.important.slice(0,3);
+  const showAll = SHOW_ALL_ATTENTION || items.length <= 3;
+  const shown = showAll ? items.slice(0,8) : items.slice(0,3);
   const typeIcon = { 'Follow-up':'calendar', 'RA labs':'file', 'DEXA scan':'file' };
   html += '<div class="card" style="margin-bottom:12px;padding:6px 0;border-left:3px solid var(--red);">'
     + shown.map(item => {
@@ -4930,7 +4935,7 @@ function renderNeedsAttentionBlock(s) {
               + '</div>' : '')
           + '</div>';
       }).join('')
-    + (!showAll ? '<div style="padding:8px 14px 2px;"><button class="chip" data-action="toggle-show-all-attention">Show all '+s.important.length+'</button></div>' : '')
+    + (!showAll ? '<div style="padding:8px 14px 2px;"><button class="chip" data-action="toggle-show-all-attention">Show all '+items.length+'</button></div>' : '')
     + '</div>';
   return html;
 }
@@ -5545,7 +5550,7 @@ function renderAddView() {
   const trackingHtml = isSurgical ? (
       '<div style="display:flex;flex-direction:column;gap:12px;">'
       + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
-      + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
+      + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
       + '<div><label class="field-label">Hospital (optional)</label><input class="input" id="ap-hospital" value="'+esc(AP_TEMP.hospital||'')+'"></div>'
       + '<div><label class="field-label">Anaesthesia (optional)</label><select class="select" id="ap-anaesthesia"><option value=""'+(!AP_TEMP.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(AP_TEMP.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
@@ -5563,6 +5568,13 @@ function renderAddView() {
           + '</div>'
         ) : '')
       + '</div>'
+      + '<label class="row gap2" style="align-items:center;cursor:pointer;padding:2px 2px;">'
+      + '<input type="checkbox" data-action="ap-toggle-ctev-surgical"'+(AP_TEMP.condition==='ctev'?' checked':'')+' style="width:16px;height:16px;flex:none;">'
+      + '<span style="font-size:12px;font-weight:600;">Also a CTEV (clubfoot) correction \u2014 track Pirani scores</span>'
+      + '</label>'
+      + (AP_TEMP.condition==='ctev' ? '<div><label class="field-label">Laterality</label><div class="seg">'
+          + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<button type="button" class="seg-btn'+(AP_TEMP.laterality===v?' active':'')+'" data-action="ap-set-laterality" data-value="'+v+'">'+l+'</button>').join('')
+          + '</div></div>' : '')
       + '</div>'
     ) : (
       '<div style="display:flex;flex-direction:column;gap:12px;">'
@@ -5709,28 +5721,6 @@ function renderOverviewTab(p) {
     + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
     + '<div><div class="row between" style="align-items:center;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;margin-bottom:0;">'+ic('alert')+' Diagnosis</label>'+(isSurgical?sideToggleHtml('ov-set-side', p.side, true):'')+'</div>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);font-weight:600;">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
     + '</div>'
-    + (isSurgical ? (
-        '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
-        + '<div><label class="field-label">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ov-procedure')+'<input class="input" id="ov-procedure" data-field="procedure" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('ov-procedure')
-        + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
-        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
-        + '<div><label class="field-label">Hospital (optional)</label><input class="input" data-field="hospital" value="'+esc(p.hospital||'')+'"></div>'
-        + '<div><label class="field-label">Anaesthesia (optional)</label><select class="select" data-field="anaesthesiaType"><option value=""'+(!p.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(p.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
-        + '</div>'
-        + '<div class="card" style="padding:0;overflow:hidden;">'
-        + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:12px;text-align:left;" data-action="ov-toggle-payment">'
-        + '<span style="font-size:13px;font-weight:700;">Payment'+(p.paymentMethod?' \u2014 '+esc(p.paymentMethod):'')+'</span>'
-        + '<span style="color:var(--accent);transform:rotate('+(OV_SHOW_PAYMENT?90:0)+'deg);display:inline-flex;">'+ic('chevron')+'</span>'
-        + '</button>'
-        + (OV_SHOW_PAYMENT ? (
-            '<div style="padding:0 12px 12px;">'
-            + '<div class="seg">' + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
-            + (p.paymentMethod==='Insurance' || p.paymentMethod==='Both' ? '<input class="input" data-field="insuranceType" placeholder="Insurance type / company name" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
-            + (p.paymentMethod==='Cash' || p.paymentMethod==='Both' ? '<input class="input" type="number" inputmode="numeric" data-field="cashAmount" placeholder="Cash amount (\u20b9)" value="'+esc(p.cashAmount||'')+'" style="margin-top:8px;">' : '')
-            + '</div>'
-          ) : '')
-        + '</div>'
-      ) : '')
     + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(p.occupation||'')+'"></div>'
     + '<div style="'+(overdue?'padding:10px;border-radius:12px;background:var(--red-bg);':'')+'">'
     + '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up'+(overdue?' \u2014 OVERDUE':'')+'</label></div>'
@@ -5789,16 +5779,13 @@ function renderOverviewTab(p) {
   const snapshotRead = '<div class="row" style="gap:10px;">'
     + topRowCells
     + '</div>'
-    + '<div style="border-top:1px solid var(--border);"></div>'
-    + (diagText ? '<div style="border-left:3px solid var(--accent);padding-left:9px;"><div class="row gap1" style="color:var(--muted);margin-bottom:2px;">'+ic('clipboard')+'<span style="font-size:10.5px;">Diagnosis</span></div><div style="font-size:13.5px;font-weight:700;overflow-wrap:break-word;">'+esc(diagText)+'</div></div>' : '')
+    + (diagText ? '<div style="background:rgba(67,56,202,0.08);border-radius:10px;padding:8px 10px;"><div class="row gap1" style="color:var(--accent-dark);margin-bottom:2px;">'+ic('clipboard')+'<span style="font-size:10px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;">Diagnosis</span></div><div style="font-size:13.5px;font-weight:800;color:var(--ink);overflow-wrap:break-word;">'+esc(diagText)+'</div></div>' : '')
     + '<div class="row" style="gap:10px;">'
     + (isSurgical ? ovSnapCell('calendar', 'Surgery Date', p.surgeryDate ? fmtDate(p.surgeryDate) : '') : ovSnapCell('calendar', 'Visit Date', p.surgeryDate ? fmtDate(p.surgeryDate) : ''))
     + ovSnapCell('clock', 'Next Follow-up', overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'Not scheduled'), fuColor)
     + '</div>'
     + (p.nextFollowUpDate ? '<div style="text-align:right;font-size:11px;color:'+fuColor+';font-style:italic;">('+relativeDaysUntil(p.nextFollowUpDate)+')</div>'
         : '<div style="text-align:right;"><button class="btn btn-sm" data-action="quick-fu-open" data-patient-id="'+p.id+'">'+ic('plus')+' Schedule</button></div>')
-    + (isSurgical && p.procedure ? '<div style="padding-top:8px;border-top:1px solid var(--border);">'+ovSnapCell('clipboard','Procedure', p.procedure)+'</div>' : '')
-    + (isSurgical && (p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+(p.hospital?ovSnapCell('clipboard','Hospital', p.hospital):'')+(p.anaesthesiaType?ovSnapCell('shield','Anaesthesia', p.anaesthesiaType):'')+'</div>' : '')
     + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '');
 
   const statCards = '<div style="display:flex;gap:10px;">'
@@ -5887,6 +5874,7 @@ function renderOverviewTab(p) {
         )
       ) : '')
     + ovSectionV2('snapshot', 'Patient Snapshot', 'userPlus', snapshotRead, snapshotBody)
+    + (isSurgical ? (() => { const sd = surgicalDetailsSectionHtml(p); return ovSectionV2('surgicaldetails', 'Surgical Details', 'scalpel', sd.read, sd.body); })() : '')
     + ovSectionV2('clinical', 'Clinical', 'file', clinicalRead, clinicalBody)
     + ovSectionV2('communicate', 'Contact Details', 'message', communicateRead, communicateBody)
     + ovSectionV2('useful', 'Reminders & Follow-ups', 'calendar', usefulRead, usefulBody)
@@ -6144,7 +6132,7 @@ async function renderImagesRecordsTab(p) {
   } else if (IMAGES_RECORDS_SUBVIEW === 'video') {
     body += imageBucketCardHtml('Videos', allImages.filter(im=>im.imageCategory==='video'), 'video', null, false);
   }
-  if (allImages.length) body += '<button class="btn btn-block" style="margin-bottom:14px;" data-action="set-tab" data-value="photos">'+ic('folder')+' All Photos (organized)</button>';
+  if (allImages.length) body += '<button class="btn btn-block" style="margin-bottom:14px;" data-action="set-tab" data-value="photos">'+ic('folder')+' View all in one scroll</button>';
   body += '</div>';
   return segHtml + body;
 }
@@ -6178,8 +6166,14 @@ function renderSmartFollowupFormLayer1(p) {
     + '</div>'
     + '<div style="margin-bottom:16px;">'
     + '<label class="field-label">Next follow-up?</label>'
+    + '<div id="fu-next-followup-wrap">'
     + relativeFollowupPickerHtml('fu-next-followup', suggestedNextDate||'', false)
     + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">'+ic('sparkle')+' Auto-suggested \u2014 enter a number and unit to change it</p>'
+    + '</div>'
+    + '<label class="row gap2" style="align-items:center;margin-top:10px;cursor:pointer;">'
+    + '<input type="checkbox" id="fu-no-followup-needed" onchange="var w=document.getElementById(\'fu-next-followup-wrap\'); w.style.opacity=this.checked?0.35:1; w.style.pointerEvents=this.checked?\'none\':\'auto\';" style="width:16px;height:16px;flex:none;">'
+    + '<span style="font-size:12px;font-weight:600;">No further follow-up needed (case complete)</span>'
+    + '</label>'
     + '</div>';
 }
 
@@ -6247,7 +6241,7 @@ function renderSmartFollowupForm(p) {
     + renderSmartFollowupFormLayer1(p)
     + renderSmartFollowupFormLayer2(p)
     + renderSmartFollowupFormLayer3(p)
-    + '<p style="font-size:10.5px;color:var(--muted);margin:16px 0 0;">Next follow-up date replaces the patient\'s reminder. Leave blank if no further visit needed — it\'ll clear once you save.</p>'
+    + '<p style="font-size:10.5px;color:var(--muted);margin:16px 0 0;">Next follow-up date replaces the patient\'s reminder. Leave the date blank and it\'ll auto-schedule one in a few days as a safety net \u2014 tick "No further follow-up needed" if the case is genuinely complete.</p>'
     + '<div class="row gap2" style="margin-top:14px;"><button type="button" class="btn" style="flex:1;" data-action="cancel-add-fu">Cancel</button><button type="button" class="btn btn-primary" style="flex:2;" data-action="submit-fu">Save visit</button></div>'
     + '</div>';
 }
@@ -7181,6 +7175,36 @@ function tenotomyCheck(session, foot) {
   return hind > 0.5 && mid < 1 && talarHead === 0 && abd > 60;
 }
 
+function surgicalDetailsSectionHtml(p) {
+  const read = '<div class="row" style="gap:10px;">'
+    + ovSnapCell('scalpel', 'Surgery Type', p.surgeryType)
+    + ovSnapCell('calendar', 'Surgery Date', p.surgeryDate ? fmtDate(p.surgeryDate) : '')
+    + '</div>'
+    + (p.procedure ? '<div style="background:rgba(67,56,202,0.08);border-radius:10px;padding:8px 10px;"><div class="row gap1" style="color:var(--accent-dark);margin-bottom:2px;">'+ic('clipboard')+'<span style="font-size:10px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;">Procedure</span></div><div style="font-size:13.5px;font-weight:800;color:var(--ink);overflow-wrap:break-word;">'+esc(p.procedure)+'</div></div>' : '')
+    + ((p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+(p.hospital?ovSnapCell('clipboard','Hospital',p.hospital):'')+(p.anaesthesiaType?ovSnapCell('shield','Anaesthesia',p.anaesthesiaType):'')+'</div>' : '')
+    + (p.paymentMethod ? ovSnapCell('clipboard','Payment', p.paymentMethod + (p.paymentMethod!=='Insurance'&&p.cashAmount?' \u2014 \u20b9'+p.cashAmount:'') + (p.paymentMethod!=='Cash'&&p.insuranceType?' \u2014 '+p.insuranceType:'')) : '');
+  const body = '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
+    + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'sd-procedure')+'<input class="input" id="sd-procedure" data-field="procedure" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);font-weight:600;" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('sd-procedure')
+    + '<div><label class="field-label">Surgery date</label><input class="input" type="date" data-field="surgeryDate" value="'+esc(p.surgeryDate)+'"></div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+    + '<div><label class="field-label">Hospital (optional)</label><input class="input" data-field="hospital" value="'+esc(p.hospital||'')+'"></div>'
+    + '<div><label class="field-label">Anaesthesia (optional)</label><select class="select" data-field="anaesthesiaType"><option value=""'+(!p.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(p.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
+    + '</div>'
+    + '<div class="card" style="padding:0;overflow:hidden;">'
+    + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:12px;text-align:left;" data-action="ov-toggle-payment">'
+    + '<span style="font-size:13px;font-weight:700;">Payment'+(p.paymentMethod?' \u2014 '+esc(p.paymentMethod):'')+'</span>'
+    + '<span style="color:var(--accent);transform:rotate('+(OV_SHOW_PAYMENT?90:0)+'deg);display:inline-flex;">'+ic('chevron')+'</span>'
+    + '</button>'
+    + (OV_SHOW_PAYMENT ? (
+        '<div style="padding:0 12px 12px;">'
+        + '<div class="seg">' + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
+        + (p.paymentMethod==='Insurance' || p.paymentMethod==='Both' ? '<input class="input" data-field="insuranceType" placeholder="Insurance type / company name" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
+        + (p.paymentMethod==='Cash' || p.paymentMethod==='Both' ? '<input class="input" type="number" inputmode="numeric" data-field="cashAmount" placeholder="Cash amount (\u20b9)" value="'+esc(p.cashAmount||'')+'" style="margin-top:8px;">' : '')
+        + '</div>'
+      ) : '')
+    + '</div>';
+  return { read, body };
+}
 async function renderCtevTab(p) {
   const feet = feetForLaterality(p.laterality);
   const ctev = p.ctev;
@@ -7258,7 +7282,7 @@ async function renderCtevTab(p) {
     html += '<label class="add-photo-tile" title="Add cast image">'+ic('camera')+'<span>Cast photo</span><input type="file" accept="image/*" multiple data-ctev-input="'+s.id+'" style="display:none;"></label>';
     html += '</div>';
     html += '<div class="row gap2" style="margin-top:8px;flex-wrap:wrap;">'
-      + '<button type="button" class="btn" style="flex:1;font-size:11.5px;padding:8px;" data-action="ctev-jump-followup">'+ic('plus')+' Follow-up</button>'
+      + '<button type="button" class="btn" style="flex:1;font-size:11.5px;padding:8px;" data-action="tracking-jump-followup">'+ic('plus')+' Follow-up</button>'
       + (ctevCastLink ? '<a href="'+esc(ctevCastLink)+'" target="_blank" rel="noopener" class="btn" style="flex:1;font-size:11.5px;padding:8px;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;text-align:center;">'+ic('message')+' Cast care msg</a>' : '')
       + '</div>';
     html += '</div>';
@@ -7419,7 +7443,7 @@ function renderRaTab(p) {
       + (v.treatmentNote?'<p style="font-size:12px;color:#5b21b6;margin-top:6px;font-weight:600;">'+ic('pill')+' '+esc(v.treatmentNote)+'</p>':'')
       + (v.notes?'<p style="font-size:12px;color:#64748b;margin-top:4px;">'+esc(v.notes)+'</p>':'')
       + '<div class="row gap2" style="margin-top:8px;flex-wrap:wrap;">'
-      + '<button type="button" class="btn" style="flex:1;font-size:11.5px;padding:8px;" data-action="ctev-jump-followup">'+ic('plus')+' Follow-up</button>'
+      + '<button type="button" class="btn" style="flex:1;font-size:11.5px;padding:8px;" data-action="tracking-jump-followup">'+ic('plus')+' Follow-up</button>'
       + (raMedReminderLink ? '<a href="'+esc(raMedReminderLink)+'" target="_blank" rel="noopener" class="btn" style="flex:1;font-size:11.5px;padding:8px;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;text-align:center;">'+ic('message')+' Medication reminder</a>' : '')
       + '</div>'
       + '</div>';
@@ -7592,7 +7616,7 @@ async function renderOsteoTab(p) {
   const o = p.osteo;
   const riskCount = OSTEO_RISK_FACTORS.filter(([k]) => o.riskFactors[k]).length;
   const overdueDexa = isOverdue(o.nextDexaDate);
-  const allImages = await dbGetAllImages();
+  const allImages = await dbGetImagesByPatient(p.id);
   revokeActiveUrls();
   let html = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
 
@@ -7647,7 +7671,7 @@ async function renderOsteoTab(p) {
       + '<label class="add-photo-tile" title="Attach scan report">'+ic('camera')+'<span>Scan report</span><input type="file" accept="image/*" multiple data-dexa-input="'+scan.id+'" style="display:none;"></label>'
       + '</div>'
       + '<div class="row gap2" style="margin-top:8px;flex-wrap:wrap;">'
-      + '<button type="button" class="btn" style="flex:1;font-size:11.5px;padding:8px;" data-action="ctev-jump-followup">'+ic('plus')+' Follow-up</button>'
+      + '<button type="button" class="btn" style="flex:1;font-size:11.5px;padding:8px;" data-action="tracking-jump-followup">'+ic('plus')+' Follow-up</button>'
       + (dexaBoneHealthLink ? '<a href="'+esc(dexaBoneHealthLink)+'" target="_blank" rel="noopener" class="btn" style="flex:1;font-size:11.5px;padding:8px;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;text-align:center;">'+ic('message')+' Bone health tips</a>' : '')
       + '</div>'
       + '</div>';
@@ -7691,7 +7715,9 @@ function renderDetailShell(p) {
   const currentStatus = (!p.status || p.status === 'Active follow-up') ? 'Active' : p.status;
   let statusOptions = STATUS_OPTIONS.map(s => '<option'+(currentStatus===s?' selected':'')+'>'+s+'</option>').join('');
   const isSurgical = p.caseType === 'surgical';
-  const diagnosisLine = isSurgical ? (p.procedure || displayDiagnosis(p.diagnosis) || '') : (displayDiagnosis(p.diagnosis || p.chiefComplaints) || '');
+  const diagText = isSurgical ? (displayDiagnosis(p.diagnosis) || '') : (displayDiagnosis(p.diagnosis || p.chiefComplaints) || '');
+  const procText = isSurgical ? (p.procedure || '') : '';
+  const diagnosisLine = diagText || procText;
   const statusBadgesHtml = '<div style="flex:none;display:flex;flex-direction:column;gap:4px;align-items:flex-end;">'
     + (isSurgical && p.surgeryStatus === 'awaiting'
         ? '<span style="font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:20px;background:rgba(217,119,6,0.14);color:#92400e;white-space:nowrap;">'+ic('clock')+' Awaiting Surgery</span>'
@@ -7718,7 +7744,11 @@ function renderDetailShell(p) {
         + '<div style="flex:none;width:34px;height:34px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;">'+ic('clipboard')+'</div>'
         + '<div style="flex:1 1 140px;min-width:140px;">'
           + '<div style="font-size:9px;font-weight:800;letter-spacing:0.4px;color:var(--accent-dark);text-transform:uppercase;">Diagnosis</div>'
-          + '<div style="font-size:13px;font-weight:800;color:var(--ink);overflow-wrap:break-word;margin-top:1px;line-height:1.3;">'+esc(diagnosisLine)+'</div>'
+          + '<div style="font-size:13px;font-weight:800;color:var(--ink);overflow-wrap:break-word;margin-top:1px;line-height:1.3;">'+esc(diagText || '\u2014')+'</div>'
+          + (isSurgical && procText ? '<div style="margin-top:5px;padding-top:5px;border-top:1px dashed rgba(67,56,202,0.25);">'
+              + '<div style="font-size:9px;font-weight:800;letter-spacing:0.4px;color:var(--accent-dark);text-transform:uppercase;">Procedure</div>'
+              + '<div style="font-size:12px;font-weight:700;color:var(--ink);overflow-wrap:break-word;margin-top:1px;line-height:1.3;">'+esc(procText)+'</div>'
+            + '</div>' : '')
         + '</div>'
         + statusBadgesHtml
       + '</div>')
@@ -7912,18 +7942,21 @@ function renderUpcomingFollowUpsList() {
 
 function renderCalendarView() {
   const s = computeDashboardStats();
+  const overdueCount = s.important.filter(i => i.isOverdue).length;
+  const todayCount = s.important.filter(i => !i.isOverdue).length;
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row between" style="margin-bottom:10px;"><div class="row gap3"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Follow-ups</h2></div><button class="btn btn-sm btn-primary" data-action="add-menu-pick-patient" data-value="followup">'+ic('plus')+' Add</button></div>'
-    + '<div class="seg">'
-    + '<button class="seg-btn'+(CAL_SUBVIEW==='due'?' active':'')+'" data-action="cal-set-subview" data-value="due">Due'+(s.important.length?' ('+s.important.length+')':'')+'</button>'
-    + '<button class="seg-btn'+(CAL_SUBVIEW==='tomorrow'?' active':'')+'" data-action="cal-set-subview" data-value="tomorrow">Tomorrow'+(s.dueTomorrowList.length?' ('+s.dueTomorrowList.length+')':'')+'</button>'
-    + '<button class="seg-btn'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming</button>'
-    + '<button class="seg-btn'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar</button>'
+    + '<div class="seg" style="overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;">'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='overdue'?' active':'')+'" style="flex:none;white-space:nowrap;" data-action="cal-set-subview" data-value="overdue">Overdue'+(overdueCount?' ('+overdueCount+')':'')+'</button>'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='today'?' active':'')+'" style="flex:none;white-space:nowrap;" data-action="cal-set-subview" data-value="today">Today'+(todayCount?' ('+todayCount+')':'')+'</button>'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='tomorrow'?' active':'')+'" style="flex:none;white-space:nowrap;" data-action="cal-set-subview" data-value="tomorrow">Tomorrow'+(s.dueTomorrowList.length?' ('+s.dueTomorrowList.length+')':'')+'</button>'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" style="flex:none;white-space:nowrap;" data-action="cal-set-subview" data-value="upcoming">Upcoming</button>'
+    + '<button class="seg-btn'+(CAL_SUBVIEW==='calendar'?' active':'')+'" style="flex:none;white-space:nowrap;" data-action="cal-set-subview" data-value="calendar">Calendar</button>'
     + '</div>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
-    + (CAL_SUBVIEW==='due' ? renderNeedsAttentionBlock(s) : CAL_SUBVIEW==='tomorrow' ? renderTomorrowFollowUpsList() : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : (renderCalendarGrid() + renderCalendarDayDetail()))
+    + (CAL_SUBVIEW==='overdue' ? renderNeedsAttentionBlock(s, true) : CAL_SUBVIEW==='today' ? renderNeedsAttentionBlock(s, false) : CAL_SUBVIEW==='tomorrow' ? renderTomorrowFollowUpsList() : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : (renderCalendarGrid() + renderCalendarDayDetail()))
     + '</div>'
     + '</div>';
 }
@@ -9524,7 +9557,7 @@ document.addEventListener('click', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'ctev-jump-followup') { TAB = 'followups'; FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'Follow-up'; ADD_FOLLOWUP_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); window.scrollTo(0,0); return; }
+  if (action === 'tracking-jump-followup') { TAB = 'followups'; FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'Follow-up'; ADD_FOLLOWUP_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); window.scrollTo(0,0); return; }
   if (action === 'ctev-open-add-brace-log') { ADD_CTEV_BRACELOG_OPEN = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-cancel-add-bracelog') { ADD_CTEV_BRACELOG_OPEN = false; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ctev-submit-bracelog') {
@@ -9668,9 +9701,14 @@ document.addEventListener('click', async (e) => {
   if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); window.scrollTo(0,0); return; }
   if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
   if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
-  if (action === 'dash-goto-followups') {
+  if (action === 'dash-goto-overdue') {
     const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
-    CAL_SUBVIEW = 'due'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    CAL_SUBVIEW = 'overdue'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
+    VIEW = 'calendar'; render(); return;
+  }
+  if (action === 'dash-goto-today') {
+    const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t;
+    CAL_SUBVIEW = 'today'; REMINDER_FORM_OPEN = false; REMINDER_FORM_PATIENT_ID = null;
     VIEW = 'calendar'; render(); return;
   }
   if (action === 'dash-goto-tomorrow') {
@@ -9685,6 +9723,7 @@ document.addEventListener('click', async (e) => {
     if (target === 'investigations') { IMAGES_RECORDS_SUBVIEW = 'investigations'; target = 'imagesrecords'; if (jumpId) EXPANDED_INVESTIGATION.add(jumpId); }
     else if (target === 'preop') { IMAGES_RECORDS_SUBVIEW = 'xray'; target = 'imagesrecords'; }
     else if (target === 'followups' && jumpId) { EXPANDED_FOLLOWUP.add(jumpId); }
+    else if (target === 'prescriptions' && jumpId) { EXPANDED_PRESCRIPTION.add(jumpId); }
     TAB = target; ADD_FOLLOWUP_OPEN = false;
     const p = getPatient(SELECTED_ID);
     await render();
@@ -9889,6 +9928,21 @@ document.addEventListener('click', async (e) => {
     if (map[el.dataset.value]) AP_TEMP.side = map[el.dataset.value];
     render(); return;
   }
+  if (action === 'ap-toggle-ctev-surgical') {
+    if (!isProOrAbove()) {
+      el.checked = false;
+      toast('Special Tracking is a Pro feature. Upgrade to use this.');
+      return;
+    }
+    syncApTempFromDom();
+    AP_TEMP.condition = el.checked ? 'ctev' : '';
+    if (el.checked) {
+      const map = { Left:'unilateral-left', Right:'unilateral-right', Bilateral:'bilateral' };
+      if (map[AP_TEMP.side]) AP_TEMP.laterality = map[AP_TEMP.side];
+    }
+    render();
+    return;
+  }
   if (action === 'ap-set-special') { 
     const value = el.dataset.value;
     if (['ctev','ra','osteoporosis'].includes(value) && !isProOrAbove()) {
@@ -9951,7 +10005,7 @@ document.addEventListener('click', async (e) => {
     }
     if (!AP_TEMP.age || !String(AP_TEMP.age).trim()) {
       toast('Age is required');
-      const ageEl = document.getElementById('ap-age');
+      const ageEl = document.getElementById('ap-age-text');
       if (ageEl) { ageEl.scrollIntoView({behavior:'smooth', block:'center'}); ageEl.focus(); }
       return;
     }
@@ -10254,10 +10308,18 @@ document.addEventListener('click', async (e) => {
     const prevLastReminderSentAt = p.lastReminderSentAt;
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
-    if (p.status === 'Lost to follow-up' || p.status === 'Completed') { p.status = 'Active'; }
+    const noFollowUpNeeded = document.getElementById('fu-no-followup-needed');
+    if (noFollowUpNeeded && noFollowUpNeeded.checked) {
+      p.status = 'Completed';
+    } else if (p.status === 'Lost to follow-up' || p.status === 'Completed') {
+      p.status = 'Active';
+    }
     const nextFuEl = document.getElementById('fu-next-followup');
     let nextFuDefaulted = false;
-    if (nextFuEl && nextFuEl.value) {
+    if (noFollowUpNeeded && noFollowUpNeeded.checked) {
+      // Doctor explicitly confirmed the case is complete \u2014 genuinely clear it, no safety net.
+      p.nextFollowUpDate = '';
+    } else if (nextFuEl && nextFuEl.value) {
       p.nextFollowUpDate = nextFuEl.value;
     } else {
       // Safety net: never let a follow-up leave next-visit blank \u2014 falls off all
@@ -10296,6 +10358,8 @@ document.addEventListener('click', async (e) => {
           () => { TAB = 'overview'; render(); },
           5000
         );
+      } else if (noFollowUpNeeded && noFollowUpNeeded.checked) {
+        toast('\u2713 Follow-up logged \u2014 marked as case complete, no further reminder set');
       } else {
         haptic(15);
         const reminderLink = followUpReminderLink(p);
