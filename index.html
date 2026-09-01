@@ -1586,12 +1586,32 @@ const SPECIALTY_GROUP_KEYS = ['Trauma','Arthroplasty','Sports Medicine','Other S
 /* Region and Specialty are still stored together in one array (p.regions) to avoid a data
    migration, but shown as two visually separate groups since they're conceptually different
    (body part vs. clinical domain). */
+let REGION_EDIT_STATE = {}; // { ap: undefined|'open'|'closed', ov: undefined|'open'|'closed' } \u2014 undefined means "use smart default"
 function regionSpecialtyChipsHtml(selected, toggleAction, autoDetectAction) {
+  const ctx = toggleAction.startsWith('ap-') ? 'ap' : 'ov';
+  const hasSelection = selected && selected.length > 0;
+  const state = REGION_EDIT_STATE[ctx];
+  // Smart default: a fresh Add Case with nothing picked yet starts open (so there's
+  // something to act on); an existing patient's Snapshot starts collapsed like every
+  // other section, whether or not it already has a value.
+  const isOpen = state === 'open' ? true : state === 'closed' ? false : (ctx === 'ap' && !hasSelection);
+  const editToggleCtxAction = ctx === 'ap' ? 'ap-toggle-region-edit' : 'ov-toggle-region-edit';
+  const summary = hasSelection ? esc(selected.join(' \u00b7 ')) : '<span style="color:var(--muted);font-weight:600;">Not set yet</span>';
+  const readRow = '<div class="row between" style="align-items:center;">'
+    + '<div style="min-width:0;flex:1;"><label class="field-label" style="margin-bottom:1px;">Region &amp; Specialty</label><div style="font-size:12.5px;font-weight:700;color:var(--ink);">'+summary+'</div></div>'
+    + '<div class="row gap1" style="flex:none;">'
+    + (autoDetectAction?aiButtonHtml(autoDetectAction,'',false,null,'gemini'):'')
+    + '<button type="button" class="icon-btn" style="width:32px;height:32px;" data-action="'+editToggleCtxAction+'" title="Edit region/specialty">'+ic('pencil')+'</button>'
+    + '</div>'
+    + '</div>';
+  if (!isOpen) return readRow;
   const chip = (key) => '<button type="button" class="tag-chip'+(selected.includes(key)?' active':'')+'" data-action="'+toggleAction+'" data-value="'+esc(key)+'">'+esc(key)+'</button>';
-  return '<div><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region</label>'+(autoDetectAction?aiButtonHtml(autoDetectAction,'Auto-detect',false,null,'gemini'):'')+'</div>'
+  return readRow
+    + '<div style="margin-top:8px;"><div class="row between" style="margin-bottom:6px;"><label class="field-label" style="margin-bottom:0;">Region</label>'+(autoDetectAction?aiButtonHtml(autoDetectAction,'Auto-detect',false,null,'gemini'):'')+'</div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + REGION_GROUP_KEYS.map(chip).join('') + '</div></div>'
-    + '<div><label class="field-label">Specialty</label>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + SPECIALTY_GROUP_KEYS.map(chip).join('') + '</div></div>';
+    + '<div style="margin-top:8px;"><label class="field-label">Specialty</label>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + SPECIALTY_GROUP_KEYS.map(chip).join('') + '</div></div>'
+    + '<button type="button" class="btn btn-sm" style="margin-top:8px;" data-action="'+editToggleCtxAction+'">'+ic('check')+' Done</button>';
 }
 /* Lightweight, offline keyword match \u2014 lets diagnosis/complaints text silently switch on
    the relevant Special Tracking module instead of the doctor having to pick it manually.
@@ -2095,6 +2115,7 @@ function resetPerPatientUiState() {
   EDITING_PATIENT_CODE = false;
   EDITING_PATIENT_NAME = false;
   CONVERT_SURGICAL_STEP = null;
+  REGION_EDIT_STATE.ov = undefined;
   OV_EXPANDED = new Set(['snapshot']);
   OV_SHOW_PAYMENT = false;
   OV_SHOW_TRACKING_PICK = false;
@@ -5387,6 +5408,7 @@ const AP_INV_GROUPS = [
   { key:'labs', label:'Labs / Reports', categories:['investigations'] },
 ];
 function initApTemp() {
+  REGION_EDIT_STATE.ap = undefined;
   // id is allocated right away (not just at final Save) so that any photos taken
   // during this wizard can be written to IndexedDB immediately, instead of sitting
   // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
@@ -5524,7 +5546,7 @@ function renderAddView() {
       + '<div class="row gap2" style="align-items:flex-end;">'
       + '<div style="flex:1;min-width:0;">'
         + '<label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label>'
-        + '<input class="input" type="text" id="ap-age-text" placeholder="e.g. 45, 6mo, 15 days" value="'+esc(formatAge(AP_TEMP)==='\u2014' ? '' : formatAge(AP_TEMP))+'" style="max-width:200px;">'
+        + '<input class="input" type="text" id="ap-age-text" placeholder="e.g. 45, 6mo, 15 days" value="'+esc(formatAge(AP_TEMP)==='\u2014' ? '' : formatAge(AP_TEMP))+'" style="max-width:200px;font-size:12px;font-weight:700;border-radius:8px;">'
         + '</div>'
       + '<div style="flex:none;"><label class="field-label">Sex</label><div class="seg">'
       + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
@@ -5534,12 +5556,12 @@ function renderAddView() {
       + '</div>';
 
   const complaintsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + (!isSurgical ? '<div><div class="row between" style="align-items:center;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;margin-bottom:0;">'+ic('alert')+' Chief complaints (presenting symptoms)</label>'+sideToggleHtml('ap-set-side', AP_TEMP.side)+'</div>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
-      + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div>'
-      + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
-      + '<div><div class="row between" style="align-items:center;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;margin-bottom:0;">'+ic('alert')+' Diagnosis (free text, for records/Rx)</label>'+(isSurgical?sideToggleHtml('ap-set-side', AP_TEMP.side):'')+'</div>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" maxlength="500" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
+      + (!isSurgical ? '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
+      + '<div class="row gap2" style="align-items:flex-end;"><div style="flex:1;min-width:0;"><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div><div style="flex:none;"><label class="field-label">Side</label>'+sideToggleHtml('ap-set-side', AP_TEMP.side)+'</div></div>'
+      + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" maxlength="500" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
         + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+apSimilarCasesBlockHtml()+apSchemeSuggestBlockHtml()+'</div>'
       + '</div>'
+      + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
       + '</div>';
 
   const investigationsHtml = '<div style="display:flex;flex-direction:column;gap:10px;">'
@@ -5743,11 +5765,11 @@ function renderOverviewTab(p) {
     + ageFieldHtml(p)
     + '<div><label class="field-label">Sex</label><div class="input" style="background:var(--bg-soft);color:var(--muted);">'+esc(p.sex||'\u2014')+'</div></div>'
     + '</div>'
-    + regionSpecialtyChipsHtml(p.regions||[], 'ov-toggle-region', 'ov-auto-region')
-    + (!isSurgical ? '<div><div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;">Chief complaints</label>'+sideToggleHtml('ov-set-side', p.side, true)+'</div>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
-    + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
-    + '<div><div class="row between" style="align-items:center;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;margin-bottom:0;">'+ic('alert')+' Diagnosis</label>'+(isSurgical?sideToggleHtml('ov-set-side', p.side, true):'')+'</div>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);font-weight:600;">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
+    + (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
+    + '<div class="row gap2" style="align-items:flex-end;"><div style="flex:1;min-width:0;"><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div><div style="flex:none;"><label class="field-label">Side</label>'+sideToggleHtml('ov-set-side', p.side, true)+'</div></div>'
+    + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);font-weight:600;">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
     + '</div>'
+    + regionSpecialtyChipsHtml(p.regions||[], 'ov-toggle-region', 'ov-auto-region')
     + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(p.occupation||'')+'"></div>'
     + '<div style="'+(overdue?'padding:10px;border-radius:12px;background:var(--red-bg);':'')+'">'
     + '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up'+(overdue?' \u2014 OVERDUE':'')+'</label></div>'
@@ -6276,11 +6298,14 @@ function renderSmartFollowupForm(p) {
 async function renderFollowupsTab(p) {
   const allImages = await dbGetImagesByPatient(p.id);
   revokeActiveUrls();
+  const fuCount = (p.followUps||[]).length;
+  const lastFuDate = getLastFollowUpDate(p);
+  const summaryLine = fuCount ? '<div style="font-size:12px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px;">'+ic('clock')+fuCount+' follow-up'+(fuCount!==1?'s':'')+' so far'+(lastFuDate?' \u00b7 Last: '+fmtDateShort(lastFuDate):'')+'</div>' : '';
   let addBlock;
   if (!ADD_FOLLOWUP_OPEN) {
-    addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-fu">'+ic('plus')+' Add follow-up visit</button>';
+    addBlock = summaryLine + '<button class="btn btn-outline-dashed btn-block" data-action="open-add-fu">'+ic('plus')+' Add follow-up visit</button>';
   } else {
-    addBlock = renderSmartFollowupForm(p);
+    addBlock = summaryLine + renderSmartFollowupForm(p);
   }
 
   let list = '';
@@ -9799,8 +9824,9 @@ document.addEventListener('click', async (e) => {
     let detected = await aiAutoDetectRegions(text);
     if (!detected) detected = autoDetectRegions(text);
     el.innerHTML = originalHtml; el.disabled = false;
-    if (!detected.length) { toast('Couldn\u2019t auto-detect \u2014 pick manually'); return; }
+    if (!detected.length) { toast('Couldn\u2019t auto-detect \u2014 pick manually'); REGION_EDIT_STATE.ov = 'open'; await renderTabBody(getPatient(SELECTED_ID)); return; }
     p.regions = detected.slice();
+    REGION_EDIT_STATE.ov = 'closed';
     await dbPutPatient(p); await refreshPatients();
     await renderTabBody(getPatient(SELECTED_ID));
     return;
@@ -9886,6 +9912,11 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+  if (action === 'ov-toggle-region-edit') {
+    REGION_EDIT_STATE.ov = REGION_EDIT_STATE.ov === 'open' ? 'closed' : 'open';
+    await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'ov-toggle-region') {
     const p = getPatient(SELECTED_ID);
     p.regions = p.regions || [];
@@ -9904,6 +9935,11 @@ document.addEventListener('click', async (e) => {
     }
     render(); return;
   }
+  if (action === 'ap-toggle-region-edit') {
+    REGION_EDIT_STATE.ap = REGION_EDIT_STATE.ap === 'open' ? 'closed' : 'open';
+    render();
+    return;
+  }
   if (action === 'ap-toggle-region') {
     syncApTempFromDom();
     const v = el.dataset.value;
@@ -9919,8 +9955,8 @@ document.addEventListener('click', async (e) => {
     let detected = await aiAutoDetectRegions(text);
     if (!detected) detected = autoDetectRegions(text);
     el.innerHTML = originalHtml; el.disabled = false;
-    if (detected.length) { AP_TEMP.regions = detected.slice(); }
-    else { toast('Couldn\u2019t auto-detect \u2014 pick manually'); }
+    if (detected.length) { AP_TEMP.regions = detected.slice(); REGION_EDIT_STATE.ap = 'closed'; }
+    else { toast('Couldn\u2019t auto-detect \u2014 pick manually'); REGION_EDIT_STATE.ap = 'open'; }
     render();
     return;
   }
