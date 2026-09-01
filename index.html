@@ -2089,7 +2089,7 @@ function closeQuickPicker() {
   QUICK_PICKER_PURPOSE = null;
 }
 function quickPickerHtml() {
-  const purposeLabel = { followup:'Add Follow-up Visit', reminder:'Add Reminder', investigation:'Add Investigation' }[QUICK_PICKER_PURPOSE] || 'Pick a patient';
+  const purposeLabel = { followup:'Add Follow-up Visit', reminder:'Add Reminder', investigation:'Add Investigation', 'diag-referral':'Pick Patient for Referral' }[QUICK_PICKER_PURPOSE] || 'Pick a patient';
   return '<div class="usearch-topbar">'
     + '<button class="icon-btn" data-action="close-quick-picker" aria-label="Close patient picker">'+ic('back')+'</button>'
     + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="quick-picker-input" autofocus placeholder="'+purposeLabel+' \u2014 pick a patient" value="'+esc(QUICK_PICKER_QUERY)+'"></div>'
@@ -2153,6 +2153,15 @@ let PRINT_RX = null; // {patient, prescription} when viewing a prescription in p
 let PRINT_CASE_SUMMARY = null; // patient object when viewing a case summary in print mode
 let PRINT_REFERRAL = null; // {patient, text, specialist} when printing a referral letter
 let PLANNED_SURGERIES = [];
+let DIAG_CENTRES = [];
+let DIAG_REFERRALS = [];
+let DIAG_ADD_CENTRE_OPEN = false;
+let DIAG_ADD_REFERRAL_OPEN = false;
+let DIAG_EDIT_CENTRE_ID = null;
+let DIAG_FILTER_CENTRE = ''; // '' = all
+let DIAG_REFERRAL_PICK_PATIENT = null; // {id, name} chosen via quick-picker
+let DIAG_ADD_REFERRAL_TEST = '';
+let DIAG_ADD_REFERRAL_CENTRE = '';
 let PS_ADD_OPEN = false;
 let PS_TEMP = { name:'', age:'', sex:'', diagnosis:'', plan:'', mobile:'', date:'' };
 let PS_EDIT_ID = null;
@@ -3161,6 +3170,23 @@ const DEFAULT_PROFILE = {
 const ONBOARDING_DONE_KEY = 'surgical-case-log-onboarding-done-v1';
 const PROFILE_KEY = 'surgical-case-log-doctor-profile-v1';
 const PLANNED_SURGERY_KEY = 'orthovault-planned-surgeries-v1';
+/* ================= Diagnostic Centre Referral Tracker ================= */
+const DIAG_CENTRES_KEY = 'orthovault-diag-centres-v1';
+const DIAG_REFERRALS_KEY = 'orthovault-diag-referrals-v1';
+function loadDiagCentres() {
+  try { const raw = localStorage.getItem(DIAG_CENTRES_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+}
+function saveDiagCentres(list) {
+  try { localStorage.setItem(DIAG_CENTRES_KEY, JSON.stringify(list)); } catch (e) {}
+}
+function loadDiagReferrals() {
+  try { const raw = localStorage.getItem(DIAG_REFERRALS_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+}
+function saveDiagReferrals(list) {
+  try { localStorage.setItem(DIAG_REFERRALS_KEY, JSON.stringify(list)); } catch (e) {}
+}
+const DIAG_TEST_TYPES = ['USG', 'CT', 'MRI'];
+
 function loadPlannedSurgeries() {
   try {
     const raw = localStorage.getItem(PLANNED_SURGERY_KEY);
@@ -3513,6 +3539,128 @@ function renderReminderQueueView() {
     + '</div>';
 }
 
+/* ================= Diagnostic Referral Tracker View ================= */
+function diagCentresForTest(testType) {
+  return DIAG_CENTRES.filter(c => (c.tests||[]).some(t => t.type === testType));
+}
+function diagCentreTestRate(centreId, testType) {
+  const c = DIAG_CENTRES.find(x => x.id === centreId);
+  if (!c) return { commission: '', discountPercent: '' };
+  const t = (c.tests||[]).find(x => x.type === testType);
+  return t ? { commission: t.commission, discountPercent: t.discountPercent } : { commission: '', discountPercent: '' };
+}
+function diagAddCentreFormHtml() {
+  const editing = DIAG_EDIT_CENTRE_ID ? DIAG_CENTRES.find(c => c.id === DIAG_EDIT_CENTRE_ID) : null;
+  const testRates = {};
+  DIAG_TEST_TYPES.forEach(t => {
+    const existing = editing && (editing.tests||[]).find(x => x.type === t);
+    testRates[t] = existing ? existing : null;
+  });
+  return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
+    + '<label class="field-label">Centre name</label><input class="input" id="diag-centre-name" placeholder="e.g. Pratham Diagnostic Centre" value="'+esc(editing?editing.name:'')+'" style="margin-bottom:10px;">'
+    + '<label class="field-label">Which tests, and your rate for each</label>'
+    + DIAG_TEST_TYPES.map(t => {
+        const checked = !!testRates[t];
+        return '<div class="row gap2" style="align-items:center;margin-bottom:6px;">'
+          + '<label class="row gap1" style="align-items:center;flex:none;width:60px;"><input type="checkbox" id="diag-centre-'+t+'-on" '+(checked?'checked':'')+' style="width:16px;height:16px;"><span style="font-size:12.5px;font-weight:700;">'+t+'</span></label>'
+          + '<input class="input" type="number" inputmode="numeric" id="diag-centre-'+t+'-commission" placeholder="Commission \u20b9" value="'+esc(checked?testRates[t].commission:'')+'" style="flex:1;font-size:12px;">'
+          + '<input class="input" type="number" inputmode="numeric" id="diag-centre-'+t+'-discount" placeholder="Patient discount %" value="'+esc(checked?testRates[t].discountPercent:'')+'" style="flex:1;font-size:12px;">'
+          + '</div>';
+      }).join('')
+    + '<div class="row gap2" style="margin-top:8px;"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-centre">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-centre">'+ic('check')+' Save centre</button></div>'
+    + '</div>';
+}
+function diagAddReferralFormHtml() {
+  const p = DIAG_REFERRAL_PICK_PATIENT;
+  return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
+    + '<label class="field-label">Patient</label>'
+    + (p ? '<button class="btn btn-sm btn-block" style="justify-content:space-between;margin-bottom:10px;" data-action="diag-pick-patient"><span>'+ic('check')+' '+esc(p.name)+'</span><span style="color:var(--accent);font-size:11px;">Change</span></button>'
+         : '<button class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-pick-patient">'+ic('search')+' Pick patient</button>')
+    + '<label class="field-label">Test</label><div class="seg" style="margin-bottom:10px;">'
+    + DIAG_TEST_TYPES.map(t => '<button type="button" class="seg-btn'+(DIAG_ADD_REFERRAL_TEST===t?' active':'')+'" data-action="diag-set-referral-test" data-value="'+t+'">'+t+'</button>').join('')
+    + '</div>'
+    + (DIAG_ADD_REFERRAL_TEST ? (() => {
+        const centres = diagCentresForTest(DIAG_ADD_REFERRAL_TEST);
+        if (!centres.length) return '<p style="font-size:12px;color:var(--muted);margin-bottom:10px;">No centre set up for '+DIAG_ADD_REFERRAL_TEST+' yet \u2014 add one first via \u201cAdd Centre\u201d above.</p>';
+        const selectedCentreId = DIAG_ADD_REFERRAL_CENTRE && centres.some(c => c.id === DIAG_ADD_REFERRAL_CENTRE) ? DIAG_ADD_REFERRAL_CENTRE : centres[0].id;
+        const rate = diagCentreTestRate(selectedCentreId, DIAG_ADD_REFERRAL_TEST);
+        return '<label class="field-label">Diagnostic centre</label><select class="select" id="diag-ref-centre" style="margin-bottom:10px;">'
+          + centres.map(c => '<option value="'+c.id+'"'+(c.id===selectedCentreId?' selected':'')+'>'+esc(c.name)+'</option>').join('')
+          + '</select>'
+          + '<div class="row gap2" style="margin-bottom:10px;">'
+          + '<div style="flex:1;"><label class="field-label">Your commission (\u20b9)</label><input class="input" type="number" inputmode="numeric" id="diag-ref-commission" value="'+esc(rate.commission)+'"></div>'
+          + '<div style="flex:1;"><label class="field-label">Patient discount %</label><input class="input" type="number" inputmode="numeric" id="diag-ref-discount" value="'+esc(rate.discountPercent)+'"></div>'
+          + '</div>';
+      })() : '')
+    + '<label class="field-label">Date referred</label><input class="input" type="date" id="diag-ref-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
+    + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-referral">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-referral">'+ic('check')+' Save referral</button></div>'
+    + '</div>';
+}
+function diagCentreSummaryHtml() {
+  if (!DIAG_CENTRES.length) return '';
+  const rows = DIAG_CENTRES.map(c => {
+    const completed = DIAG_REFERRALS.filter(r => r.centreId === c.id && r.status === 'completed');
+    const total = completed.reduce((sum, r) => sum + (Number(r.commission)||0), 0);
+    const pending = DIAG_REFERRALS.filter(r => r.centreId === c.id && r.status === 'referred').length;
+    if (!completed.length && !pending) {
+      return '<div class="card" style="margin-bottom:8px;padding:12px 14px;">'
+        + '<div class="row between" style="align-items:center;">'
+        + '<span style="font-size:13px;font-weight:700;">'+esc(c.name)+'</span>'
+        + '<button type="button" class="icon-btn" style="width:28px;height:28px;flex:none;" data-action="diag-edit-centre" data-id="'+c.id+'" title="Edit centre">'+ic('pencil')+'</button>'
+        + '</div>'
+        + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">No referrals logged yet</div>'
+        + '</div>';
+    }
+    const byTest = {};
+    completed.forEach(r => { byTest[r.testType] = (byTest[r.testType]||0) + 1; });
+    const testBreakdown = Object.entries(byTest).map(([t,n]) => n+' '+t).join(', ');
+    return '<div class="card" style="margin-bottom:8px;padding:12px 14px;">'
+      + '<div class="row between" style="align-items:center;">'
+      + '<span style="font-size:13px;font-weight:700;cursor:pointer;" data-action="diag-filter-centre" data-value="'+c.id+'">'+esc(c.name)+'</span>'
+      + '<div class="row gap2" style="align-items:center;">'
+      + '<span style="font-size:15px;font-weight:800;color:var(--emerald);">\u20b9'+total.toLocaleString('en-IN')+'</span>'
+      + '<button type="button" class="icon-btn" style="width:28px;height:28px;flex:none;" data-action="diag-edit-centre" data-id="'+c.id+'" title="Edit centre">'+ic('pencil')+'</button>'
+      + '</div>'
+      + '</div>'
+      + '<div style="font-size:11px;color:var(--muted);margin-top:2px;cursor:pointer;" data-action="diag-filter-centre" data-value="'+c.id+'">'+(testBreakdown||'No completed referrals yet')+(pending?' \u00b7 '+pending+' pending':'')+'</div>'
+      + '</div>';
+  }).join('');
+  return rows;
+}
+function renderDiagReferralsView() {
+  const referrals = DIAG_FILTER_CENTRE ? DIAG_REFERRALS.filter(r => r.centreId === DIAG_FILTER_CENTRE) : DIAG_REFERRALS;
+  const sorted = [...referrals].sort((a,b) => (b.dateReferred||'').localeCompare(a.dateReferred||''));
+  return '<div class="px" style="padding-top:16px;padding-bottom:90px;">'
+    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-diag-referrals">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Diagnostic Referrals</h2><span style="width:36px;"></span></div>'
+    + (DIAG_ADD_CENTRE_OPEN ? diagAddCentreFormHtml() : '')
+    + (DIAG_ADD_REFERRAL_OPEN ? diagAddReferralFormHtml() : '')
+    + (!DIAG_ADD_CENTRE_OPEN && !DIAG_ADD_REFERRAL_OPEN ? (
+        '<div class="row gap2" style="margin-bottom:14px;">'
+        + '<button class="btn btn-sm" style="flex:1;" data-action="diag-open-add-centre">'+ic('plus')+' Add Centre</button>'
+        + '<button class="btn btn-sm btn-primary" style="flex:1;" data-action="diag-open-add-referral">'+ic('plus')+' Add Referral</button>'
+        + '</div>'
+      ) : '')
+    + (!DIAG_CENTRES.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:20px;">Add your first diagnostic centre to get started.</p>' : '')
+    + diagCentreSummaryHtml()
+    + (DIAG_FILTER_CENTRE ? '<button class="chip" style="margin-bottom:10px;" data-action="diag-clear-filter">'+ic('x')+' Clear filter</button>' : '')
+    + (sorted.length ? '<div style="font-size:10.5px;font-weight:800;letter-spacing:0.04em;color:var(--muted);margin:14px 0 8px;">ALL REFERRALS</div>' : '')
+    + sorted.map(r => {
+        const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
+        const isCompleted = r.status === 'completed';
+        return '<div class="card" style="margin-bottom:8px;padding:10px 12px;">'
+          + '<div class="row between" style="align-items:flex-start;">'
+          + '<div style="min-width:0;flex:1;">'
+          + '<div style="font-size:13px;font-weight:700;">'+esc(r.patientName)+'</div>'
+          + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.testType)+' \u00b7 '+esc(centre?centre.name:'\u2014')+' \u00b7 '+fmtDateShort(r.dateReferred)+'</div>'
+          + (r.commission ? '<div style="font-size:11px;color:var(--muted);margin-top:1px;">\u20b9'+r.commission+' commission'+(r.discountPercent?' \u00b7 '+r.discountPercent+'% patient discount':'')+'</div>' : '')
+          + '</div>'
+          + '<button type="button" class="badge '+(isCompleted?'badge-emerald':'badge-slate')+'" style="flex:none;cursor:pointer;" data-action="diag-toggle-referral-status" data-id="'+r.id+'">'+(isCompleted?ic('check')+' Completed':'Referred')+'</button>'
+          + '</div>'
+          + '</div>';
+      }).join('')
+    + '</div>';
+}
+
 function renderPlannedSurgeriesView() {
   const sorted = [...PLANNED_SURGERIES].sort((a,b) => (a.date||'').localeCompare(b.date||''));
   return '<div style="padding-bottom:40px;">'
@@ -3823,6 +3971,7 @@ async function renderMoreView() {
         + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
         + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
         + moreRowHtml('shield', 'Find Duplicate Patients', 'Scan for likely-duplicate cases by name and merge them safely', 'open-duplicate-finder')
+        + moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals')
     },
     { key:'reference', title:'Reference & Research', icon:'bookmark', rows:
         moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
@@ -8066,6 +8215,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'upgrade') { app.innerHTML = renderUpgradeView(); return; }
   if (VIEW === 'scheme-finder') { app.innerHTML = renderSchemeFinderView(); return; }
   if (VIEW === 'patient-ai-tools') { app.innerHTML = renderPatientAiToolsView(); return; }
+  if (VIEW === 'diag-referrals') { app.innerHTML = renderDiagReferralsView(); return; }
   if (VIEW === 'planned-surgeries') { app.innerHTML = renderPlannedSurgeriesView(); return; }
   if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
@@ -9309,6 +9459,13 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-quick-picker') { closeQuickPicker(); return; }
   if (action === 'quick-pick-patient') {
     const purpose = QUICK_PICKER_PURPOSE;
+    if (purpose === 'diag-referral') {
+      const p = getPatient(el.dataset.id);
+      closeQuickPicker();
+      if (p) DIAG_REFERRAL_PICK_PATIENT = { id: p.id, name: p.name };
+      render();
+      return;
+    }
     closeQuickPicker();
     SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW = 'detail'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH = null;
     if (purpose === 'followup') { TAB = 'followups'; FU_INV_PHOTOS = []; FU_INV_CATEGORY = 'xray'; FU_INV_XRAY_SUBTYPE = 'Follow-up'; ADD_FOLLOWUP_OPEN = true; }
@@ -10937,6 +11094,84 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'rq-skip') { RQ_INDEX++; render(); return; }
   if (action === 'close-reminder-queue') { RQ_QUEUE = []; RQ_INDEX = 0; VIEW = 'list'; render(); return; }
+  if (action === 'open-diag-referrals') {
+    DIAG_CENTRES = loadDiagCentres();
+    DIAG_REFERRALS = loadDiagReferrals();
+    DIAG_ADD_CENTRE_OPEN = false; DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDIT_CENTRE_ID = null; DIAG_FILTER_CENTRE = '';
+    VIEW = 'diag-referrals'; render(); return;
+  }
+  if (action === 'close-diag-referrals') { VIEW = 'more'; render(); return; }
+  if (action === 'diag-edit-centre') { DIAG_EDIT_CENTRE_ID = el.dataset.id; DIAG_ADD_CENTRE_OPEN = true; DIAG_ADD_REFERRAL_OPEN = false; render(); return; }
+  if (action === 'diag-open-add-centre') { DIAG_ADD_CENTRE_OPEN = true; DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDIT_CENTRE_ID = null; render(); return; }
+  if (action === 'diag-cancel-add-centre') { DIAG_ADD_CENTRE_OPEN = false; DIAG_EDIT_CENTRE_ID = null; render(); return; }
+  if (action === 'diag-save-centre') {
+    const nameEl = document.getElementById('diag-centre-name');
+    const name = nameEl ? nameEl.value.trim() : '';
+    if (!name) { toast('Centre name is required'); return; }
+    const tests = [];
+    DIAG_TEST_TYPES.forEach(t => {
+      const onEl = document.getElementById('diag-centre-'+t+'-on');
+      if (onEl && onEl.checked) {
+        const commEl = document.getElementById('diag-centre-'+t+'-commission');
+        const discEl = document.getElementById('diag-centre-'+t+'-discount');
+        tests.push({ type: t, commission: commEl ? commEl.value : '', discountPercent: discEl ? discEl.value : '' });
+      }
+    });
+    if (DIAG_EDIT_CENTRE_ID) {
+      const c = DIAG_CENTRES.find(x => x.id === DIAG_EDIT_CENTRE_ID);
+      if (c) { c.name = name; c.tests = tests; }
+    } else {
+      DIAG_CENTRES.push({ id: uid(), name, tests });
+    }
+    saveDiagCentres(DIAG_CENTRES);
+    DIAG_ADD_CENTRE_OPEN = false; DIAG_EDIT_CENTRE_ID = null;
+    toast('Centre saved');
+    render();
+    return;
+  }
+  if (action === 'diag-open-add-referral') {
+    if (!DIAG_CENTRES.length) { toast('Add a diagnostic centre first'); return; }
+    DIAG_ADD_REFERRAL_OPEN = true; DIAG_ADD_CENTRE_OPEN = false;
+    DIAG_REFERRAL_PICK_PATIENT = null; DIAG_ADD_REFERRAL_TEST = ''; DIAG_ADD_REFERRAL_CENTRE = '';
+    render(); return;
+  }
+  if (action === 'diag-cancel-add-referral') { DIAG_ADD_REFERRAL_OPEN = false; render(); return; }
+  if (action === 'diag-pick-patient') { openQuickPicker('diag-referral'); return; }
+  if (action === 'diag-set-referral-test') { DIAG_ADD_REFERRAL_TEST = el.dataset.value; DIAG_ADD_REFERRAL_CENTRE = ''; render(); return; }
+  if (action === 'diag-save-referral') {
+    if (!DIAG_REFERRAL_PICK_PATIENT) { toast('Pick a patient first'); return; }
+    if (!DIAG_ADD_REFERRAL_TEST) { toast('Pick a test type'); return; }
+    const centreEl = document.getElementById('diag-ref-centre');
+    const centreId = centreEl ? centreEl.value : '';
+    if (!centreId) { toast('Pick a diagnostic centre'); return; }
+    const commEl = document.getElementById('diag-ref-commission');
+    const discEl = document.getElementById('diag-ref-discount');
+    const dateEl = document.getElementById('diag-ref-date');
+    DIAG_REFERRALS.push({
+      id: uid(),
+      patientId: DIAG_REFERRAL_PICK_PATIENT.id,
+      patientName: DIAG_REFERRAL_PICK_PATIENT.name,
+      testType: DIAG_ADD_REFERRAL_TEST,
+      centreId,
+      dateReferred: dateEl ? dateEl.value : todayStr(),
+      status: 'referred',
+      commission: commEl ? commEl.value : '',
+      discountPercent: discEl ? discEl.value : '',
+    });
+    saveDiagReferrals(DIAG_REFERRALS);
+    DIAG_ADD_REFERRAL_OPEN = false;
+    toast('Referral logged');
+    render();
+    return;
+  }
+  if (action === 'diag-toggle-referral-status') {
+    const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
+    if (r) { r.status = r.status === 'completed' ? 'referred' : 'completed'; saveDiagReferrals(DIAG_REFERRALS); }
+    render();
+    return;
+  }
+  if (action === 'diag-filter-centre') { DIAG_FILTER_CENTRE = el.dataset.value; render(); return; }
+  if (action === 'diag-clear-filter') { DIAG_FILTER_CENTRE = ''; render(); return; }
   if (action === 'open-planned-surgeries') {
     PLANNED_SURGERIES = loadPlannedSurgeries();
     PS_ADD_OPEN = false; PS_EDIT_ID = null;
@@ -11610,6 +11845,8 @@ async function render_only_current_view() {
 
 document.addEventListener('change', async (e) => {
   const t = e.target;
+
+  if (t.id === 'diag-ref-centre') { DIAG_ADD_REFERRAL_CENTRE = t.value; render(); return; }
 
   if (t.dataset && t.dataset.relfu) {
     const target = t.dataset.relfuTarget;
