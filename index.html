@@ -1594,7 +1594,7 @@ function regionSpecialtyChipsHtml(selected, toggleAction, autoDetectAction) {
   // Smart default: a fresh Add Case with nothing picked yet starts open (so there's
   // something to act on); an existing patient's Snapshot starts collapsed like every
   // other section, whether or not it already has a value.
-  const isOpen = state === 'open' ? true : state === 'closed' ? false : (ctx === 'ap' && !hasSelection);
+  const isOpen = state === 'open' ? true : false;
   const editToggleCtxAction = ctx === 'ap' ? 'ap-toggle-region-edit' : 'ov-toggle-region-edit';
   const summary = hasSelection ? esc(selected.join(' \u00b7 ')) : '<span style="color:var(--muted);font-weight:600;">Not set yet</span>';
   const readRow = '<div class="row between" style="align-items:center;">'
@@ -5713,7 +5713,7 @@ function renderAddView() {
       + (!isSurgical ? '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
       + '<div class="row gap2" style="align-items:flex-end;"><div style="flex:1;min-width:0;"><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div><div style="flex:none;"><label class="field-label">Side</label>'+sideToggleHtml('ap-set-side', AP_TEMP.side)+'</div></div>'
       + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" maxlength="500" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
-        + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+apSimilarCasesBlockHtml()+apSchemeSuggestBlockHtml()+'</div>'
+        + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+'</div>'
       + '</div>'
       + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
       + '</div>';
@@ -9342,7 +9342,7 @@ document.addEventListener('click', async (e) => {
       const suggestions = JSON.parse(raw);
       AI_INVESTIGATION_SUGGESTIONS = Array.isArray(suggestions) ? suggestions.filter(s => typeof s === 'string' && s.trim()).slice(0, 5) : [];
       const invBlock = document.getElementById('ap-diag-ai-suggest-block');
-      if (invBlock) invBlock.innerHTML = apDiagAiSuggestBlockHtml() + apSimilarCasesBlockHtml() + apSchemeSuggestBlockHtml();
+      if (invBlock) invBlock.innerHTML = apDiagAiSuggestBlockHtml();
       else await renderTabBody(AP_TEMP);
     } catch (err) {
       console.error('AI investigation suggestion failed:', err);
@@ -9367,7 +9367,7 @@ document.addEventListener('click', async (e) => {
       const suggestions = JSON.parse(raw);
       AI_EXAM_SUGGESTIONS = Array.isArray(suggestions) ? suggestions.filter(s => typeof s === 'string' && s.trim()).slice(0, 6) : [];
       const examBlock = document.getElementById('ap-diag-ai-suggest-block');
-      if (examBlock) examBlock.innerHTML = apDiagAiSuggestBlockHtml() + apSimilarCasesBlockHtml() + apSchemeSuggestBlockHtml();
+      if (examBlock) examBlock.innerHTML = apDiagAiSuggestBlockHtml();
       else await renderTabBody(AP_TEMP);
     } catch (err) {
       console.error('AI exam suggestion failed:', err);
@@ -12359,7 +12359,7 @@ document.addEventListener('blur', async (e) => {
   }
   if ((e.target.id === 'ap-diagnosis' || e.target.id === 'ap-complaints') && isProOrAbove()) {
     const block = document.getElementById('ap-diag-ai-suggest-block');
-    if (block) block.innerHTML = apDiagAiSuggestBlockHtml() + apSimilarCasesBlockHtml() + apSchemeSuggestBlockHtml();
+    if (block) block.innerHTML = apDiagAiSuggestBlockHtml();
   }
   if ((e.target.id === 'ap-diagnosis' || e.target.id === 'ap-complaints') && AP_TEMP && AP_TEMP.caseType === 'opd' && !AP_TEMP.condition) {
     syncApTempFromDom();
