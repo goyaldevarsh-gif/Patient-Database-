@@ -9012,7 +9012,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-diag-referrals'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -9061,7 +9061,7 @@ function updateMasterVoiceUI() {
     // Hide entirely on screens that have their own fixed bottom action bar, or where a
     // generic floating trigger would visually clash with the screen's own content/buttons
     // (menus, AI sub-pages that ARE the AI feature already, forms with Save/Cancel bars, etc).
-    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms'];
+    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals'];
     // Search must stay available to every tier, not just AI tier \u2014 only the "Ask AI" menu
     // option inside is gated below, the button itself always shows (like the old search fab did).
     const shouldShow = !APP_LOCKED && !hideOnViews.includes(VIEW);
