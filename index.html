@@ -3565,43 +3565,44 @@ function renderDiagReferralsView() {
   if (DIAG_FILTER_CENTRE) entries = entries.filter(r => r.centreId === DIAG_FILTER_CENTRE);
   const sorted = [...entries].sort((a,b) => (b.reportDate||'').localeCompare(a.reportDate||''));
   const activeCount = DIAG_REFERRALS.filter(r => r.status !== 'paid').length;
+  const formOpen = DIAG_ADD_CENTRE_OPEN || DIAG_ADD_REFERRAL_OPEN;
   return '<div class="px" style="padding-top:16px;padding-bottom:90px;">'
     + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-diag-referrals">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Diagnostic Referrals</h2><span style="width:36px;"></span></div>'
     + (DIAG_ADD_CENTRE_OPEN ? diagAddCentreFormHtml() : '')
     + (DIAG_ADD_REFERRAL_OPEN ? diagAddReferralFormHtml() : '')
-    + (!DIAG_ADD_CENTRE_OPEN && !DIAG_ADD_REFERRAL_OPEN ? (
+    + (formOpen ? '' : (
         '<div class="row gap2" style="margin-bottom:10px;">'
         + '<button class="btn btn-sm" style="flex:1;" data-action="diag-open-add-centre">'+ic('plus')+' Add Centre</button>'
         + '<button class="btn btn-sm btn-primary" style="flex:1;" data-action="diag-open-add-referral">'+ic('plus')+' Add Entry</button>'
         + '</div>'
         + (activeCount ? '<button class="btn btn-sm btn-block" style="margin-bottom:14px;" data-action="diag-export-csv">'+ic('download')+' Export Excel (this list)</button>' : '<div style="margin-bottom:14px;"></div>')
-      ) : '')
-    + (!DIAG_CENTRES.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:20px;">Add your first diagnostic centre to get started.</p>' : '')
-    + '<div class="seg" style="margin-bottom:10px;">'
-    + '<button class="seg-btn'+(view==='active'?' active':'')+'" data-action="diag-set-view" data-value="active">Active ('+activeCount+')</button>'
-    + '<button class="seg-btn'+(view==='paid'?' active':'')+'" data-action="diag-set-view" data-value="paid">Paid / History</button>'
-    + '</div>'
-    + (DIAG_CENTRES.length > 1 ? ('<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
-        + '<button type="button" class="tag-chip'+(!DIAG_FILTER_CENTRE?' active':'')+'" data-action="diag-filter-centre" data-value="">All centres</button>'
-        + DIAG_CENTRES.map(c => '<button type="button" class="tag-chip'+(DIAG_FILTER_CENTRE===c.id?' active':'')+'" data-action="diag-filter-centre" data-value="'+c.id+'">'+esc(c.name)+'</button>').join('')
-        + '</div>') : '')
-    + (!sorted.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:16px;">'+(view==='paid'?'No paid entries yet.':'No active entries.')+'</p>' : '')
-    + sorted.map(r => {
-        const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
-        return '<div class="card" style="margin-bottom:8px;padding:10px 12px;">'
-          + '<div class="row between" style="align-items:flex-start;">'
-          + '<div style="min-width:0;flex:1;">'
-          + '<div style="font-size:13px;font-weight:700;">'+esc(r.patientName)+'</div>'
-          + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.investigation||'')+' \u00b7 '+esc(centre?centre.name:'\u2014')+'</div>'
-          + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">Report: '+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.discount?' \u00b7 '+esc(r.discount)+' discount':'')+'</div>'
-          + '</div>'
-          + (view === 'active'
-              ? '<button type="button" class="badge badge-slate" style="flex:none;cursor:pointer;" data-action="diag-mark-paid" data-id="'+r.id+'">Mark Paid</button>'
-              + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-delete-referral" data-id="'+r.id+'" title="Delete">'+ic('trash')+'</button>'
-              : '<span class="badge badge-emerald" style="flex:none;">'+ic('check')+' Paid</span>')
-          + '</div>'
-          + '</div>';
-      }).join('')
+        + (!DIAG_CENTRES.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:20px;">Add your first diagnostic centre to get started.</p>' : '')
+        + '<div class="seg" style="margin-bottom:10px;">'
+        + '<button class="seg-btn'+(view==='active'?' active':'')+'" data-action="diag-set-view" data-value="active">Active ('+activeCount+')</button>'
+        + '<button class="seg-btn'+(view==='paid'?' active':'')+'" data-action="diag-set-view" data-value="paid">Paid / History</button>'
+        + '</div>'
+        + (DIAG_CENTRES.length > 1 ? ('<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
+            + '<button type="button" class="tag-chip'+(!DIAG_FILTER_CENTRE?' active':'')+'" data-action="diag-filter-centre" data-value="">All centres</button>'
+            + DIAG_CENTRES.map(c => '<button type="button" class="tag-chip'+(DIAG_FILTER_CENTRE===c.id?' active':'')+'" data-action="diag-filter-centre" data-value="'+c.id+'">'+esc(c.name)+'</button>').join('')
+            + '</div>') : '')
+        + (!sorted.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:16px;">'+(view==='paid'?'No paid entries yet.':'No active entries.')+'</p>' : '')
+        + sorted.map(r => {
+            const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
+            return '<div class="card" style="margin-bottom:8px;padding:10px 12px;">'
+              + '<div class="row between" style="align-items:flex-start;">'
+              + '<div style="min-width:0;flex:1;">'
+              + '<div style="font-size:13px;font-weight:700;">'+esc(r.patientName)+'</div>'
+              + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.investigation||'')+' \u00b7 '+esc(centre?centre.name:'\u2014')+'</div>'
+              + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">Report: '+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.discount?' \u00b7 '+esc(r.discount)+' discount':'')+'</div>'
+              + '</div>'
+              + (view === 'active'
+                  ? '<button type="button" class="badge badge-slate" style="flex:none;cursor:pointer;" data-action="diag-mark-paid" data-id="'+r.id+'">Mark Paid</button>'
+                  + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-delete-referral" data-id="'+r.id+'" title="Delete">'+ic('trash')+'</button>'
+                  : '<button type="button" class="badge badge-emerald" style="flex:none;cursor:pointer;" data-action="diag-unmark-paid" data-id="'+r.id+'" title="Move back to Active">'+ic('check')+' Paid \u00b7 Undo</button>')
+              + '</div>'
+              + '</div>';
+          }).join('')
+      ))
     + '</div>';
 }
 
@@ -11099,6 +11100,12 @@ document.addEventListener('click', async (e) => {
   if (action === 'diag-mark-paid') {
     const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
     if (r) { r.status = 'paid'; r.paidAt = Date.now(); saveDiagReferrals(DIAG_REFERRALS); toast('Marked paid \u2014 moved to history'); }
+    render();
+    return;
+  }
+  if (action === 'diag-unmark-paid') {
+    const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
+    if (r) { r.status = 'active'; delete r.paidAt; saveDiagReferrals(DIAG_REFERRALS); toast('Moved back to Active'); }
     render();
     return;
   }
