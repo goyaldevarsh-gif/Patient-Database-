@@ -380,7 +380,7 @@
   .ocr-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); }
   .ocr-row:last-of-type { border-bottom:none; }
 
-  .rx-sheet { max-width:520px; margin:0 auto; padding:22px 18px 40px; font-family:'Inter',sans-serif; color:#111827; }
+  .rx-sheet { max-width:520px; margin:0 auto; padding:22px 18px 40px; font-family:'Inter',sans-serif; color:#111827; background:#fff; }
   .rx-letterhead { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #1e293b; padding-bottom:12px; margin-bottom:14px; }
   .rx-clinic-name { font-family:'Plus Jakarta Sans',sans-serif; font-weight:800; font-size:16px; }
   .rx-clinic-addr { font-size:11px; color:#475569; line-height:1.5; }
@@ -5864,6 +5864,7 @@ function renderOverviewTab(p) {
     + ageFieldHtml(p)
     + '<div><label class="field-label">Sex</label><div class="input" style="background:var(--bg-soft);color:var(--muted);">'+esc(p.sex||'\u2014')+'</div></div>'
     + '</div>'
+    + (!isSurgical ? '<div><label class="field-label">Visit date</label><input class="input" type="date" data-field="surgeryDate" max="'+todayStr()+'" value="'+esc(p.surgeryDate||'')+'"></div>' : '')
     + (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
     + '<div class="row gap2" style="align-items:flex-end;"><div style="flex:1;min-width:0;"><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div><div style="flex:none;"><label class="field-label">Side</label>'+sideToggleHtml('ov-set-side', p.side, true)+'</div></div>'
     + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);font-weight:600;">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
