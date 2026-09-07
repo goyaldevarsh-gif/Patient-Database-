@@ -5941,11 +5941,6 @@ function renderOverviewTab(p) {
             ? '<select class="select" id="ov-tracking-select"><option value="">\u2014 Pick \u2014</option><option value="ctev">CTEV</option><option value="ra">RA</option><option value="osteoporosis">Osteoporosis</option><option value="trauma">Trauma</option></select>'
             : '<button class="chip" data-action="ov-show-tracking-pick">'+ic('plus')+' Track a condition</button>') : ''));
 
-  let trackingBody = ((p.surgeryType === 'Trauma' || p.condition === 'trauma') ? classificationCardHtml(p) : '')
-    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') && p.surgeryStatus !== 'awaiting' ? unionProgressCardHtml(p) : '')
-    + ((p.surgeryType === 'Trauma' || p.condition === 'trauma') && p.surgeryStatus === 'awaiting' ? '<div class="card" style="text-align:center;color:var(--muted);font-size:11.5px;padding:14px;">Union/RUST tracking shuru hoga jab surgery actually ho jaayegi (abhi Awaiting Surgery hai).</div>' : '');
-  const hasTracking = !!(((p.surgeryType === 'Trauma' || p.condition === 'trauma')));
-
   let communicateBody = '<div class="card">'
     + '<label class="field-label">WhatsApp number</label>'
     + '<input class="input" type="tel" id="ov-whatsapp" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'"><p class="validation-helper" id="ov-whatsapp-helper" style="margin-bottom:10px;"></p>'
@@ -5978,24 +5973,7 @@ function renderOverviewTab(p) {
         : '<div style="text-align:right;"><button class="btn btn-sm" data-action="quick-fu-open" data-patient-id="'+p.id+'">'+ic('plus')+' Schedule</button></div>')
     + (!regionsSpecLine ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '');
 
-  const statCards = '<div style="display:flex;gap:10px;">'
-    + '<button type="button" class="card" style="flex:1;text-align:left;display:flex;align-items:center;gap:10px;cursor:pointer;" data-action="set-tab" data-value="imagesrecords">'
-    + '<span style="flex:none;width:34px;height:34px;border-radius:50%;background:rgba(67,56,202,0.1);color:var(--accent);display:flex;align-items:center;justify-content:center;">'+ic('camera')+'</span>'
-    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:11px;color:var(--muted);">Investigation Photos</span><span style="display:block;font-size:16px;font-weight:800;color:var(--accent);">'+p.preOpImageCount+'</span></span>'
-    + '<span style="color:var(--muted);">'+ic('chevron')+'</span>'
-    + '</button>'
-    + '<button type="button" class="card" style="flex:1;text-align:left;display:flex;align-items:center;gap:10px;cursor:pointer;" data-action="set-tab" data-value="followups">'
-    + '<span style="flex:none;width:34px;height:34px;border-radius:50%;background:var(--emerald-bg);color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
-    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:11px;color:var(--muted);">Follow-up Visits</span><span style="display:block;font-size:16px;font-weight:800;color:var(--emerald);">'+(p.followUps||[]).length+'</span></span>'
-    + '<span style="color:var(--muted);">'+ic('chevron')+'</span>'
-    + '</button>'
-    + '</div>';
-
-  const clinicalRead = '<div style="background:rgba(67,56,202,0.05);border:1px solid rgba(67,56,202,0.15);border-radius:10px;padding:10px 12px;margin-bottom:10px;">'
-    + '<div style="font-size:10.5px;color:var(--muted);margin-bottom:4px;font-weight:600;text-transform:uppercase;">Diagnosis</div>'
-    + '<div style="font-size:14px;font-weight:800;color:var(--accent-dark);">'+esc(p.diagnosis||'\u2014')+'</div>'
-    + '</div>'
-    + (!isSurgical ? '<div class="row" style="gap:10px;">'
+  const clinicalRead = (!isSurgical ? '<div class="row" style="gap:10px;">'
       + '<div style="flex:1;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Chief Complaint</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.chiefComplaints||'\u2014')+'</div></div>'
       + '<div style="flex:none;max-width:35%;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Duration</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.symptomDuration||'\u2014')+'</div></div>'
       + '</div>' : '')
@@ -6022,22 +6000,18 @@ function renderOverviewTab(p) {
 
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
     + (p.condition === 'ra' && p.ra && p.ra.cspineFlag ? '<div class="cspine-alert">'+ic('alert')+' C-spine flagged \u2014 inform anaesthesia before any surgery (intubation/positioning precautions).</div>' : '')
-    + (isAiTier() ? (
-        AI_PATIENT_SUMMARY
-          ? '<div class="card" style="padding:11px 14px;">'
-              + '<span style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.02em;display:flex;align-items:center;gap:5px;margin-bottom:4px;"><span style="transform:scale(0.75);display:inline-flex;">'+ic('sparkle')+'</span>AI Summary</span>'
-              + '<p style="font-size:12.5px;color:var(--ink);margin:0 0 6px;line-height:1.5;">'+esc(AI_PATIENT_SUMMARY)+'</p>'
-              + '<button type="button" class="chip" style="font-size:10.5px;padding:3px 9px;" data-action="ai-summarize-patient">Regenerate</button>'
-              + '</div>'
-          : '<button type="button" class="chip" style="align-self:flex-start;display:flex;align-items:center;gap:5px;padding:6px 12px;font-size:12px;color:var(--accent-dark);" data-action="ai-summarize-patient">'+ic('sparkle')+' AI Summary</button>'
-      ) : '')
-    + '<div class="row" style="justify-content:flex-end;gap:8px;">'
-    + '<button class="icon-btn" data-action="open-export-summary" title="Export / Share Case Summary">'+ic('printer')+'</button>'
-    + '<button class="icon-btn" data-action="download-case-zip" data-id="'+p.id+'" title="Download all photos + labs (zip)">'+ic('download')+'</button>'
-    + '<button class="icon-btn'+(p.researchFlag?' active':'')+'" style="'+(p.researchFlag?'color:#b45309;':'')+'" data-action="toggle-research-flag" data-id="'+p.id+'" title="'+(p.researchFlag?'Remove from research cases':'Flag as interesting case (for paper / study)')+'">'+ic('bookmark')+'</button>'
+    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">'
+    + (isAiTier() ? '<button type="button" class="card" style="text-align:center;padding:10px 4px;" data-action="ai-summarize-patient"><div style="color:var(--accent);margin-bottom:4px;display:flex;justify-content:center;">'+ic('sparkle')+'</div><div style="font-size:10px;font-weight:600;">Summary</div></button>' : '')
+    + '<button type="button" class="card" style="text-align:center;padding:10px 4px;" data-action="open-export-summary"><div style="color:var(--ink);margin-bottom:4px;display:flex;justify-content:center;">'+ic('printer')+'</div><div style="font-size:10px;font-weight:600;">Print</div></button>'
+    + '<button type="button" class="card" style="text-align:center;padding:10px 4px;" data-action="download-case-zip" data-id="'+p.id+'"><div style="color:var(--ink);margin-bottom:4px;display:flex;justify-content:center;">'+ic('download')+'</div><div style="font-size:10px;font-weight:600;">Download</div></button>'
+    + '<button type="button" class="card" style="text-align:center;padding:10px 4px;'+(p.researchFlag?'background:var(--amber-bg);border-color:var(--amber-border);':'')+'" data-action="toggle-research-flag" data-id="'+p.id+'"><div style="color:'+(p.researchFlag?'#b45309':'var(--ink)')+';margin-bottom:4px;display:flex;justify-content:center;">'+ic('bookmark')+'</div><div style="font-size:10px;font-weight:600;color:'+(p.researchFlag?'#b45309':'var(--ink)')+';">Bookmark</div></button>'
     + '</div>'
+    + (isAiTier() && AI_PATIENT_SUMMARY ? '<div class="card" style="padding:11px 14px;">'
+        + '<span style="font-size:11px;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:0.02em;display:flex;align-items:center;gap:5px;margin-bottom:4px;"><span style="transform:scale(0.75);display:inline-flex;">'+ic('sparkle')+'</span>AI Summary</span>'
+        + '<p style="font-size:12.5px;color:var(--ink);margin:0 0 6px;line-height:1.5;">'+esc(AI_PATIENT_SUMMARY)+'</p>'
+        + '<button type="button" class="chip" style="font-size:10.5px;padding:3px 9px;" data-action="ai-summarize-patient">Regenerate</button>'
+        + '</div>' : '')
     + (p.researchFlag ? '<div class="row" style="gap:6px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:var(--amber-bg);border:1px solid var(--amber-border);"><span style="color:#b45309;flex-shrink:0;margin-top:1px;">'+ic('bookmark')+'</span><p style="font-size:12px;color:#92400e;margin:0;flex:1;"><strong>Research case</strong>'+(p.researchNote?' \u2014 '+esc(p.researchNote):'')+'</p></div>' : '')
-    + statCards
     + (isProOrAbove() ? (
         p.schemePackage ? (
           '<div class="card" style="padding:12px 14px;">'
@@ -6064,7 +6038,6 @@ function renderOverviewTab(p) {
     + ovSectionV2('clinical', 'Clinical', 'file', clinicalRead, clinicalBody)
     + ovSectionV2('communicate', 'Contact Details', 'message', communicateRead, communicateBody)
     + ovSectionV2('useful', 'Reminders & Follow-ups', 'calendar', usefulRead, usefulBody)
-    + (hasTracking ? ovSectionV2('tracking', 'Special Tracking', 'clock', trackingBody, null) : '')
     + '<div class="card" style="background:'+(CONVERT_SURGICAL_STEP || (isSurgical && p.surgeryStatus==='awaiting') ? 'rgba(217,119,6,0.06)' : 'rgba(226,232,240,0.4)')+';border-color:'+(CONVERT_SURGICAL_STEP || (isSurgical && p.surgeryStatus==='awaiting') ? '#fde68a' : '#cbd5e1')+';margin-top:8px;padding:10px 12px;">'
     + '<div style="display:flex;flex-direction:column;gap:8px;">'
     + (CONVERT_SURGICAL_STEP === 'choose'
@@ -6128,57 +6101,6 @@ function convertToOpdButtonHtml(p) {
       + '</div>';
   }
   return '<button class="btn btn-sm btn-block" style="font-size:12px;color:var(--accent-dark);font-weight:600;" data-action="arm-delete" data-arm="convert-to-opd:'+p.id+'">'+ic('back')+' Convert to OPD</button>';
-}
-
-function classificationCardHtml(p) {
-  return '<div class="card">'
-    + '<label class="field-label">'+ic('tag')+' Fracture Classification <span style="color:var(--muted);font-weight:500;">(optional)</span></label>'
-    + '<input class="input" data-field="classification" placeholder="e.g. AO 31-A1, Garden III, Weber B" value="'+esc(p.classification||'')+'">'
-    + '</div>';
-}
-
-
-function unionProgressCardHtml(p) {
-  const tracked = [...(p.followUps||[])].filter(f => f.unionStatus && f.unionStatus !== 'Not assessed').sort((a,b) => new Date(a.date) - new Date(b.date));
-  if (!tracked.length) return '';
-  const latest = tracked[tracked.length-1];
-  return '<div class="card">'
-    + '<div class="row between" style="margin-bottom:8px;"><label class="field-label" style="margin-bottom:0;">'+ic('clock')+' Union Progress</label>'
-    + '<span class="badge '+unionBadgeClass(latest.unionStatus)+'">Latest: '+esc(latest.unionStatus)+'</span></div>'
-    + '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">'
-    + tracked.map((f,i) => (i>0?'<span style="color:#cbd5e1;">\u2192</span>':'') + '<span class="badge '+unionBadgeClass(f.unionStatus)+'" style="font-size:10px;" title="'+esc(f.label)+'">'+esc(f.label)+': '+esc(f.unionStatus)+'</span>').join('')
-    + '</div></div>';
-}
-
-function rustTotal(rust) {
-  if (!rust) return null;
-  const vals = [rust.anterior, rust.posterior, rust.medial, rust.lateral].map(Number);
-  if (vals.some(v => !v)) return null;
-  return vals.reduce((a,b) => a+b, 0);
-}
-
-function rustTrendCardHtml(p) {
-  const tracked = [...(p.followUps||[])].filter(f => rustTotal(f.rust) !== null).sort((a,b) => new Date(a.date) - new Date(b.date));
-  if (!tracked.length) return '';
-  const latestTotal = rustTotal(tracked[tracked.length-1].rust);
-  let html = '<div class="card">'
-    + '<div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">'+ic('clock')+' RUST trend</label>'
-    + '<span class="badge badge-indigo">Latest: '+latestTotal+'/16</span></div>';
-  if (tracked.length > 1) {
-    const w=300,h=140,padL=26,padR=8,padT=10,padB=20, plotW=w-padL-padR, plotH=h-padT-padB, n=tracked.length;
-    const xFor = i => padL + (n===1?plotW/2:(i/(n-1))*plotW);
-    const yFor = score => padT + (1 - (score-4)/12) * plotH;
-    let grid = '';
-    [4,8,12,16].forEach(v => { const y=yFor(v); grid += '<line x1="'+padL+'" y1="'+y+'" x2="'+(w-padR)+'" y2="'+y+'" stroke="#e2e8f0" stroke-width="1"/><text x="'+(padL-5)+'" y="'+(y+3)+'" font-size="9" fill="var(--muted)" text-anchor="end">'+v+'</text>'; });
-    const pts = tracked.map((f,i) => xFor(i)+','+yFor(rustTotal(f.rust)));
-    let lines = '<polyline points="'+pts.join(' ')+'" fill="none" stroke="#4338ca" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
-    tracked.forEach((f,i) => { lines += '<circle cx="'+xFor(i)+'" cy="'+yFor(rustTotal(f.rust))+'" r="3" fill="#4338ca"/>'; });
-    html += '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:140px;">'+grid+lines+'</svg>';
-  } else {
-    html += '<p style="font-size:11px;color:var(--muted);">Log RUST at another visit to see the trend.</p>';
-  }
-  html += '</div>';
-  return html;
 }
 
 function confirmBtn(action, id) {
@@ -7942,7 +7864,7 @@ function renderDetailShell(p) {
           + '</div>'
           + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="cancel-edit-patient-name">Cancel</button><button class="btn btn-sm btn-primary" style="flex:1;" data-action="save-patient-name">'+ic('check')+' Save</button></div>'
           + '</div>'
-        : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;overflow-wrap:break-word;">'+escName(p.name)+' <span style="display:inline-flex;vertical-align:-3px;cursor:pointer;" data-action="edit-patient-name" title="Edit name, age, sex">'+ic('pencil')+'</span> <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>')
+        : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;overflow-wrap:break-word;">'+escName(p.name)+' <span style="font-weight:700;color:var(--ink);font-size:13.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span> <span style="display:inline-flex;vertical-align:-3px;cursor:pointer;" data-action="edit-patient-name" title="Edit name, age, sex">'+ic('pencil')+'</span></h2>')
     + '<div style="margin-top:6px;">'+statusBadgesHtml+'</div>'
     + (EDITING_HEADER_DIAGNOSIS
         ? ('<div style="background:rgba(67,56,202,0.09);border-radius:12px;padding:10px 12px;margin-top:6px;">'
