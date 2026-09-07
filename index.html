@@ -7945,12 +7945,9 @@ function renderDetailShell(p) {
         ? '<div class="row gap2" style="margin-top:2px;"><input class="input" id="patient-name-input" value="'+esc(p.name)+'" style="flex:1;font-size:14px;padding:6px 10px;" placeholder="Patient name"><button class="icon-btn" style="color:var(--emerald);flex:none;" data-action="save-patient-name" title="Save">'+ic('check')+'</button><button class="icon-btn" style="flex:none;" data-action="cancel-edit-patient-name" title="Cancel">'+ic('x')+'</button></div>'
         : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;overflow-wrap:break-word;cursor:pointer;" data-action="edit-patient-name" title="Tap to fix spelling">'+escName(p.name)+' '+ic('pencil')+' <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>')
     + '<div style="margin-top:6px;">'+statusBadgesHtml+'</div>'
-    + (diagnosisLine ? ('<div style="display:flex;align-items:center;gap:9px;background:rgba(67,56,202,0.07);border-radius:12px;padding:8px 10px;margin-top:6px;">'
-        + '<div style="flex:none;width:30px;height:30px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;">'+ic('clipboard')+'</div>'
-        + '<div style="flex:1;min-width:0;">'
-          + '<div style="font-size:12.5px;font-weight:800;color:var(--ink);overflow-wrap:break-word;line-height:1.25;">'+esc(diagText || '\u2014')+'</div>'
-          + (isSurgical && procText ? '<div style="font-size:11px;font-weight:600;color:var(--accent-dark);overflow-wrap:break-word;line-height:1.25;margin-top:1px;">'+ic('scalpel')+' '+esc(procText)+'</div>' : '')
-        + '</div>'
+    + (diagnosisLine ? ('<div style="background:rgba(67,56,202,0.09);border-radius:12px;padding:9px 12px;margin-top:6px;">'
+        + '<div style="font-size:13px;font-weight:800;color:var(--accent-dark);overflow-wrap:break-word;line-height:1.3;">'+esc(diagText || '\u2014')+'</div>'
+        + (isSurgical && procText ? '<div style="font-size:11.5px;font-weight:700;color:var(--ink);overflow-wrap:break-word;line-height:1.3;margin-top:2px;">'+esc(procText)+'</div>' : '')
       + '</div>') : '')
     + '</div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;margin-top:2px;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
