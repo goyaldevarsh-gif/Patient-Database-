@@ -5957,21 +5957,13 @@ function renderOverviewTab(p) {
   let usefulBody = reminderMiniCardHtml(p)
     + (isAiTier() ? universalAiMenuHtml(p.id) : '');
 
-  // ---- Compact read-only summary (default view), redesigned to match a multi-column dashboard card layout ----
-  const regionsSpecLine = (p.regions||[]).length ? (p.regions||[]).join(', ') : '';
-  const hasSide = !!(p.side && p.side!=='N/A');
+  // ---- Compact read-only summary (default view) ----
   const fuColor = overdue ? '#dc2626' : (p.nextFollowUpDate ? 'var(--emerald)' : 'var(--muted)');
-  const topRowCells = (hasSide ? ovSnapCell('shield', 'Side', p.side) : '')
-    + (regionsSpecLine ? ovSnapCell('tag', isSurgical?'Specialty':'Region', regionsSpecLine) : '');
-  const snapshotRead = (topRowCells ? ('<div class="row" style="gap:10px;">'
-    + topRowCells
-    + '</div>') : '')
-    + '<div class="row" style="gap:10px;">'
-    + ovSnapCell('clock', 'Next Follow-up', overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'Not scheduled'), fuColor)
-    + '</div>'
-    + (p.nextFollowUpDate ? '<div style="text-align:right;font-size:11px;color:'+fuColor+';font-style:italic;">('+relativeDaysUntil(p.nextFollowUpDate)+')</div>'
-        : '<div style="text-align:right;"><button class="btn btn-sm" data-action="quick-fu-open" data-patient-id="'+p.id+'">'+ic('plus')+' Schedule</button></div>')
-    + (!regionsSpecLine ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '');
+  const snapshotRead = (p.occupation || p.symptomDuration) ? ('<div class="row" style="gap:10px;">'
+      + (p.occupation ? ovSnapCell('briefcase', 'Occupation', p.occupation) : '')
+      + (p.symptomDuration ? ovSnapCell('clock', 'Duration', p.symptomDuration) : '')
+      + '</div>') : '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>';
+
 
   const clinicalRead = (!isSurgical ? '<div class="row" style="gap:10px;">'
       + '<div style="flex:1;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Chief Complaint</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.chiefComplaints||'\u2014')+'</div></div>'
@@ -5986,15 +5978,16 @@ function renderOverviewTab(p) {
             ? '<select class="select" id="ov-tracking-select"><option value="">\u2014 Pick \u2014</option><option value="ctev">CTEV</option><option value="ra">RA</option><option value="osteoporosis">Osteoporosis</option><option value="trauma">Trauma</option></select>'
             : '<button class="chip" data-action="ov-show-tracking-pick">'+ic('plus')+' Track a condition</button>') : ''));
 
-  const communicateRead = '<div class="row between" style="align-items:center;margin-bottom:'+(p.whatsapp?'10px':'0')+';">'
-    + '<div><div style="font-size:11px;color:var(--muted);">WhatsApp</div><div style="font-size:13px;font-weight:700;">'+esc(p.whatsapp||'Not saved')+'</div></div>'
-    + (waLink(p) ? '<div class="row gap2" style="flex:none;"><a href="tel:+'+esc(toWaNumber(p.whatsapp))+'" class="btn btn-sm" style="text-decoration:none;" title="Call">'+ic('phone')+'</a><a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Message Patient</a></div>' : '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="communicate">'+ic('plus')+' Add number</button>')
-    + '</div>'
-    + (p.whatsapp ? (
-        (followUpReminderLink(p)
-            ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" data-action="log-reminder-sent" data-id="'+p.id+'" style="text-decoration:none;">'+ic('calendar')+' Follow-up Reminder</a>'
-            : '<button class="btn btn-block" disabled title="Set the next follow-up date first">'+ic('calendar')+' Follow-up Reminder</button>')
-      ) : '');
+  const communicateRead = '<div class="row gap2" style="align-items:center;">'
+    + '<div style="flex:1;min-width:0;"><div style="font-size:11px;color:var(--muted);">WhatsApp</div><div style="font-size:13px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(p.whatsapp||'Not saved')+'</div></div>'
+    + (waLink(p)
+        ? ('<a href="tel:+'+esc(toWaNumber(p.whatsapp))+'" class="icon-btn" title="Call">'+ic('phone')+'</a>'
+            + '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;" title="Message on WhatsApp">'+ic('whatsapp')+'</a>'
+            + (followUpReminderLink(p)
+                ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:var(--accent);" data-action="log-reminder-sent" data-id="'+p.id+'" title="Follow-up Reminder">'+ic('calendar')+'</a>'
+                : '<button class="icon-btn" disabled style="opacity:0.4;" title="Set the next follow-up date first">'+ic('calendar')+'</button>'))
+        : '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="communicate">'+ic('plus')+' Add number</button>')
+    + '</div>';
 
   const usefulRead = reminderMiniCardHtml(p);
 
@@ -6012,32 +6005,15 @@ function renderOverviewTab(p) {
         + '<button type="button" class="chip" style="font-size:10.5px;padding:3px 9px;" data-action="ai-summarize-patient">Regenerate</button>'
         + '</div>' : '')
     + (p.researchFlag ? '<div class="row" style="gap:6px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:var(--amber-bg);border:1px solid var(--amber-border);"><span style="color:#b45309;flex-shrink:0;margin-top:1px;">'+ic('bookmark')+'</span><p style="font-size:12px;color:#92400e;margin:0;flex:1;"><strong>Research case</strong>'+(p.researchNote?' \u2014 '+esc(p.researchNote):'')+'</p></div>' : '')
-    + (isProOrAbove() ? (
-        p.schemePackage ? (
-          '<div class="card" style="padding:12px 14px;">'
-          + '<div class="row between" style="align-items:flex-start;">'
-          + '<div style="flex:1;">'
-          + '<span class="score-badge" style="background:var(--accent-light);color:var(--accent-dark);font-size:10.5px;">'+esc(p.schemePackage.scheme)+' package</span>'
-          + '<div style="font-weight:700;font-size:13px;margin-top:4px;">'+esc(p.schemePackage.name)+'</div>'
-          + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">Code: '+esc(p.schemePackage.code)+'</div>'
-          + '</div>'
-          + '<div style="text-align:right;flex-shrink:0;margin-left:10px;">'
-          + '<div style="font-weight:800;font-size:14px;color:var(--emerald);">\u20b9'+Number(p.schemePackage.rate).toLocaleString('en-IN')+'</div>'
-          + '<button class="btn btn-sm" style="margin-top:6px;" data-action="scheme-detach" data-id="'+p.id+'">Remove</button>'
-          + '</div></div>'
-          + (p.schemePackage.implants && p.schemePackage.implants.length ? '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--border);font-size:11.5px;color:var(--muted);">'
-              + p.schemePackage.implants.map(im => esc(im.name)+' ('+esc(im.code)+') \u2014 \u20b9'+Number(im.rate).toLocaleString('en-IN')).join('<br>')
-              + '</div>' : '')
-          + '</div>'
-        ) : (
-          '<button class="btn btn-block" data-action="open-scheme-finder-for-case" data-id="'+p.id+'">'+ic('clipboard')+' Find RGHS / MAA Yojana package</button>'
-        )
-      ) : '')
     + ovSectionV2('snapshot', 'Patient Snapshot', 'userPlus', snapshotRead, snapshotBody)
     + (isSurgical ? (() => { const sd = surgicalDetailsSectionHtml(p); return ovSectionV2('surgicaldetails', 'Surgical Details', 'scalpel', sd.read, sd.body); })() : '')
     + ovSectionV2('clinical', 'Clinical', 'file', clinicalRead, clinicalBody)
     + ovSectionV2('communicate', 'Contact Details', 'message', communicateRead, communicateBody)
-    + ovSectionV2('useful', 'Reminders & Follow-ups', 'calendar', usefulRead, usefulBody)
+    + '<button type="button" class="card" style="display:flex;align-items:center;justify-content:space-between;text-align:left;padding:12px 14px;'+(overdue?'background:var(--red-bg);border-color:var(--red-border);':'')+'" data-action="quick-fu-open" data-patient-id="'+p.id+'">'
+    + '<span style="font-size:12.5px;font-weight:700;'+(overdue?'color:#7f1d1d;':'')+'">Next Follow-up</span>'
+    + '<span style="font-size:12.5px;font-weight:800;color:'+fuColor+';">'+(overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate)+(p.nextFollowUpDate?' \u00b7 '+relativeDaysUntil(p.nextFollowUpDate):'') : 'Not scheduled'))+'</span>'
+    + '</button>'
+    + ovSectionV2('useful', 'Reminders', 'calendar', usefulRead, usefulBody)
     + '<div class="card" style="background:'+(CONVERT_SURGICAL_STEP || (isSurgical && p.surgeryStatus==='awaiting') ? 'rgba(217,119,6,0.06)' : 'rgba(226,232,240,0.4)')+';border-color:'+(CONVERT_SURGICAL_STEP || (isSurgical && p.surgeryStatus==='awaiting') ? '#fde68a' : '#cbd5e1')+';margin-top:8px;padding:10px 12px;">'
     + '<div style="display:flex;flex-direction:column;gap:8px;">'
     + (CONVERT_SURGICAL_STEP === 'choose'
