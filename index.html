@@ -3917,6 +3917,7 @@ async function renderMoreView() {
         + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
         + moreRowHtml('shield', 'Find Duplicate Patients', 'Scan for likely-duplicate cases by name and merge them safely', 'open-duplicate-finder')
         + moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals')
+        + moreRowHtml('clock', 'Fix Follow-up Week Labels', 'Recalculates "2 Weeks / 6 Weeks" etc labels from surgery/visit date instead of the previous visit', 'fix-followup-labels')
     },
     { key:'reference', title:'Reference & Research', icon:'bookmark', rows:
         moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
@@ -4724,10 +4725,55 @@ function followUpReminderLink(patient) {
 }
 
 /* ================= Smart Follow-up Form Helpers ================= */
+/* Buckets elapsed days-since-anchor (surgery date for surgical, visit date for OPD)
+   into standard clinical follow-up checkpoint labels. Used both to suggest a label
+   for a NEW visit, and to recompute labels on OLD visits that need correcting. */
+function visitLabelForElapsedDays(daysSinceAnchor) {
+  if (daysSinceAnchor <= 10) return '1 Week';
+  if (daysSinceAnchor <= 17) return '2 Weeks';
+  if (daysSinceAnchor <= 24) return '3 Weeks';
+  if (daysSinceAnchor <= 35) return '1 Month';
+  if (daysSinceAnchor <= 49) return '6 Weeks';
+  if (daysSinceAnchor <= 100) return '3 Months';
+  if (daysSinceAnchor <= 200) return '6 Months';
+  return '1 Year';
+}
+async function fixFollowupLabels() {
+  const KNOWN_AUTO_LABELS = new Set(['First Follow-up','1 Week','2 Weeks','3 Weeks','1 Month','6 Weeks','3 Months','6 Months','1 Year']);
+  let patientsTouched = 0, entriesFixed = 0;
+  for (const p of PATIENTS) {
+    if (!p.surgeryDate || !p.followUps || !p.followUps.length) continue;
+    let changed = false;
+    p.followUps.forEach(fu => {
+      if (!KNOWN_AUTO_LABELS.has(fu.label)) return; // leave any custom-typed label alone
+      const daysSinceAnchor = daysBetween(p.surgeryDate, fu.date);
+      if (daysSinceAnchor < 0) return;
+      const correct = visitLabelForElapsedDays(daysSinceAnchor);
+      if (fu.label !== correct) { fu.label = correct; changed = true; entriesFixed++; }
+    });
+    if (changed) { await dbPutPatient(p); patientsTouched++; }
+  }
+  if (patientsTouched) await refreshPatients();
+  return { patientsTouched, entriesFixed };
+}
+const FOLLOWUP_LABEL_MIGRATION_KEY = 'orthovault-followup-label-migration-v1-done';
+async function runFollowupLabelMigrationOnce() {
+  try { if (localStorage.getItem(FOLLOWUP_LABEL_MIGRATION_KEY)) return; } catch (e) {}
+  const result = await fixFollowupLabels();
+  try { localStorage.setItem(FOLLOWUP_LABEL_MIGRATION_KEY, '1'); } catch (e) {}
+  if (result.entriesFixed) {
+    toast('One-time cleanup: fixed ' + result.entriesFixed + ' follow-up week label' + (result.entriesFixed!==1?'s':''));
+  }
+}
 function suggestVisitLabel(patient) {
+  const anchorDate = patient.surgeryDate; // Surgery date for surgical cases, Visit date for OPD (same field)
+  if (anchorDate) {
+    const daysSinceAnchor = daysBetween(anchorDate, todayStr());
+    if (daysSinceAnchor >= 0) return visitLabelForElapsedDays(daysSinceAnchor);
+  }
+  // Fallback only when there's no anchor date at all on the record.
   const lastFU = (patient.followUps||[]).length > 0 ? patient.followUps[patient.followUps.length-1] : null;
   if (!lastFU) return 'First Follow-up';
-  
   const daysSince = daysBetween(lastFU.date, todayStr());
   if (daysSince <= 7) return '1 Week';
   if (daysSince <= 14) return '2 Weeks';
@@ -11044,6 +11090,12 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'rq-skip') { RQ_INDEX++; render(); return; }
   if (action === 'close-reminder-queue') { RQ_QUEUE = []; RQ_INDEX = 0; VIEW = 'list'; render(); return; }
+  if (action === 'fix-followup-labels') {
+    const result = await fixFollowupLabels();
+    toast(result.entriesFixed ? ('Fixed ' + result.entriesFixed + ' label' + (result.entriesFixed!==1?'s':'') + ' across ' + result.patientsTouched + ' patient' + (result.patientsTouched!==1?'s':'')) : 'All follow-up labels were already correct \u2014 nothing to fix');
+    if (VIEW === 'detail') await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'open-diag-referrals') {
     DIAG_CENTRES = loadDiagCentres();
     DIAG_REFERRALS = loadDiagReferrals();
@@ -12553,6 +12605,7 @@ function renderSplashScreen() {
     try { onboardingDone = !!localStorage.getItem(ONBOARDING_DONE_KEY); } catch(e) {}
     if (!onboardingDone) { VIEW = 'onboarding'; }
     await refreshPatients();
+    await runFollowupLabelMigrationOnce();
     loadReminders();
     await loadFAQsAndTopics();
     await loadGoogleDriveCredentials();
