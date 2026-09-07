@@ -2111,9 +2111,14 @@ function quickPickerResultsHtml() {
 let SHOW_LEGEND = false;
 let EDITING_PATIENT_CODE = false;
 let EDITING_PATIENT_NAME = false;
+let EDITING_HEADER_SEX = null; // temp M/F selection while the combined Name/Age/Sex editor is open
+let EDITING_HEADER_DIAGNOSIS = false;
+let EDITING_HEADER_NAME_DRAFT = '';
+let EDITING_HEADER_AGE_DRAFT = '';
 function resetPerPatientUiState() {
   EDITING_PATIENT_CODE = false;
   EDITING_PATIENT_NAME = false;
+  EDITING_HEADER_DIAGNOSIS = false;
   CONVERT_SURGICAL_STEP = null;
   REGION_EDIT_STATE.ov = undefined;
   OV_EXPANDED = new Set(['snapshot']);
@@ -2557,13 +2562,6 @@ function sideToggleHtml(action, currentSide, includeNA) {
   const options = includeNA ? [['Left','Lt'],['Right','Rt'],['Bilateral','B/l'],['N/A','NA']] : [['Left','Lt'],['Right','Rt'],['Bilateral','B/l']];
   return '<div class="seg" style="flex:none;">'
     + options.map(([full,short])=>'<button type="button" class="seg-btn'+(currentSide===full?' active':'')+'" data-action="'+action+'" data-value="'+full+'">'+short+'</button>').join('')
-    + '</div>';
-}
-function ageFieldHtml(p) {
-  const currentText = formatAge(p);
-  return '<div><label class="field-label">Age</label>'
-    + '<input class="input" type="text" id="age-text" placeholder="e.g. 45, 6mo, 15 days" value="'+esc(currentText === '\u2014' ? '' : currentText)+'" style="max-width:200px;">'
-    + '<div style="font-size:10.5px;color:var(--muted);margin-top:3px;">Type years, months, or days \u2014 e.g. "45", "6mo", "1yr 3mo", "15 days"</div>'
     + '</div>';
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
@@ -5906,21 +5904,15 @@ function relativeDaysUntil(dateStr) {
   return 'in '+Math.round(days/30)+' months';
 }
 function ovSnapCell(icon, label, value, valueColor) {
-  return '<div style="flex:1;min-width:0;"><div class="row gap1" style="color:var(--muted);margin-bottom:2px;">'+ic(icon)+'<span style="font-size:10.5px;">'+label+'</span></div><div style="font-size:13px;font-weight:700;'+(valueColor?'color:'+valueColor+';':'')+'overflow-wrap:break-word;">'+esc(value||'\u2014')+'</div></div>';
+  return '<div style="flex:1;min-width:0;"><div style="color:var(--muted);margin-bottom:2px;font-size:10.5px;">'+label+'</div><div style="font-size:13px;font-weight:700;'+(valueColor?'color:'+valueColor+';':'')+'overflow-wrap:break-word;">'+esc(value||'\u2014')+'</div></div>';
 }
 function renderOverviewTab(p) {
   const overdue = isOverdue(p.nextFollowUpDate);
   const isSurgical = p.caseType === 'surgical';
 
-  let snapshotBody = '<div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;">'
-    + ageFieldHtml(p)
-    + '<div><label class="field-label">Sex</label><div class="input" style="background:var(--bg-soft);color:var(--muted);">'+esc(p.sex||'\u2014')+'</div></div>'
-    + '</div>'
-    + '<div><label class="field-label">'+(isSurgical?'Surgery date':'Visit date')+'</label><input class="input" type="date" data-field="surgeryDate" max="'+todayStr()+'" value="'+esc(p.surgeryDate||'')+'"></div>'
+  let snapshotBody = '<div><label class="field-label">'+(isSurgical?'Surgery date':'Visit date')+'</label><input class="input" type="date" data-field="surgeryDate" max="'+todayStr()+'" value="'+esc(p.surgeryDate||'')+'"></div>'
     + (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
     + '<div class="row gap2" style="align-items:flex-end;"><div style="flex:1;min-width:0;"><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div><div style="flex:none;"><label class="field-label">Side</label>'+sideToggleHtml('ov-set-side', p.side, true)+'</div></div>'
-    + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ov-diagnosis')+'<textarea class="textarea" id="ov-diagnosis" rows="2" data-field="diagnosis" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);font-weight:600;">'+esc(p.diagnosis)+'</textarea>'+autocompleteBoxHtml('ov-diagnosis')
-    + '</div>'
     + regionSpecialtyChipsHtml(p.regions||[], 'ov-toggle-region', 'ov-auto-region')
     + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(p.occupation||'')+'"></div>'
     + '<div style="'+(overdue?'padding:10px;border-radius:12px;background:var(--red-bg);':'')+'">'
@@ -5973,21 +5965,17 @@ function renderOverviewTab(p) {
   const regionsSpecLine = (p.regions||[]).length ? (p.regions||[]).join(', ') : '';
   const hasSide = !!(p.side && p.side!=='N/A');
   const fuColor = overdue ? '#dc2626' : (p.nextFollowUpDate ? 'var(--emerald)' : 'var(--muted)');
-  const diagText = displayDiagnosis(p.diagnosis) || (isSurgical?'':p.chiefComplaints);
-  const topRowCells = ovSnapCell('userPlus', 'Age / Sex', formatAge(p) + (p.sex ? ' \u00b7 '+p.sex : ''))
-    + (hasSide ? ovSnapCell('shield', 'Side', p.side) : '')
+  const topRowCells = (hasSide ? ovSnapCell('shield', 'Side', p.side) : '')
     + (regionsSpecLine ? ovSnapCell('tag', isSurgical?'Specialty':'Region', regionsSpecLine) : '');
-  const snapshotRead = '<div class="row" style="gap:10px;">'
+  const snapshotRead = (topRowCells ? ('<div class="row" style="gap:10px;">'
     + topRowCells
-    + '</div>'
-    + (diagText ? '<div style="background:rgba(67,56,202,0.08);border-radius:10px;padding:8px 10px;"><div class="row gap1" style="color:var(--accent-dark);margin-bottom:2px;">'+ic('clipboard')+'<span style="font-size:10px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;">Diagnosis</span></div><div style="font-size:13.5px;font-weight:800;color:var(--ink);overflow-wrap:break-word;">'+esc(diagText)+'</div></div>' : '')
+    + '</div>') : '')
     + '<div class="row" style="gap:10px;">'
-    + (isSurgical ? ovSnapCell('calendar', 'Surgery Date', p.surgeryDate ? fmtDate(p.surgeryDate) : '') : ovSnapCell('calendar', 'Visit Date', p.surgeryDate ? fmtDate(p.surgeryDate) : ''))
     + ovSnapCell('clock', 'Next Follow-up', overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate) : 'Not scheduled'), fuColor)
     + '</div>'
     + (p.nextFollowUpDate ? '<div style="text-align:right;font-size:11px;color:'+fuColor+';font-style:italic;">('+relativeDaysUntil(p.nextFollowUpDate)+')</div>'
         : '<div style="text-align:right;"><button class="btn btn-sm" data-action="quick-fu-open" data-patient-id="'+p.id+'">'+ic('plus')+' Schedule</button></div>')
-    + (!regionsSpecLine && !p.diagnosis ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '');
+    + (!regionsSpecLine ? '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>' : '');
 
   const statCards = '<div style="display:flex;gap:10px;">'
     + '<button type="button" class="card" style="flex:1;text-align:left;display:flex;align-items:center;gap:10px;cursor:pointer;" data-action="set-tab" data-value="imagesrecords">'
@@ -6040,11 +6028,7 @@ function renderOverviewTab(p) {
               + '<p style="font-size:12.5px;color:var(--ink);margin:0 0 6px;line-height:1.5;">'+esc(AI_PATIENT_SUMMARY)+'</p>'
               + '<button type="button" class="chip" style="font-size:10.5px;padding:3px 9px;" data-action="ai-summarize-patient">Regenerate</button>'
               + '</div>'
-          : '<button type="button" class="card" style="width:100%;text-align:left;display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;" data-action="ai-summarize-patient">'
-              + '<span style="width:26px;height:26px;border-radius:50%;background:var(--accent-bg);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent);">'+ic('sparkle')+'</span>'
-              + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:12.5px;font-weight:700;color:var(--ink);">AI Summary</span><span style="display:block;font-size:11px;color:var(--muted);">Tap for a 10-second recap</span></span>'
-              + '<span style="color:var(--muted);flex-shrink:0;">'+ic('chevron')+'</span>'
-              + '</button>'
+          : '<button type="button" class="chip" style="align-self:flex-start;display:flex;align-items:center;gap:5px;padding:6px 12px;font-size:12px;color:var(--accent-dark);" data-action="ai-summarize-patient">'+ic('sparkle')+' AI Summary</button>'
       ) : '')
     + '<div class="row" style="justify-content:flex-end;gap:8px;">'
     + '<button class="icon-btn" data-action="open-export-summary" title="Export / Share Case Summary">'+ic('printer')+'</button>'
@@ -7942,13 +7926,33 @@ function renderDetailShell(p) {
             ? '<button style="background:none;border:none;padding:0;font-weight:800;font-size:14px;color:var(--accent-dark);font-family:\'JetBrains Mono\',monospace;" data-action="edit-patient-code">'+esc(p.patientCode)+'</button>'
             : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>'))
     + (EDITING_PATIENT_NAME
-        ? '<div class="row gap2" style="margin-top:2px;"><input class="input" id="patient-name-input" value="'+esc(p.name)+'" style="flex:1;font-size:14px;padding:6px 10px;" placeholder="Patient name"><button class="icon-btn" style="color:var(--emerald);flex:none;" data-action="save-patient-name" title="Save">'+ic('check')+'</button><button class="icon-btn" style="flex:none;" data-action="cancel-edit-patient-name" title="Cancel">'+ic('x')+'</button></div>'
-        : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;overflow-wrap:break-word;cursor:pointer;" data-action="edit-patient-name" title="Tap to fix spelling">'+escName(p.name)+' '+ic('pencil')+' <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>')
+        ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:2px;">'
+          + '<input class="input" id="patient-name-input" value="'+esc(EDITING_HEADER_NAME_DRAFT)+'" style="font-size:14px;padding:6px 10px;" placeholder="Patient name">'
+          + '<div class="row gap2">'
+          + '<input class="input" id="patient-age-input" value="'+esc(EDITING_HEADER_AGE_DRAFT)+'" placeholder="e.g. 45, 6mo, 15 days" style="flex:1;font-size:12px;padding:6px 10px;">'
+          + '<div class="seg" style="flex:none;">'
+          + ['M','F'].map(s => '<button type="button" class="seg-btn'+(EDITING_HEADER_SEX===s?' active':'')+'" data-action="edit-header-set-sex" data-value="'+s+'">'+s+'</button>').join('')
+          + '</div>'
+          + '</div>'
+          + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="cancel-edit-patient-name">Cancel</button><button class="btn btn-sm btn-primary" style="flex:1;" data-action="save-patient-name">'+ic('check')+' Save</button></div>'
+          + '</div>'
+        : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;overflow-wrap:break-word;">'+escName(p.name)+' <span style="display:inline-flex;vertical-align:-3px;cursor:pointer;" data-action="edit-patient-name" title="Edit name, age, sex">'+ic('pencil')+'</span> <span style="font-weight:600;color:var(--muted);font-size:12.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span></h2>')
     + '<div style="margin-top:6px;">'+statusBadgesHtml+'</div>'
-    + (diagnosisLine ? ('<div style="background:rgba(67,56,202,0.09);border-radius:12px;padding:9px 12px;margin-top:6px;">'
-        + '<div style="font-size:13px;font-weight:800;color:var(--accent-dark);overflow-wrap:break-word;line-height:1.3;">'+esc(diagText || '\u2014')+'</div>'
-        + (isSurgical && procText ? '<div style="font-size:11.5px;font-weight:700;color:var(--ink);overflow-wrap:break-word;line-height:1.3;margin-top:2px;">'+esc(procText)+'</div>' : '')
-      + '</div>') : '')
+    + (p.surgeryDate ? '<div style="font-size:11px;color:var(--muted);margin-top:5px;">'+(isSurgical?'Surgery':'Visit')+': '+fmtDate(p.surgeryDate)+'</div>' : '')
+    + (EDITING_HEADER_DIAGNOSIS
+        ? ('<div style="background:rgba(67,56,202,0.09);border-radius:12px;padding:10px 12px;margin-top:6px;">'
+            + '<label class="field-label" style="margin-bottom:3px;">Diagnosis</label>'
+            + '<textarea class="textarea" id="header-diagnosis-input" rows="2" style="font-size:13px;margin-bottom:'+(isSurgical?'8px':'0')+';">'+esc(p.diagnosis||'')+'</textarea>'
+            + (isSurgical ? '<label class="field-label" style="margin-bottom:3px;">Procedure</label><input class="input" id="header-procedure-input" style="font-size:13px;" value="'+esc(p.procedure||'')+'">' : '')
+            + '<div class="row gap2" style="margin-top:8px;"><button class="btn btn-sm" style="flex:1;" data-action="cancel-edit-header-diagnosis">Cancel</button><button class="btn btn-sm btn-primary" style="flex:1;" data-action="save-header-diagnosis">'+ic('check')+' Save</button></div>'
+          + '</div>')
+        : (diagnosisLine
+            ? ('<button type="button" style="display:block;width:100%;text-align:left;background:rgba(67,56,202,0.09);border:none;border-radius:12px;padding:9px 12px;margin-top:6px;cursor:pointer;" data-action="edit-header-diagnosis">'
+                + '<div style="font-size:13px;font-weight:800;color:var(--accent-dark);overflow-wrap:break-word;line-height:1.3;">'+esc(diagText || '\u2014')+'</div>'
+                + (isSurgical && procText ? '<div style="font-size:11.5px;font-weight:700;color:var(--ink);overflow-wrap:break-word;line-height:1.3;margin-top:2px;">'+esc(procText)+'</div>' : '')
+              + '</button>')
+            : '<button type="button" class="btn btn-sm" style="margin-top:6px;" data-action="edit-header-diagnosis">'+ic('plus')+' Add diagnosis'+(isSurgical?' / procedure':'')+'</button>'
+          ))
     + '</div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;margin-top:2px;" title="Message on WhatsApp">'+ic('message')+'</a>' : '')
     + '<button class="icon-btn" style="color:var(--red);margin-top:2px;" data-action="open-confirm-delete" title="Delete Case">'+ic('trash')+'</button>'
@@ -9590,18 +9594,67 @@ document.addEventListener('click', async (e) => {
     toast('Patient ID updated');
     return;
   }
-  if (action === 'edit-patient-name') { EDITING_PATIENT_NAME = true; await render(); setTimeout(() => { const inp = document.getElementById('patient-name-input'); if (inp) { inp.focus(); inp.select(); } }, 30); return; }
+  if (action === 'edit-header-diagnosis') {
+    EDITING_HEADER_DIAGNOSIS = true;
+    await render();
+    setTimeout(() => { const inp = document.getElementById('header-diagnosis-input'); if (inp) inp.focus(); }, 30);
+    return;
+  }
+  if (action === 'cancel-edit-header-diagnosis') { EDITING_HEADER_DIAGNOSIS = false; await render(); return; }
+  if (action === 'save-header-diagnosis') {
+    const diagInput = document.getElementById('header-diagnosis-input');
+    const procInput = document.getElementById('header-procedure-input');
+    const p = getPatient(SELECTED_ID);
+    if (p) {
+      p.diagnosis = diagInput ? diagInput.value.trim() : p.diagnosis;
+      if (procInput) p.procedure = procInput.value.trim();
+      await savePatient(p);
+      if (diagInput && diagInput.value.trim()) recordTextUsed(DIAGNOSIS_LIB_KEY, diagInput.value.trim());
+      if (procInput && procInput.value.trim()) recordTextUsed(PROCEDURE_LIB_KEY, procInput.value.trim());
+    }
+    EDITING_HEADER_DIAGNOSIS = false;
+    await refreshPatients();
+    await render();
+    toast('Diagnosis updated');
+    return;
+  }
+  if (action === 'edit-patient-name') {
+    const p0 = getPatient(SELECTED_ID);
+    EDITING_PATIENT_NAME = true;
+    EDITING_HEADER_NAME_DRAFT = p0 ? p0.name : '';
+    EDITING_HEADER_AGE_DRAFT = p0 && formatAge(p0) !== '\u2014' ? formatAge(p0) : '';
+    EDITING_HEADER_SEX = p0 ? p0.sex : 'M';
+    await render();
+    setTimeout(() => { const inp = document.getElementById('patient-name-input'); if (inp) { inp.focus(); inp.select(); } }, 30);
+    return;
+  }
+  if (action === 'edit-header-set-sex') {
+    const nameInput = document.getElementById('patient-name-input');
+    const ageInput = document.getElementById('patient-age-input');
+    EDITING_HEADER_NAME_DRAFT = nameInput ? nameInput.value : EDITING_HEADER_NAME_DRAFT;
+    EDITING_HEADER_AGE_DRAFT = ageInput ? ageInput.value : EDITING_HEADER_AGE_DRAFT;
+    EDITING_HEADER_SEX = el.dataset.value;
+    await render();
+    return;
+  }
   if (action === 'cancel-edit-patient-name') { EDITING_PATIENT_NAME = false; await render(); return; }
   if (action === 'save-patient-name') {
-    const input = document.getElementById('patient-name-input');
-    const val = input ? input.value.trim() : '';
+    const nameInput = document.getElementById('patient-name-input');
+    const ageInput = document.getElementById('patient-age-input');
+    const val = nameInput ? nameInput.value.trim() : '';
     if (!val) { toast('Name can\u2019t be blank'); return; }
     const p = getPatient(SELECTED_ID);
     p.name = val;
+    if (EDITING_HEADER_SEX) p.sex = EDITING_HEADER_SEX;
+    const ageText = ageInput ? ageInput.value.trim() : '';
+    if (ageText) {
+      const parsed = parseAgeText(ageText);
+      p.age = parsed.age; p.ageMonths = parsed.ageMonths; p.ageDays = parsed.ageDays;
+    }
     await dbPutPatient(p); await refreshPatients();
     EDITING_PATIENT_NAME = false;
     await render();
-    toast('Name updated');
+    toast('Patient details updated');
     return;
   }
   if (action === 'convert-to-surgical') { CONVERT_SURGICAL_STEP = 'choose'; await renderTabBody(getPatient(SELECTED_ID)); return; }
