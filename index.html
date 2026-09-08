@@ -2535,10 +2535,10 @@ async function performQuickFillText(targetId, value) {
   hideAutocomplete(targetId);
   if (target && target.id === 'ap-diagnosis') AP_TEMP.diagnosis = value;
   if (target && target.id === 'ap-procedure') AP_TEMP.procedure = value;
-  if (target && target.id === 'sd-procedure') {
+  if (target && target.id === 'header-procedure-input') {
     await patchField('procedure', value);
     recordTextUsed(PROCEDURE_LIB_KEY, value);
-    await renderTabBody(getPatient(SELECTED_ID));
+    await render();
   }
   if (target && target.id === 'ov-diagnosis') {
     await patchField('diagnosis', value);
@@ -5885,6 +5885,21 @@ function ovSectionV2(key, title, icon, readHtml, editHtml) {
     + (open ? '<div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:12px;">'+((editing && editHtml) ? editHtml : readHtml)+'</div>' : '')
     + '</div>';
 }
+/* Same card look, but always shows its content \u2014 no chevron/collapse toggle. For
+   sections light enough that hiding them doesn't save meaningful space. */
+function ovSectionAlwaysOpen(key, title, icon, readHtml, editHtml) {
+  const editing = OV_EDIT_SECTIONS.has(key);
+  return '<div class="card" id="'+key+'-card-anchor" style="padding:0;overflow:hidden;">'
+    + '<div class="row between" style="padding:14px;gap:8px;">'
+    + '<div class="row gap2" style="flex:1;min-width:0;">'
+    + '<span style="color:var(--accent);flex:none;">'+ic(icon)+'</span>'
+    + '<span style="font-size:13px;font-weight:800;color:var(--accent-dark);text-transform:uppercase;letter-spacing:0.02em;">'+title+'</span>'
+    + '</div>'
+    + (editHtml ? '<button type="button" class="icon-btn" style="width:28px;height:28px;color:var(--accent);" data-action="ov-toggle-section-edit" data-value="'+key+'" title="'+(editing?'Done':'Edit')+'">'+ic(editing?'check':'pencil')+'</button>' : '')
+    + '</div>'
+    + '<div style="padding:0 14px 14px;display:flex;flex-direction:column;gap:12px;">'+((editing && editHtml) ? editHtml : readHtml)+'</div>'
+    + '</div>';
+}
 function nameInitials(name) {
   const parts = (name||'').trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return '?';
@@ -5986,9 +6001,9 @@ function renderOverviewTab(p) {
         + '<button type="button" class="chip" style="font-size:10.5px;padding:3px 9px;" data-action="ai-summarize-patient">Regenerate</button>'
         + '</div>' : '')
     + (p.researchFlag ? '<div class="row" style="gap:6px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:var(--amber-bg);border:1px solid var(--amber-border);"><span style="color:#b45309;flex-shrink:0;margin-top:1px;">'+ic('bookmark')+'</span><p style="font-size:12px;color:#92400e;margin:0;flex:1;"><strong>Research case</strong>'+(p.researchNote?' \u2014 '+esc(p.researchNote):'')+'</p></div>' : '')
-    + (isSurgical ? (() => { const sd = surgicalDetailsSectionHtml(p); return ovSectionV2('surgicaldetails', 'Surgical Details', 'scalpel', sd.read, sd.body); })() : '')
+    + (isSurgical ? (() => { const sd = surgicalDetailsSectionHtml(p); return ovSectionAlwaysOpen('surgicaldetails', 'Surgical Details', 'scalpel', sd.read, sd.body); })() : '')
     + ovSectionV2('clinical', 'Clinical', 'file', clinicalRead, clinicalBody)
-    + ovSectionV2('communicate', 'Contact Details', 'message', communicateRead, communicateBody)
+    + ovSectionAlwaysOpen('communicate', 'Contact Details', 'message', communicateRead, communicateBody)
     + '<button type="button" class="card" style="display:flex;align-items:center;justify-content:space-between;text-align:left;padding:12px 14px;'+(overdue?'background:var(--red-bg);border-color:var(--red-border);':'')+'" data-action="quick-fu-open" data-patient-id="'+p.id+'">'
     + '<span style="font-size:12.5px;font-weight:700;'+(overdue?'color:#7f1d1d;':'')+'">Next Follow-up</span>'
     + '<span style="font-size:12.5px;font-weight:800;color:'+fuColor+';">'+(overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate)+(p.nextFollowUpDate?' \u00b7 '+relativeDaysUntil(p.nextFollowUpDate):'') : 'Not scheduled'))+'</span>'
@@ -7251,14 +7266,11 @@ function tenotomyCheck(session, foot) {
 function surgicalDetailsSectionHtml(p) {
   const read = '<div class="row" style="gap:10px;">'
     + ovSnapCell('scalpel', 'Surgery Type', p.surgeryType)
-    + ovSnapCell('calendar', 'Surgery Date', p.surgeryDate ? fmtDate(p.surgeryDate) : '')
     + '</div>'
-    + (p.procedure ? '<div style="background:rgba(67,56,202,0.08);border-radius:10px;padding:8px 10px;"><div class="row gap1" style="color:var(--accent-dark);margin-bottom:2px;">'+ic('clipboard')+'<span style="font-size:10px;font-weight:800;letter-spacing:0.3px;text-transform:uppercase;">Procedure</span></div><div style="font-size:13.5px;font-weight:800;color:var(--ink);overflow-wrap:break-word;">'+esc(p.procedure)+'</div></div>' : '')
     + ((p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+(p.hospital?ovSnapCell('clipboard','Hospital',p.hospital):'')+(p.anaesthesiaType?ovSnapCell('shield','Anaesthesia',p.anaesthesiaType):'')+'</div>' : '')
     + (p.paymentMethod ? ovSnapCell('clipboard','Payment', p.paymentMethod + (p.paymentMethod!=='Insurance'&&p.cashAmount?' \u2014 \u20b9'+p.cashAmount:'') + (p.paymentMethod!=='Cash'&&p.insuranceType?' \u2014 '+p.insuranceType:'')) : '');
   const body = '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
-    + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'sd-procedure')+'<input class="input" id="sd-procedure" data-field="procedure" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);font-weight:600;" value="'+esc(p.procedure)+'"></div>'+autocompleteBoxHtml('sd-procedure')
-    + '<p style="font-size:10.5px;color:var(--muted);margin:0 0 4px;">Surgery date is edited from Patient Snapshot above (kept in one place).</p>'
+    + '<p style="font-size:10.5px;color:var(--muted);margin:0 0 4px;">Diagnosis, Procedure and Surgery Date are edited from the header above (kept in one place).</p>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
     + '<div><label class="field-label">Hospital (optional)</label><input class="input" data-field="hospital" value="'+esc(p.hospital||'')+'"></div>'
     + '<div><label class="field-label">Anaesthesia (optional)</label><select class="select" data-field="anaesthesiaType"><option value=""'+(!p.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(p.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
@@ -7834,7 +7846,7 @@ function renderDetailShell(p) {
         ? ('<div style="background:rgba(67,56,202,0.09);border-radius:12px;padding:10px 12px;margin-top:6px;">'
             + '<label class="field-label" style="margin-bottom:3px;">Diagnosis</label>'
             + '<textarea class="textarea" id="header-diagnosis-input" rows="2" style="font-size:13px;margin-bottom:'+(isSurgical?'8px':'0')+';">'+esc(p.diagnosis||'')+'</textarea>'
-            + (isSurgical ? '<label class="field-label" style="margin-bottom:3px;">Procedure</label><input class="input" id="header-procedure-input" style="font-size:13px;" value="'+esc(p.procedure||'')+'">' : '')
+            + (isSurgical ? '<label class="field-label" style="margin-bottom:3px;">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'header-procedure-input')+'<input class="input" id="header-procedure-input" style="font-size:13px;" value="'+esc(p.procedure||'')+'">'+autocompleteBoxHtml('header-procedure-input') : '')
             + '<div class="row gap2" style="margin-top:8px;"><button class="btn btn-sm" style="flex:1;" data-action="cancel-edit-header-diagnosis">Cancel</button><button class="btn btn-sm btn-primary" style="flex:1;" data-action="save-header-diagnosis">'+ic('check')+' Save</button></div>'
           + '</div>')
         : (diagnosisLine
@@ -12314,7 +12326,7 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'ap-complaints') { AP_TEMP.chiefComplaints = e.target.value; updateAutocomplete('ap-complaints', CHIEF_COMPLAINT_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ov-complaints') { updateAutocomplete('ov-complaints', CHIEF_COMPLAINT_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ap-procedure') { AP_TEMP.procedure = e.target.value; updateAutocomplete('ap-procedure', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
-  if (e.target.id === 'sd-procedure') { updateAutocomplete('sd-procedure', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
+  if (e.target.id === 'header-procedure-input') { updateAutocomplete('header-procedure-input', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ap-duration') { AP_TEMP.symptomDuration = e.target.value; }
 });
 document.addEventListener('mousedown', (e) => {
@@ -12335,7 +12347,7 @@ document.addEventListener('touchstart', (e) => {
 }, { passive: false });
 document.addEventListener('blur', async (e) => {
   if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
-  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','sd-procedure'].includes(e.target.id)) {
+  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','header-procedure-input'].includes(e.target.id)) {
     const id = e.target.id;
     setTimeout(() => hideAutocomplete(id), 200);
   }
