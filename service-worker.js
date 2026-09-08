@@ -1,4 +1,4 @@
-const CACHE_NAME = 'surgical-case-log-v4';
+const CACHE_NAME = 'surgical-case-log-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -20,7 +20,7 @@ const CDN_ASSETS = [
   'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js',
   'https://www.gstatic.com/firebasejs/12.16.0/firebase-storage-compat.js',
   'https://www.gstatic.com/firebasejs/12.16.0/firebase-functions-compat.js',
-   'https://www.gstatic.com/firebasejs/12.16.0/firebase-messaging-compat.js'
+  'https://www.gstatic.com/firebasejs/12.16.0/firebase-messaging-compat.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -74,6 +74,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// ---- Background push notifications (daily reminders) ----
 self.addEventListener('push', (event) => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch (e) {}
