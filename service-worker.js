@@ -19,7 +19,8 @@ const CDN_ASSETS = [
   'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth-compat.js',
   'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js',
   'https://www.gstatic.com/firebasejs/12.16.0/firebase-storage-compat.js',
-  'https://www.gstatic.com/firebasejs/12.16.0/firebase-functions-compat.js'
+  'https://www.gstatic.com/firebasejs/12.16.0/firebase-functions-compat.js',
+   'https://www.gstatic.com/firebasejs/12.16.0/firebase-messaging-compat.js'
 ];
 
 self.addEventListener('install', (event) => {
@@ -70,5 +71,32 @@ self.addEventListener('fetch', (event) => {
         return res;
       })
       .catch(() => caches.match(event.request))
+  );
+});
+
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch (e) {}
+  const notif = payload.notification || {};
+  const title = notif.title || 'OrthoVault';
+  const options = {
+    body: notif.body || '',
+    icon: 'icons/icon-192.png',
+    badge: 'icons/icon-192.png',
+    data: payload.data || {},
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      for (const client of windowClients) {
+        if ('focus' in client) return client.focus();
+      }
+      if (clients.openWindow) return clients.openWindow(url);
+    })
   );
 });
