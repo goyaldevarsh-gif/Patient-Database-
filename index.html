@@ -1180,14 +1180,12 @@ function relativeFollowupPickerHtml(idPrefix, currentDate, autoMode) {
 function todayStr() { return new Date().toISOString().slice(0,10); }
 async function registerPushToken() {
   try {
-    if (!firebaseMessaging) { alert('DEBUG: firebaseMessaging not initialized'); return; }
-    if (!CURRENT_USER) { alert('DEBUG: CURRENT_USER not set'); return; }
+    if (!firebaseMessaging || !CURRENT_USER) return;
     const swReg = await navigator.serviceWorker.ready;
     const token = await firebaseMessaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
-    if (!token) { alert('DEBUG: getToken returned empty'); return; }
+    if (!token) return;
     await firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('pushToken').set({ token, updatedAt: Date.now() });
-    alert('DEBUG: token saved OK, token starts with: ' + token.slice(0, 20));
-  } catch (e) { console.error('Push token registration failed', e); alert('DEBUG: ' + (e && e.message ? e.message : String(e))); }
+  } catch (e) { console.error('Push token registration failed', e); }
 }
 async function unregisterPushToken() {
   try {
