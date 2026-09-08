@@ -35,18 +35,20 @@
   // before touching firestoreDB/etc., but a ReferenceError from an undeclared variable
   // would crash the whole app's startup, not just the cloud features. Local-only use
   // must keep working even when Firebase never initializes.
-  let firestoreDB = null, firebaseStorage = null, firebaseFunctions = null;
+  let firestoreDB = null, firebaseStorage = null, firebaseFunctions = null, firebaseMessaging = null;
   // Only this account sees AI-feature UI. Must match the ALLOWED_UIDS
   // entry in the Cloud Function - find your UID in Firebase Console ->
   // Authentication -> Users. This is a UX nicety only; the real gate
   // is server-side in the Cloud Function itself.
   const MY_UID = 'oc3eOgkVgqQ200UoswTzEH1Feuh1';
+  const VAPID_KEY = 'BORUsd6zG88V2HjxhYglQpCiPWyBDwTXeYIWhOlUfPZu7cKHKA1GOWVW_93XVt-TO5Y2PlBZzjElTyIelN4cD3Q';
   let CURRENT_USER = null;
   try {
     firebase.initializeApp(firebaseConfig);
     firestoreDB = firebase.firestore();
     firebaseStorage = firebase.storage();
     firebaseFunctions = firebase.app().functions('asia-south2');
+    firebaseMessaging = firebase.messaging();
     firebase.auth().onAuthStateChanged(function(user) {
       CURRENT_USER = user;
       if (typeof onAuthChanged === 'function') onAuthChanged(user);
@@ -1176,6 +1178,21 @@ function relativeFollowupPickerHtml(idPrefix, currentDate, autoMode) {
     + '<input type="hidden" id="'+idPrefix+'" value="'+esc(currentDate||'')+'">';
 }
 function todayStr() { return new Date().toISOString().slice(0,10); }
+async function registerPushToken() {
+  try {
+    if (!firebaseMessaging || !CURRENT_USER) return;
+    const swReg = await navigator.serviceWorker.ready;
+    const token = await firebaseMessaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
+    if (!token) return;
+    await firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('pushToken').set({ token, updatedAt: Date.now() });
+  } catch (e) { console.error('Push token registration failed', e); }
+}
+async function unregisterPushToken() {
+  try {
+    if (!firestoreDB || !CURRENT_USER) return;
+    await firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('pushToken').delete();
+  } catch (e) {}
+}
 
 const SURGERY_TYPES = ['Arthroplasty','Arthroscopy','Trauma','Spine','Other'];
 
@@ -10924,6 +10941,7 @@ document.addEventListener('click', async (e) => {
     if (typeof Notification === 'undefined') { toast('Notifications aren\u2019t supported in this browser'); return; }
     if (Notification.permission === 'granted') {
       try { localStorage.setItem(NOTIF_PREF_KEY, '1'); } catch(e) {}
+      await registerPushToken();
       toast('Daily reminders turned on');
       render();
     } else if (Notification.permission === 'denied') {
@@ -10932,6 +10950,7 @@ document.addEventListener('click', async (e) => {
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
         try { localStorage.setItem(NOTIF_PREF_KEY, '1'); } catch(e) {}
+        await registerPushToken();
         toast('Daily reminders turned on');
       } else {
         toast('Permission not granted');
@@ -10942,6 +10961,7 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'disable-notifs') {
     try { localStorage.setItem(NOTIF_PREF_KEY, '0'); } catch(e) {}
+    await unregisterPushToken();
     toast('Daily reminders turned off');
     render();
     return;
