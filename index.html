@@ -2114,12 +2114,16 @@ let EDITING_PATIENT_CODE = false;
 let EDITING_PATIENT_NAME = false;
 let EDITING_HEADER_SEX = null; // temp M/F selection while the combined Name/Age/Sex editor is open
 let EDITING_HEADER_DIAGNOSIS = false;
+let EDITING_HEADER_DATE = false;
+let EDITING_HEADER_SIDEREGION = false;
 let EDITING_HEADER_NAME_DRAFT = '';
 let EDITING_HEADER_AGE_DRAFT = '';
 function resetPerPatientUiState() {
   EDITING_PATIENT_CODE = false;
   EDITING_PATIENT_NAME = false;
   EDITING_HEADER_DIAGNOSIS = false;
+  EDITING_HEADER_DATE = false;
+  EDITING_HEADER_SIDEREGION = false;
   CONVERT_SURGICAL_STEP = null;
   REGION_EDIT_STATE.ov = undefined;
   OV_EXPANDED = new Set(['snapshot']);
@@ -5911,29 +5915,10 @@ function renderOverviewTab(p) {
   const overdue = isOverdue(p.nextFollowUpDate);
   const isSurgical = p.caseType === 'surgical';
 
-  let snapshotBody = '<div><label class="field-label">'+(isSurgical?'Surgery date':'Visit date')+'</label><input class="input" type="date" data-field="surgeryDate" max="'+todayStr()+'" value="'+esc(p.surgeryDate||'')+'"></div>'
-    + (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
-    + '<div class="row gap2" style="align-items:flex-end;"><div style="flex:1;min-width:0;"><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div><div style="flex:none;"><label class="field-label">Side</label>'+sideToggleHtml('ov-set-side', p.side, true)+'</div></div>'
-    + regionSpecialtyChipsHtml(p.regions||[], 'ov-toggle-region', 'ov-auto-region')
+  let clinicalBody = (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
+    + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
     + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(p.occupation||'')+'"></div>'
-    + '<div style="'+(overdue?'padding:10px;border-radius:12px;background:var(--red-bg);':'')+'">'
-    + '<div class="row between" style="align-items:center;"><label class="field-label" style="margin-bottom:0;'+(overdue?'color:#7f1d1d;':'')+'">Next follow-up'+(overdue?' \u2014 OVERDUE':'')+'</label></div>'
-    + '<button type="button" class="btn btn-sm btn-block" style="margin-top:6px;justify-content:space-between;" data-action="quick-fu-open" data-patient-id="'+p.id+'">'
-    + '<span>'+(p.nextFollowUpDate ? (ic('calendar')+' '+fmtDate(p.nextFollowUpDate)) : (ic('plus')+' Set follow-up date'))+'</span>'
-    + ic('chevron')
-    + '</button>'
-    + '<button type="button" class="btn btn-sm btn-block" style="margin-top:6px;background:var(--accent);border-color:var(--accent);color:#fff;" data-action="log-followup-visit" data-patient-id="'+p.id+'">'
-    + ic('plus')+' Log Follow-up Visit'
-    + '</button>'
-    + (overdue && overdueDays(p.nextFollowUpDate) >= 3 ? '<div class="row" style="gap:6px;margin-top:8px;">'
-        + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-followup" data-id="'+p.id+'">'+ic('clock')+' Snooze 7d</button>'
-        + (ARMED_DELETE === 'attn-mark-lost:'+p.id
-            ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+p.id+'">'+ic('check')+' Confirm?</button>'
-            : '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--muted);" data-action="arm-delete" data-arm="attn-mark-lost:'+p.id+'">Lost to follow-up</button>')
-        + '</div>' : '')
-    + '</div>';
-
-  let clinicalBody = '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
+    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
     + '<textarea class="textarea" id="ov-notes" rows="5" maxlength="5000" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
     + (p.condition ? '<div class="row between" style="align-items:center;"><span style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></span><button type="button" class="chip" style="font-size:10px;padding:3px 8px;" data-action="ov-show-tracking-pick">Change</button></div>'
         + (OV_SHOW_TRACKING_PICK ? '<select class="select" id="ov-tracking-select" style="margin-top:6px;"><option value="">\u2014 None (remove tracking) \u2014</option><option value="ctev"'+(p.condition==='ctev'?' selected':'')+'>CTEV</option><option value="ra"'+(p.condition==='ra'?' selected':'')+'>RA</option><option value="osteoporosis"'+(p.condition==='osteoporosis'?' selected':'')+'>Osteoporosis</option><option value="trauma"'+(p.condition==='trauma'?' selected':'')+'>Trauma</option></select>' : '')
@@ -5959,16 +5944,12 @@ function renderOverviewTab(p) {
 
   // ---- Compact read-only summary (default view) ----
   const fuColor = overdue ? '#dc2626' : (p.nextFollowUpDate ? 'var(--emerald)' : 'var(--muted)');
-  const snapshotRead = (p.occupation || p.symptomDuration) ? ('<div class="row" style="gap:10px;">'
-      + (p.occupation ? ovSnapCell('briefcase', 'Occupation', p.occupation) : '')
-      + (p.symptomDuration ? ovSnapCell('clock', 'Duration', p.symptomDuration) : '')
-      + '</div>') : '<button class="btn btn-sm" data-action="ov-toggle-section-edit" data-value="snapshot">'+ic('plus')+' Fill in missing details</button>';
-
 
   const clinicalRead = (!isSurgical ? '<div class="row" style="gap:10px;">'
       + '<div style="flex:1;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Chief Complaint</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.chiefComplaints||'\u2014')+'</div></div>'
       + '<div style="flex:none;max-width:35%;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Duration</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.symptomDuration||'\u2014')+'</div></div>'
       + '</div>' : '')
+    + (p.occupation ? '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Occupation</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.occupation)+'</div></div>' : '')
     + ((p.comorbidities||[]).length ? '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:5px;">Co-morbidities</div><div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.comorbidities.map(c=>'<span class="badge badge-indigo" style="font-weight:600;">+ '+esc(c)+'</span>').join('')+'</div></div>' : '')
     + '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Clinical Notes</div><div style="font-size:12.5px;color:#334155;white-space:pre-wrap;">'+(p.notes ? esc(p.notes) : '<span style="color:var(--muted);">No notes yet.</span>')+'</div></div>'
     + (!p.chiefComplaints && !(p.comorbidities||[]).length && !p.notes ? '<p style="font-size:12px;color:var(--muted);margin:0;">Nothing added yet.</p>' : '')
@@ -6005,7 +5986,6 @@ function renderOverviewTab(p) {
         + '<button type="button" class="chip" style="font-size:10.5px;padding:3px 9px;" data-action="ai-summarize-patient">Regenerate</button>'
         + '</div>' : '')
     + (p.researchFlag ? '<div class="row" style="gap:6px;align-items:flex-start;padding:8px 10px;border-radius:12px;background:var(--amber-bg);border:1px solid var(--amber-border);"><span style="color:#b45309;flex-shrink:0;margin-top:1px;">'+ic('bookmark')+'</span><p style="font-size:12px;color:#92400e;margin:0;flex:1;"><strong>Research case</strong>'+(p.researchNote?' \u2014 '+esc(p.researchNote):'')+'</p></div>' : '')
-    + ovSectionV2('snapshot', 'Patient Snapshot', 'userPlus', snapshotRead, snapshotBody)
     + (isSurgical ? (() => { const sd = surgicalDetailsSectionHtml(p); return ovSectionV2('surgicaldetails', 'Surgical Details', 'scalpel', sd.read, sd.body); })() : '')
     + ovSectionV2('clinical', 'Clinical', 'file', clinicalRead, clinicalBody)
     + ovSectionV2('communicate', 'Contact Details', 'message', communicateRead, communicateBody)
@@ -6013,6 +5993,12 @@ function renderOverviewTab(p) {
     + '<span style="font-size:12.5px;font-weight:700;'+(overdue?'color:#7f1d1d;':'')+'">Next Follow-up</span>'
     + '<span style="font-size:12.5px;font-weight:800;color:'+fuColor+';">'+(overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate)+(p.nextFollowUpDate?' \u00b7 '+relativeDaysUntil(p.nextFollowUpDate):'') : 'Not scheduled'))+'</span>'
     + '</button>'
+    + (overdue && overdueDays(p.nextFollowUpDate) >= 3 ? '<div class="row" style="gap:6px;margin-top:-4px;">'
+        + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-followup" data-id="'+p.id+'">'+ic('clock')+' Snooze 7d</button>'
+        + (ARMED_DELETE === 'attn-mark-lost:'+p.id
+            ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+p.id+'">'+ic('check')+' Confirm?</button>'
+            : '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--muted);" data-action="arm-delete" data-arm="attn-mark-lost:'+p.id+'">Lost to follow-up</button>')
+        + '</div>' : '')
     + ovSectionV2('useful', 'Reminders', 'calendar', usefulRead, usefulBody)
     + '<div class="card" style="background:'+(CONVERT_SURGICAL_STEP || (isSurgical && p.surgeryStatus==='awaiting') ? 'rgba(217,119,6,0.06)' : 'rgba(226,232,240,0.4)')+';border-color:'+(CONVERT_SURGICAL_STEP || (isSurgical && p.surgeryStatus==='awaiting') ? '#fde68a' : '#cbd5e1')+';margin-top:8px;padding:10px 12px;">'
     + '<div style="display:flex;flex-direction:column;gap:8px;">'
@@ -7827,7 +7813,9 @@ function renderDetailShell(p) {
           + (p.patientCode
               ? '<button style="background:none;border:none;padding:0;font-weight:800;font-size:14px;color:var(--accent-dark);font-family:\'JetBrains Mono\',monospace;" data-action="edit-patient-code">'+esc(p.patientCode)+'</button>'
               : '<button class="btn btn-sm" data-action="assign-patient-code">'+ic('clipboard')+' Assign Patient ID</button>')
-          + (p.surgeryDate ? '<span style="font-size:11.5px;font-weight:800;color:var(--ink);">'+(isSurgical?'Surgery':'Visit')+': '+fmtDate(p.surgeryDate)+'</span>' : '')
+          + (EDITING_HEADER_DATE
+              ? '<span class="row gap1" style="align-items:center;"><input class="input" type="date" id="header-date-input" max="'+todayStr()+'" value="'+esc(p.surgeryDate||'')+'" style="font-size:11px;padding:3px 6px;height:auto;width:118px;"><button class="icon-btn" style="width:22px;height:22px;color:var(--emerald);" data-action="save-header-date">'+ic('check')+'</button><button class="icon-btn" style="width:22px;height:22px;" data-action="cancel-edit-header-date">'+ic('x')+'</button></span>'
+              : '<span style="font-size:11.5px;font-weight:800;color:var(--ink);cursor:pointer;" data-action="edit-header-date">'+(p.surgeryDate ? (isSurgical?'Surgery':'Visit')+': '+fmtDate(p.surgeryDate) : ic('plus')+' Add '+(isSurgical?'surgery':'visit')+' date')+'</span>')
           + '</div>')
     + (EDITING_PATIENT_NAME
         ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:2px;">'
@@ -7856,10 +7844,20 @@ function renderDetailShell(p) {
               + '</button>')
             : '<button type="button" class="btn btn-sm" style="margin-top:6px;" data-action="edit-header-diagnosis">'+ic('plus')+' Add diagnosis'+(isSurgical?' / procedure':'')+'</button>'
           ))
-    + ((hasSideHdr || regionsSpecLineHdr) ? ('<div class="row" style="gap:14px;margin-top:7px;">'
-        + (hasSideHdr ? '<div><span style="font-size:10px;color:var(--muted);">Side </span><span style="font-size:12px;font-weight:700;">'+esc(p.side)+'</span></div>' : '')
-        + (regionsSpecLineHdr ? '<div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span style="font-size:10px;color:var(--muted);">'+(isSurgical?'Specialty':'Region')+' </span><span style="font-size:12px;font-weight:700;">'+esc(regionsSpecLineHdr)+'</span></div>' : '')
-      + '</div>') : '')
+    + (EDITING_HEADER_SIDEREGION
+        ? ('<div style="background:rgba(67,56,202,0.06);border-radius:10px;padding:9px 10px;margin-top:7px;">'
+            + '<label class="field-label" style="margin-bottom:3px;">Side</label>'+sideToggleHtml('edit-header-set-side', p.side, true)
+            + '<div class="row between" style="margin-top:8px;margin-bottom:4px;align-items:center;"><label class="field-label" style="margin-bottom:0;">'+(isSurgical?'Specialty':'Region')+'</label>'+aiButtonHtml('edit-header-auto-region','Auto-detect',false,null,'gemini')+'</div>'
+            + '<div style="display:flex;flex-wrap:wrap;gap:6px;">' + (isSurgical?SPECIALTY_GROUP_KEYS:REGION_GROUP_KEYS).map(key => '<button type="button" class="tag-chip'+((p.regions||[]).includes(key)?' active':'')+'" data-action="edit-header-toggle-region" data-value="'+esc(key)+'">'+esc(key)+'</button>').join('') + '</div>'
+            + '<button type="button" class="btn btn-sm" style="margin-top:8px;width:100%;" data-action="done-edit-header-sideregion">'+ic('check')+' Done</button>'
+          + '</div>')
+        : ((hasSideHdr || regionsSpecLineHdr)
+            ? ('<button type="button" style="display:block;width:100%;text-align:left;background:none;border:none;padding:0;margin-top:7px;cursor:pointer;" data-action="edit-header-sideregion"><div class="row" style="gap:14px;">'
+                + (hasSideHdr ? '<div><span style="font-size:10px;color:var(--muted);">Side </span><span style="font-size:12px;font-weight:700;">'+esc(p.side)+'</span></div>' : '')
+                + (regionsSpecLineHdr ? '<div style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><span style="font-size:10px;color:var(--muted);">'+(isSurgical?'Specialty':'Region')+' </span><span style="font-size:12px;font-weight:700;">'+esc(regionsSpecLineHdr)+'</span></div>' : '')
+              + '</div></button>')
+            : '<button type="button" class="btn btn-sm" style="margin-top:6px;" data-action="edit-header-sideregion">'+ic('plus')+' Add side / region</button>'
+          ))
     + '</div>'
     + (waLink(p) ? '<a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;margin-top:2px;" title="Message on WhatsApp">'+ic('whatsapp')+'</a>' : '')
     + '<button class="icon-btn" style="color:var(--red);margin-top:2px;" data-action="open-confirm-delete" title="Delete Case">'+ic('trash')+'</button>'
@@ -9501,6 +9499,45 @@ document.addEventListener('click', async (e) => {
     toast('Patient ID updated');
     return;
   }
+  if (action === 'edit-header-date') { EDITING_HEADER_DATE = true; await render(); return; }
+  if (action === 'cancel-edit-header-date') { EDITING_HEADER_DATE = false; await render(); return; }
+  if (action === 'save-header-date') {
+    const dateInput = document.getElementById('header-date-input');
+    const p = getPatient(SELECTED_ID);
+    if (p && dateInput) { p.surgeryDate = dateInput.value; await savePatient(p); await refreshPatients(); }
+    EDITING_HEADER_DATE = false;
+    await render();
+    return;
+  }
+  if (action === 'edit-header-sideregion') { EDITING_HEADER_SIDEREGION = true; await render(); return; }
+  if (action === 'done-edit-header-sideregion') { EDITING_HEADER_SIDEREGION = false; await render(); return; }
+  if (action === 'edit-header-set-side') {
+    await patchField('side', el.dataset.value);
+    await render();
+    return;
+  }
+  if (action === 'edit-header-auto-region') {
+    const p = getPatient(SELECTED_ID);
+    const text = (p.diagnosis||'') + ' ' + (p.chiefComplaints||'') + ' ' + (p.procedure||'') + ' ' + (p.condition||'');
+    const originalHtml = el.innerHTML; el.innerHTML = '<span class="spinner"></span>'; el.disabled = true;
+    let detected = await aiAutoDetectRegions(text);
+    if (!detected) detected = autoDetectRegions(text);
+    if (!detected.length) { toast('Couldn\u2019t auto-detect \u2014 pick manually'); el.innerHTML = originalHtml; el.disabled = false; return; }
+    p.regions = detected.slice();
+    await dbPutPatient(p); await refreshPatients();
+    await render();
+    return;
+  }
+  if (action === 'edit-header-toggle-region') {
+    const p = getPatient(SELECTED_ID);
+    p.regions = p.regions || [];
+    const v = el.dataset.value;
+    const idx = p.regions.indexOf(v);
+    if (idx >= 0) p.regions.splice(idx, 1); else p.regions.push(v);
+    await dbPutPatient(p); await refreshPatients();
+    await render();
+    return;
+  }
   if (action === 'edit-header-diagnosis') {
     EDITING_HEADER_DIAGNOSIS = true;
     await render();
@@ -9927,20 +9964,6 @@ document.addEventListener('click', async (e) => {
     try { await dbDeleteImage(el.dataset.tempid); } catch (e) {}
     return;
   }
-  if (action === 'ov-auto-region') {
-    const p = getPatient(SELECTED_ID);
-    const text = (p.diagnosis||'') + ' ' + (p.chiefComplaints||'') + ' ' + (p.procedure||'') + ' ' + (p.condition||'');
-    const originalHtml = el.innerHTML; el.innerHTML = '<span class="spinner"></span>'; el.disabled = true;
-    let detected = await aiAutoDetectRegions(text);
-    if (!detected) detected = autoDetectRegions(text);
-    el.innerHTML = originalHtml; el.disabled = false;
-    if (!detected.length) { toast('Couldn\u2019t auto-detect \u2014 pick manually'); REGION_EDIT_STATE.ov = 'open'; await renderTabBody(getPatient(SELECTED_ID)); return; }
-    p.regions = detected.slice();
-    REGION_EDIT_STATE.ov = 'closed';
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
   if (action === 'ov-set-payment') {
     const p = getPatient(SELECTED_ID);
     p.paymentMethod = el.dataset.value;
@@ -9967,11 +9990,6 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'ov-toggle-payment') { OV_SHOW_PAYMENT = !OV_SHOW_PAYMENT; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-show-tracking-pick') { OV_SHOW_TRACKING_PICK = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
-  if (action === 'ov-set-side') {
-    await patchField('side', el.dataset.value);
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
   if (action === 'ov-toggle-section-edit') {
     const key = el.dataset.value;
     if (OV_EDIT_SECTIONS.has(key)) OV_EDIT_SECTIONS.delete(key); else { OV_EDIT_SECTIONS.add(key); OV_EXPANDED.add(key); }
@@ -10020,21 +10038,6 @@ document.addEventListener('click', async (e) => {
       el.innerHTML = originalHtml;
       el.disabled = false;
     }
-    return;
-  }
-  if (action === 'ov-toggle-region-edit') {
-    REGION_EDIT_STATE.ov = REGION_EDIT_STATE.ov === 'open' ? 'closed' : 'open';
-    await renderTabBody(getPatient(SELECTED_ID));
-    return;
-  }
-  if (action === 'ov-toggle-region') {
-    const p = getPatient(SELECTED_ID);
-    p.regions = p.regions || [];
-    const v = el.dataset.value;
-    const idx = p.regions.indexOf(v);
-    if (idx >= 0) p.regions.splice(idx, 1); else p.regions.push(v);
-    await dbPutPatient(p); await refreshPatients();
-    await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
   if (action === 'ap-set-side') {
