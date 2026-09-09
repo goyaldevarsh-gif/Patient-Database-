@@ -3974,6 +3974,7 @@ async function purchaseSubscription(sku) {
 }
 
 let MORE_EXPANDED = new Set(['settings']);
+let MORE_SEARCH = '';
 
 // Social Media Content Ideas (FAQ Vault)
 let CONTENT_IDEAS_FAQS = [];  // [{id, question, dateAdded}]
@@ -4059,64 +4060,99 @@ function renderAcademicVaultTab() {
     + '</div>';
 }
 
+let MORE_NOTIF_COUNT_CACHE = 0;
 async function renderMoreView() {
-  const unfiled = await computeUnfiledImages();
-  const notifCount = (await computeActivityFeed()).filter(e => e.ts > notifLastSeen()).length;
-  const groups = [
-    { key:'settings', title:'Profile & Settings', icon:'gear', rows:
-        moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead', 'open-settings')
-        + moreRowHtml('gear', 'App Settings', 'Dark mode, storage, AI usage', 'open-app-settings')
-        + moreRowHtml('clock', 'Notifications'+(notifCount?' ('+notifCount+')':''), 'Due reminders and recent activity', 'open-notifications')
-    },
-    { key:'ai', title:'AI', icon:'sparkle', rows:
-        (isAiTier() ? '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;background:rgba(67,56,202,0.06);border-color:var(--accent);" data-action="open-ai-hub">'
-          + '<span style="flex:none;width:32px;height:32px;"><img src="'+AI_ICON_URI+'" alt="AI" style="width:100%;height:100%;object-fit:contain;"></span>'
-          + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:700;color:var(--accent-dark);">OrthoVault AI</span><span style="display:block;font-size:11px;color:var(--muted);margin-top:2px;">Everywhere AI helps in the app \u2014 patient queries, digest, clinical assistant</span></span>'
-          + '<span style="flex:none;color:var(--muted);">'+ic('chevron')+'</span>'
-          + '</button>' : '')
-        + (!isAiTier() ? moreRowHtml('sparkle', 'Upgrade Plan', isProOrAbove() ? 'You\u2019re on Pro \u2014 tap to see AI tier' : 'Unlock Pro or AI tier features', 'open-upgrade', true) : '')
-    },
-    { key:'data', title:'Data & Reports', icon:'download', rows:
-        moreRowHtml('shield', 'Cloud Sync (AI tier)', !CURRENT_USER ? 'Not signed in \u2014 tap to set up' : (isAiTier() ? 'Signed in \u2014 backing up automatically' : 'Signed in \u2014 upgrade to AI tier to enable'), 'open-cloud-sync')
-        + moreRowHtml('download', 'Export Backup', 'Zip of all cases, photos, reminders \u2014 pick your Drive folder for an off-device copy', 'export-backup')
-        + moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import')
-        + moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted')
-        + moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log')
-        + moreRowHtml('shield', 'Find Duplicate Patients', 'Scan for likely-duplicate cases by name and merge them safely', 'open-duplicate-finder')
-        + moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals')
-        + moreRowHtml('clock', 'Fix Follow-up Week Labels', 'Recalculates "2 Weeks / 6 Weeks" etc labels from surgery/visit date instead of the previous visit', 'fix-followup-labels')
-    },
-    { key:'reference', title:'Reference & Research', icon:'bookmark', rows:
-        moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder')
-        + moreRowHtml('bookmark', 'Research Cases'+(PATIENTS.filter(p=>p.researchFlag).length ? ' ('+PATIENTS.filter(p=>p.researchFlag).length+')' : ''), 'Cases flagged for papers, case reports & study', 'open-research-cases')
-        + moreRowHtml('camera', 'Clinical Bank'+(CLINICAL_BANK.length ? ' ('+CLINICAL_BANK.length+')' : ''), 'Interesting X-rays, CT findings & notes \u2014 kept separate from patient records', 'open-clinical-bank')
-        + moreRowHtml('bookmark', 'Topics to Read'+(ACADEMIC_VAULT_TOPICS.length ? ' ('+ACADEMIC_VAULT_TOPICS.length+')' : ''), 'Research papers and topics you want to study', 'open-academic-vault')
-        + moreRowHtml('sparkle', 'FAQ'+(CONTENT_IDEAS_FAQS.length ? ' ('+CONTENT_IDEAS_FAQS.length+')' : ''), 'Patient questions for social media content' , 'open-content-ideas')
-    },
-    { key:'help', title:'Help', icon:'info', rows:
-        moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about')
-        + moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new')
-    },
-  ];
+  MORE_NOTIF_COUNT_CACHE = (await computeActivityFeed()).filter(e => e.ts > notifLastSeen()).length;
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row gap3"><button class="icon-btn" data-action="close-more">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">More</h2></div>'
     + '</div>'
     + '<div class="px" style="padding-top:10px;display:flex;flex-direction:column;gap:10px;">'
-    + groups.map(g => {
-        const open = MORE_EXPANDED.has(g.key);
-        return '<div>'
-          + '<button class="card" style="text-align:left;display:flex;align-items:center;gap:10px;width:100%;background:var(--bg-soft);" data-action="toggle-more-section" data-value="'+g.key+'">'
-          + '<span style="flex:none;color:var(--accent);">'+ic(g.icon)+'</span>'
-          + '<span style="flex:1;font-size:13px;font-weight:800;color:var(--accent-dark);text-transform:uppercase;letter-spacing:0.02em;">'+g.title+'</span>'
-          + '<span style="flex:none;color:var(--accent);transform:rotate('+(open?90:0)+'deg);">'+ic('chevron')+'</span>'
-          + '</button>'
-          + (open ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">'+g.rows+'</div>' : '')
-          + '</div>';
-      }).join('')
+    + moreSearchBarHtml()
+    + '<div id="more-results-container">'+moreBodyHtml()+'</div>'
     + '<input type="file" accept=".zip,application/zip" id="import-file-input" style="display:none;">'
     + '</div>'
     + '</div>';
+}
+function moreSearchBarHtml() {
+  return '<div class="row gap2" style="align-items:center;background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:9px 12px;margin-bottom:12px;">'
+    + '<span style="flex:none;color:var(--muted);">'+ic('search')+'</span>'
+    + '<input type="text" id="more-search-input" placeholder="Search features\u2026" value="'+esc(MORE_SEARCH||'')+'" style="flex:1;border:none;background:none;font-size:13px;outline:none;">'
+    + '<button type="button" class="icon-btn" style="width:24px;height:24px;flex:none;" data-action="more-search-clear">'+ic('x')+'</button>'
+    + '</div>';
+}
+function moreBodyHtml() {
+  const notifCount = MORE_NOTIF_COUNT_CACHE;
+  // Each item carries its own searchable title/sub text alongside the actual row HTML,
+  // so the search box can filter across every group without needing to re-parse HTML.
+  const items = [
+    { group:'settings', title:'Doctor / Clinic Profile', sub:'Name, qualifications, letterhead', html: moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead', 'open-settings') },
+    { group:'settings', title:'App Settings', sub:'Dark mode, storage, AI usage', html: moreRowHtml('gear', 'App Settings', 'Dark mode, storage, AI usage', 'open-app-settings') },
+    { group:'settings', title:'Notifications', sub:'Due reminders and recent activity', html: moreRowHtml('clock', 'Notifications'+(notifCount?' ('+notifCount+')':''), 'Due reminders and recent activity', 'open-notifications') },
+
+    { group:'ai', title:'OrthoVault AI', sub:'Everywhere AI helps in the app', html: (isAiTier() ? '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;background:rgba(67,56,202,0.06);border-color:var(--accent);" data-action="open-ai-hub">'
+        + '<span style="flex:none;width:32px;height:32px;"><img src="'+AI_ICON_URI+'" alt="AI" style="width:100%;height:100%;object-fit:contain;"></span>'
+        + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:700;color:var(--accent-dark);">OrthoVault AI</span><span style="display:block;font-size:11px;color:var(--muted);margin-top:2px;">Everywhere AI helps in the app \u2014 patient queries, digest, clinical assistant</span></span>'
+        + '<span style="flex:none;color:var(--muted);">'+ic('chevron')+'</span>'
+        + '</button>' : '') },
+    { group:'ai', title:'Upgrade Plan', sub:'Unlock Pro or AI tier features', html: (!isAiTier() ? moreRowHtml('sparkle', 'Upgrade Plan', isProOrAbove() ? 'You\u2019re on Pro \u2014 tap to see AI tier' : 'Unlock Pro or AI tier features', 'open-upgrade', true) : '') },
+
+    { group:'backup', title:'Cloud Sync', sub:'AI tier automatic backup', html: moreRowHtml('shield', 'Cloud Sync (AI tier)', !CURRENT_USER ? 'Not signed in \u2014 tap to set up' : (isAiTier() ? 'Signed in \u2014 backing up automatically' : 'Signed in \u2014 upgrade to AI tier to enable'), 'open-cloud-sync') },
+    { group:'backup', title:'Export Backup', sub:'Zip of all cases, photos, reminders', html: moreRowHtml('download', 'Export Backup', 'Zip of all cases, photos, reminders \u2014 pick your Drive folder for an off-device copy', 'export-backup') },
+    { group:'backup', title:'Import Backup', sub:'Restore from a previously exported zip', html: moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import') },
+    { group:'backup', title:'Recently Deleted', sub:'Restore a case deleted by mistake', html: moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted') },
+
+    { group:'cleanup', title:'Find Duplicate Patients', sub:'Scan for likely-duplicate cases by name', html: moreRowHtml('funnel', 'Find Duplicate Patients', 'Scan for likely-duplicate cases by name and merge them safely', 'open-duplicate-finder') },
+    { group:'cleanup', title:'Fix Follow-up Week Labels', sub:'Recalculate "2 Weeks / 6 Weeks" labels', html: moreRowHtml('clock', 'Fix Follow-up Week Labels', 'Recalculates "2 Weeks / 6 Weeks" etc labels from surgery/visit date instead of the previous visit', 'fix-followup-labels') },
+
+    { group:'finance', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
+    { group:'finance', title:'Scheme Code Finder', sub:'RGHS / MAA Yojana package codes & rates', html: moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder') },
+    { group:'finance', title:'Export Case Log', sub:'Spreadsheet of every case for audits/CME', html: moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log') },
+
+    { group:'research', title:'Research Cases', sub:'Cases flagged for papers & study', html: moreRowHtml('bookmark', 'Research Cases'+(PATIENTS.filter(p=>p.researchFlag).length ? ' ('+PATIENTS.filter(p=>p.researchFlag).length+')' : ''), 'Cases flagged for papers, case reports & study', 'open-research-cases') },
+    { group:'research', title:'Clinical Bank', sub:'Interesting X-rays, CT findings & notes', html: moreRowHtml('camera', 'Clinical Bank'+(CLINICAL_BANK.length ? ' ('+CLINICAL_BANK.length+')' : ''), 'Interesting X-rays, CT findings & notes \u2014 kept separate from patient records', 'open-clinical-bank') },
+
+    { group:'learning', title:'Topics to Read', sub:'Research papers and topics you want to study', html: moreRowHtml('bookmark', 'Topics to Read'+(ACADEMIC_VAULT_TOPICS.length ? ' ('+ACADEMIC_VAULT_TOPICS.length+')' : ''), 'Research papers and topics you want to study', 'open-academic-vault') },
+    { group:'learning', title:'Content Ideas', sub:'Patient questions for social media content', html: moreRowHtml('sparkle', 'Content Ideas'+(CONTENT_IDEAS_FAQS.length ? ' ('+CONTENT_IDEAS_FAQS.length+')' : ''), 'Patient questions for social media content', 'open-content-ideas') },
+
+    { group:'help', title:'About & Help Guide', sub:'What OrthoVault does and how to use every feature', html: moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about') },
+    { group:'help', title:'What\u2019s New', sub:'Latest updates and improvements', html: moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new') },
+  ].filter(it => it.html); // drop conditionally-empty entries (e.g. Upgrade Plan when already on AI tier)
+
+  const groupMeta = [
+    { key:'settings', title:'Profile & Settings', icon:'gear' },
+    { key:'ai', title:'AI', icon:'sparkle' },
+    { key:'backup', title:'Backup & Restore', icon:'shield' },
+    { key:'cleanup', title:'Data Cleanup & Utilities', icon:'funnel' },
+    { key:'finance', title:'Practice & Finance', icon:'tag' },
+    { key:'research', title:'Research & Clinical Bank', icon:'flask' },
+    { key:'learning', title:'Learning & Content', icon:'book' },
+    { key:'help', title:'Help', icon:'info' },
+  ];
+
+  const query = (MORE_SEARCH || '').trim().toLowerCase();
+  let bodyHtml;
+  if (query) {
+    const matches = items.filter(it => (it.title+' '+it.sub).toLowerCase().includes(query));
+    bodyHtml = !matches.length
+      ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:20px;">No features match \u201c'+esc(MORE_SEARCH)+'\u201d.</p>'
+      : '<div style="display:flex;flex-direction:column;gap:8px;">'+matches.map(it => it.html).join('')+'</div>';
+  } else {
+    bodyHtml = groupMeta.map(g => {
+      const groupItems = items.filter(it => it.group === g.key);
+      if (!groupItems.length) return '';
+      const open = MORE_EXPANDED.has(g.key);
+      return '<div>'
+        + '<button class="card" style="text-align:left;display:flex;align-items:center;gap:10px;width:100%;background:var(--bg-soft);" data-action="toggle-more-section" data-value="'+g.key+'">'
+        + '<span style="flex:none;color:var(--accent);">'+ic(g.icon)+'</span>'
+        + '<span style="flex:1;font-size:13px;font-weight:800;color:var(--accent-dark);text-transform:uppercase;letter-spacing:0.02em;">'+g.title+'</span>'
+        + '<span style="flex:none;color:var(--accent);transform:rotate('+(open?90:0)+'deg);">'+ic('chevron')+'</span>'
+        + '</button>'
+        + (open ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">'+groupItems.map(it => it.html).join('')+'</div>' : '')
+        + '</div>';
+    }).join('');
+  }
+  return bodyHtml;
 }
 function moreRowHtml(icon, title, sub, action, highlight) {
   return '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;'+(highlight?'background:rgba(67,56,202,0.06);border-color:var(--accent);':'')+'" data-action="'+action+'">'
@@ -11624,7 +11660,7 @@ document.addEventListener('click', async (e) => {
     window.scrollTo(0,0);
     return;
   }
-  if (action === 'open-more') { VIEW = 'more'; render(); return; }
+  if (action === 'open-more') { VIEW = 'more'; MORE_SEARCH = ''; render(); return; }
   if (action === 'nav-patients') { VIEW = 'patients'; render(); return; }
   if (action === 'dash-search-tap') {
     VIEW = 'patients';
@@ -11749,6 +11785,14 @@ document.addEventListener('click', async (e) => {
     const key = el.dataset.value;
     if (MORE_EXPANDED.has(key)) MORE_EXPANDED.delete(key); else MORE_EXPANDED.add(key);
     await render();
+    return;
+  }
+  if (action === 'more-search-clear') {
+    MORE_SEARCH = '';
+    const container = document.getElementById('more-results-container');
+    if (container) container.innerHTML = moreBodyHtml();
+    const input = document.getElementById('more-search-input');
+    if (input) input.value = '';
     return;
   }
 
@@ -12548,6 +12592,12 @@ document.addEventListener('change', async (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'more-search-input') {
+    MORE_SEARCH = e.target.value;
+    const container = document.getElementById('more-results-container');
+    if (container) container.innerHTML = moreBodyHtml();
+    return;
+  }
   if (e.target.id === 'ov-whatsapp') {
     clearTimeout(window.__ovWhatsappValidateTimer);
     window.__ovWhatsappValidateTimer = setTimeout(() => {
