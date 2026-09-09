@@ -6211,6 +6211,7 @@ function renderOverviewTab(p) {
     + '<span style="font-size:12.5px;font-weight:700;'+(overdue?'color:#7f1d1d;':'')+'">Next Follow-up</span>'
     + '<span style="font-size:12.5px;font-weight:800;color:'+fuColor+';">'+(overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate)+(p.nextFollowUpDate?' \u00b7 '+relativeDaysUntil(p.nextFollowUpDate):'') : 'Not scheduled'))+'</span>'
     + '</button>'
+    + (p.followUpConfirmedAt && p.nextFollowUpDate ? '<div style="font-size:11px;color:var(--emerald);font-weight:700;margin-top:-4px;padding-left:2px;">'+ic('check')+' Patient confirmed via WhatsApp</div>' : '')
     + (overdue && overdueDays(p.nextFollowUpDate) >= 3 ? '<div class="row" style="gap:6px;margin-top:-4px;">'
         + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-followup" data-id="'+p.id+'">'+ic('clock')+' Snooze 7d</button>'
         + (ARMED_DELETE === 'attn-mark-lost:'+p.id
@@ -9356,6 +9357,7 @@ document.addEventListener('click', async (e) => {
     p.nextFollowUpDate = date;
     p.followUpSnoozeCount = 0;
     p.lastReminderSentAt = null;
+    p.followUpConfirmedAt = null;
     await dbPutPatient(p);
     await refreshPatients();
     QUICK_FU_PATIENT_ID = null;
