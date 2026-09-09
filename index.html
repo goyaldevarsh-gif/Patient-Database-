@@ -3655,9 +3655,9 @@ function diagAddReferralFormHtml() {
 function diagMonthlyBreakdownHtml() {
   const byMonth = {};
   DIAG_REFERRALS.forEach(r => {
-    if (!r.reportDate || !r.doctorCutAmount) return; // only counts entries with a computed cut
+    if (!r.reportDate || !r.segmentCode) return; // only counts fully-completed entries
     const monthKey = r.reportDate.slice(0, 7); // YYYY-MM
-    byMonth[monthKey] = (byMonth[monthKey] || 0) + Number(r.doctorCutAmount);
+    byMonth[monthKey] = (byMonth[monthKey] || 0) + Number(r.doctorCutAmount || 0);
   });
   const months = Object.keys(byMonth).sort().reverse();
   if (!months.length) return '<p style="font-size:12px;color:var(--muted);text-align:center;margin:10px 0;">No completed entries with a cut yet.</p>';
@@ -3725,14 +3725,14 @@ function renderDiagReferralsView() {
         + (!sorted.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:16px;">'+(view==='paid'?'No paid entries yet.':'No active entries.')+'</p>' : '')
         + sorted.map(r => {
             const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
-            const needsCompletion = view === 'active' && !r.doctorCutAmount;
+            const needsCompletion = view === 'active' && !r.segmentCode;
             return '<div class="card" style="margin-bottom:8px;padding:10px 12px;'+(needsCompletion?'border-color:#fde68a;background:#fffbeb;':'')+'">'
               + '<div class="row between" style="align-items:flex-start;">'
               + '<div style="min-width:0;flex:1;">'
               + '<div style="font-size:13px;font-weight:700;">'+esc(r.patientName)+'</div>'
               + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.investigation||'')+(r.contrastType?' ('+(r.contrastType==='with'?'With':'Without')+' contrast)':'')+' \u00b7 '+esc(centre?centre.name:'\u2014')+'</div>'
               + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">Report: '+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.segmentCode?' \u00b7 '+esc(r.segmentCode):'')+'</div>'
-              + (r.doctorCutAmount ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Your cut: \u20b9'+Number(r.doctorCutAmount).toLocaleString('en-IN')+'</div>' : '')
+              + (r.segmentCode ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Your cut: \u20b9'+Number(r.doctorCutAmount||0).toLocaleString('en-IN')+'</div>' : '')
               + '</div>'
               + (view === 'active'
                   ? '<button type="button" class="badge badge-slate" style="flex:none;cursor:pointer;" data-action="diag-mark-paid" data-id="'+r.id+'">Mark Paid</button>'
