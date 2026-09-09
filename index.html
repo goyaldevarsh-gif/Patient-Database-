@@ -57,8 +57,11 @@
   /* ================= Subscription / Entitlement (client-side UX gate; source of
      truth is the Firestore doc, server-verified once Play Billing is wired up) ================= */
   let CURRENT_PLAN = 'free'; // 'free' | 'pro' | 'ai' \u2014 default until the Firestore doc is fetched
-  function isAiTier() { return !!(CURRENT_USER && (CURRENT_USER.uid === MY_UID || CURRENT_PLAN === 'ai')); }
-  function isProOrAbove() { return !!(CURRENT_USER && (CURRENT_USER.uid === MY_UID || CURRENT_PLAN === 'pro' || CURRENT_PLAN === 'ai')); }
+  // \u26a0\ufe0f TEMPORARY: all tier gating disabled app-wide for pre-launch testing.
+  // Before Play Store launch, delete the two "return true;" lines below to restore
+  // the real tier checks (the original logic is kept commented right underneath).
+  function isAiTier() { return true; /* return !!(CURRENT_USER && (CURRENT_USER.uid === MY_UID || CURRENT_PLAN === 'ai')); */ }
+  function isProOrAbove() { return true; /* return !!(CURRENT_USER && (CURRENT_USER.uid === MY_UID || CURRENT_PLAN === 'pro' || CURRENT_PLAN === 'ai')); */ }
   async function loadSubscriptionPlan(uid) {
     try {
       const doc = await firestoreDB.collection('users').doc(uid).collection('meta').doc('subscription').get();
