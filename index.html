@@ -18,7 +18,6 @@
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-functions-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.16.0/firebase-messaging-compat.js"></script>
 <script>
   /* ================= Firebase (Auth + Firestore + Storage) ================= */
   const firebaseConfig = {
@@ -35,20 +34,18 @@
   // before touching firestoreDB/etc., but a ReferenceError from an undeclared variable
   // would crash the whole app's startup, not just the cloud features. Local-only use
   // must keep working even when Firebase never initializes.
-  let firestoreDB = null, firebaseStorage = null, firebaseFunctions = null, firebaseMessaging = null;
+  let firestoreDB = null, firebaseStorage = null, firebaseFunctions = null;
   // Only this account sees AI-feature UI. Must match the ALLOWED_UIDS
   // entry in the Cloud Function - find your UID in Firebase Console ->
   // Authentication -> Users. This is a UX nicety only; the real gate
   // is server-side in the Cloud Function itself.
   const MY_UID = 'oc3eOgkVgqQ200UoswTzEH1Feuh1';
-  const VAPID_KEY = 'BORUsd6zG88V2HjxhYglQpCiPWyBDwTXeYIWhOlUfPZu7cKHKA1GOWVW_93XVt-TO5Y2PlBZzjElTyIelN4cD3Q';
   let CURRENT_USER = null;
   try {
     firebase.initializeApp(firebaseConfig);
     firestoreDB = firebase.firestore();
     firebaseStorage = firebase.storage();
     firebaseFunctions = firebase.app().functions('asia-south2');
-    firebaseMessaging = firebase.messaging();
     firebase.auth().onAuthStateChanged(function(user) {
       CURRENT_USER = user;
       if (typeof onAuthChanged === 'function') onAuthChanged(user);
@@ -1178,21 +1175,6 @@ function relativeFollowupPickerHtml(idPrefix, currentDate, autoMode) {
     + '<input type="hidden" id="'+idPrefix+'" value="'+esc(currentDate||'')+'">';
 }
 function todayStr() { return new Date().toISOString().slice(0,10); }
-async function registerPushToken() {
-  try {
-    if (!firebaseMessaging || !CURRENT_USER) return;
-    const swReg = await navigator.serviceWorker.ready;
-    const token = await firebaseMessaging.getToken({ vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
-    if (!token) return;
-    await firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('pushToken').set({ token, updatedAt: Date.now() });
-  } catch (e) { console.error('Push token registration failed', e); }
-}
-async function unregisterPushToken() {
-  try {
-    if (!firestoreDB || !CURRENT_USER) return;
-    await firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('pushToken').delete();
-  } catch (e) {}
-}
 
 const SURGERY_TYPES = ['Arthroplasty','Arthroscopy','Trauma','Spine','Other'];
 
@@ -2188,6 +2170,16 @@ let DIAG_ADD_REFERRAL_OPEN = false;
 let DIAG_EDIT_CENTRE_ID = null;
 let DIAG_FILTER_CENTRE = ''; // '' = all
 let DIAG_VIEW_MODE = 'active'; // 'active' | 'paid'
+let DIAG_ADD_REFERRAL_CENTRE = '';
+let DIAG_ADD_REFERRAL_INVESTIGATION = '';
+let DIAG_ADD_REFERRAL_CONTRAST = 'without'; // 'without' | 'with'
+let DIAG_ADD_REFERRAL_CODE = '';
+let DIAG_LOAD_ANANTA_ON_SAVE = false;
+let DIAG_SHOW_MONTHLY = false;
+let DIAG_COMPLETING_ID = null;
+let DIAG_COMPLETE_INVESTIGATION = '';
+let DIAG_COMPLETE_CONTRAST = 'without';
+let DIAG_COMPLETE_CODE = '';
 let PS_ADD_OPEN = false;
 let PS_TEMP = { name:'', age:'', sex:'', diagnosis:'', plan:'', mobile:'', date:'' };
 let PS_EDIT_ID = null;
@@ -3557,27 +3549,147 @@ function renderReminderQueueView() {
     + '</div>';
 }
 
-/* ================= Diagnostic Referral Tracker (v2 - simple manual log) ================= */
+/* ================= Diagnostic Referral Tracker (v3 - rates + segment-code discount system) ================= */
+const DIAG_SEGMENT_CODES = [
+  { code: 'C1', discountPercent: 10 },
+  { code: 'C2', discountPercent: 15 },
+  { code: 'C3', discountPercent: 20 },
+  { code: 'C4', discountPercent: 30 },
+  { code: 'C5', discountPercent: 40 },
+];
+// Starter rate list for Ananta Diagnostics, from their official rate card — ortho-relevant tests only.
+const ANANTA_STARTER_INVESTIGATIONS = [
+  { name: 'MRI Shoulder', type: 'MRI', withoutContrast: 6000, withContrast: 11000 },
+  { name: 'MRI Elbow', type: 'MRI', withoutContrast: 6000, withContrast: 11000 },
+  { name: 'MRI Wrist', type: 'MRI', withoutContrast: 6000, withContrast: 11000 },
+  { name: 'MRI Hip', type: 'MRI', withoutContrast: 6000, withContrast: 11000 },
+  { name: 'MRI Knee', type: 'MRI', withoutContrast: 6000, withContrast: 11000 },
+  { name: 'MRI Ankle', type: 'MRI', withoutContrast: 6000, withContrast: 11000 },
+  { name: 'MRI Foot', type: 'MRI', withoutContrast: 6000, withContrast: 11000 },
+  { name: 'MRI Hand', type: 'MRI', withoutContrast: 6000, withContrast: 11000 },
+  { name: 'MRI Cervical Spine', type: 'MRI', withoutContrast: 5000, withContrast: 9000 },
+  { name: 'MRI Dorsal Spine', type: 'MRI', withoutContrast: 5000, withContrast: 10000 },
+  { name: 'MRI L.S. Spine', type: 'MRI', withoutContrast: 5000, withContrast: 9000 },
+  { name: 'MRI Whole Spine', type: 'MRI', withoutContrast: 15000, withContrast: 21000 },
+  { name: 'MRI Thigh', type: 'MRI', withoutContrast: 6000, withContrast: 11000 },
+  { name: 'MRI Leg', type: 'MRI', withoutContrast: 6000, withContrast: 11000 },
+  { name: 'CT Shoulder 3D', type: 'CT', withoutContrast: 6000, withContrast: 7000 },
+  { name: 'CT Elbow 3D', type: 'CT', withoutContrast: 6000, withContrast: 7000 },
+  { name: 'CT Wrist Joint', type: 'CT', withoutContrast: 4500, withContrast: 5500 },
+  { name: 'CT Hip Joint', type: 'CT', withoutContrast: 4500, withContrast: 5500 },
+  { name: 'CT Knee Joint 3D', type: 'CT', withoutContrast: 6000, withContrast: 7000 },
+  { name: 'CT Ankle Joint', type: 'CT', withoutContrast: 4500, withContrast: 5500 },
+  { name: 'CT Cervical Spine', type: 'CT', withoutContrast: 5000, withContrast: 6000 },
+  { name: 'CT Dorsal Spine', type: 'CT', withoutContrast: 5000, withContrast: 6000 },
+  { name: 'CT L S Spine', type: 'CT', withoutContrast: 5000, withContrast: 6000 },
+  { name: 'CT Foot', type: 'CT', withoutContrast: 4500, withContrast: 5500 },
+  { name: 'CT Hand', type: 'CT', withoutContrast: 4500, withContrast: 5500 },
+  { name: 'CT Femur', type: 'CT', withoutContrast: 4500, withContrast: 5500 },
+  { name: 'CT Leg', type: 'CT', withoutContrast: 5000, withContrast: 6000 },
+  { name: 'MRI Screening Brain', type: 'MRI', withoutContrast: 3000, withContrast: 3000 },
+  { name: 'MRI Screening Spine (Single)', type: 'MRI', withoutContrast: 3000, withContrast: 3000 },
+  { name: 'MRI Screening Joint (Single)', type: 'MRI', withoutContrast: 4000, withContrast: 4000 },
+  { name: 'MRI Whole Spine Screening', type: 'MRI', withoutContrast: 9000, withContrast: 9000 },
+  { name: 'MRI Cervical Spine Screening', type: 'MRI', withoutContrast: 3000, withContrast: 3000 },
+  { name: 'MRI LS Spine Screening', type: 'MRI', withoutContrast: 3000, withContrast: 3000 },
+  { name: 'MRI Dorsal Spine Screening', type: 'MRI', withoutContrast: 3000, withContrast: 3000 },
+];
+
 function diagAddCentreFormHtml() {
   const editing = DIAG_EDIT_CENTRE_ID ? DIAG_CENTRES.find(c => c.id === DIAG_EDIT_CENTRE_ID) : null;
   return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-    + '<label class="field-label">Centre name</label><input class="input" id="diag-centre-name" placeholder="e.g. Pratham Diagnostic Centre" value="'+esc(editing?editing.name:'')+'" style="margin-bottom:10px;">'
+    + '<label class="field-label">Centre name</label><input class="input" id="diag-centre-name" placeholder="e.g. Ananta Diagnostic" value="'+esc(editing?editing.name:'')+'" style="margin-bottom:10px;">'
+    + '<label class="field-label">Max pool % (your ceiling before any discount)</label><input class="input" type="number" id="diag-centre-pool" placeholder="e.g. 40" value="'+esc(editing?editing.maxPoolPercent:'40')+'" style="margin-bottom:10px;">'
+    + (!editing ? '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-load-ananta-starter">'+ic('download')+' Load Ananta\u2019s standard MRI/CT rate list</button>' : '<p style="font-size:10.5px;color:var(--muted);margin:0 0 10px;">'+(editing.investigations||[]).length+' investigation(s) saved. Add more from the main screen after saving.</p>')
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-centre">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-centre">'+ic('check')+' Save centre</button></div>'
     + '</div>';
 }
+
 function diagAddReferralFormHtml() {
+  const centre = DIAG_CENTRES.find(c => c.id === DIAG_ADD_REFERRAL_CENTRE) || DIAG_CENTRES[0];
+  const investigations = centre ? (centre.investigations || []) : [];
+  const selectedInv = investigations.find(i => i.name === DIAG_ADD_REFERRAL_INVESTIGATION) || investigations[0];
+  const rate = selectedInv ? (DIAG_ADD_REFERRAL_CONTRAST === 'with' ? selectedInv.withContrast : selectedInv.withoutContrast) : 0;
+  const pool = centre ? Number(centre.maxPoolPercent || 40) : 40;
+  const code = DIAG_SEGMENT_CODES.find(c => c.code === DIAG_ADD_REFERRAL_CODE);
+  const patientDiscountPercent = code ? code.discountPercent : 0;
+  const doctorCutPercent = Math.max(0, pool - patientDiscountPercent);
+  const patientDiscountAmount = Math.round(rate * patientDiscountPercent / 100);
+  const doctorCutAmount = Math.round(rate * doctorCutPercent / 100);
+  const patientPays = rate - patientDiscountAmount;
+
   return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-    + '<label class="field-label">Diagnostic centre</label><select class="select" id="diag-ref-centre" style="margin-bottom:10px;">'
-      + DIAG_CENTRES.map(c => '<option value="'+c.id+'">'+esc(c.name)+'</option>').join('')
-      + '</select>'
+    + (DIAG_CENTRES.length > 1 ? ('<label class="field-label">Diagnostic centre</label><select class="select" id="diag-ref-centre" style="margin-bottom:10px;">'
+        + DIAG_CENTRES.map(c => '<option value="'+c.id+'"'+(c.id===centre.id?' selected':'')+'>'+esc(c.name)+'</option>').join('')
+        + '</select>') : '')
     + '<label class="field-label">Patient name</label><input class="input" id="diag-ref-patient" placeholder="Patient name" style="margin-bottom:10px;">'
-    + '<label class="field-label">Investigation</label><input class="input" id="diag-ref-investigation" placeholder="e.g. MRI Left Knee" style="margin-bottom:10px;">'
-    + '<label class="field-label">Discount code given (optional)</label><input class="input" id="diag-ref-discount" placeholder="e.g. 20% or DOC10" style="margin-bottom:10px;">'
+    + (!investigations.length ? '<p style="font-size:12px;color:var(--muted);margin-bottom:10px;">This centre has no rate list yet \u2014 edit it to add investigations, or load Ananta\u2019s starter list.</p>' : (
+        '<label class="field-label">Investigation</label><select class="select" id="diag-ref-investigation" style="margin-bottom:10px;">'
+        + investigations.map(i => '<option value="'+esc(i.name)+'"'+(selectedInv&&i.name===selectedInv.name?' selected':'')+'>'+esc(i.name)+' ('+i.type+')</option>').join('')
+        + '</select>'
+        + '<label class="field-label">Contrast</label><div class="seg" style="margin-bottom:10px;">'
+        + '<button type="button" class="seg-btn'+(DIAG_ADD_REFERRAL_CONTRAST==='without'?' active':'')+'" data-action="diag-set-contrast" data-value="without">Without \u2014 \u20b9'+(selectedInv?selectedInv.withoutContrast:0)+'</button>'
+        + '<button type="button" class="seg-btn'+(DIAG_ADD_REFERRAL_CONTRAST==='with'?' active':'')+'" data-action="diag-set-contrast" data-value="with">With \u2014 \u20b9'+(selectedInv?selectedInv.withContrast:0)+'</button>'
+        + '</div>'
+        + '<label class="field-label">Segment code (patient discount)</label><div class="seg" style="margin-bottom:10px;flex-wrap:wrap;">'
+        + DIAG_SEGMENT_CODES.map(c => '<button type="button" class="seg-btn'+(DIAG_ADD_REFERRAL_CODE===c.code?' active':'')+'" data-action="diag-set-code" data-value="'+c.code+'">'+c.code+' ('+c.discountPercent+'%)</button>').join('')
+        + '</div>'
+        + (DIAG_ADD_REFERRAL_CODE ? (
+            '<div class="card" style="background:var(--emerald-bg);border-color:var(--emerald-border);padding:10px 12px;margin-bottom:10px;">'
+            + '<div class="row between" style="font-size:12px;"><span>Rate</span><b>\u20b9'+rate.toLocaleString('en-IN')+'</b></div>'
+            + '<div class="row between" style="font-size:12px;"><span>Patient discount ('+patientDiscountPercent+'%)</span><b>-\u20b9'+patientDiscountAmount.toLocaleString('en-IN')+'</b></div>'
+            + '<div class="row between" style="font-size:12px;color:var(--muted);"><span>Patient pays</span><span>\u20b9'+patientPays.toLocaleString('en-IN')+'</span></div>'
+            + '<div style="border-top:1px dashed rgba(5,150,105,0.3);margin:6px 0;"></div>'
+            + '<div class="row between" style="font-size:13.5px;font-weight:800;color:var(--emerald);"><span>Your cut ('+doctorCutPercent+'%)</span><span>\u20b9'+doctorCutAmount.toLocaleString('en-IN')+'</span></div>'
+            + '</div>'
+          ) : '<p style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Pick a segment code to see your cut.</p>')
+      ))
     + '<div class="row gap2" style="margin-bottom:10px;">'
     + '<div style="flex:1;"><label class="field-label">Report date</label><input class="input" type="date" id="diag-ref-date" value="'+todayStr()+'"></div>'
     + '<div style="flex:1;"><label class="field-label">Report ID no.</label><input class="input" id="diag-ref-reportid" placeholder="From their report"></div>'
     + '</div>'
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-referral">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-referral">'+ic('check')+' Save entry</button></div>'
+    + '</div>';
+}
+
+function diagMonthlyBreakdownHtml() {
+  const byMonth = {};
+  DIAG_REFERRALS.forEach(r => {
+    if (!r.reportDate || !r.doctorCutAmount) return; // only counts entries with a computed cut
+    const monthKey = r.reportDate.slice(0, 7); // YYYY-MM
+    byMonth[monthKey] = (byMonth[monthKey] || 0) + Number(r.doctorCutAmount);
+  });
+  const months = Object.keys(byMonth).sort().reverse();
+  if (!months.length) return '<p style="font-size:12px;color:var(--muted);text-align:center;margin:10px 0;">No completed entries with a cut yet.</p>';
+  return '<div style="margin-bottom:14px;">' + months.map(m => {
+    const label = new Date(m + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    return '<div class="row between" style="padding:9px 12px;border-bottom:1px solid var(--border);"><span style="font-size:12.5px;">'+label+'</span><span style="font-size:13px;font-weight:800;color:var(--emerald);">\u20b9'+byMonth[m].toLocaleString('en-IN')+'</span></div>';
+  }).join('') + '</div>';
+}
+function diagCompleteEntryFormHtml(r) {
+  const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
+  const investigations = centre ? (centre.investigations || []) : [];
+  const selectedInv = investigations.find(i => i.name === DIAG_COMPLETE_INVESTIGATION) || investigations[0];
+  const rate = selectedInv ? (DIAG_COMPLETE_CONTRAST === 'with' ? selectedInv.withContrast : selectedInv.withoutContrast) : 0;
+  const pool = centre ? Number(centre.maxPoolPercent || 40) : 40;
+  const code = DIAG_SEGMENT_CODES.find(c => c.code === DIAG_COMPLETE_CODE);
+  const patientDiscountPercent = code ? code.discountPercent : 0;
+  const doctorCutPercent = Math.max(0, pool - patientDiscountPercent);
+  const doctorCutAmount = Math.round(rate * doctorCutPercent / 100);
+  if (!investigations.length) return '<p style="font-size:11.5px;color:var(--muted);padding:8px 12px;">This centre has no rate list \u2014 edit it first to add investigations.</p>';
+  return '<div style="background:rgba(67,56,202,0.05);border-radius:10px;padding:10px 12px;margin-top:2px;">'
+    + '<label class="field-label">Investigation</label><select class="select" id="diag-complete-investigation" style="margin-bottom:8px;">'
+    + investigations.map(i => '<option value="'+esc(i.name)+'"'+(selectedInv&&i.name===selectedInv.name?' selected':'')+'>'+esc(i.name)+' ('+i.type+')</option>').join('')
+    + '</select>'
+    + '<div class="seg" style="margin-bottom:8px;">'
+    + '<button type="button" class="seg-btn'+(DIAG_COMPLETE_CONTRAST==='without'?' active':'')+'" data-action="diag-complete-set-contrast" data-value="without">Without \u2014 \u20b9'+(selectedInv?selectedInv.withoutContrast:0)+'</button>'
+    + '<button type="button" class="seg-btn'+(DIAG_COMPLETE_CONTRAST==='with'?' active':'')+'" data-action="diag-complete-set-contrast" data-value="with">With \u2014 \u20b9'+(selectedInv?selectedInv.withContrast:0)+'</button>'
+    + '</div>'
+    + '<div class="seg" style="margin-bottom:8px;flex-wrap:wrap;">'
+    + DIAG_SEGMENT_CODES.map(c => '<button type="button" class="seg-btn'+(DIAG_COMPLETE_CODE===c.code?' active':'')+'" data-action="diag-complete-set-code" data-value="'+c.code+'">'+c.code+' ('+c.discountPercent+'%)</button>').join('')
+    + '</div>'
+    + (DIAG_COMPLETE_CODE ? '<div style="font-size:13px;font-weight:800;color:var(--emerald);margin-bottom:8px;">Your cut: \u20b9'+doctorCutAmount.toLocaleString('en-IN')+'</div>' : '')
+    + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-complete">Cancel</button><button class="btn btn-sm btn-primary" style="flex:1;" data-action="diag-save-complete" data-id="'+r.id+'">'+ic('check')+' Save</button></div>'
     + '</div>';
 }
 function renderDiagReferralsView() {
@@ -3587,6 +3699,7 @@ function renderDiagReferralsView() {
   const sorted = [...entries].sort((a,b) => (b.reportDate||'').localeCompare(a.reportDate||''));
   const activeCount = DIAG_REFERRALS.filter(r => r.status !== 'paid').length;
   const formOpen = DIAG_ADD_CENTRE_OPEN || DIAG_ADD_REFERRAL_OPEN;
+  const totalCutActive = DIAG_REFERRALS.filter(r => r.status !== 'paid').reduce((sum,r) => sum + (Number(r.doctorCutAmount)||0), 0);
   return '<div class="px" style="padding-top:16px;padding-bottom:90px;">'
     + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-diag-referrals">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Diagnostic Referrals</h2><span style="width:36px;"></span></div>'
     + (DIAG_ADD_CENTRE_OPEN ? diagAddCentreFormHtml() : '')
@@ -3596,6 +3709,9 @@ function renderDiagReferralsView() {
         + '<button class="btn btn-sm" style="flex:1;" data-action="diag-open-add-centre">'+ic('plus')+' Add Centre</button>'
         + '<button class="btn btn-sm btn-primary" style="flex:1;" data-action="diag-open-add-referral">'+ic('plus')+' Add Entry</button>'
         + '</div>'
+        + (activeCount ? ('<div class="card" style="background:var(--emerald-bg);border-color:var(--emerald-border);padding:10px 14px;margin-bottom:10px;text-align:center;"><div style="font-size:10.5px;color:var(--muted);">Pending cut (active entries)</div><div style="font-size:19px;font-weight:800;color:var(--emerald);">\u20b9'+totalCutActive.toLocaleString('en-IN')+'</div></div>') : '')
+        + '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-toggle-monthly">'+ic('calendar')+' '+(DIAG_SHOW_MONTHLY?'Hide':'Show')+' monthly cut breakdown</button>'
+        + (DIAG_SHOW_MONTHLY ? diagMonthlyBreakdownHtml() : '')
         + (activeCount ? '<button class="btn btn-sm btn-block" style="margin-bottom:14px;" data-action="diag-export-csv">'+ic('download')+' Export Excel (this list)</button>' : '<div style="margin-bottom:14px;"></div>')
         + (!DIAG_CENTRES.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:20px;">Add your first diagnostic centre to get started.</p>' : '')
         + '<div class="seg" style="margin-bottom:10px;">'
@@ -3609,18 +3725,23 @@ function renderDiagReferralsView() {
         + (!sorted.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:16px;">'+(view==='paid'?'No paid entries yet.':'No active entries.')+'</p>' : '')
         + sorted.map(r => {
             const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
-            return '<div class="card" style="margin-bottom:8px;padding:10px 12px;">'
+            const needsCompletion = view === 'active' && !r.doctorCutAmount;
+            return '<div class="card" style="margin-bottom:8px;padding:10px 12px;'+(needsCompletion?'border-color:#fde68a;background:#fffbeb;':'')+'">'
               + '<div class="row between" style="align-items:flex-start;">'
               + '<div style="min-width:0;flex:1;">'
               + '<div style="font-size:13px;font-weight:700;">'+esc(r.patientName)+'</div>'
-              + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.investigation||'')+' \u00b7 '+esc(centre?centre.name:'\u2014')+'</div>'
-              + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">Report: '+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.discount?' \u00b7 '+esc(r.discount)+' discount':'')+'</div>'
+              + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.investigation||'')+(r.contrastType?' ('+(r.contrastType==='with'?'With':'Without')+' contrast)':'')+' \u00b7 '+esc(centre?centre.name:'\u2014')+'</div>'
+              + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">Report: '+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.segmentCode?' \u00b7 '+esc(r.segmentCode):'')+'</div>'
+              + (r.doctorCutAmount ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Your cut: \u20b9'+Number(r.doctorCutAmount).toLocaleString('en-IN')+'</div>' : '')
               + '</div>'
               + (view === 'active'
                   ? '<button type="button" class="badge badge-slate" style="flex:none;cursor:pointer;" data-action="diag-mark-paid" data-id="'+r.id+'">Mark Paid</button>'
                   + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-delete-referral" data-id="'+r.id+'" title="Delete">'+ic('trash')+'</button>'
                   : '<button type="button" class="badge badge-emerald" style="flex:none;cursor:pointer;" data-action="diag-unmark-paid" data-id="'+r.id+'" title="Move back to Active">'+ic('check')+' Paid \u00b7 Undo</button>')
               + '</div>'
+              + (needsCompletion ? (DIAG_COMPLETING_ID === r.id
+                  ? diagCompleteEntryFormHtml(r)
+                  : '<button type="button" class="btn btn-sm btn-block" style="margin-top:8px;background:#fff;" data-action="diag-open-complete" data-id="'+r.id+'">'+ic('alert')+' Add rate details to calculate your cut</button>') : '')
               + '</div>';
           }).join('')
       ))
@@ -8033,7 +8154,9 @@ function reminderMiniCardHtml(p) {
 function renderTomorrowFollowUpsList() {
   const s = computeDashboardStats();
   if (!s.dueTomorrowList.length) return '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:24px;">No follow-ups due tomorrow.</p>';
-  return s.dueTomorrowList.map(p => {
+  const queueEligible = s.dueTomorrowList.filter(p => p.whatsapp);
+  return (queueEligible.length ? '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-tomorrow-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>' : '')
+    + s.dueTomorrowList.map(p => {
     const waLink = p.whatsapp ? followUpReminderLink(p) : null;
     return '<div class="card" style="margin-bottom:8px;">'
       + '<div class="row between" style="align-items:center;">'
@@ -10941,7 +11064,6 @@ document.addEventListener('click', async (e) => {
     if (typeof Notification === 'undefined') { toast('Notifications aren\u2019t supported in this browser'); return; }
     if (Notification.permission === 'granted') {
       try { localStorage.setItem(NOTIF_PREF_KEY, '1'); } catch(e) {}
-      await registerPushToken();
       toast('Daily reminders turned on');
       render();
     } else if (Notification.permission === 'denied') {
@@ -10950,7 +11072,6 @@ document.addEventListener('click', async (e) => {
       const perm = await Notification.requestPermission();
       if (perm === 'granted') {
         try { localStorage.setItem(NOTIF_PREF_KEY, '1'); } catch(e) {}
-        await registerPushToken();
         toast('Daily reminders turned on');
       } else {
         toast('Permission not granted');
@@ -10961,7 +11082,6 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'disable-notifs') {
     try { localStorage.setItem(NOTIF_PREF_KEY, '0'); } catch(e) {}
-    await unregisterPushToken();
     toast('Daily reminders turned off');
     render();
     return;
@@ -11069,6 +11189,13 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'trigger-ps-import') { document.getElementById('ps-import-file-input').click(); return; }
+  if (action === 'start-tomorrow-reminder-queue') {
+    const s = computeDashboardStats();
+    RQ_QUEUE = s.dueTomorrowList.filter(p => p.whatsapp).map(p => p.id);
+    RQ_INDEX = 0; RQ_SENT_COUNT = 0;
+    if (!RQ_QUEUE.length) { toast('No patients with a saved WhatsApp number.'); return; }
+    VIEW = 'reminder-queue'; render(); return;
+  }
   if (action === 'start-reminder-queue') {
     const s = computeDashboardStats();
     RQ_QUEUE = s.important.filter(item => item.type === 'Follow-up' && item.patient.whatsapp).map(item => item.patient.id);
@@ -11093,22 +11220,34 @@ document.addEventListener('click', async (e) => {
     DIAG_CENTRES = loadDiagCentres();
     DIAG_REFERRALS = loadDiagReferrals();
     DIAG_ADD_CENTRE_OPEN = false; DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDIT_CENTRE_ID = null; DIAG_FILTER_CENTRE = ''; DIAG_VIEW_MODE = 'active';
+    DIAG_COMPLETING_ID = null; DIAG_SHOW_MONTHLY = false;
     VIEW = 'diag-referrals'; render(); return;
   }
   if (action === 'close-diag-referrals') { VIEW = 'more'; render(); return; }
   if (action === 'diag-edit-centre') { DIAG_EDIT_CENTRE_ID = el.dataset.id; DIAG_ADD_CENTRE_OPEN = true; DIAG_ADD_REFERRAL_OPEN = false; render(); return; }
   if (action === 'diag-open-add-centre') { DIAG_ADD_CENTRE_OPEN = true; DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDIT_CENTRE_ID = null; render(); return; }
   if (action === 'diag-cancel-add-centre') { DIAG_ADD_CENTRE_OPEN = false; DIAG_EDIT_CENTRE_ID = null; render(); return; }
+  if (action === 'diag-load-ananta-starter') {
+    const nameEl = document.getElementById('diag-centre-name');
+    if (nameEl && !nameEl.value.trim()) nameEl.value = 'Ananta Diagnostic';
+    toast('Starter list will attach when you save');
+    DIAG_LOAD_ANANTA_ON_SAVE = true;
+    return;
+  }
   if (action === 'diag-save-centre') {
     const nameEl = document.getElementById('diag-centre-name');
+    const poolEl = document.getElementById('diag-centre-pool');
     const name = nameEl ? nameEl.value.trim() : '';
     if (!name) { toast('Centre name is required'); return; }
+    const maxPoolPercent = poolEl ? Number(poolEl.value) || 40 : 40;
     if (DIAG_EDIT_CENTRE_ID) {
       const c = DIAG_CENTRES.find(x => x.id === DIAG_EDIT_CENTRE_ID);
-      if (c) { c.name = name; }
+      if (c) { c.name = name; c.maxPoolPercent = maxPoolPercent; }
     } else {
-      DIAG_CENTRES.push({ id: uid(), name });
+      const investigations = DIAG_LOAD_ANANTA_ON_SAVE ? ANANTA_STARTER_INVESTIGATIONS.map(i => ({...i})) : [];
+      DIAG_CENTRES.push({ id: uid(), name, maxPoolPercent, investigations });
     }
+    DIAG_LOAD_ANANTA_ON_SAVE = false;
     saveDiagCentres(DIAG_CENTRES);
     DIAG_ADD_CENTRE_OPEN = false; DIAG_EDIT_CENTRE_ID = null;
     toast('Centre saved');
@@ -11118,26 +11257,48 @@ document.addEventListener('click', async (e) => {
   if (action === 'diag-open-add-referral') {
     if (!DIAG_CENTRES.length) { toast('Add a diagnostic centre first'); return; }
     DIAG_ADD_REFERRAL_OPEN = true; DIAG_ADD_CENTRE_OPEN = false;
+    DIAG_ADD_REFERRAL_CENTRE = DIAG_CENTRES[0].id;
+    const firstInv = (DIAG_CENTRES[0].investigations || [])[0];
+    DIAG_ADD_REFERRAL_INVESTIGATION = firstInv ? firstInv.name : '';
+    DIAG_ADD_REFERRAL_CONTRAST = 'without';
+    DIAG_ADD_REFERRAL_CODE = '';
     render(); return;
   }
   if (action === 'diag-cancel-add-referral') { DIAG_ADD_REFERRAL_OPEN = false; render(); return; }
+  if (action === 'diag-set-contrast') { DIAG_ADD_REFERRAL_CONTRAST = el.dataset.value; render(); return; }
+  if (action === 'diag-set-code') { DIAG_ADD_REFERRAL_CODE = el.dataset.value; render(); return; }
   if (action === 'diag-save-referral') {
     const centreEl = document.getElementById('diag-ref-centre');
-    const centreId = centreEl ? centreEl.value : '';
-    if (!centreId) { toast('Pick a diagnostic centre'); return; }
+    const centreId = centreEl ? centreEl.value : DIAG_ADD_REFERRAL_CENTRE;
+    const centre = DIAG_CENTRES.find(c => c.id === centreId);
+    if (!centre) { toast('Pick a diagnostic centre'); return; }
     const patientEl = document.getElementById('diag-ref-patient');
     const patientName = patientEl ? patientEl.value.trim() : '';
     if (!patientName) { toast('Patient name is required'); return; }
-    const investEl = document.getElementById('diag-ref-investigation');
-    const discEl = document.getElementById('diag-ref-discount');
+    const invEl = document.getElementById('diag-ref-investigation');
+    const invName = invEl ? invEl.value : DIAG_ADD_REFERRAL_INVESTIGATION;
+    const inv = (centre.investigations || []).find(i => i.name === invName);
+    if (!inv) { toast('Pick an investigation'); return; }
+    if (!DIAG_ADD_REFERRAL_CODE) { toast('Pick a segment code'); return; }
+    const code = DIAG_SEGMENT_CODES.find(c => c.code === DIAG_ADD_REFERRAL_CODE);
+    const pool = Number(centre.maxPoolPercent || 40);
+    const rate = DIAG_ADD_REFERRAL_CONTRAST === 'with' ? inv.withContrast : inv.withoutContrast;
+    const patientDiscountPercent = code.discountPercent;
+    const doctorCutPercent = Math.max(0, pool - patientDiscountPercent);
     const dateEl = document.getElementById('diag-ref-date');
     const reportIdEl = document.getElementById('diag-ref-reportid');
     DIAG_REFERRALS.push({
       id: uid(),
       centreId,
       patientName,
-      investigation: investEl ? investEl.value.trim() : '',
-      discount: discEl ? discEl.value.trim() : '',
+      investigation: inv.name,
+      contrastType: DIAG_ADD_REFERRAL_CONTRAST,
+      rate,
+      segmentCode: code.code,
+      patientDiscountPercent,
+      doctorCutPercent,
+      patientDiscountAmount: Math.round(rate * patientDiscountPercent / 100),
+      doctorCutAmount: Math.round(rate * doctorCutPercent / 100),
       reportDate: dateEl ? dateEl.value : todayStr(),
       reportId: reportIdEl ? reportIdEl.value.trim() : '',
       status: 'active',
@@ -11169,16 +11330,63 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'diag-set-view') { DIAG_VIEW_MODE = el.dataset.value; render(); return; }
+  if (action === 'diag-toggle-monthly') { DIAG_SHOW_MONTHLY = !DIAG_SHOW_MONTHLY; render(); return; }
+  if (action === 'diag-open-complete') {
+    const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
+    const centre = r ? DIAG_CENTRES.find(c => c.id === r.centreId) : null;
+    const firstInv = centre ? (centre.investigations || [])[0] : null;
+    DIAG_COMPLETING_ID = el.dataset.id;
+    DIAG_COMPLETE_INVESTIGATION = firstInv ? firstInv.name : '';
+    DIAG_COMPLETE_CONTRAST = 'without';
+    DIAG_COMPLETE_CODE = '';
+    render(); return;
+  }
+  if (action === 'diag-cancel-complete') { DIAG_COMPLETING_ID = null; render(); return; }
+  if (action === 'diag-complete-set-contrast') { DIAG_COMPLETE_CONTRAST = el.dataset.value; render(); return; }
+  if (action === 'diag-complete-set-code') { DIAG_COMPLETE_CODE = el.dataset.value; render(); return; }
+  if (action === 'diag-save-complete') {
+    const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
+    if (!r) { DIAG_COMPLETING_ID = null; render(); return; }
+    const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
+    const invEl = document.getElementById('diag-complete-investigation');
+    const invName = invEl ? invEl.value : DIAG_COMPLETE_INVESTIGATION;
+    const inv = centre ? (centre.investigations || []).find(i => i.name === invName) : null;
+    if (!inv) { toast('Pick an investigation'); return; }
+    if (!DIAG_COMPLETE_CODE) { toast('Pick a segment code'); return; }
+    const code = DIAG_SEGMENT_CODES.find(c => c.code === DIAG_COMPLETE_CODE);
+    const pool = Number((centre && centre.maxPoolPercent) || 40);
+    const rate = DIAG_COMPLETE_CONTRAST === 'with' ? inv.withContrast : inv.withoutContrast;
+    const patientDiscountPercent = code.discountPercent;
+    const doctorCutPercent = Math.max(0, pool - patientDiscountPercent);
+    r.investigation = inv.name;
+    r.contrastType = DIAG_COMPLETE_CONTRAST;
+    r.rate = rate;
+    r.segmentCode = code.code;
+    r.patientDiscountPercent = patientDiscountPercent;
+    r.doctorCutPercent = doctorCutPercent;
+    r.patientDiscountAmount = Math.round(rate * patientDiscountPercent / 100);
+    r.doctorCutAmount = Math.round(rate * doctorCutPercent / 100);
+    saveDiagReferrals(DIAG_REFERRALS);
+    DIAG_COMPLETING_ID = null;
+    toast('Entry updated');
+    render();
+    return;
+  }
   if (action === 'diag-filter-centre') { DIAG_FILTER_CENTRE = el.dataset.value; render(); return; }
   if (action === 'diag-export-csv') {
     const view = DIAG_VIEW_MODE || 'active';
     let entries = DIAG_REFERRALS.filter(r => (view === 'paid' ? r.status === 'paid' : r.status !== 'paid'));
     if (DIAG_FILTER_CENTRE) entries = entries.filter(r => r.centreId === DIAG_FILTER_CENTRE);
-    const headers = ['Centre','Patient Name','Investigation','Discount','Report Date','Report ID','Status'];
+    const headers = ['Centre','Patient Name','Investigation','Contrast','Rate','Segment Code','Patient Discount %','Patient Discount Amt','Patient Paid','Your Cut %','Your Cut Amt','Report Date','Report ID','Status'];
     const rows = [headers.map(csvCell).join(',')];
     entries.forEach(r => {
       const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
-      rows.push([centre?centre.name:'', r.patientName, r.investigation||'', r.discount||'', fmtDate(r.reportDate), r.reportId||'', r.status].map(csvCell).join(','));
+      rows.push([
+        centre?centre.name:'', r.patientName, r.investigation||'', r.contrastType==='with'?'With':'Without',
+        r.rate||'', r.segmentCode||'', r.patientDiscountPercent||'', r.patientDiscountAmount||'',
+        (r.rate||0)-(r.patientDiscountAmount||0), r.doctorCutPercent||'', r.doctorCutAmount||'',
+        fmtDate(r.reportDate), r.reportId||'', r.status
+      ].map(csvCell).join(','));
     });
     const csv = '\uFEFF' + rows.join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
@@ -11867,6 +12075,24 @@ async function render_only_current_view() {
 document.addEventListener('change', async (e) => {
   const t = e.target;
 
+  if (t.id === 'diag-ref-centre') {
+    DIAG_ADD_REFERRAL_CENTRE = t.value;
+    const centre = DIAG_CENTRES.find(c => c.id === t.value);
+    const firstInv = centre ? (centre.investigations || [])[0] : null;
+    DIAG_ADD_REFERRAL_INVESTIGATION = firstInv ? firstInv.name : '';
+    render();
+    return;
+  }
+  if (t.id === 'diag-ref-investigation') {
+    DIAG_ADD_REFERRAL_INVESTIGATION = t.value;
+    render();
+    return;
+  }
+  if (t.id === 'diag-complete-investigation') {
+    DIAG_COMPLETE_INVESTIGATION = t.value;
+    render();
+    return;
+  }
 
   if (t.dataset && t.dataset.relfu) {
     const target = t.dataset.relfuTarget;
