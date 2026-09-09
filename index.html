@@ -2180,6 +2180,11 @@ let DIAG_COMPLETING_ID = null;
 let DIAG_COMPLETE_INVESTIGATION = '';
 let DIAG_COMPLETE_CONTRAST = 'without';
 let DIAG_COMPLETE_CODE = '';
+let DIAG_REF_PATIENT_DRAFT = '';
+let DIAG_REF_REPORTID_DRAFT = '';
+let DIAG_REF_DATE_DRAFT = '';
+let DIAG_EDITING_REFERRAL_ID = null;
+let DIAG_SHOW_CENTRES = false;
 let PS_ADD_OPEN = false;
 let PS_TEMP = { name:'', age:'', sex:'', diagnosis:'', plan:'', mobile:'', date:'' };
 let PS_EDIT_ID = null;
@@ -3622,7 +3627,7 @@ function diagAddReferralFormHtml() {
     + (DIAG_CENTRES.length > 1 ? ('<label class="field-label">Diagnostic centre</label><select class="select" id="diag-ref-centre" style="margin-bottom:10px;">'
         + DIAG_CENTRES.map(c => '<option value="'+c.id+'"'+(c.id===centre.id?' selected':'')+'>'+esc(c.name)+'</option>').join('')
         + '</select>') : '')
-    + '<label class="field-label">Patient name</label><input class="input" id="diag-ref-patient" placeholder="Patient name" style="margin-bottom:10px;">'
+    + '<label class="field-label">Patient name</label><input class="input" id="diag-ref-patient" placeholder="Patient name" value="'+esc(DIAG_REF_PATIENT_DRAFT)+'" style="margin-bottom:10px;">'
     + (!investigations.length ? '<p style="font-size:12px;color:var(--muted);margin-bottom:10px;">This centre has no rate list yet \u2014 edit it to add investigations, or load Ananta\u2019s starter list.</p>' : (
         '<label class="field-label">Investigation</label><select class="select" id="diag-ref-investigation" style="margin-bottom:10px;">'
         + investigations.map(i => '<option value="'+esc(i.name)+'"'+(selectedInv&&i.name===selectedInv.name?' selected':'')+'>'+esc(i.name)+' ('+i.type+')</option>').join('')
@@ -3645,10 +3650,10 @@ function diagAddReferralFormHtml() {
           ) : '<p style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Pick a segment code to see your cut.</p>')
       ))
     + '<div class="row gap2" style="margin-bottom:10px;">'
-    + '<div style="flex:1;"><label class="field-label">Report date</label><input class="input" type="date" id="diag-ref-date" value="'+todayStr()+'"></div>'
-    + '<div style="flex:1;"><label class="field-label">Report ID no.</label><input class="input" id="diag-ref-reportid" placeholder="From their report"></div>'
+    + '<div style="flex:1;"><label class="field-label">Report date</label><input class="input" type="date" id="diag-ref-date" value="'+esc(DIAG_REF_DATE_DRAFT || todayStr())+'"></div>'
+    + '<div style="flex:1;"><label class="field-label">Report ID no.</label><input class="input" id="diag-ref-reportid" placeholder="From their report" value="'+esc(DIAG_REF_REPORTID_DRAFT)+'"></div>'
     + '</div>'
-    + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-referral">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-referral">'+ic('check')+' Save entry</button></div>'
+    + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-referral">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-referral">'+ic('check')+' '+(DIAG_EDITING_REFERRAL_ID?'Update entry':'Save entry')+'</button></div>'
     + '</div>';
 }
 
@@ -3692,6 +3697,14 @@ function diagCompleteEntryFormHtml(r) {
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-complete">Cancel</button><button class="btn btn-sm btn-primary" style="flex:1;" data-action="diag-save-complete" data-id="'+r.id+'">'+ic('check')+' Save</button></div>'
     + '</div>';
 }
+function diagStashReferralDrafts() {
+  const patientEl = document.getElementById('diag-ref-patient');
+  const dateEl = document.getElementById('diag-ref-date');
+  const reportIdEl = document.getElementById('diag-ref-reportid');
+  if (patientEl) DIAG_REF_PATIENT_DRAFT = patientEl.value;
+  if (dateEl) DIAG_REF_DATE_DRAFT = dateEl.value;
+  if (reportIdEl) DIAG_REF_REPORTID_DRAFT = reportIdEl.value;
+}
 function renderDiagReferralsView() {
   const view = DIAG_VIEW_MODE || 'active';
   let entries = DIAG_REFERRALS.filter(r => (view === 'paid' ? r.status === 'paid' : r.status !== 'paid'));
@@ -3712,6 +3725,17 @@ function renderDiagReferralsView() {
         + (activeCount ? ('<div class="card" style="background:var(--emerald-bg);border-color:var(--emerald-border);padding:10px 14px;margin-bottom:10px;text-align:center;"><div style="font-size:10.5px;color:var(--muted);">Pending cut (active entries)</div><div style="font-size:19px;font-weight:800;color:var(--emerald);">\u20b9'+totalCutActive.toLocaleString('en-IN')+'</div></div>') : '')
         + '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-toggle-monthly">'+ic('calendar')+' '+(DIAG_SHOW_MONTHLY?'Hide':'Show')+' monthly cut breakdown</button>'
         + (DIAG_SHOW_MONTHLY ? diagMonthlyBreakdownHtml() : '')
+        + '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-toggle-centres-list">'+ic('shield')+' '+(DIAG_SHOW_CENTRES?'Hide':'Manage')+' centres ('+DIAG_CENTRES.length+')</button>'
+        + (DIAG_SHOW_CENTRES ? (DIAG_CENTRES.length ? DIAG_CENTRES.map(c => (
+            '<div class="card" style="margin-bottom:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;">'
+            + '<div><div style="font-size:13px;font-weight:700;">'+esc(c.name)+'</div><div style="font-size:11px;color:var(--muted);">'+(c.investigations||[]).length+' investigation(s) \u00b7 Pool '+(c.maxPoolPercent||40)+'%</div></div>'
+            + '<div class="row gap1">'
+            + '<button type="button" class="icon-btn" style="width:28px;height:28px;" data-action="diag-edit-centre" data-id="'+c.id+'" title="Edit">'+ic('pencil')+'</button>'
+            + (ARMED_DELETE === 'diag-centre:'+c.id
+                ? '<button type="button" class="icon-btn" style="width:28px;height:28px;color:var(--red);" data-action="diag-delete-centre" data-id="'+c.id+'" title="Confirm delete">'+ic('check')+'</button>'
+                : '<button type="button" class="icon-btn" style="width:28px;height:28px;color:var(--red);" data-action="arm-delete" data-arm="diag-centre:'+c.id+'" title="Remove">'+ic('trash')+'</button>')
+            + '</div></div>'
+          )).join('') : '<p style="font-size:12px;color:var(--muted);text-align:center;margin:8px 0;">No centres yet.</p>') : '')
         + (activeCount ? '<button class="btn btn-sm btn-block" style="margin-bottom:14px;" data-action="diag-export-csv">'+ic('download')+' Export Excel (this list)</button>' : '<div style="margin-bottom:14px;"></div>')
         + (!DIAG_CENTRES.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:20px;">Add your first diagnostic centre to get started.</p>' : '')
         + '<div class="seg" style="margin-bottom:10px;">'
@@ -3734,6 +3758,7 @@ function renderDiagReferralsView() {
               + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">Report: '+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.segmentCode?' \u00b7 '+esc(r.segmentCode):'')+'</div>'
               + (r.segmentCode ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Your cut: \u20b9'+Number(r.doctorCutAmount||0).toLocaleString('en-IN')+'</div>' : '')
               + '</div>'
+              + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-edit-referral" data-id="'+r.id+'" title="Edit entry">'+ic('pencil')+'</button>'
               + (view === 'active'
                   ? '<button type="button" class="badge badge-slate" style="flex:none;cursor:pointer;" data-action="diag-mark-paid" data-id="'+r.id+'">Mark Paid</button>'
                   + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-delete-referral" data-id="'+r.id+'" title="Delete">'+ic('trash')+'</button>'
@@ -11224,7 +11249,17 @@ document.addEventListener('click', async (e) => {
     VIEW = 'diag-referrals'; render(); return;
   }
   if (action === 'close-diag-referrals') { VIEW = 'more'; render(); return; }
-  if (action === 'diag-edit-centre') { DIAG_EDIT_CENTRE_ID = el.dataset.id; DIAG_ADD_CENTRE_OPEN = true; DIAG_ADD_REFERRAL_OPEN = false; render(); return; }
+  if (action === 'diag-toggle-centres-list') { DIAG_SHOW_CENTRES = !DIAG_SHOW_CENTRES; render(); return; }
+  if (action === 'diag-delete-centre') {
+    const orphanedCount = DIAG_REFERRALS.filter(r => r.centreId === el.dataset.id).length;
+    DIAG_CENTRES = DIAG_CENTRES.filter(c => c.id !== el.dataset.id);
+    saveDiagCentres(DIAG_CENTRES);
+    ARMED_DELETE = null;
+    toast('Centre removed' + (orphanedCount ? ' \u2014 ' + orphanedCount + ' existing entr' + (orphanedCount!==1?'ies':'y') + ' kept, just unlinked' : ''));
+    render();
+    return;
+  }
+  if (action === 'diag-edit-centre') { DIAG_EDIT_CENTRE_ID = el.dataset.id; DIAG_ADD_CENTRE_OPEN = true; DIAG_ADD_REFERRAL_OPEN = false; DIAG_SHOW_CENTRES = false; render(); return; }
   if (action === 'diag-open-add-centre') { DIAG_ADD_CENTRE_OPEN = true; DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDIT_CENTRE_ID = null; render(); return; }
   if (action === 'diag-cancel-add-centre') { DIAG_ADD_CENTRE_OPEN = false; DIAG_EDIT_CENTRE_ID = null; render(); return; }
   if (action === 'diag-load-ananta-starter') {
@@ -11256,17 +11291,31 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'diag-open-add-referral') {
     if (!DIAG_CENTRES.length) { toast('Add a diagnostic centre first'); return; }
-    DIAG_ADD_REFERRAL_OPEN = true; DIAG_ADD_CENTRE_OPEN = false;
+    DIAG_ADD_REFERRAL_OPEN = true; DIAG_ADD_CENTRE_OPEN = false; DIAG_EDITING_REFERRAL_ID = null;
     DIAG_ADD_REFERRAL_CENTRE = DIAG_CENTRES[0].id;
     const firstInv = (DIAG_CENTRES[0].investigations || [])[0];
     DIAG_ADD_REFERRAL_INVESTIGATION = firstInv ? firstInv.name : '';
     DIAG_ADD_REFERRAL_CONTRAST = 'without';
     DIAG_ADD_REFERRAL_CODE = '';
+    DIAG_REF_PATIENT_DRAFT = ''; DIAG_REF_DATE_DRAFT = ''; DIAG_REF_REPORTID_DRAFT = '';
     render(); return;
   }
-  if (action === 'diag-cancel-add-referral') { DIAG_ADD_REFERRAL_OPEN = false; render(); return; }
-  if (action === 'diag-set-contrast') { DIAG_ADD_REFERRAL_CONTRAST = el.dataset.value; render(); return; }
-  if (action === 'diag-set-code') { DIAG_ADD_REFERRAL_CODE = el.dataset.value; render(); return; }
+  if (action === 'diag-edit-referral') {
+    const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
+    if (!r) return;
+    DIAG_ADD_REFERRAL_OPEN = true; DIAG_ADD_CENTRE_OPEN = false; DIAG_EDITING_REFERRAL_ID = r.id;
+    DIAG_ADD_REFERRAL_CENTRE = r.centreId;
+    DIAG_ADD_REFERRAL_INVESTIGATION = r.investigation || '';
+    DIAG_ADD_REFERRAL_CONTRAST = r.contrastType || 'without';
+    DIAG_ADD_REFERRAL_CODE = r.segmentCode || '';
+    DIAG_REF_PATIENT_DRAFT = r.patientName || '';
+    DIAG_REF_DATE_DRAFT = r.reportDate || todayStr();
+    DIAG_REF_REPORTID_DRAFT = r.reportId || '';
+    render(); return;
+  }
+  if (action === 'diag-cancel-add-referral') { DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDITING_REFERRAL_ID = null; render(); return; }
+  if (action === 'diag-set-contrast') { diagStashReferralDrafts(); DIAG_ADD_REFERRAL_CONTRAST = el.dataset.value; render(); return; }
+  if (action === 'diag-set-code') { diagStashReferralDrafts(); DIAG_ADD_REFERRAL_CODE = el.dataset.value; render(); return; }
   if (action === 'diag-save-referral') {
     const centreEl = document.getElementById('diag-ref-centre');
     const centreId = centreEl ? centreEl.value : DIAG_ADD_REFERRAL_CENTRE;
@@ -11287,8 +11336,7 @@ document.addEventListener('click', async (e) => {
     const doctorCutPercent = Math.max(0, pool - patientDiscountPercent);
     const dateEl = document.getElementById('diag-ref-date');
     const reportIdEl = document.getElementById('diag-ref-reportid');
-    DIAG_REFERRALS.push({
-      id: uid(),
+    const computed = {
       centreId,
       patientName,
       investigation: inv.name,
@@ -11301,12 +11349,18 @@ document.addEventListener('click', async (e) => {
       doctorCutAmount: Math.round(rate * doctorCutPercent / 100),
       reportDate: dateEl ? dateEl.value : todayStr(),
       reportId: reportIdEl ? reportIdEl.value.trim() : '',
-      status: 'active',
-      createdAt: Date.now(),
-    });
+    };
+    if (DIAG_EDITING_REFERRAL_ID) {
+      const existing = DIAG_REFERRALS.find(x => x.id === DIAG_EDITING_REFERRAL_ID);
+      if (existing) Object.assign(existing, computed);
+      toast('Entry updated');
+    } else {
+      DIAG_REFERRALS.push({ id: uid(), status: 'active', createdAt: Date.now(), ...computed });
+      toast('Entry logged');
+    }
     saveDiagReferrals(DIAG_REFERRALS);
     DIAG_ADD_REFERRAL_OPEN = false;
-    toast('Entry logged');
+    DIAG_EDITING_REFERRAL_ID = null;
     render();
     return;
   }
@@ -12076,6 +12130,7 @@ document.addEventListener('change', async (e) => {
   const t = e.target;
 
   if (t.id === 'diag-ref-centre') {
+    diagStashReferralDrafts();
     DIAG_ADD_REFERRAL_CENTRE = t.value;
     const centre = DIAG_CENTRES.find(c => c.id === t.value);
     const firstInv = centre ? (centre.investigations || [])[0] : null;
@@ -12084,6 +12139,7 @@ document.addEventListener('change', async (e) => {
     return;
   }
   if (t.id === 'diag-ref-investigation') {
+    diagStashReferralDrafts();
     DIAG_ADD_REFERRAL_INVESTIGATION = t.value;
     render();
     return;
