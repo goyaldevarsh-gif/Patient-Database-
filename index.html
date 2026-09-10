@@ -977,7 +977,7 @@ async function applyRemoteChanges(snapshot) {
       else await dbPutPatient(change.doc.data());
     }
     await refreshPatients();
-    if (VIEW === 'list') render(); // avoid disrupting an in-progress form on other screens; they'll see fresh data next time they navigate
+    if (VIEW === 'list' || VIEW === 'calendar') render(); // avoid disrupting an in-progress form on other screens; they'll see fresh data next time they navigate
   } finally {
     SYNC_APPLYING_REMOTE = false;
   }
@@ -1920,20 +1920,25 @@ function expandableSectionHtml(id, title, content, defaultExpanded = false) {
 
 // Reminder status badge
 function reminderStatusBadgeHtml(patient) {
-  if (!patient.lastReminderSentAt) {
+  const manual = patient.lastReminderSentAt || 0;
+  const auto = patient.lastAutoReminderSentAt || 0;
+  const lastSent = Math.max(manual, auto);
+  if (!lastSent) {
     return '<span class="badge badge-muted" style="font-size:10px;">Not reminded</span>';
   }
-  
-  const hoursAgo = Math.floor((Date.now() - patient.lastReminderSentAt) / 3600000);
-  
+  const viaAuto = auto >= manual; // whichever is the more recent send decides the label
+  const label = viaAuto ? 'Auto-reminded' : 'Reminded';
+
+  const hoursAgo = Math.floor((Date.now() - lastSent) / 3600000);
+
   if (hoursAgo < 1) {
-    return '<span class="badge badge-emerald" style="font-size:10px;">✓ Reminded now</span>';
+    return '<span class="badge badge-emerald" style="font-size:10px;">✓ '+label+' now</span>';
   } else if (hoursAgo < 24) {
-    return '<span class="badge badge-emerald" style="font-size:10px;">✓ Reminded '+hoursAgo+'h ago</span>';
+    return '<span class="badge badge-emerald" style="font-size:10px;">✓ '+label+' '+hoursAgo+'h ago</span>';
   } else if (hoursAgo < 48) {
-    return '<span class="badge badge-amber" style="font-size:10px;">⚠ Reminded 1 day ago</span>';
+    return '<span class="badge badge-amber" style="font-size:10px;">⚠ '+label+' 1 day ago</span>';
   } else {
-    return '<span class="badge badge-slate" style="font-size:10px;">Reminded '+Math.floor(hoursAgo/24)+'d ago</span>';
+    return '<span class="badge badge-slate" style="font-size:10px;">'+label+' '+Math.floor(hoursAgo/24)+'d ago</span>';
   }
 }
 
@@ -5314,7 +5319,8 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
         const showTrackingSnooze = (item.type === 'RA labs' || item.type === 'DEXA scan') && item.isOverdue && days >= 3;
         const trackingField = item.type === 'RA labs' ? 'ra' : 'dexa';
         const lostArmed = ARMED_DELETE === 'attn-mark-lost:'+item.patient.id;
-        const remindedDaysAgo = item.patient.lastReminderSentAt ? Math.floor((Date.now() - item.patient.lastReminderSentAt) / 86400000) : null;
+        const lastReminded = Math.max(item.patient.lastReminderSentAt || 0, item.patient.lastAutoReminderSentAt || 0) || null;
+        const remindedDaysAgo = lastReminded ? Math.floor((Date.now() - lastReminded) / 86400000) : null;
         const remindedText = remindedDaysAgo === null ? '' : (remindedDaysAgo === 0 ? ' \u00b7 reminded today' : ' \u00b7 reminded '+remindedDaysAgo+'d ago');
         const snoozeCount = item.patient.followUpSnoozeCount || 0;
         return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);">'
