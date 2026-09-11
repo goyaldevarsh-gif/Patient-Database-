@@ -3418,6 +3418,24 @@ function schemeSearchResults() {
 let SCHEME_VIEWING_IMPLANTS = null; // package code currently expanded, standalone mode
 let RQ_QUEUE = []; // array of patient ids in this reminder session
 let MC_SEARCH = ''; let MC_BROADCAST_MSG = ''; let MC_QUEUE = []; let MC_QUEUE_INDEX = 0;
+let LP_MENU_PATIENT_ID = null;
+function renderLpContextMenu() {
+  if (!LP_MENU_PATIENT_ID) return '';
+  const p = getPatient(LP_MENU_PATIENT_ID);
+  if (!p) return '';
+  const waNum = String(p.whatsapp||'').replace(/\D/g,'');
+  const row = (icon, label, action, extra) => '<button type="button" class="row gap2" style="width:100%;padding:12px 16px;background:none;border:none;text-align:left;font-size:14px;" data-action="'+action+'" data-id="'+p.id+'"'+(extra||'')+'>'+ic(icon)+'<span>'+label+'</span></button>';
+  return '<div class="modal-backdrop" data-action="lp-close" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;display:flex;align-items:flex-end;">'
+    + '<div style="background:var(--bg);width:100%;border-radius:16px 16px 0 0;padding:8px 0 20px;" onclick="event.stopPropagation()">'
+    + '<div style="font-size:13px;font-weight:800;padding:8px 16px;color:var(--muted);">'+esc(p.name)+'</div>'
+    + (waNum ? row('phone','Call','lp-call') : '')
+    + (waNum ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" class="row gap2" style="width:100%;padding:12px 16px;text-decoration:none;color:inherit;font-size:14px;" data-action="lp-close">'+ic('message')+'<span>Send Reminder</span></a>' : '')
+    + row('calendar','Change Date','lp-change-date')
+    + row('users','Open Profile','open-patient')
+    + row('clock','Snooze 7 days','attn-snooze-followup')
+    + row('trash','Lost to Follow-up','lp-mark-lost')
+    + '</div></div>';
+}
 let RQ_INDEX = 0;
 let RQ_SENT_COUNT = 0;
 
@@ -5378,7 +5396,7 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
         const remindedDaysAgo = lastReminded ? Math.floor((Date.now() - lastReminded) / 86400000) : null;
         const remindedText = remindedDaysAgo === null ? '' : (remindedDaysAgo === 0 ? ' \u00b7 reminded today' : ' \u00b7 reminded '+remindedDaysAgo+'d ago');
         const snoozeCount = item.patient.followUpSnoozeCount || 0;
-        return '<div style="padding:8px 14px;border-bottom:1px solid var(--border);">'
+        return '<div data-lp-id="'+item.patient.id+'" style="padding:8px 14px;border-bottom:1px solid var(--border);">'
           + '<div class="row between">'
           + '<span data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px;min-width:0;">'
             + '<span style="color:'+(item.isOverdue?'var(--red)':'#b45309')+';flex-shrink:0;">'+ic(typeIcon[item.type]||'calendar')+'</span>'
@@ -8284,7 +8302,7 @@ function renderTomorrowFollowUpsList() {
   return (queueEligible.length ? '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-tomorrow-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>' : '')
     + s.dueTomorrowList.map(p => {
     const waLink = p.whatsapp ? followUpReminderLink(p) : null;
-    return '<div class="card" style="margin-bottom:8px;">'
+    return '<div class="card" data-lp-id="'+p.id+'" style="margin-bottom:8px;">'
       + '<div class="row between" style="align-items:center;">'
       + '<div style="min-width:0;flex:1;cursor:pointer;" data-action="open-patient" data-id="'+p.id+'">'
       + '<div style="font-size:13.5px;font-weight:700;">'+escName(p.name)+'</div>'
@@ -8365,6 +8383,7 @@ async function render() {
   app.classList.remove('view-transition'); void app.offsetWidth; app.classList.add('view-transition');
   try {
     await renderCurrentView(app);
+    if (LP_MENU_PATIENT_ID) app.insertAdjacentHTML('beforeend', renderLpContextMenu());
   } catch (err) {
     console.error('render() failed for VIEW=' + VIEW, err);
     // Don't let a broken view (bad data, edge case, etc.) leave the app in a half-rendered
@@ -9391,6 +9410,15 @@ document.addEventListener('touchend', (e) => {
   }
 }, { passive: false });
 
+let LP_TIMER = null;
+document.addEventListener('touchstart', (e) => {
+  const card = e.target.closest('[data-lp-id]');
+  if (!card) return;
+  LP_TIMER = setTimeout(() => { LP_MENU_PATIENT_ID = card.dataset.lpId; render(); if (navigator.vibrate) navigator.vibrate(15); }, 500);
+}, { passive: true });
+document.addEventListener('touchend', () => { clearTimeout(LP_TIMER); });
+document.addEventListener('touchmove', () => { clearTimeout(LP_TIMER); });
+
 document.addEventListener('click', async (e) => {
   // Close overlays when clicking the backdrop
   if (e.target.id === 'quick-picker-overlay') { closeQuickPicker(); return; }
@@ -9399,6 +9427,16 @@ document.addEventListener('click', async (e) => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.dataset.action;
+
+  if (action === 'lp-close') { LP_MENU_PATIENT_ID = null; render(); return; }
+  if (action === 'lp-call') {
+    const p = getPatient(el.dataset.id);
+    LP_MENU_PATIENT_ID = null;
+    if (p && p.whatsapp) window.location.href = 'tel:'+String(p.whatsapp).replace(/\D/g,'');
+    render(); return;
+  }
+  if (action === 'lp-change-date') { LP_MENU_PATIENT_ID = null; QUICK_FU_PATIENT_ID = el.dataset.id; renderQuickFuModal(); return; }
+  if (LP_MENU_PATIENT_ID && ['open-patient','attn-snooze-followup','attn-mark-lost'].includes(action)) { LP_MENU_PATIENT_ID = null; }
 
   if (action === 'toast-button') {
     if (window.__toastButtonCallback) {
