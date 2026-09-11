@@ -3491,17 +3491,19 @@ function renderLpContextMenu() {
   if (!p) return '';
   const waNum = String(p.whatsapp||'').replace(/\D/g,'');
   const hasFollowUp = !!p.nextFollowUpDate;
-  const row = (icon, label, action, extra) => '<button type="button" class="row gap2" style="width:100%;padding:12px 16px;background:none;border:none;text-align:left;font-size:14px;" data-action="'+action+'" data-id="'+p.id+'"'+(extra||'')+'>'+ic(icon)+'<span>'+label+'</span></button>';
-  return '<div class="modal-backdrop" data-action="lp-close" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;display:flex;align-items:flex-end;">'
-    + '<div style="background:var(--bg);width:100%;border-radius:16px 16px 0 0;padding:8px 0 20px;" onclick="event.stopPropagation()">'
-    + '<div style="font-size:13px;font-weight:800;padding:8px 16px;color:var(--muted);">'+esc(p.name)+'</div>'
-    + (waNum ? row('phone','Call','lp-call') : '')
-    + row('users','Open Profile','open-patient')
-    + row('bookmark', p.researchFlag?'Remove from Research':'Bookmark for Research', 'toggle-research-flag')
-    + (hasFollowUp && waNum ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" class="row gap2" style="width:100%;padding:12px 16px;text-decoration:none;color:inherit;font-size:14px;" data-action="lp-close">'+ic('message')+'<span>Send Reminder</span></a>' : '')
-    + (hasFollowUp ? row('calendar','Change Date','lp-change-date') : '')
-    + (hasFollowUp ? row('clock','Snooze 7 days','attn-snooze-followup') : '')
-    + (hasFollowUp ? row('trash','Lost to Follow-up','lp-mark-lost') : '')
+  const box = (icon, label, action, extra, danger) => '<button type="button" class="row gap3" style="width:100%;padding:13px 16px;background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;text-align:left;font-size:14.5px;font-weight:600;margin-bottom:8px;color:'+(danger?'var(--red)':'var(--ink)')+';" data-action="'+action+'" data-id="'+p.id+'"'+(extra||'')+'><span style="flex:none;color:'+(danger?'var(--red)':'var(--accent)')+';">'+ic(icon)+'</span><span>'+label+'</span></button>';
+  return '<div class="modal-backdrop" data-action="lp-close" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end;">'
+    + '<div style="background:var(--bg);width:100%;border-radius:18px 18px 0 0;padding:10px 12px 24px;max-height:80vh;overflow-y:auto;">'
+    + '<div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 12px;"></div>'
+    + '<div style="font-size:14px;font-weight:800;padding:2px 4px 12px;">'+esc(p.name)+'</div>'
+    + (waNum ? box('phone','Call','lp-call') : '')
+    + box('users','Open Profile','open-patient')
+    + box('bookmark', p.researchFlag?'Remove from Research':'Bookmark for Research', 'toggle-research-flag')
+    + (hasFollowUp && waNum ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" class="row gap3" style="width:100%;padding:13px 16px;background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--ink);font-size:14.5px;font-weight:600;margin-bottom:8px;" data-action="lp-close"><span style="flex:none;color:var(--accent);">'+ic('message')+'</span><span>Send Reminder</span></a>' : '')
+    + (hasFollowUp ? box('calendar','Change Date','lp-change-date') : '')
+    + (hasFollowUp ? box('check','Follow-up Completed','lp-mark-completed') : '')
+    + (hasFollowUp ? box('clock','Snooze 7 days','attn-snooze-followup') : '')
+    + (hasFollowUp ? box('trash','Lost to Follow-up','lp-mark-lost',null,true) : '')
     + '</div></div>';
 }
 let RQ_INDEX = 0;
@@ -6433,6 +6435,7 @@ function renderOverviewTab(p) {
       : (!isSurgical ? '<button class="btn btn-sm btn-block" style="font-size:12px;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical</button>' : convertToOpdButtonHtml(p)))
     + '</div>'
     + '</div>'
+    + ((p.side === 'Left' || p.side === 'Right') ? '<button class="btn btn-sm btn-block" style="margin-top:8px;" data-action="duplicate-for-bilateral" data-id="'+p.id+'">'+ic('copy')+' Duplicate for Other Side</button>' : '')
     + '</div>';
 }
 
@@ -9562,6 +9565,11 @@ document.addEventListener('click', async (e) => {
     render(); return;
   }
   if (action === 'lp-change-date') { LP_MENU_PATIENT_ID = null; QUICK_FU_PATIENT_ID = el.dataset.id; renderQuickFuModal(); return; }
+  if (action === 'lp-mark-completed') {
+    const p = getPatient(el.dataset.id);
+    if (p) { p.nextFollowUpDate = ''; p.followUpConfirmedAt = null; await dbPutPatient(p); await refreshPatients(); toast('Follow-up marked completed'); }
+    LP_MENU_PATIENT_ID = null; render(); return;
+  }
   if (LP_MENU_PATIENT_ID && ['open-patient','attn-snooze-followup','attn-mark-lost','toggle-research-flag'].includes(action)) { LP_MENU_PATIENT_ID = null; }
 
   if (action === 'toast-button') {
@@ -12137,6 +12145,39 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'close-recently-deleted') { VIEW = 'more'; render(); return; }
+  if (action === 'duplicate-for-bilateral') {
+    const src = getPatient(el.dataset.id);
+    if (!src) return;
+    const confirmed = await showConfirmDialog({
+      title: 'Duplicate for Other Side?',
+      message: 'Creates a new case for '+src.name+' with Side flipped to '+(src.side==='Left'?'Right':'Left')+'. Investigations, follow-ups, prescriptions and images start fresh \u2014 name, age, diagnosis type and contact are copied.',
+      confirmText: 'Duplicate',
+      cancelText: 'Cancel'
+    });
+    if (!confirmed) return;
+    const copy = {
+      id: uid(), patientCode: nextPatientCode(),
+      name: src.name, age: src.age, ageMonths: src.ageMonths, ageDays: src.ageDays, sex: src.sex,
+      occupation: src.occupation, whatsapp: src.whatsapp, heightCm: src.heightCm, weightKg: src.weightKg,
+      comorbidities: (src.comorbidities||[]).slice(),
+      diagnosis: src.diagnosis, chiefComplaints: src.chiefComplaints, condition: src.condition,
+      caseType: src.caseType, surgeryType: src.surgeryType, laterality: src.laterality,
+      side: src.side === 'Left' ? 'Right' : 'Left', regions: (src.regions||[]).slice(),
+      symptomDuration: '', procedure: '', hospital: src.hospital, anaesthesiaType: '',
+      surgeryDate: todayStr(), nextFollowUpDate: '', notes: '', status: 'Active', surgeryStatus: '',
+      paymentMethod: '', insuranceType: '', cashAmount: '',
+      investigations: [], followUps: [], prescriptions: [], injections: [], tags: [],
+      followUpSnoozeCount: 0, lastReminderSentAt: null, lastAutoReminderSentAt: null, followUpConfirmedAt: null,
+      researchFlag: false, researchNote: '', pinned: false, isOpenFracture: false, pjiSuspected: false,
+      createdAt: Date.now(),
+    };
+    await dbPutPatient(copy);
+    await refreshPatients();
+    toast('Duplicated for '+copy.side+' side');
+    SELECTED_ID = copy.id; VIEW = 'detail'; TAB = 'overview';
+    render();
+    return;
+  }
   if (action === 'restore-patient') {
     const all = await dbGetAllPatients();
     const p = all.find(x => x.id === el.dataset.id);
