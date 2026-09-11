@@ -854,6 +854,54 @@ function syncPatientToCloud(p) {
    patient data. Stored as a single doc rather than a live-synced collection since it's
    small and changes rarely; pulled once at sign-in, pushed on every save. AI tier only,
    same as everything else that touches Firestore. */
+function syncDiagDataToCloud() {
+  if (!CURRENT_USER || !isAiTier()) return;
+  try {
+    firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('diag-data')
+      .set({ centres: DIAG_CENTRES, referrals: DIAG_REFERRALS })
+      .catch(function(err) { console.error('Diagnostic data cloud sync failed', err); });
+  } catch (e) {}
+}
+async function pullDiagDataFromCloud(uid) {
+  if (!isAiTier()) return;
+  try {
+    const doc = await firestoreDB.collection('users').doc(uid).collection('meta').doc('diag-data').get();
+    const localCentres = loadDiagCentres();
+    const localReferrals = loadDiagReferrals();
+    if (doc.exists) {
+      const data = doc.data();
+      if (Array.isArray(data.centres) && data.centres.length && !localCentres.length) { DIAG_CENTRES = data.centres; saveDiagCentresLocal(DIAG_CENTRES); }
+      if (Array.isArray(data.referrals) && data.referrals.length && !localReferrals.length) { DIAG_REFERRALS = data.referrals; saveDiagReferralsLocal(DIAG_REFERRALS); }
+    } else if (localCentres.length || localReferrals.length) {
+      DIAG_CENTRES = localCentres; DIAG_REFERRALS = localReferrals;
+      syncDiagDataToCloud(); // first time signing in \u2014 seed the cloud copy from this device
+    }
+  } catch (e) { console.error('Diagnostic data cloud pull failed', e); }
+}
+function syncMarketingContactsToCloud() {
+  if (!CURRENT_USER || !isAiTier()) return;
+  try {
+    firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('marketing-contacts')
+      .set({ contacts: loadMarketingContactsLocal() })
+      .catch(function(err) { console.error('Marketing contacts cloud sync failed', err); });
+  } catch (e) {}
+}
+async function pullMarketingContactsFromCloud(uid) {
+  if (!isAiTier()) return;
+  try {
+    const doc = await firestoreDB.collection('users').doc(uid).collection('meta').doc('marketing-contacts').get();
+    const local = loadMarketingContactsLocal();
+    if (doc.exists) {
+      const cloudContacts = doc.data().contacts;
+      if (Array.isArray(cloudContacts) && cloudContacts.length && !local.length) {
+        saveMarketingContactsLocal(cloudContacts);
+      }
+      // if both sides already have data, leave both alone \u2014 don't blindly overwrite either
+    } else if (local.length) {
+      syncMarketingContactsToCloud(); // first time signing in \u2014 seed the cloud copy from this device
+    }
+  } catch (e) { console.error('Marketing contacts cloud pull failed', e); }
+}
 function syncProfileToCloud(profile) {
   if (!CURRENT_USER || !isAiTier()) return;
   try {
@@ -3204,35 +3252,50 @@ const DIAG_REFERRALS_KEY = 'orthovault-diag-referrals-v1';
 function loadDiagCentres() {
   try { const raw = localStorage.getItem(DIAG_CENTRES_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
 }
-function saveDiagCentres(list) {
+function saveDiagCentresLocal(list) {
   try { localStorage.setItem(DIAG_CENTRES_KEY, JSON.stringify(list)); } catch (e) {}
 }
+function saveDiagCentres(list) { saveDiagCentresLocal(list); syncDiagDataToCloud(); }
 const MARKETING_CONTACTS_KEY = 'orthovault-marketing-contacts-v1';
-function loadMarketingContacts() {
+function loadMarketingContactsLocal() {
   try { const raw = localStorage.getItem(MARKETING_CONTACTS_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
 }
-function saveMarketingContacts(list) {
+function loadMarketingContacts() { return loadMarketingContactsLocal(); }
+function saveMarketingContactsLocal(list) {
   try { localStorage.setItem(MARKETING_CONTACTS_KEY, JSON.stringify(list)); } catch (e) {}
 }
+function saveMarketingContacts(list) { saveMarketingContactsLocal(list); syncMarketingContactsToCloud(); }
 function syncMarketingContact(patient) {
   if (!patient || !patient.whatsapp) return;
   let digits = String(patient.whatsapp).replace(/\D/g, '');
   if (!digits) return;
-  const list = loadMarketingContacts();
+  const list = loadMarketingContactsLocal();
   const existing = list.find(c => c.digits === digits);
   if (existing) { existing.name = patient.name || existing.name; }
   else { list.push({ digits, name: patient.name || 'Unknown', addedAt: Date.now() }); }
   saveMarketingContacts(list);
 }
 function backfillMarketingContacts() {
-  (PATIENTS || []).forEach(syncMarketingContact);
+  // Bulk local update first (avoids one cloud write per patient), then a single sync at the end.
+  let list = loadMarketingContactsLocal();
+  (PATIENTS || []).forEach(patient => {
+    if (!patient || !patient.whatsapp) return;
+    let digits = String(patient.whatsapp).replace(/\D/g, '');
+    if (!digits) return;
+    const existing = list.find(c => c.digits === digits);
+    if (existing) { existing.name = patient.name || existing.name; }
+    else { list.push({ digits, name: patient.name || 'Unknown', addedAt: Date.now() }); }
+  });
+  saveMarketingContactsLocal(list);
+  syncMarketingContactsToCloud();
 }
 function loadDiagReferrals() {
   try { const raw = localStorage.getItem(DIAG_REFERRALS_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
 }
-function saveDiagReferrals(list) {
+function saveDiagReferralsLocal(list) {
   try { localStorage.setItem(DIAG_REFERRALS_KEY, JSON.stringify(list)); } catch (e) {}
 }
+function saveDiagReferrals(list) { saveDiagReferralsLocal(list); syncDiagDataToCloud(); }
 
 function loadPlannedSurgeries() {
   try {
@@ -3742,6 +3805,28 @@ function diagAddReferralFormHtml() {
     + '</div>';
 }
 
+let DIAG_STATEMENT_MONTH = null;
+function renderDiagStatementView() {
+  const m = DIAG_STATEMENT_MONTH;
+  const entries = DIAG_REFERRALS.filter(r => r.reportDate && r.reportDate.slice(0,7) === m && r.segmentCode)
+    .sort((a,b) => (a.reportDate||'').localeCompare(b.reportDate||''));
+  const label = new Date(m + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const total = entries.reduce((sum,r) => sum + Number(r.doctorCutAmount||0), 0);
+  const profile = loadProfile();
+  return '<div class="px" style="padding-top:16px;padding-bottom:40px;">'
+    + '<div class="row between no-print" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-diag-statement">'+ic('back')+'</button><button class="btn btn-sm btn-primary" data-action="do-print">'+ic('printer')+' Print</button></div>'
+    + '<div class="rx-sheet">'
+    + '<div style="text-align:center;margin-bottom:16px;"><div style="font-weight:800;font-size:16px;">'+esc(profile.doctorName||'Doctor')+'</div><div style="font-size:12px;color:var(--muted);">Diagnostic Referral Statement \u2014 '+label+'</div></div>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
+    + '<tr style="border-bottom:2px solid #333;"><th style="text-align:left;padding:6px 4px;">Patient</th><th style="text-align:left;padding:6px 4px;">Investigation</th><th style="text-align:left;padding:6px 4px;">Date</th><th style="text-align:left;padding:6px 4px;">Code</th><th style="text-align:right;padding:6px 4px;">Your Cut</th></tr>'
+    + entries.map(r => {
+        const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
+        return '<tr style="border-bottom:1px solid #ddd;"><td style="padding:6px 4px;">'+esc(r.patientName)+'</td><td style="padding:6px 4px;">'+esc(r.investigation||'')+'</td><td style="padding:6px 4px;">'+fmtDateShort(r.reportDate)+'</td><td style="padding:6px 4px;">'+esc(r.segmentCode||'')+'</td><td style="padding:6px 4px;text-align:right;">\u20b9'+Number(r.doctorCutAmount||0).toLocaleString('en-IN')+'</td></tr>';
+      }).join('')
+    + '<tr><td colspan="4" style="padding:10px 4px;text-align:right;font-weight:800;">Total</td><td style="padding:10px 4px;text-align:right;font-weight:800;">\u20b9'+total.toLocaleString('en-IN')+'</td></tr>'
+    + '</table>'
+    + '</div></div>';
+}
 function diagMonthlyBreakdownHtml() {
   const byMonth = {};
   DIAG_REFERRALS.forEach(r => {
@@ -3751,9 +3836,29 @@ function diagMonthlyBreakdownHtml() {
   });
   const months = Object.keys(byMonth).sort().reverse();
   if (!months.length) return '<p style="font-size:12px;color:var(--muted);text-align:center;margin:10px 0;">No completed entries with a cut yet.</p>';
-  return '<div style="margin-bottom:14px;">' + months.map(m => {
+
+  // Simple CSS-only bar chart, last 6 months, oldest to newest left-to-right
+  const chartMonths = months.slice(0, 6).reverse();
+  const maxVal = Math.max(...chartMonths.map(m => byMonth[m]), 1);
+  const chart = '<div class="row" style="align-items:flex-end;gap:8px;height:110px;padding:10px 4px 4px;margin-bottom:10px;">'
+    + chartMonths.map(m => {
+        const pct = Math.max(6, Math.round((byMonth[m] / maxVal) * 100));
+        const shortLabel = new Date(m + '-01').toLocaleDateString('en-IN', { month: 'short' });
+        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">'
+          + '<div style="width:100%;height:'+pct+'%;background:var(--emerald);border-radius:4px 4px 0 0;min-height:6px;"></div>'
+          + '<span style="font-size:9.5px;color:var(--muted);">'+shortLabel+'</span>'
+          + '</div>';
+      }).join('')
+    + '</div>';
+
+  return '<div style="margin-bottom:14px;">' + chart + months.map(m => {
     const label = new Date(m + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-    return '<div class="row between" style="padding:9px 12px;border-bottom:1px solid var(--border);"><span style="font-size:12.5px;">'+label+'</span><span style="font-size:13px;font-weight:800;color:var(--emerald);">\u20b9'+byMonth[m].toLocaleString('en-IN')+'</span></div>';
+    return '<div class="row between" style="padding:9px 12px;border-bottom:1px solid var(--border);">'
+      + '<span style="font-size:12.5px;">'+label+'</span>'
+      + '<div class="row gap2" style="align-items:center;">'
+      + '<span style="font-size:13px;font-weight:800;color:var(--emerald);">\u20b9'+byMonth[m].toLocaleString('en-IN')+'</span>'
+      + '<button type="button" class="icon-btn" style="width:26px;height:26px;" data-action="diag-print-statement" data-value="'+m+'" title="Print statement">'+ic('printer')+'</button>'
+      + '</div></div>';
   }).join('') + '</div>';
 }
 function diagCompleteEntryFormHtml(r) {
@@ -8443,6 +8548,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'scheme-finder') { app.innerHTML = renderSchemeFinderView(); return; }
   if (VIEW === 'patient-ai-tools') { app.innerHTML = renderPatientAiToolsView(); return; }
   if (VIEW === 'diag-referrals') { app.innerHTML = renderDiagReferralsView(); return; }
+  if (VIEW === 'diag-statement') { app.innerHTML = renderDiagStatementView(); return; }
   if (VIEW === 'planned-surgeries') { app.innerHTML = renderPlannedSurgeriesView(); return; }
   if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
   if (VIEW === 'marketing-contacts') { app.innerHTML = renderMarketingContactsView(); return; }
@@ -9340,7 +9446,7 @@ function updateMasterVoiceUI() {
     // Hide entirely on screens that have their own fixed bottom action bar, or where a
     // generic floating trigger would visually clash with the screen's own content/buttons
     // (menus, AI sub-pages that ARE the AI feature already, forms with Save/Cancel bars, etc).
-    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals'];
+    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement'];
     // Search must stay available to every tier, not just AI tier \u2014 only the "Ask AI" menu
     // option inside is gated below, the button itself always shows (like the old search fab did).
     const shouldShow = !APP_LOCKED && !hideOnViews.includes(VIEW);
@@ -11547,6 +11653,8 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'diag-set-view') { DIAG_VIEW_MODE = el.dataset.value; render(); return; }
   if (action === 'diag-toggle-monthly') { DIAG_SHOW_MONTHLY = !DIAG_SHOW_MONTHLY; render(); return; }
+  if (action === 'diag-print-statement') { DIAG_STATEMENT_MONTH = el.dataset.value; VIEW = 'diag-statement'; render(); return; }
+  if (action === 'close-diag-statement') { VIEW = 'diag-referrals'; DIAG_STATEMENT_MONTH = null; render(); return; }
   if (action === 'diag-open-complete') {
     const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
     const centre = r ? DIAG_CENTRES.find(c => c.id === r.centreId) : null;
@@ -13019,7 +13127,7 @@ async function onAuthChanged(user) {
     // Firebase Cloud Sync (Firestore + Storage) costs money to run, so it's gated to the
     // AI tier only. Free/Pro accounts still sign in (for the subscription doc + Drive
     // backup) but their case data never touches Firestore.
-    if (isAiTier()) { startCloudSync(user.uid); startImageCloudSync(user.uid); retryPendingSync(); pullProfileFromCloud(user.uid); }
+    if (isAiTier()) { startCloudSync(user.uid); startImageCloudSync(user.uid); retryPendingSync(); pullProfileFromCloud(user.uid); pullDiagDataFromCloud(user.uid); pullMarketingContactsFromCloud(user.uid); }
     else { stopCloudSync(); stopImageCloudSync(); }
   } else {
     stopCloudSync(); stopImageCloudSync();
