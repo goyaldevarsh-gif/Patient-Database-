@@ -2937,6 +2937,7 @@ async function executeMasterVoiceAction() {
         AI_QUERY_TEXT = question;
         const result = await askClaude({ systemPrompt: sys, userMessage: question, maxTokens: 1024 });
         AI_QUERY_ANSWER = result.data.text || '(empty response)';
+        AI_RETURN_VIEW = VIEW;
         VIEW = 'ai-query';
       } catch (err) {
         console.error('Voice query_patients failed:', err);
@@ -2952,6 +2953,7 @@ async function executeMasterVoiceAction() {
         const context = 'Surgeries in the last 7 days: ' + stats.surgeriesThisWeek + '\nNew OPD cases in the last 7 days: ' + stats.newOpdThisWeek + '\nOverdue follow-ups: ' + stats.overdueFollowUps + '\nFollow-ups due in the next 7 days: ' + stats.dueNext7Days + '\nTotal patients in the log: ' + stats.totalPatients;
         const result = await askClaude({ systemPrompt: sys, userMessage: context, maxTokens: 200 });
         AI_DIGEST_SUMMARY = (result.data.text || '').trim();
+        AI_RETURN_VIEW = VIEW;
         VIEW = 'ai-digest';
       } catch (err) {
         console.error('Voice digest generation failed:', err);
@@ -6335,6 +6337,7 @@ let AI_REFERRAL_REASON = '';
 let AI_DIGEST_SUMMARY = null;
 let AI_SANITY_CHECK_RESULT = null;
 let MASTER_VOICE_STATE = 'idle'; // idle | listening | thinking | confirming
+let AI_RETURN_VIEW = 'list';
 let MASTER_VOICE_TRANSCRIPT = '';
 let MASTER_VOICE_RESULT = null;
 let MASTER_VOICE_EDITING = false;
@@ -9697,12 +9700,12 @@ document.addEventListener('click', async (e) => {
     window.scrollTo(0,0);
     return;
   }
-  if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; VIEW = 'ai-query'; render(); return; }
-  if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; VIEW = 'ai-digest'; render(); return; }
-  if (action === 'open-ai-assistant') { AI_ASSISTANT_ANSWER = null; VIEW = 'ai-assistant'; render(); return; }
-  if (action === 'ai-general-question') { AI_ASSISTANT_ANSWER = null; AI_ASSISTANT_QUESTION = ''; VIEW = 'ai-assistant'; await render(); window.scrollTo(0,0); return; }
-  if (action === 'ai-open-free-form') { AI_ASSISTANT_ANSWER = null; AI_ASSISTANT_QUESTION = ''; VIEW = 'ai-assistant'; await render(); window.scrollTo(0,0); return; }
-  if (action === 'close-ai-assistant') { VIEW = 'list'; render(); return; }
+  if (action === 'open-ai-query') { AI_QUERY_ANSWER = null; AI_RETURN_VIEW = VIEW; VIEW = 'ai-query'; render(); return; }
+  if (action === 'open-ai-digest') { AI_DIGEST_SUMMARY = null; AI_RETURN_VIEW = VIEW; VIEW = 'ai-digest'; render(); return; }
+  if (action === 'open-ai-assistant') { AI_ASSISTANT_ANSWER = null; AI_RETURN_VIEW = VIEW; VIEW = 'ai-assistant'; render(); return; }
+  if (action === 'ai-general-question') { AI_ASSISTANT_ANSWER = null; AI_ASSISTANT_QUESTION = ''; AI_RETURN_VIEW = VIEW; VIEW = 'ai-assistant'; await render(); window.scrollTo(0,0); return; }
+  if (action === 'ai-open-free-form') { AI_ASSISTANT_ANSWER = null; AI_ASSISTANT_QUESTION = ''; AI_RETURN_VIEW = VIEW; VIEW = 'ai-assistant'; await render(); window.scrollTo(0,0); return; }
+  if (action === 'close-ai-assistant') { VIEW = AI_RETURN_VIEW || 'list'; render(); return; }
   if (action === 'close-combined-fab-menu') { COMBINED_FAB_MENU_OPEN = false; updateCombinedFabMenu(); return; }
   if (action === 'combined-fab-search') { COMBINED_FAB_MENU_OPEN = false; updateCombinedFabMenu(); openUniversalSearch(); return; }
   if (action === 'combined-fab-ai') { COMBINED_FAB_MENU_OPEN = false; updateCombinedFabMenu(); MASTER_AI_OPEN = true; MASTER_AI_INPUT = ''; render(); return; }
@@ -9747,7 +9750,7 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
-  if (action === 'close-ai-digest') { VIEW = 'list'; render(); return; }
+  if (action === 'close-ai-digest') { VIEW = AI_RETURN_VIEW || 'list'; render(); return; }
   if (action === 'ai-write-digest') {
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Writing\u2026';
@@ -9768,7 +9771,7 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
-  if (action === 'close-ai-query') { VIEW = 'list'; render(); return; }
+  if (action === 'close-ai-query') { VIEW = AI_RETURN_VIEW || 'list'; render(); return; }
   if (action === 'ask-ai-query') {
     const inputEl = document.getElementById('ai-query-input');
     AI_QUERY_TEXT = inputEl ? inputEl.value.trim() : '';
