@@ -789,6 +789,7 @@ async function dbPutPatient(p) {
     const s = await storeOf('patients','readwrite');
     const r = await reqToPromise(s.put(p));
     syncPatientToCloud(p);
+    syncMarketingContact(p);
     return r;
   } catch (err) {
     console.error('dbPutPatient failed:', err);
@@ -3203,6 +3204,26 @@ function loadDiagCentres() {
 function saveDiagCentres(list) {
   try { localStorage.setItem(DIAG_CENTRES_KEY, JSON.stringify(list)); } catch (e) {}
 }
+const MARKETING_CONTACTS_KEY = 'orthovault-marketing-contacts-v1';
+function loadMarketingContacts() {
+  try { const raw = localStorage.getItem(MARKETING_CONTACTS_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+}
+function saveMarketingContacts(list) {
+  try { localStorage.setItem(MARKETING_CONTACTS_KEY, JSON.stringify(list)); } catch (e) {}
+}
+function syncMarketingContact(patient) {
+  if (!patient || !patient.whatsapp) return;
+  let digits = String(patient.whatsapp).replace(/\D/g, '');
+  if (!digits) return;
+  const list = loadMarketingContacts();
+  const existing = list.find(c => c.digits === digits);
+  if (existing) { existing.name = patient.name || existing.name; }
+  else { list.push({ digits, name: patient.name || 'Unknown', addedAt: Date.now() }); }
+  saveMarketingContacts(list);
+}
+function backfillMarketingContacts() {
+  (PATIENTS || []).forEach(syncMarketingContact);
+}
 function loadDiagReferrals() {
   try { const raw = localStorage.getItem(DIAG_REFERRALS_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
 }
@@ -3396,6 +3417,7 @@ function schemeSearchResults() {
 
 let SCHEME_VIEWING_IMPLANTS = null; // package code currently expanded, standalone mode
 let RQ_QUEUE = []; // array of patient ids in this reminder session
+let MC_SEARCH = ''; let MC_BROADCAST_MSG = ''; let MC_QUEUE = []; let MC_QUEUE_INDEX = 0;
 let RQ_INDEX = 0;
 let RQ_SENT_COUNT = 0;
 
@@ -3528,6 +3550,38 @@ function psEntryHtml(s) {
     + '</div>';
 }
 
+function renderMarketingContactsView() {
+  const q = (MC_SEARCH||'').toLowerCase();
+  let list = loadMarketingContacts().sort((a,b)=>a.name.localeCompare(b.name));
+  if (q) list = list.filter(c => c.name.toLowerCase().includes(q) || c.digits.includes(q));
+  return '<div style="padding:16px;padding-bottom:90px;">'
+    + '<div class="row gap3" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-mc">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Marketing Contacts ('+list.length+')</h2></div>'
+    + '<input class="input" placeholder="Search name/number" value="'+esc(MC_SEARCH||'')+'" oninput="MC_SEARCH=this.value;render()" style="margin-bottom:10px;">'
+    + (list.length ? '<button class="btn btn-primary btn-block" style="margin-bottom:12px;" data-action="mc-start-broadcast">'+ic('message')+' Broadcast to all ('+list.length+')</button>' : '')
+    + '<button class="btn btn-sm btn-block" style="margin-bottom:14px;" data-action="mc-export-csv">'+ic('download')+' Export CSV</button>'
+    + list.map(c => '<div class="card" style="margin-bottom:6px;padding:10px 12px;"><b style="font-size:13.5px;">'+esc(c.name)+'</b><div style="font-size:12px;color:var(--muted);">'+esc(c.digits)+'</div></div>').join('')
+    + '</div>';
+}
+function renderBroadcastQueueView() {
+  if (!MC_BROADCAST_MSG) {
+    return '<div style="padding:16px;">'
+      + '<div class="row gap3" style="margin-bottom:14px;"><button class="icon-btn" data-action="mc-cancel-broadcast">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Broadcast Message</h2></div>'
+      + '<textarea class="input" id="mc-msg-input" rows="5" placeholder="Type your message / paste reel link..."></textarea>'
+      + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="mc-confirm-msg">Start Sending</button>'
+      + '</div>';
+  }
+  if (MC_QUEUE_INDEX >= MC_QUEUE.length) {
+    return '<div style="padding:60px 24px;text-align:center;"><div style="font-size:40px;">\u2705</div><div style="font-weight:800;margin:8px 0;">All done</div><button class="btn" data-action="close-mc">Close</button></div>';
+  }
+  const c = MC_QUEUE[MC_QUEUE_INDEX];
+  const waUrl = 'https://wa.me/'+c.digits+'?text='+encodeURIComponent(MC_BROADCAST_MSG);
+  return '<div style="padding:24px;text-align:center;">'
+    + '<div style="font-size:13px;color:var(--muted);margin-bottom:10px;">'+(MC_QUEUE_INDEX+1)+' of '+MC_QUEUE.length+'</div>'
+    + '<div style="font-size:18px;font-weight:800;margin-bottom:20px;">'+esc(c.name)+'</div>'
+    + '<a href="'+waUrl+'" target="_blank" class="btn btn-primary btn-block" data-action="mc-mark-sent" style="margin-bottom:10px;text-decoration:none;">'+ic('whatsapp')+' Open & Send</a>'
+    + '<button class="btn btn-sm btn-block" data-action="mc-skip">Skip</button>'
+    + '</div>';
+}
 function renderReminderQueueView() {
   if (RQ_INDEX >= RQ_QUEUE.length) {
     return '<div style="padding:60px 24px;text-align:center;">'
@@ -4114,6 +4168,7 @@ function moreBodyHtml() {
     { group:'cleanup', title:'Fix Follow-up Week Labels', sub:'Recalculate "2 Weeks / 6 Weeks" labels', html: moreRowHtml('clock', 'Fix Follow-up Week Labels', 'Recalculates "2 Weeks / 6 Weeks" etc labels from surgery/visit date instead of the previous visit', 'fix-followup-labels') },
 
     { group:'finance', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
+    { group:'finance', title:'Marketing Contacts', sub:'Auto-synced patient contacts for broadcasts', html: moreRowHtml('users', 'Marketing Contacts', 'Every patient contact, auto-collected \u2014 broadcast reels/updates to all at once', 'open-mc') },
     { group:'finance', title:'Scheme Code Finder', sub:'RGHS / MAA Yojana package codes & rates', html: moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder') },
     { group:'finance', title:'Export Case Log', sub:'Spreadsheet of every case for audits/CME', html: moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log') },
 
@@ -8351,6 +8406,8 @@ async function renderCurrentView(app) {
   if (VIEW === 'diag-referrals') { app.innerHTML = renderDiagReferralsView(); return; }
   if (VIEW === 'planned-surgeries') { app.innerHTML = renderPlannedSurgeriesView(); return; }
   if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
+  if (VIEW === 'marketing-contacts') { app.innerHTML = renderMarketingContactsView(); return; }
+  if (VIEW === 'broadcast-queue') { app.innerHTML = renderBroadcastQueueView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
   if (VIEW === 'print') { 
     if (!isProOrAbove()) { 
@@ -11669,6 +11726,30 @@ document.addEventListener('click', async (e) => {
     SELECTED_ID = el.dataset.id; recordLastPatient(el.dataset.id); VIEW='detail'; TAB='overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH=null;
     await render();
     window.scrollTo(0,0);
+    return;
+  }
+  if (action === 'open-mc') { backfillMarketingContacts(); MC_SEARCH=''; VIEW='marketing-contacts'; render(); return; }
+  if (action === 'close-mc') { VIEW='more'; render(); return; }
+  if (action === 'mc-start-broadcast') { MC_BROADCAST_MSG=''; VIEW='broadcast-queue'; render(); return; }
+  if (action === 'mc-cancel-broadcast') { VIEW='marketing-contacts'; render(); return; }
+  if (action === 'mc-confirm-msg') {
+    const val = document.getElementById('mc-msg-input')?.value.trim();
+    if (!val) { toast('Type a message first'); return; }
+    MC_BROADCAST_MSG = val;
+    let list = loadMarketingContacts();
+    const q = (MC_SEARCH||'').toLowerCase();
+    if (q) list = list.filter(c => c.name.toLowerCase().includes(q) || c.digits.includes(q));
+    MC_QUEUE = list; MC_QUEUE_INDEX = 0;
+    render(); return;
+  }
+  if (action === 'mc-mark-sent') { MC_QUEUE_INDEX++; render(); return; }
+  if (action === 'mc-skip') { MC_QUEUE_INDEX++; render(); return; }
+  if (action === 'mc-export-csv') {
+    const rows = [['Name','Number']].concat(loadMarketingContacts().map(c=>[c.name,c.digits]));
+    const csv = rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+    const blob = new Blob([csv], {type:'text/csv'}); const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='marketing-contacts.csv'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 5000);
     return;
   }
   if (action === 'open-more') { VIEW = 'more'; MORE_SEARCH = ''; render(); return; }
