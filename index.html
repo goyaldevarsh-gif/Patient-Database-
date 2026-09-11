@@ -997,22 +997,6 @@ async function dbDeleteImagesByPatient(patientId) {
 }
 async function dbGetAllImages() { const s = await storeOf('images','readonly'); return reqToPromise(s.getAll()); }
 
-/* ================= Google Drive Backup Storage ================= */
-async function dbSaveGoogleDriveToken(accessToken, folderId = null) {
-  const s = await storeOf('settings','readwrite');
-  return reqToPromise(s.put({ id: 'google_drive', accessToken, folderId, savedAt: Date.now() }));
-}
-
-async function dbGetGoogleDriveToken() {
-  const s = await storeOf('settings','readonly');
-  return reqToPromise(s.get('google_drive'));
-}
-
-async function dbClearGoogleDriveToken() {
-  const s = await storeOf('settings','readwrite');
-  return reqToPromise(s.delete('google_drive'));
-}
-
 /* An image counts as "unfiled" if it isn't yet visible anywhere in the normal tabs \u2014
    not linked to a follow-up/investigation/prescription, not an OT photo, and not
    already tagged with one of the categories that Images & Records shows even before
@@ -1031,6 +1015,23 @@ async function computeUnfiledImages() {
   return all.filter(isUnfiledImage).map(img => ({ img, patient: PATIENTS.find(p => p.id === img.patientId) || null }))
     .sort((a,b) => (b.img.createdAt||0) - (a.img.createdAt||0));
 }
+
+/* ================= Google Drive Backup Storage ================= */
+async function dbSaveGoogleDriveToken(accessToken, folderId = null) {
+  const s = await storeOf('settings','readwrite');
+  return reqToPromise(s.put({ id: 'google_drive', accessToken, folderId, savedAt: Date.now() }));
+}
+
+async function dbGetGoogleDriveToken() {
+  const s = await storeOf('settings','readonly');
+  return reqToPromise(s.get('google_drive'));
+}
+
+async function dbClearGoogleDriveToken() {
+  const s = await storeOf('settings','readwrite');
+  return reqToPromise(s.delete('google_drive'));
+}
+
 
 function syncImageToCloud(rec) {
   if (!CURRENT_USER || SYNC_APPLYING_REMOTE || !rec.blob || !isAiTier()) return;
@@ -4143,8 +4144,10 @@ function renderAcademicVaultTab() {
 }
 
 let MORE_NOTIF_COUNT_CACHE = 0;
+let UNFILED_COUNT_CACHE = 0;
 async function renderMoreView() {
   MORE_NOTIF_COUNT_CACHE = (await computeActivityFeed()).filter(e => e.ts > notifLastSeen()).length;
+  UNFILED_COUNT_CACHE = (await computeUnfiledImages()).length;
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row gap3"><button class="icon-btn" data-action="close-more">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">More</h2></div>'
@@ -4185,6 +4188,7 @@ function moreBodyHtml() {
     { group:'backup', title:'Recently Deleted', sub:'Restore a case deleted by mistake', html: moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted') },
 
     { group:'cleanup', title:'Find Duplicate Patients', sub:'Scan for likely-duplicate cases by name', html: moreRowHtml('funnel', 'Find Duplicate Patients', 'Scan for likely-duplicate cases by name and merge them safely', 'open-duplicate-finder') },
+    { group:'cleanup', title:'Unfiled Photos', sub:'Recover photos from forms that were never finished', html: moreRowHtml('camera', 'Unfiled Photos'+(UNFILED_COUNT_CACHE?' ('+UNFILED_COUNT_CACHE+')':''), 'Photos saved from a form that was never finished \u2014 file or delete them', 'open-unfiled-photos') },
     { group:'cleanup', title:'Fix Follow-up Week Labels', sub:'Recalculate "2 Weeks / 6 Weeks" labels', html: moreRowHtml('clock', 'Fix Follow-up Week Labels', 'Recalculates "2 Weeks / 6 Weeks" etc labels from surgery/visit date instead of the previous visit', 'fix-followup-labels') },
 
     { group:'finance', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
@@ -4434,26 +4438,6 @@ function renderResearchCasesView() {
     + '</div></div>';
 }
 
-async function renderRecentlyDeletedView() {
-  const deleted = await dbGetDeletedPatients();
-  return '<div style="padding-bottom:40px;">'
-    + '<div class="sticky-top px" style="padding:14px 16px;">'
-    + '<div class="row gap3"><button class="icon-btn" data-action="close-recently-deleted">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Recently Deleted</h2></div>'
-    + '</div>'
-    + '<div class="px" style="padding-top:14px;">'
-    + (deleted.length ? '<p style="font-size:11.5px;color:var(--muted);margin:0 0 14px;">Kept for 30 days after deletion, then removed permanently \u2014 restore any time before that.</p>' : '')
-    + (deleted.length ? deleted.map(p => {
-        const daysLeft = Math.max(0, 30 - Math.floor((Date.now()-p.deletedAt)/(24*60*60*1000)));
-        return '<div class="fu-card">'
-          + '<div class="row between"><span style="font-weight:800;">'+escName(p.name)+'</span><span class="badge badge-slate">'+daysLeft+' days left</span></div>'
-          + (p.diagnosis || p.chiefComplaints ? '<p style="font-size:12px;color:var(--muted);margin-top:4px;">'+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints))+'</p>' : '')
-          + '<div class="row gap2" style="margin-top:8px;"><button class="btn btn-sm" style="flex:1;" data-action="restore-patient" data-id="'+p.id+'">'+ic('back')+' Restore</button>'+confirmBtn('permanently-delete-patient', p.id)+'</div>'
-          + '</div>';
-      }).join('')
-      : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">Nothing here.</div>')
-    + '</div></div>';
-}
-
 /* ================= Unfiled Photos (recovery / safety net) ================= */
 async function renderUnfiledPhotosView() {
   const unfiled = await computeUnfiledImages();
@@ -4496,6 +4480,26 @@ async function renderUnfiledPhotosView() {
     + cards
     + '</div></div>';
 }
+async function renderRecentlyDeletedView() {
+  const deleted = await dbGetDeletedPatients();
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-recently-deleted">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Recently Deleted</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
+    + (deleted.length ? '<p style="font-size:11.5px;color:var(--muted);margin:0 0 14px;">Kept for 30 days after deletion, then removed permanently \u2014 restore any time before that.</p>' : '')
+    + (deleted.length ? deleted.map(p => {
+        const daysLeft = Math.max(0, 30 - Math.floor((Date.now()-p.deletedAt)/(24*60*60*1000)));
+        return '<div class="fu-card">'
+          + '<div class="row between"><span style="font-weight:800;">'+escName(p.name)+'</span><span class="badge badge-slate">'+daysLeft+' days left</span></div>'
+          + (p.diagnosis || p.chiefComplaints ? '<p style="font-size:12px;color:var(--muted);margin-top:4px;">'+esc(displayDiagnosis(p.diagnosis||p.chiefComplaints))+'</p>' : '')
+          + '<div class="row gap2" style="margin-top:8px;"><button class="btn btn-sm" style="flex:1;" data-action="restore-patient" data-id="'+p.id+'">'+ic('back')+' Restore</button>'+confirmBtn('permanently-delete-patient', p.id)+'</div>'
+          + '</div>';
+      }).join('')
+      : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">Nothing here.</div>')
+    + '</div></div>';
+}
+
 
 /* ================= About & Help Guide ================= */
 let ABOUT_EXPANDED = new Set(['getting-started']);
@@ -4572,10 +4576,10 @@ const ABOUT_SECTIONS = [
   { key:'data', title:'Your Data & Privacy', icon:'shield', items:[
     ['Local + optional cloud sync', 'Everything works fully offline and always stays on this device first. Sign in under More \u2192 Cloud Sync and your patients, photos, and Doctor Profile also sync privately across your own devices. A failed sync now retries automatically \u2014 a banner on the home screen shows if anything is still pending.'],
     ['Photos are safe even mid-form', 'A photo is saved to the device the moment you pick it \u2014 not only when you finish the form. If a form is ever interrupted before Save, the photo isn\u2019t lost.'],
-    ['Unfiled Photos', 'More \u2192 Unfiled Photos \u2014 the safety net for any photo that ended up without a patient/category link. File it properly or delete it \u2014 nothing is ever auto-deleted.'],
     ['Backup', 'More \u2192 Export Backup saves a zip of everything, including your Doctor Profile. Do this regularly, ideally to Google Drive.'],
     ['Case Log export', 'More \u2192 Export Case Log (Excel/CSV) \u2014 a spreadsheet of every case.'],
     ['Recently Deleted', 'Deleting a patient doesn\u2019t erase it right away \u2014 More \u2192 Recently Deleted keeps it for 30 days with a Restore button.'],
+    ['Unfiled Photos', 'More \u2192 Unfiled Photos \u2014 the safety net for any photo that ended up without a patient/category link. File it properly or delete it \u2014 nothing is ever auto-deleted.'],
     ['App Lock', 'Optional 6-digit PIN lock (More \u2192 App Settings).'],
   ]},
   { key:'customize', title:'Customization', icon:'gear', items:[
@@ -6377,9 +6381,9 @@ let IMAGES_RECORDS_SUBVIEW = 'xray';
 const IMAGES_RECORDS_SECTIONS = [
   ['xray','X-ray'], ['clinical','Clinical Images'], ['wound','Wound / Suture'],
   ['ct','CT'], ['mri','MRI'], ['usg','USG'], ['video','Videos'],
-  ['investigations','Investigations'], ['injections','Injections'],
+  ['investigations','Investigations'], ['injections','Injections'], ['ot','Intra-op Photos'],
 ];
-const XRAY_SUBTYPES = ['General OPD','Pre-Reduction','Post-Reduction','Pre-op','Post-op'];
+const XRAY_SUBTYPES = ['General OPD','Pre-Reduction','Post-Reduction','Pre-op','Post-op','C-arm / Intra-op'];
 const FU_XRAY_SUBTYPES = XRAY_SUBTYPES.filter(s => s !== 'Pre-Reduction' && s !== 'Pre-op').concat('Follow-up');
 const ALL_XRAY_SUBTYPES = XRAY_SUBTYPES.concat('Follow-up'); // for manually relabeling any x-ray in the viewer
 
@@ -6411,6 +6415,15 @@ function imageBucketGridHtml(images, uploadAttrs, isVideo) {
 function imageBucketCardHtml(title, images, category, subtype, readonly) {
   const uploadAttrs = 'data-img-upload="'+category+'"'+(subtype?' data-xray-subtype="'+esc(subtype)+'"':'');
   const isVideo = category === 'video';
+  // Empty, addable categories collapse to a slim one-line row instead of a full card with
+  // a big empty placeholder tile \u2014 avoids a wall of empty boxes for categories the doctor
+  // simply hasn't used yet on this patient (e.g. Pre-Reduction/Post-Reduction/C-arm).
+  if (!images.length && !readonly) {
+    return '<label class="card" style="margin-bottom:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;">'
+      + '<span style="font-size:12.5px;font-weight:700;color:var(--muted);">'+esc(title)+'</span>'
+      + '<span class="row gap1" style="color:var(--accent);font-size:12px;font-weight:700;">'+ic(isVideo?'video':'camera')+' Add<input type="file" accept="'+(isVideo?'video/*':'image/*')+'" multiple '+uploadAttrs+' style="display:none;"></span>'
+      + '</label>';
+  }
   return '<div class="card" style="margin-bottom:12px;">'
     + '<label class="field-label">'+esc(title)+' <span style="color:var(--muted);font-weight:500;">('+images.length+')</span></label>'
     + (isVideo ? '<p style="font-size:10.5px;color:var(--muted);margin:2px 0 8px;">Keep clips short (a few seconds) \u2014 video takes up much more space than photos, on this device and in cloud backup.</p>' : '')
@@ -6459,6 +6472,7 @@ async function renderImagesRecordsTab(p) {
     + IMGREC_GROUPS.map(g => '<button class="chip'+(activeGroup && activeGroup.key===g.key?' active':'')+'" data-action="imgrec-set-subview" data-value="'+g.categories[0]+'">'+g.label+'</button>').join('')
     + '<button class="chip'+(IMAGES_RECORDS_SUBVIEW==='injections'?' active':'')+'" data-action="imgrec-set-subview" data-value="injections">Injections</button>'
     + '<button class="chip'+(IMAGES_RECORDS_SUBVIEW==='video'?' active':'')+'" data-action="imgrec-set-subview" data-value="video">'+ic('video')+' Videos</button>'
+    + (p.caseType === 'surgical' ? '<button class="chip'+(IMAGES_RECORDS_SUBVIEW==='ot'?' active':'')+'" data-action="imgrec-set-subview" data-value="ot">'+ic('camera')+' Intra-op Photos</button>' : '')
     + '</div>'
     + (activeGroup && activeGroup.categories.length > 1 ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 0 4px;padding-left:8px;border-left:2px solid var(--border);">' + activeGroup.categories.map(c => '<button class="'+(IMAGES_RECORDS_SUBVIEW===c?'chip active':'')+'" style="'+(IMAGES_RECORDS_SUBVIEW===c?'':'background:none;border:1px solid var(--border);color:var(--muted);border-radius:20px;')+'font-size:11px;padding:4px 10px;" data-action="imgrec-set-subview" data-value="'+c+'">'+imgrecCatLabel(c)+'</button>').join('') + '</div>' : '')
     + '</div>';
@@ -6476,7 +6490,7 @@ async function renderImagesRecordsTab(p) {
     const relevantSubtypes = XRAY_SUBTYPES.filter(st => {
       if (xrayImages.some(im => im.xraySubtype === st)) return true;
       if (st === 'Pre-Reduction' || st === 'Post-Reduction') return isTrauma;
-      if (st === 'Pre-op' || st === 'Post-op') return isSurgical;
+      if (st === 'Pre-op' || st === 'Post-op' || st === 'C-arm / Intra-op') return isSurgical;
       if (st === 'General OPD') return !isTrauma && !isSurgical;
       return true;
     });
@@ -6486,7 +6500,8 @@ async function renderImagesRecordsTab(p) {
     body += imageBucketCardHtml('Follow-Up X-ray', xrayImages.filter(im=>im.xraySubtype==='Follow-up'), 'xray', 'Follow-up', true);
   } else if (IMAGES_RECORDS_SUBVIEW === 'clinical') {
     body += imageBucketCardHtml('Clinical Images', allImages.filter(im=>im.imageCategory==='clinical'), 'clinical', null, false);
-    if (p.caseType === 'surgical') body += imageBucketCardHtml('OT / Intra-op photos', allImages.filter(im=>im.isIntraOp), 'ot', null, false);
+  } else if (IMAGES_RECORDS_SUBVIEW === 'ot') {
+    body += imageBucketCardHtml('Intra-op Photos', allImages.filter(im=>im.isIntraOp), 'ot', null, false);
   } else if (IMAGES_RECORDS_SUBVIEW === 'wound') {
     const pw = p.preOpWound || { status:'', notes:'' };
     body += '<div class="card" style="margin-bottom:12px;'+(pw.status && !['N/A',''].includes(pw.status) && pw.status!=='Clean' ? 'border-color:var(--red-border);background:var(--red-bg);' : '')+'">'
@@ -8461,11 +8476,11 @@ async function renderCurrentView(app) {
   if (VIEW === 'about') { app.innerHTML = renderAboutView(); return; }
   if (VIEW === 'privacy-policy') { app.innerHTML = renderPrivacyPolicyView(); return; }
   if (VIEW === 'terms') { app.innerHTML = renderTermsView(); return; }
+  if (VIEW === 'unfiled-photos') { app.innerHTML = await renderUnfiledPhotosView(); return; }
   if (VIEW === 'recently-deleted') { app.innerHTML = await renderRecentlyDeletedView(); return; }
   if (VIEW === 'research-cases') { app.innerHTML = renderResearchCasesView(); return; }
   if (VIEW === 'clinical-bank') { app.innerHTML = await renderClinicalBankView(); return; }
   if (VIEW === 'clinical-bank-detail') { app.innerHTML = await renderClinicalBankDetailView(); return; }
-  if (VIEW === 'unfiled-photos') { app.innerHTML = await renderUnfiledPhotosView(); return; }
   if (VIEW === 'detail') {
     const p = getPatient(SELECTED_ID);
     if (!p) { VIEW='list'; return render(); }
