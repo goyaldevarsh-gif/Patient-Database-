@@ -2073,6 +2073,10 @@ let VIEW = 'list';
 let SELECTED_ID = null;
 let SEARCH = '';
 let FILTER_TYPE = 'all';
+let SORT_BY = 'recent'; // recent | name | oldest | followup
+let ACTIVE_FILTERS = { caseType: [], status: [], side: [], ageGroup: [], payment: [], timePeriod: null, researchOnly: false };
+let SORT_MODAL_OPEN = false;
+let FILTER_MODAL_OPEN = false;
 let MASTER_AI_OPEN = false;
 let COMBINED_FAB_MENU_OPEN = false;
 let MASTER_AI_INPUT = '';
@@ -2644,6 +2648,35 @@ function sideToggleHtml(action, currentSide, includeNA) {
     + '</div>';
 }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
+function patientAgeGroup(p) {
+  const age = parseInt(p.age, 10);
+  if (isNaN(age)) return null;
+  if (age < 18) return 'pediatric';
+  if (age >= 60) return 'geriatric';
+  return 'adult';
+}
+function patientMatchesActiveFilters(p) {
+  const f = ACTIVE_FILTERS;
+  if (f.caseType.length && !f.caseType.includes(p.caseType)) return false;
+  if (f.status.length && !f.status.includes(p.status || 'Active')) return false;
+  if (f.side.length && !f.side.includes(p.side)) return false;
+  if (f.ageGroup.length && !f.ageGroup.includes(patientAgeGroup(p))) return false;
+  if (f.payment.length && !f.payment.includes(p.paymentMethod)) return false;
+  if (f.researchOnly && !p.researchFlag) return false;
+  if (f.timePeriod) {
+    const refDate = p.surgeryDate ? new Date(p.surgeryDate) : null;
+    if (!refDate || isNaN(refDate)) return false;
+    const daysAgo = Math.floor((new Date(todayStr()) - refDate) / 86400000);
+    if (f.timePeriod === 'week' && daysAgo > 7) return false;
+    if (f.timePeriod === 'month' && daysAgo > 30) return false;
+    if (f.timePeriod === '3months' && daysAgo > 90) return false;
+  }
+  return true;
+}
+function countActiveFilters() {
+  const f = ACTIVE_FILTERS;
+  return f.caseType.length + f.status.length + f.side.length + f.ageGroup.length + f.payment.length + (f.timePeriod?1:0) + (f.researchOnly?1:0);
+}
 function getLastFollowUpDate(p) {
   const fus = (p.followUps || []).filter(f => f.date).sort((a,b) => b.date.localeCompare(a.date));
   return fus.length ? fus[0].date : null;
@@ -5691,6 +5724,46 @@ function renderListView() {
     + '</div>';
 }
 
+function renderSortModal() {
+  if (!SORT_MODAL_OPEN) return '';
+  const options = [['recent','Most Recent'],['name','Name (A\u2013Z)'],['oldest','Oldest First'],['followup','Follow-up Soonest']];
+  return '<div class="modal-backdrop" data-action="close-sort-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end;">'
+    + '<div style="background:var(--bg);width:100%;border-radius:18px 18px 0 0;padding:10px 16px 24px;">'
+    + '<div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px;"></div>'
+    + '<div style="font-size:15px;font-weight:800;margin-bottom:12px;">Sort by</div>'
+    + options.map(([v,l]) => '<button type="button" class="row between" style="width:100%;padding:13px 4px;background:none;border:none;border-bottom:1px solid var(--border);text-align:left;font-size:14.5px;font-weight:'+(SORT_BY===v?'800':'500')+';color:'+(SORT_BY===v?'var(--accent)':'var(--ink)')+';" data-action="set-sort-by" data-value="'+v+'"><span>'+l+'</span>'+(SORT_BY===v?ic('check'):'')+'</button>').join('')
+    + '</div></div>';
+}
+const FILTER_GROUPS = [
+  { key:'caseType', label:'Case Type', options:[['opd','OPD'],['surgical','Surgical']] },
+  { key:'status', label:'Status', options:[['Active','Active'],['Completed','Completed'],['Lost to follow-up','Lost to follow-up']] },
+  { key:'side', label:'Side', options:[['Left','Left'],['Right','Right'],['Bilateral','Bilateral']] },
+  { key:'ageGroup', label:'Age Group', options:[['pediatric','Pediatric (<18)'],['adult','Adult (18\u201359)'],['geriatric','Geriatric (60+)']] },
+  { key:'payment', label:'Payment', options:[['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']] },
+];
+function renderFilterModal() {
+  if (!FILTER_MODAL_OPEN) return '';
+  const f = ACTIVE_FILTERS;
+  const groupHtml = FILTER_GROUPS.map(g => '<div style="margin-bottom:16px;">'
+      + '<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:8px;">'+g.label+'</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+      + g.options.map(([v,l]) => '<button type="button" class="chip'+(f[g.key].includes(v)?' active':'')+'" data-action="toggle-filter-opt" data-group="'+g.key+'" data-value="'+v+'">'+l+'</button>').join('')
+      + '</div></div>').join('');
+  const timeOptions = [['week','This Week'],['month','This Month'],['3months','Last 3 Months']];
+  const timeHtml = '<div style="margin-bottom:16px;">'
+    + '<div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.03em;margin-bottom:8px;">Time Period</div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+    + timeOptions.map(([v,l]) => '<button type="button" class="chip'+(f.timePeriod===v?' active':'')+'" data-action="set-filter-time" data-value="'+v+'">'+l+'</button>').join('')
+    + '</div></div>';
+  const researchHtml = '<button type="button" class="chip'+(f.researchOnly?' active':'')+'" style="margin-bottom:16px;" data-action="toggle-filter-research">'+ic('bookmark')+' Research-bookmarked only</button>';
+  return '<div class="modal-backdrop" data-action="close-filter-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end;">'
+    + '<div style="background:var(--bg);width:100%;border-radius:18px 18px 0 0;padding:10px 16px 20px;max-height:80vh;overflow-y:auto;">'
+    + '<div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 14px;"></div>'
+    + '<div class="row between" style="margin-bottom:14px;"><span style="font-size:15px;font-weight:800;">Filters</span><button type="button" style="background:none;border:none;color:var(--accent);font-size:13px;font-weight:700;" data-action="clear-all-filters">Clear all</button></div>'
+    + groupHtml + timeHtml + researchHtml
+    + '<button type="button" class="btn btn-primary btn-block" data-action="close-filter-modal">Show Results</button>'
+    + '</div></div>';
+}
 function renderPatientsView() {
   saveFilterState();
   const counts = { all: PATIENTS.length };
@@ -5698,6 +5771,7 @@ function renderPatientsView() {
 
   const filtered = PATIENTS.filter(p => {
     if (FILTER_TYPE !== 'all' && !(p.regions||[]).includes(FILTER_TYPE)) return false;
+    if (!patientMatchesActiveFilters(p)) return false;
     if (SEARCH) {
       const hit = matchCase(p, SEARCH);
       if (!hit) return false;
@@ -5705,6 +5779,14 @@ function renderPatientsView() {
     }
     return true;
   }).sort((a,b) => {
+    if (SORT_BY === 'name') return (a.name||'').localeCompare(b.name||'');
+    if (SORT_BY === 'oldest') return new Date(a.surgeryDate) - new Date(b.surgeryDate);
+    if (SORT_BY === 'followup') {
+      if (!a.nextFollowUpDate && !b.nextFollowUpDate) return 0;
+      if (!a.nextFollowUpDate) return 1;
+      if (!b.nextFollowUpDate) return -1;
+      return new Date(a.nextFollowUpDate) - new Date(b.nextFollowUpDate);
+    }
     const aOver = isOverdue(a.nextFollowUpDate), bOver = isOverdue(b.nextFollowUpDate);
     if (aOver !== bOver) return aOver ? -1 : 1;
     return new Date(b.surgeryDate) - new Date(a.surgeryDate);
@@ -5715,6 +5797,13 @@ function renderPatientsView() {
     chips += '<button class="chip'+(FILTER_TYPE===t?' active':'')+'" data-action="set-filter" data-value="'+t+'">'+(t==='all'?'All':t)+' ('+counts[t]+')</button>';
   });
   chips += '</div>';
+
+  const sortLabels = { recent:'Most Recent', name:'Name (A\u2013Z)', oldest:'Oldest First', followup:'Follow-up Soonest' };
+  const activeFilterCount = countActiveFilters();
+  const sortFilterRow = '<div class="row gap2" style="margin-bottom:12px;">'
+    + '<button type="button" class="btn btn-sm" style="flex:1;" data-action="open-sort-modal">'+ic('trending')+' Sort: '+sortLabels[SORT_BY]+'</button>'
+    + '<button type="button" class="btn btn-sm" style="flex:1;'+(activeFilterCount?'background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent-dark);':'')+'" data-action="open-filter-modal">'+ic('funnel')+' Filter'+(activeFilterCount?' ('+activeFilterCount+')':'')+'</button>'
+    + '</div>';
 
   let cards = '';
   if (!filtered.length) {
@@ -5787,7 +5876,8 @@ function renderPatientsView() {
     + '<div class="row gap3" style="margin-bottom:10px;align-items:center;"><button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Patients</h2><span style="font-size:12px;color:var(--muted);">'+PATIENTS.length+' total</span></div>'
     + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
-    + ((SEARCH || FILTER_TYPE !== 'all') ? (
+    + sortFilterRow
+    + ((SEARCH || FILTER_TYPE !== 'all' || activeFilterCount) ? (
         '<div class="row between" style="margin-top:8px;padding:0 2px;">'
         + '<span style="font-size:11px;color:var(--muted);">Showing <b style="color:var(--ink);">'+filtered.length+'</b> of '+PATIENTS.length
           + (FILTER_TYPE !== 'all' ? ' \u00b7 filter: <b style="color:var(--accent);">'+esc(FILTER_TYPE)+'</b>' : '')
@@ -5809,7 +5899,9 @@ function renderPatientsView() {
       ) : '')
     + cards
     + '</div>'
-    + '</div>';
+    + '</div>'
+    + renderSortModal()
+    + renderFilterModal();
 }
 
 /* ================= Add photo thumb helpers (shared by add-patient & add-followup) ================= */
@@ -9938,7 +10030,25 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
-  if (action === 'clear-list-filters') { SEARCH = ''; FILTER_TYPE = 'all'; render(); return; }
+  if (action === 'clear-list-filters') { SEARCH = ''; FILTER_TYPE = 'all'; SORT_BY = 'recent'; ACTIVE_FILTERS = { caseType: [], status: [], side: [], ageGroup: [], payment: [], timePeriod: null, researchOnly: false }; render(); return; }
+  if (action === 'open-sort-modal') { SORT_MODAL_OPEN = true; render(); return; }
+  if (action === 'close-sort-modal') { SORT_MODAL_OPEN = false; render(); return; }
+  if (action === 'set-sort-by') { SORT_BY = el.dataset.value; SORT_MODAL_OPEN = false; render(); return; }
+  if (action === 'open-filter-modal') { FILTER_MODAL_OPEN = true; render(); return; }
+  if (action === 'close-filter-modal') { FILTER_MODAL_OPEN = false; render(); return; }
+  if (action === 'clear-all-filters') { ACTIVE_FILTERS = { caseType: [], status: [], side: [], ageGroup: [], payment: [], timePeriod: null, researchOnly: false }; render(); return; }
+  if (action === 'toggle-filter-opt') {
+    const group = el.dataset.group, value = el.dataset.value;
+    const list = ACTIVE_FILTERS[group];
+    const idx = list.indexOf(value);
+    if (idx >= 0) list.splice(idx, 1); else list.push(value);
+    render(); return;
+  }
+  if (action === 'set-filter-time') {
+    ACTIVE_FILTERS.timePeriod = (ACTIVE_FILTERS.timePeriod === el.dataset.value) ? null : el.dataset.value;
+    render(); return;
+  }
+  if (action === 'toggle-filter-research') { ACTIVE_FILTERS.researchOnly = !ACTIVE_FILTERS.researchOnly; render(); return; }
   if (action === 'quick-fill-text') {
     await performQuickFillText(el.dataset.target, el.dataset.value);
     return;
