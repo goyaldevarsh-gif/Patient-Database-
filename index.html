@@ -2628,6 +2628,7 @@ async function performQuickFillText(targetId, value) {
 const DIAGNOSIS_LIB_KEY = 'surgical-case-log-diagnosis-lib-v1';
 const CHIEF_COMPLAINT_LIB_KEY = 'surgical-case-log-complaint-lib-v1';
 const PROCEDURE_LIB_KEY = 'surgical-case-log-procedure-lib-v1';
+const PURPOSE_LIB_KEY = 'followup-purpose-lib-v1';
 const INVESTIGATION_LIB_KEY = 'surgical-case-log-investigation-lib-v1';
 const LAB_PARAMETERS = [
   ['ESR','mm/hr'], ['CRP','mg/L'], ['TLC/WBC','cells/\u00b5L'], ['Hemoglobin','g/dL'],
@@ -3495,7 +3496,8 @@ function renderLpContextMenu() {
   return '<div class="modal-backdrop" data-action="lp-close" style="position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:flex;align-items:flex-end;">'
     + '<div style="background:var(--bg);width:100%;border-radius:18px 18px 0 0;padding:10px 12px 24px;max-height:80vh;overflow-y:auto;">'
     + '<div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 12px;"></div>'
-    + '<div style="font-size:14px;font-weight:800;padding:2px 4px 12px;">'+esc(p.name)+'</div>'
+    + '<div style="font-size:14px;font-weight:800;padding:2px 4px 2px;">'+esc(p.name)+'</div>'
+    + (p.followUpPurpose ? '<div style="font-size:11.5px;color:var(--accent-dark);font-weight:700;padding:0 4px 12px;">'+ic('bookmark')+' '+esc(p.followUpPurpose)+'</div>' : '<div style="padding-bottom:10px;"></div>')
     + (waNum ? box('phone','Call','lp-call') : '')
     + box('users','Open Profile','open-patient')
     + box('bookmark', p.researchFlag?'Remove from Research':'Bookmark for Research', 'toggle-research-flag')
@@ -5254,7 +5256,8 @@ function renderQuickFuModal() {
     + '<div class="ocr-card">'
     + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('calendar')+' Follow-up for '+esc(p.name)+'</h3><button class="icon-btn" data-action="quick-fu-cancel">'+ic('x')+'</button></div>'
     + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Sets this patient\u2019s next follow-up date \u2014 shows up on Dashboard\u2019s Needs Attention when due.</p>'
-    + '<div style="margin-bottom:14px;">'+relativeFollowupPickerHtml('quick-fu-date', p.nextFollowUpDate || '', false)+'</div>'
+    + '<div style="margin-bottom:10px;">'+relativeFollowupPickerHtml('quick-fu-date', p.nextFollowUpDate || '', false)+'</div>'
+    + '<div style="margin-bottom:14px;"><label class="field-label">Purpose (optional) \u2014 helps you remember why</label>'+renderQuickTextChips(PURPOSE_LIB_KEY,'quick-fu-purpose')+'<input class="input" id="quick-fu-purpose" placeholder="e.g. Suture removal, X-ray review" value="'+esc(p.followUpPurpose||'')+'">'+autocompleteBoxHtml('quick-fu-purpose')+'</div>'
     + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="quick-fu-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="quick-fu-save" data-patient-id="'+p.id+'">Save</button></div>'
     + '</div></div>';
   setupFollowupFormValidation();
@@ -5522,6 +5525,7 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
               + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.patient.name)+'</span>'
               + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+esc(remindedText)+'</span>'
               + '<span style="display:block;font-size:10.5px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+followUpContextLine(item.patient)+'</span>'
+              + (item.patient.followUpPurpose ? '<span style="display:block;font-size:10.5px;color:var(--accent-dark);font-weight:700;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+ic('bookmark')+' '+esc(item.patient.followUpPurpose)+'</span>' : '')
             + '</span>'
           + '</span>'
           + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+item.patient.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
@@ -6409,6 +6413,7 @@ function renderOverviewTab(p) {
     + '<span style="font-size:12.5px;font-weight:800;color:'+fuColor+';">'+(overdue ? 'OVERDUE' : (p.nextFollowUpDate ? fmtDate(p.nextFollowUpDate)+(p.nextFollowUpDate?' \u00b7 '+relativeDaysUntil(p.nextFollowUpDate):'') : 'Not scheduled'))+'</span>'
     + '</button>'
     + (p.followUpConfirmedAt && p.nextFollowUpDate ? '<div style="font-size:11px;color:var(--emerald);font-weight:700;margin-top:-4px;padding-left:2px;">'+ic('check')+' Patient confirmed via WhatsApp</div>' : '')
+    + (p.followUpPurpose && p.nextFollowUpDate ? '<div style="font-size:11.5px;color:var(--accent-dark);font-weight:700;margin-top:-4px;padding-left:2px;">'+ic('bookmark')+' '+esc(p.followUpPurpose)+'</div>' : '')
     + (overdue && overdueDays(p.nextFollowUpDate) >= 3 ? '<div class="row" style="gap:6px;margin-top:-4px;">'
         + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-followup" data-id="'+p.id+'">'+ic('clock')+' Snooze 7d</button>'
         + (ARMED_DELETE === 'attn-mark-lost:'+p.id
@@ -8438,6 +8443,7 @@ function renderTomorrowFollowUpsList() {
       + '<div style="min-width:0;flex:1;cursor:pointer;" data-action="open-patient" data-id="'+p.id+'">'
       + '<div style="font-size:13.5px;font-weight:700;">'+escName(p.name)+'</div>'
       + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+followUpContextLine(p)+'</div>'
+      + (p.followUpPurpose ? '<div style="font-size:11px;color:var(--accent-dark);font-weight:700;margin-top:1px;">'+ic('bookmark')+' '+esc(p.followUpPurpose)+'</div>' : '')
       + '<div style="margin-top:4px;">'+reminderStatusBadgeHtml(p)+'</div>'
       + '</div>'
       + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:none;background:#25D366;border-color:#25D366;color:#fff;" data-action="log-reminder-sent" data-id="'+p.id+'">'+ic('message')+' Send</a>' : '<span class="badge badge-slate" style="font-size:10px;">No WhatsApp</span>')
@@ -9570,7 +9576,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'lp-change-date') { LP_MENU_PATIENT_ID = null; QUICK_FU_PATIENT_ID = el.dataset.id; renderQuickFuModal(); return; }
   if (action === 'lp-mark-completed') {
     const p = getPatient(el.dataset.id);
-    if (p) { p.nextFollowUpDate = ''; p.followUpConfirmedAt = null; await dbPutPatient(p); await refreshPatients(); toast('Follow-up marked completed'); }
+    if (p) { p.nextFollowUpDate = ''; p.followUpConfirmedAt = null; p.followUpPurpose = ''; await dbPutPatient(p); await refreshPatients(); toast('Follow-up marked completed'); }
     LP_MENU_PATIENT_ID = null; render(); return;
   }
   if (LP_MENU_PATIENT_ID && ['open-patient','attn-snooze-followup','attn-mark-lost','toggle-research-flag'].includes(action)) { LP_MENU_PATIENT_ID = null; }
@@ -9592,6 +9598,10 @@ document.addEventListener('click', async (e) => {
     const dateEl = document.getElementById('quick-fu-date');
     const date = dateEl ? dateEl.value : '';
     if (!date) { toast('Pick a date first'); return; }
+    const purposeEl = document.getElementById('quick-fu-purpose');
+    const purpose = purposeEl ? purposeEl.value.trim() : '';
+    p.followUpPurpose = purpose;
+    if (purpose) recordTextUsed(PURPOSE_LIB_KEY, purpose);
     p.nextFollowUpDate = date;
     p.followUpSnoozeCount = 0;
     p.lastReminderSentAt = null;
@@ -12982,6 +12992,7 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'ov-complaints') { updateAutocomplete('ov-complaints', CHIEF_COMPLAINT_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ap-procedure') { AP_TEMP.procedure = e.target.value; updateAutocomplete('ap-procedure', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'header-procedure-input') { updateAutocomplete('header-procedure-input', PROCEDURE_LIB_KEY, e.target.value, 'quick-fill-text'); }
+  if (e.target.id === 'quick-fu-purpose') { updateAutocomplete('quick-fu-purpose', PURPOSE_LIB_KEY, e.target.value, 'quick-fill-text'); }
   if (e.target.id === 'ap-duration') { AP_TEMP.symptomDuration = e.target.value; }
 });
 document.addEventListener('mousedown', (e) => {
@@ -13002,7 +13013,7 @@ document.addEventListener('touchstart', (e) => {
 }, { passive: false });
 document.addEventListener('blur', async (e) => {
   if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
-  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','header-procedure-input'].includes(e.target.id)) {
+  if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','header-procedure-input','quick-fu-purpose'].includes(e.target.id)) {
     const id = e.target.id;
     setTimeout(() => hideAutocomplete(id), 200);
   }
