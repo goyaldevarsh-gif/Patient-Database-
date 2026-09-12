@@ -5394,7 +5394,7 @@ function renderDashboardSection() {
   const tomorrowCount = s.dueTomorrowList.length;
 
   // ---- 1. ADD NEW (top priority \u2014 the most common thing to do on opening the app) ----
-  html += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:4px 0 8px;">ADD NEW</div>'
+  html += '<div class="display" style="font-size:19px;font-weight:700;color:var(--ink);margin:4px 0 10px;">Create New</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">'
     + '<button type="button" class="card" style="text-align:left;background:rgba(37,99,235,0.06);border-color:rgba(37,99,235,0.2);padding:14px;" data-action="add-menu-new-opd">'
       + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.opd+'</span>'
@@ -5433,7 +5433,7 @@ function renderDashboardSection() {
 
   // ---- 2. FOLLOW-UPS (clearly labelled so it's obvious what these 3 tiles mean) ----
   if (PATIENTS.length) {
-    html += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:4px 0 8px;">FOLLOW-UPS</div>';
+    html += '<div class="display" style="font-size:19px;font-weight:700;color:var(--ink);margin:4px 0 10px;">Follow-ups</div>';
     if (overdueCount === 0 && todayFollowUpCount === 0 && tomorrowCount === 0) {
       html += '<button type="button" data-action="dash-goto-overdue" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:18px;background:var(--emerald-bg);">'
         + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
@@ -5459,22 +5459,25 @@ function renderDashboardSection() {
   }
 
   // ---- 3. MANAGE & TRACK ----
-  html += '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin:0 0 8px;">MANAGE &amp; TRACK</div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">'
-    + '<button type="button" class="card" style="text-align:left;padding:14px 12px;position:relative;background:rgba(37,99,235,0.06);border-color:rgba(37,99,235,0.2);" data-action="nav-patients">'
-      + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;">'+DASH_ICONS.patients+'</span>'
-      + '<span style="display:block;font-size:12.5px;font-weight:800;color:var(--ink);">Patients</span>'
-      + '<span style="display:block;font-size:10px;color:var(--muted);margin-top:1px;">View &amp; manage</span>'
+  html += '<div class="display" style="font-size:19px;font-weight:700;color:var(--ink);margin:0 0 10px;">Manage &amp; Track</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">'
+    + '<button type="button" class="card" style="text-align:left;padding:12px 10px;position:relative;background:rgba(37,99,235,0.06);border-color:rgba(37,99,235,0.2);" data-action="nav-patients">'
+      + '<span style="display:inline-block;width:28px;height:28px;margin-bottom:6px;">'+DASH_ICONS.patients+'</span>'
+      + '<span style="display:block;font-size:12px;font-weight:800;color:var(--ink);">Patients</span>'
+      + '<span style="display:block;font-size:9.5px;color:var(--muted);margin-top:1px;">'+PATIENTS.length+' total</span>'
       + '</button>'
-    + '<button type="button" class="card" style="text-align:left;padding:14px 12px;position:relative;background:var(--bg-soft);" data-action="open-reminders-tab">'
-      + '<span style="display:inline-block;width:36px;height:36px;margin-bottom:6px;opacity:0.75;">'+DASH_ICONS.reminder+'</span>'
+    + '<button type="button" class="card" style="text-align:left;padding:12px 10px;position:relative;background:var(--bg-soft);" data-action="open-reminders-tab">'
+      + '<span style="display:inline-block;width:28px;height:28px;margin-bottom:6px;opacity:0.75;">'+DASH_ICONS.reminder+'</span>'
       + (dueRemindersCount ? '<span style="position:absolute;top:8px;right:8px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(dueRemindersCount>9?'9+':dueRemindersCount)+'</span>' : '')
-      + '<span style="display:block;font-size:12.5px;font-weight:700;color:var(--muted);">Reminders</span>'
-      + '<span style="display:block;font-size:10px;color:var(--muted);margin-top:1px;opacity:0.8;">Set &amp; manage</span>'
+      + '<span style="display:block;font-size:12px;font-weight:700;color:var(--muted);">Reminders</span>'
+      + '<span style="display:block;font-size:9.5px;color:var(--muted);margin-top:1px;opacity:0.8;">Set &amp; manage</span>'
+      + '</button>'
+    + '<button type="button" class="card" style="text-align:left;padding:12px 10px;position:relative;background:var(--bg-soft);" data-action="open-more">'
+      + '<span style="display:inline-block;width:28px;height:28px;margin-bottom:6px;opacity:0.75;">'+DASH_ICONS.more+'</span>'
+      + '<span style="display:block;font-size:12px;font-weight:700;color:var(--muted);">More</span>'
+      + '<span style="display:block;font-size:9.5px;color:var(--muted);margin-top:1px;opacity:0.8;">Settings &amp; more</span>'
       + '</button>'
     + '</div>';
-
-  html += moreRowHtml2(DASH_ICONS.more, 'More', 'Investigations, Reports, Templates &amp; More', 'open-more');
 
   return html;
 }
