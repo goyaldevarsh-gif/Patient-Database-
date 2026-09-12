@@ -210,6 +210,8 @@
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body { margin:0; background:#fff; color:var(--ink); }
   body { font-family:'Inter',system-ui,sans-serif; font-size:14px; -webkit-font-smoothing:antialiased; line-height:1.5; }
+  [data-font-size="small"] #app { zoom:0.9; }
+  [data-font-size="large"] #app { zoom:1.15; }
   h1,h2,h3,.display { font-family:'Plus Jakarta Sans',sans-serif; }
   .mono { font-family:'JetBrains Mono',monospace; }
   #app { max-width:520px; margin:0 auto; min-height:100vh; background:#fff; position:relative; }
@@ -3522,6 +3524,19 @@ let SCHEME_VIEWING_IMPLANTS = null; // package code currently expanded, standalo
 let RQ_QUEUE = []; // array of patient ids in this reminder session
 let MC_SEARCH = ''; let MC_BROADCAST_MSG = ''; let MC_QUEUE = []; let MC_QUEUE_INDEX = 0;
 let LP_MENU_PATIENT_ID = null;
+let READING_MODE_PATIENT_ID = null;
+function renderReadingModeModal() {
+  if (!READING_MODE_PATIENT_ID) return '';
+  const p = getPatient(READING_MODE_PATIENT_ID);
+  if (!p) return '';
+  return '<div style="position:fixed;inset:0;background:var(--bg);z-index:250;overflow-y:auto;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;background:var(--bg);border-bottom:1px solid var(--border);">'
+    + '<div class="row between"><span style="font-size:13px;font-weight:800;color:var(--muted);">'+esc(p.name)+' \u2014 Clinical Notes</span><button type="button" class="icon-btn" data-action="close-reading-mode">'+ic('x')+'</button></div>'
+    + '</div>'
+    + '<div style="padding:24px 20px 60px;max-width:600px;margin:0 auto;">'
+    + '<div style="font-size:18px;line-height:1.8;white-space:pre-wrap;color:var(--ink);">'+(p.notes ? esc(p.notes) : '<span style="color:var(--muted);">No clinical notes yet.</span>')+'</div>'
+    + '</div></div>';
+}
 function renderLpContextMenu() {
   if (!LP_MENU_PATIENT_ID) return '';
   const p = getPatient(LP_MENU_PATIENT_ID);
@@ -4893,6 +4908,9 @@ function renderAppSettingsView() {
     + [['auto','Auto'],['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div>'
     + (loadTheme()==='auto' ? '<p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Light 6 AM\u20137 PM, Dark otherwise \u2014 switches automatically.</p>' : '')
+    + '<div class="card"><label class="field-label">Text Size</label><div class="row between"><span style="font-size:13px;font-weight:600;">App-wide size</span><div class="seg" style="width:auto;">'
+    + [['small','Small'],['medium','Medium'],['large','Large']].map(([v,l])=>'<button class="seg-btn'+(loadFontSize()===v?' active':'')+'" data-action="set-font-size" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
+    + '</div></div></div>'
     + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
     + '</div>'
     + notifCardHtml()
@@ -5515,18 +5533,18 @@ function renderDashboardSection() {
     + '<button type="button" class="card" style="text-align:left;padding:12px 10px;position:relative;background:rgba(37,99,235,0.06);border-color:rgba(37,99,235,0.2);" data-action="nav-patients">'
       + '<span style="display:inline-block;width:28px;height:28px;margin-bottom:6px;">'+DASH_ICONS.patients+'</span>'
       + '<span style="display:block;font-size:12px;font-weight:800;color:var(--ink);">Patients</span>'
-      + '<span style="display:block;font-size:9.5px;color:var(--muted);margin-top:1px;">'+PATIENTS.length+' total</span>'
+      + '<span style="display:block;font-size:9.5px;font-weight:700;color:var(--muted);margin-top:1px;">'+PATIENTS.length+' total</span>'
       + '</button>'
     + '<button type="button" class="card" style="text-align:left;padding:12px 10px;position:relative;background:var(--bg-soft);" data-action="open-reminders-tab">'
       + '<span style="display:inline-block;width:28px;height:28px;margin-bottom:6px;opacity:0.75;">'+DASH_ICONS.reminder+'</span>'
       + (dueRemindersCount ? '<span style="position:absolute;top:8px;right:8px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--red);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;">'+(dueRemindersCount>9?'9+':dueRemindersCount)+'</span>' : '')
       + '<span style="display:block;font-size:12px;font-weight:700;color:var(--muted);">Reminders</span>'
-      + '<span style="display:block;font-size:9.5px;color:var(--muted);margin-top:1px;opacity:0.8;">Set &amp; manage</span>'
+      + '<span style="display:block;font-size:9.5px;font-weight:700;color:var(--muted);margin-top:1px;opacity:0.8;">Set &amp; manage</span>'
       + '</button>'
     + '<button type="button" class="card" style="text-align:left;padding:12px 10px;position:relative;background:var(--bg-soft);" data-action="open-more">'
       + '<span style="display:inline-block;width:28px;height:28px;margin-bottom:6px;opacity:0.75;">'+DASH_ICONS.more+'</span>'
       + '<span style="display:block;font-size:12px;font-weight:700;color:var(--muted);">More</span>'
-      + '<span style="display:block;font-size:9.5px;color:var(--muted);margin-top:1px;opacity:0.8;">Settings &amp; more</span>'
+      + '<span style="display:block;font-size:9.5px;font-weight:700;color:var(--muted);margin-top:1px;opacity:0.8;">Settings &amp; more</span>'
       + '</button>'
     + '</div>';
 
@@ -5724,7 +5742,7 @@ function renderListView() {
   return '<div style="padding-bottom:32px;">'
     + '<div class="sticky-top px" style="padding:16px 16px 10px;">'
     + '<div class="row between" style="align-items:center;">'
-    + '<div class="row gap2"><img src="icons/icon-192.png" style="width:36px;height:36px;border-radius:9px;flex:none;box-shadow:0 2px 8px rgba(67,56,202,0.25);"><h1 style="font-size:19px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1></div>'
+    + '<div class="row gap2"><img src="icons/icon-192.png" style="width:36px;height:36px;border-radius:9px;flex:none;box-shadow:0 2px 8px rgba(67,56,202,0.25);"><div><h1 style="font-size:19px;font-weight:800;margin:0;letter-spacing:-0.01em;">Ortho<span style="color:var(--accent);">Vault</span></h1><p class="display" style="font-size:10px;font-weight:700;color:var(--muted);margin:0;letter-spacing:0.02em;">Ortho.Organised</p></div></div>'
     + '<div style="text-align:right;">'
     + (ownerProfile.doctorName ? '<p style="font-size:12px;font-weight:700;color:var(--ink);margin:0;">'+esc(ownerProfile.doctorName)+'</p>' : '')
     + '<p style="font-size:10.5px;color:var(--muted);margin:1px 0 0;"><span style="font-weight:800;color:var(--accent);font-size:12px;">'+PATIENTS.length+'</span> case'+(PATIENTS.length!==1?'s':'')+' on record</p>'
@@ -6444,7 +6462,7 @@ function renderOverviewTab(p) {
   let clinicalBody = (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
     + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
     + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(p.occupation||'')+'"></div>'
-    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label>'+micButtonHtml('ov-notes')+'</div>'
+    + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label><div class="row gap1">'+micButtonHtml('ov-notes')+'<button type="button" class="icon-btn" style="width:26px;height:26px;" data-action="open-reading-mode" data-id="'+p.id+'" title="Reading Mode">'+ic('book')+'</button></div></div>'
     + '<textarea class="textarea" id="ov-notes" rows="5" maxlength="5000" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
     + (p.condition ? '<div class="row between" style="align-items:center;"><span style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></span><button type="button" class="chip" style="font-size:10px;padding:3px 8px;" data-action="ov-show-tracking-pick">Change</button></div>'
         + (OV_SHOW_TRACKING_PICK ? '<select class="select" id="ov-tracking-select" style="margin-top:6px;"><option value="">\u2014 None (remove tracking) \u2014</option><option value="ctev"'+(p.condition==='ctev'?' selected':'')+'>CTEV</option><option value="ra"'+(p.condition==='ra'?' selected':'')+'>RA</option><option value="osteoporosis"'+(p.condition==='osteoporosis'?' selected':'')+'>Osteoporosis</option><option value="trauma"'+(p.condition==='trauma'?' selected':'')+'>Trauma</option></select>' : '')
@@ -8628,6 +8646,7 @@ async function render() {
   try {
     await renderCurrentView(app);
     if (LP_MENU_PATIENT_ID) app.insertAdjacentHTML('beforeend', renderLpContextMenu());
+    if (READING_MODE_PATIENT_ID) app.insertAdjacentHTML('beforeend', renderReadingModeModal());
   } catch (err) {
     console.error('render() failed for VIEW=' + VIEW, err);
     // Don't let a broken view (bad data, edge case, etc.) leave the app in a half-rendered
@@ -9673,6 +9692,8 @@ document.addEventListener('click', async (e) => {
   if (!el) return;
   const action = el.dataset.action;
 
+  if (action === 'open-reading-mode') { READING_MODE_PATIENT_ID = el.dataset.id; render(); return; }
+  if (action === 'close-reading-mode') { READING_MODE_PATIENT_ID = null; render(); return; }
   if (action === 'lp-close') { LP_MENU_PATIENT_ID = null; render(); return; }
   if (action === 'lp-call') {
     const p = getPatient(el.dataset.id);
@@ -11498,6 +11519,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'set-theme') { applyTheme(el.dataset.value); render(); return; }
+  if (action === 'set-font-size') { applyFontSize(el.dataset.value); render(); return; }
   if (action === 'set-accent') { applyAccentTheme(el.dataset.value); render(); return; }
   if (action === 'enable-notifs') {
     if (typeof Notification === 'undefined') { toast('Notifications aren\u2019t supported in this browser'); return; }
@@ -13201,6 +13223,12 @@ function applyTheme(t) {
   try { localStorage.setItem(THEME_KEY, t); } catch(e) {}
   applyAccentTheme(loadAccentTheme());
 }
+const FONT_SIZE_KEY = 'orthovault-font-size-v1';
+function loadFontSize() { try { return localStorage.getItem(FONT_SIZE_KEY) || 'medium'; } catch(e) { return 'medium'; } }
+function applyFontSize(size) {
+  document.documentElement.setAttribute('data-font-size', size);
+  try { localStorage.setItem(FONT_SIZE_KEY, size); } catch(e) {}
+}
 setInterval(() => { if (loadTheme() === 'auto') applyTheme('auto'); }, 10*60*1000);
 
 const ACCENT_THEMES = {
@@ -13347,6 +13375,7 @@ function renderSplashScreen() {
   const splashStart = Date.now();
 
   applyTheme(loadTheme());
+  applyFontSize(loadFontSize());
   if (navigator.storage && navigator.storage.persist) { try { await navigator.storage.persist(); } catch(e) {} }
   try {
     const deleted = await dbGetDeletedPatients();
