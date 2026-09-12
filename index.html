@@ -2647,6 +2647,9 @@ function sideToggleHtml(action, currentSide, includeNA) {
     + options.map(([full,short])=>'<button type="button" class="seg-btn'+(currentSide===full?' active':'')+'" data-action="'+action+'" data-value="'+full+'">'+short+'</button>').join('')
     + '</div>';
 }
+function autoCapitalizeWords(text) {
+  return String(text || '').replace(/\b\w/g, c => c.toUpperCase());
+}
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
 function patientAgeGroup(p) {
   const age = parseInt(p.age, 10);
@@ -4334,6 +4337,7 @@ function moreBodyHtml() {
     { group:'cleanup', title:'Find Duplicate Patients', sub:'Scan for likely-duplicate cases by name', html: moreRowHtml('funnel', 'Find Duplicate Patients', 'Scan for likely-duplicate cases by name and merge them safely', 'open-duplicate-finder') },
     { group:'cleanup', title:'Unfiled Photos', sub:'Recover photos from forms that were never finished', html: moreRowHtml('camera', 'Unfiled Photos'+(UNFILED_COUNT_CACHE?' ('+UNFILED_COUNT_CACHE+')':''), 'Photos saved from a form that was never finished \u2014 file or delete them', 'open-unfiled-photos') },
     { group:'cleanup', title:'Fix Follow-up Week Labels', sub:'Recalculate "2 Weeks / 6 Weeks" labels', html: moreRowHtml('clock', 'Fix Follow-up Week Labels', 'Recalculates "2 Weeks / 6 Weeks" etc labels from surgery/visit date instead of the previous visit', 'fix-followup-labels') },
+    { group:'cleanup', title:'Fix Name/Diagnosis Capitalization', sub:'Capitalize existing patient names and diagnoses', html: moreRowHtml('pencil', 'Fix Name/Diagnosis Capitalization', 'One-time cleanup \u2014 capitalizes existing patient names and diagnoses that were typed in lowercase', 'fix-capitalization') },
 
     { group:'finance', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
     { group:'finance', title:'Marketing Contacts', sub:'Auto-synced patient contacts for broadcasts', html: moreRowHtml('users', 'Marketing Contacts', 'Every patient contact, auto-collected \u2014 broadcast reels/updates to all at once', 'open-mc') },
@@ -5171,6 +5175,17 @@ function visitLabelForElapsedDays(daysSinceAnchor) {
   if (daysSinceAnchor <= 100) return '3 Months';
   if (daysSinceAnchor <= 200) return '6 Months';
   return '1 Year';
+}
+async function capitalizeExistingPatients() {
+  let patientsTouched = 0;
+  for (const p of PATIENTS) {
+    let changed = false;
+    if (p.name) { const c = autoCapitalizeWords(p.name); if (c !== p.name) { p.name = c; changed = true; } }
+    if (p.diagnosis) { const c = autoCapitalizeWords(p.diagnosis); if (c !== p.diagnosis) { p.diagnosis = c; changed = true; } }
+    if (changed) { await dbPutPatient(p); patientsTouched++; }
+  }
+  if (patientsTouched) await refreshPatients();
+  return { patientsTouched };
 }
 async function fixFollowupLabels() {
   const KNOWN_AUTO_LABELS = new Set(['First Follow-up','1 Week','2 Weeks','3 Weeks','1 Month','6 Weeks','3 Months','6 Months','1 Year']);
@@ -11634,6 +11649,12 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'rq-skip') { RQ_INDEX++; render(); return; }
   if (action === 'close-reminder-queue') { RQ_QUEUE = []; RQ_INDEX = 0; VIEW = 'list'; render(); return; }
+  if (action === 'fix-capitalization') {
+    const result = await capitalizeExistingPatients();
+    toast(result.patientsTouched ? ('Fixed capitalization for ' + result.patientsTouched + ' patient' + (result.patientsTouched!==1?'s':'')) : 'Everything was already capitalized correctly');
+    if (VIEW === 'detail') await renderTabBody(getPatient(SELECTED_ID));
+    return;
+  }
   if (action === 'fix-followup-labels') {
     const result = await fixFollowupLabels();
     toast(result.entriesFixed ? ('Fixed ' + result.entriesFixed + ' label' + (result.entriesFixed!==1?'s':'') + ' across ' + result.patientsTouched + ' patient' + (result.patientsTouched!==1?'s':'')) : 'All follow-up labels were already correct \u2014 nothing to fix');
@@ -13122,6 +13143,10 @@ document.addEventListener('touchstart', (e) => {
   if (e.target.closest && e.target.closest('[data-action="quick-fill-text"]')) { e.preventDefault(); }
 }, { passive: false });
 document.addEventListener('blur', async (e) => {
+  if (['ap-name','ap-diagnosis','patient-name-input','header-diagnosis-input'].includes(e.target.id) && e.target.value) {
+    const capitalized = autoCapitalizeWords(e.target.value);
+    if (capitalized !== e.target.value) { e.target.value = capitalized; if (e.target.id === 'ap-diagnosis') AP_TEMP.diagnosis = capitalized; if (e.target.id === 'ap-name') AP_TEMP.name = capitalized; }
+  }
   if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
   if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','header-procedure-input','quick-fu-purpose'].includes(e.target.id)) {
     const id = e.target.id;
