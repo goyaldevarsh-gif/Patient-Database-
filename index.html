@@ -1978,8 +1978,7 @@ function reminderStatusBadgeHtml(patient) {
   if (!lastSent) {
     return '<span class="badge badge-muted" style="font-size:10px;">Not reminded</span>';
   }
-  const viaAuto = auto >= manual; // whichever is the more recent send decides the label
-  const label = viaAuto ? 'Auto-reminded' : 'Reminded';
+  const label = 'Reminded';
 
   const hoursAgo = Math.floor((Date.now() - lastSent) / 3600000);
 
