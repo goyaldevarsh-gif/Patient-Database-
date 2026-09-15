@@ -5565,6 +5565,12 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
     return html;
   }
   const queueEligible = items.filter(item => item.type === 'Follow-up' && item.patient.whatsapp);
+  const remindedCount = items.filter(item => (item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt)).length;
+  const pendingCount = items.length - remindedCount;
+  html += '<div class="row gap2" style="margin-bottom:10px;">'
+    + '<div style="flex:1;background:var(--emerald-bg);border:1.5px solid var(--emerald-border);border-radius:12px;padding:9px 10px;text-align:center;"><div style="font-size:19px;font-weight:800;color:var(--emerald);line-height:1.1;">'+remindedCount+'</div><div style="font-size:10px;font-weight:800;color:var(--emerald);text-transform:uppercase;letter-spacing:0.03em;margin-top:1px;">Reminded</div></div>'
+    + '<div style="flex:1;background:'+(pendingCount?'var(--amber-bg)':'var(--bg-soft)')+';border:1.5px solid '+(pendingCount?'var(--amber-border)':'var(--border)')+';border-radius:12px;padding:9px 10px;text-align:center;"><div style="font-size:19px;font-weight:800;color:'+(pendingCount?'#b45309':'var(--muted)')+';line-height:1.1;">'+pendingCount+'</div><div style="font-size:10px;font-weight:800;color:'+(pendingCount?'#b45309':'var(--muted)')+';text-transform:uppercase;letter-spacing:0.03em;margin-top:1px;">Pending</div></div>'
+    + '</div>';
   if (queueEligible.length) {
     html += '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>';
   }
@@ -8612,7 +8618,14 @@ function renderTomorrowFollowUpsList() {
   const s = computeDashboardStats();
   if (!s.dueTomorrowList.length) return '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:24px;">No follow-ups due tomorrow.</p>';
   const queueEligible = s.dueTomorrowList.filter(p => p.whatsapp);
-  return (queueEligible.length ? '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-tomorrow-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>' : '')
+  const remindedCount = s.dueTomorrowList.filter(p => (p.lastReminderSentAt || p.lastAutoReminderSentAt)).length;
+  const pendingCount = s.dueTomorrowList.length - remindedCount;
+  const summaryBar = '<div class="row gap2" style="margin-bottom:10px;">'
+    + '<div style="flex:1;background:var(--emerald-bg);border:1.5px solid var(--emerald-border);border-radius:12px;padding:9px 10px;text-align:center;"><div style="font-size:19px;font-weight:800;color:var(--emerald);line-height:1.1;">'+remindedCount+'</div><div style="font-size:10px;font-weight:800;color:var(--emerald);text-transform:uppercase;letter-spacing:0.03em;margin-top:1px;">Reminded</div></div>'
+    + '<div style="flex:1;background:'+(pendingCount?'var(--amber-bg)':'var(--bg-soft)')+';border:1.5px solid '+(pendingCount?'var(--amber-border)':'var(--border)')+';border-radius:12px;padding:9px 10px;text-align:center;"><div style="font-size:19px;font-weight:800;color:'+(pendingCount?'#b45309':'var(--muted)')+';line-height:1.1;">'+pendingCount+'</div><div style="font-size:10px;font-weight:800;color:'+(pendingCount?'#b45309':'var(--muted)')+';text-transform:uppercase;letter-spacing:0.03em;margin-top:1px;">Pending</div></div>'
+    + '</div>';
+  return summaryBar
+    + (queueEligible.length ? '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-tomorrow-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>' : '')
     + s.dueTomorrowList.map(p => {
     const waLink = p.whatsapp ? followUpReminderLink(p) : null;
     return '<div class="card" data-lp-id="'+p.id+'" style="margin-bottom:8px;">'
