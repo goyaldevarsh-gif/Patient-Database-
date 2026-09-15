@@ -6094,6 +6094,7 @@ let AP_INV_CATEGORY = 'xray';
 let AP_INV_XRAY_SUBTYPE = 'General OPD';
 let AP_INV_ACTIVE_GROUP = 'imaging';
 let AP_SHOW_PAYMENT = false;
+let AP_SHOW_SPECIAL_PICK = false;
 let AP_OPEN_SECTION = 2; // which numbered accordion section is expanded (section 1, Patient details, is now always pinned/visible)
 let AP_DIAG_CONFIRMED = false; // set true after user taps Save once with empty diagnosis; reset on cancel/init
 const AP_INV_GROUPS = [
@@ -6116,6 +6117,7 @@ function initApTemp() {
   AP_INV_XRAY_SUBTYPE = 'General OPD';
   AP_INV_ACTIVE_GROUP = 'imaging';
   AP_SHOW_PAYMENT = false;
+  AP_SHOW_SPECIAL_PICK = false;
   AI_SANITY_CHECK_RESULT = null;
   AI_INVESTIGATION_SUGGESTIONS = null;
   AI_EXAM_SUGGESTIONS = null;
@@ -6230,23 +6232,63 @@ function apDiagAiSuggestBlockHtml() {
     + '</div>';
 }
 
+function updateApReadiness() {
+  const nameEl = document.getElementById('ap-name');
+  const ageEl = document.getElementById('ap-age-text');
+  const indicator = document.getElementById('ap-readiness-indicator');
+  const saveBtn = document.getElementById('ap-save-btn');
+  const nameCheck = document.getElementById('ap-name-check');
+  const ageCheck = document.getElementById('ap-age-check');
+  if (!nameEl || !ageEl || !indicator || !saveBtn) return;
+  const nameOk = !!(nameEl.value && nameEl.value.trim());
+  const ageOk = !!(ageEl.value && ageEl.value.trim());
+  if (nameCheck) nameCheck.innerHTML = nameOk ? '<span style="color:var(--emerald);font-weight:800;">\u2713</span>' : '';
+  if (ageCheck) ageCheck.innerHTML = ageOk ? '<span style="color:var(--emerald);font-weight:800;">\u2713</span>' : '';
+  const ready = nameOk && ageOk;
+  indicator.style.color = ready ? 'var(--emerald)' : 'var(--muted)';
+  indicator.innerHTML = ready ? (ic('check')+' Ready to save \u2014 everything below is optional') : (ic('alert')+' Fill Name &amp; Age above to continue');
+  saveBtn.className = 'btn' + (ready ? ' btn-primary' : '');
+  saveBtn.style.opacity = ready ? '1' : '0.5';
+}
+const LAST_PATIENT_TEMPLATE_KEY = 'orthovault-last-patient-template-v1';
+function saveLastPatientTemplate(p) {
+  try {
+    const template = {
+      caseType: p.caseType, regions: (p.regions||[]).slice(), diagnosis: p.diagnosis||'',
+      chiefComplaints: p.chiefComplaints||'', condition: p.condition||'',
+      surgeryType: p.surgeryType||'', savedAt: Date.now(),
+    };
+    localStorage.setItem(LAST_PATIENT_TEMPLATE_KEY, JSON.stringify(template));
+  } catch (e) {}
+}
+function loadLastPatientTemplate() {
+  try {
+    const raw = localStorage.getItem(LAST_PATIENT_TEMPLATE_KEY);
+    if (!raw) return null;
+    const t = JSON.parse(raw);
+    // Only useful if saved recently (same clinic-session/day) \u2014 stale templates from
+    // weeks ago are more likely to cause an accidental copy-paste mistake than help.
+    if (!t.savedAt || (Date.now() - t.savedAt) > 12*60*60*1000) return null;
+    return t;
+  } catch (e) { return null; }
+}
 function renderAddView() {
   const isSurgical = AP_TEMP.caseType === 'surgical';
   const tab2Label = isSurgical ? 'Diagnosis' : 'Complaints & Diagnosis';
   const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
 
   const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + '<div><label class="field-label">Patient name <span style="color:var(--red);font-weight:700;">(Required)</span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
+      + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">Patient name <span style="color:var(--red);">*Required</span> <span id="ap-name-check"></span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div class="row gap2" style="align-items:flex-end;">'
-      + '<div style="flex:1;min-width:0;">'
-        + '<label class="field-label">Age <span style="color:var(--red);font-weight:700;">(Required)</span></label>'
+      + '<div style="flex:1;min-width:0;border-left:3px solid var(--accent);padding-left:10px;">'
+        + '<label class="field-label" style="color:var(--accent-dark);font-weight:800;">Age <span style="color:var(--red);">*Required</span> <span id="ap-age-check"></span></label>'
         + '<input class="input" type="text" id="ap-age-text" placeholder="e.g. 45, 6mo, 15 days" value="'+esc(formatAge(AP_TEMP)==='\u2014' ? '' : formatAge(AP_TEMP))+'" style="max-width:200px;font-size:12px;font-weight:700;border-radius:8px;">'
         + '</div>'
       + '<div style="flex:none;"><label class="field-label">Sex</label><div class="seg">'
       + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
       + '</div>'
-      + '<div><label class="field-label">Occupation (optional)</label><input class="input" id="ap-occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(AP_TEMP.occupation)+'"></div>'
-      + '<div><label class="field-label">WhatsApp number (optional)</label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
+      + '<div style="opacity:0.75;"><label class="field-label" style="font-weight:500;font-size:11px;">Occupation <i>(optional)</i></label><input class="input" id="ap-occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(AP_TEMP.occupation)+'"></div>'
+      + '<div style="opacity:0.75;"><label class="field-label" style="font-weight:500;font-size:11px;">WhatsApp number <i>(optional)</i></label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
       + '</div>';
 
   const complaintsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
@@ -6294,9 +6336,9 @@ function renderAddView() {
       '<div style="display:flex;flex-direction:column;gap:12px;">'
       + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
       + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
-      + '<div><label class="field-label">Hospital (optional)</label><input class="input" id="ap-hospital" value="'+esc(AP_TEMP.hospital||'')+'"></div>'
-      + '<div><label class="field-label">Anaesthesia (optional)</label><select class="select" id="ap-anaesthesia"><option value=""'+(!AP_TEMP.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(AP_TEMP.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;opacity:0.75;">'
+      + '<div><label class="field-label" style="font-weight:500;font-size:11px;">Hospital <i>(optional)</i></label><input class="input" id="ap-hospital" value="'+esc(AP_TEMP.hospital||'')+'"></div>'
+      + '<div><label class="field-label" style="font-weight:500;font-size:11px;">Anaesthesia <i>(optional)</i></label><select class="select" id="ap-anaesthesia"><option value=""'+(!AP_TEMP.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(AP_TEMP.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
       + '</div>'
       + '<div class="card" style="padding:0;overflow:hidden;">'
       + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:12px;text-align:left;" data-action="ap-toggle-payment">'
@@ -6321,9 +6363,11 @@ function renderAddView() {
       + '</div>'
     ) : (
       '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + '<div><label class="field-label">Special tracking (optional)</label><div class="seg">'
-      + [['','None'],['ctev','CTEV'],['ra','RA'],['osteoporosis','Osteoporosis'],['trauma','Trauma']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.condition===v?' active':'')+'" data-action="ap-set-special" data-value="'+v+'">'+l+'</button>').join('')
-      + '</div></div>'
+      + (AP_TEMP.condition || AP_SHOW_SPECIAL_PICK ? (
+          '<div><label class="field-label">Special tracking (optional)</label><div class="seg">'
+          + [['','None'],['ctev','CTEV'],['ra','RA'],['osteoporosis','Osteoporosis'],['trauma','Trauma']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.condition===v?' active':'')+'" data-action="ap-set-special" data-value="'+v+'">'+l+'</button>').join('')
+          + '</div></div>'
+        ) : '<button type="button" class="chip" data-action="ap-show-special-pick">'+ic('plus')+' Track a special condition (optional)</button>')
       + (AP_TEMP.condition==='ctev' ? '<div><label class="field-label">Laterality</label><div class="seg">'
           + [['unilateral-left','Left'],['unilateral-right','Right'],['bilateral','Bilateral']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.laterality===v?' active':'')+'" data-action="ap-set-laterality" data-value="'+v+'">'+l+'</button>').join('')
           + '</div></div>' : '')
@@ -6331,10 +6375,10 @@ function renderAddView() {
     );
 
   const accordionSections = [
-    [2, 'alert', tab2Label, complaintsHtml],
-    [3, 'flask', 'Investigations', investigationsHtml],
-    [4, isSurgical ? 'scalpel' : 'clock', tab3Label, trackingHtml],
-    [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>'],
+    [2, 'alert', tab2Label, complaintsHtml, true],
+    [3, 'flask', 'Investigations', investigationsHtml, false],
+    [4, isSurgical ? 'scalpel' : 'clock', tab3Label, trackingHtml, isSurgical],
+    [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>', false],
   ];
 
   // Patient Details (section 1) stays pinned and always expanded \u2014 name/age are the fields
@@ -6345,11 +6389,11 @@ function renderAddView() {
     + detailsHtml
     + '</div>';
 
-  const accordionHtml = accordionSections.map(([n, icon, title, body]) => {
+  const accordionHtml = accordionSections.map(([n, icon, title, body, important]) => {
     const open = AP_OPEN_SECTION === n;
-    return '<div class="card" style="padding:0;margin-bottom:10px;overflow:hidden;" id="ap-section-'+n+'">'
+    return '<div class="card" style="padding:0;margin-bottom:10px;overflow:hidden;'+(important?'':'opacity:0.85;')+'" id="ap-section-'+n+'">'
       + '<button type="button" class="row between" style="width:100%;padding:13px 14px;background:'+(open?'rgba(67,56,202,0.05)':'none')+';border:none;text-align:left;" data-action="ap-toggle-section" data-value="'+n+'">'
-      + '<span class="row gap2" style="gap:10px;"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:rgba(67,56,202,0.12);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">'+n+'</span><span style="font-size:14px;font-weight:800;color:var(--ink);">'+title+'</span></span>'
+      + '<span class="row gap2" style="gap:10px;"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:'+(important?'rgba(67,56,202,0.12)':'var(--bg-soft)')+';color:'+(important?'var(--accent)':'var(--muted)')+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">'+n+'</span><span style="font-size:'+(important?'14px':'13px')+';font-weight:'+(important?'800':'600')+';color:'+(important?'var(--ink)':'var(--muted)')+';">'+title+(important?'':' <i style="font-weight:400;">(optional)</i>')+'</span></span>'
       + '<span style="color:var(--muted);transform:rotate('+(open?'-90':'90')+'deg);transition:transform 150ms;">'+ic('chevron')+'</span>'
       + '</button>'
       + (open ? '<div style="padding:4px 14px 16px;">'+body+'</div>' : '')
@@ -6364,6 +6408,9 @@ function renderAddView() {
       + (AI_SANITY_CHECK_RESULT ? '<div style="margin-top:8px;"><div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-sanity-answer-text')+'</div><div class="card" id="ai-sanity-answer-text" style="font-size:12.5px;white-space:pre-wrap;">'+esc(AI_SANITY_CHECK_RESULT)+'</div></div>' : '')
     : '';
 
+  const apReady = !!(AP_TEMP.name && AP_TEMP.name.trim() && (AP_TEMP.age || AP_TEMP.ageMonths || AP_TEMP.ageDays));
+  const lastTemplate = (!AP_TEMP.diagnosis && !AP_TEMP.chiefComplaints) ? loadLastPatientTemplate() : null;
+
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="cancel-add">'+ic('back')+'</button>'
@@ -6371,6 +6418,7 @@ function renderAddView() {
     + '</div></div>'
     + '<div class="px" style="padding-top:16px;display:flex;flex-direction:column;gap:0;">'
     + (AP_DUPLICATE_FROM ? '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;padding:10px 12px;margin-bottom:16px;"><span style="font-size:12px;color:var(--accent-dark);font-weight:600;">'+ic('tag')+' Duplicated from '+esc(AP_DUPLICATE_FROM)+' \u2014 everything else was copied, just check Name, Age and Side below.</span></div>' : '')
+    + (lastTemplate ? '<button type="button" class="row gap2" style="width:100%;padding:10px 12px;margin-bottom:12px;background:var(--bg-soft);border:1px dashed var(--border);border-radius:12px;text-align:left;" data-action="ap-copy-last-patient"><span style="flex:none;color:var(--accent);">'+ic('copy')+'</span><span style="font-size:12px;font-weight:700;color:var(--muted);">Copy diagnosis type from your last patient</span></button>' : '')
 
     + '<div class="row gap2" style="margin-bottom:12px;">'
     + '<div style="flex:1;"><label class="field-label">Case type</label><div class="seg">'
@@ -6381,6 +6429,9 @@ function renderAddView() {
     + '</div>'
 
     + pinnedDetailsHtml
+    + '<div id="ap-readiness-indicator" style="display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:'+(apReady?'var(--emerald)':'var(--muted)')+';margin:-2px 0 12px;padding-left:2px;">'
+      + (apReady ? ic('check')+' Ready to save \u2014 everything below is optional' : ic('alert')+' Fill Name &amp; Age above to continue')
+      + '</div>'
     + accordionHtml
     + aiAssistantPill
     + '<div class="card" style="padding:13px 14px 16px;margin-top:10px;">'
@@ -6390,7 +6441,7 @@ function renderAddView() {
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
     + '<button class="btn" style="flex:1;" data-action="cancel-add">Cancel</button>'
-    + '<button class="btn btn-primary" style="flex:2;" data-action="save-patient">Save case</button>'
+    + '<button class="btn'+(apReady?' btn-primary':'')+'" id="ap-save-btn" style="flex:2;'+(apReady?'':'opacity:0.5;')+'" data-action="save-patient">Save case</button>'
     + '</div>'
     + '</div>';
 }
@@ -10569,6 +10620,21 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'ap-toggle-payment') { AP_SHOW_PAYMENT = !AP_SHOW_PAYMENT; render(); return; }
+  if (action === 'ap-show-special-pick') { AP_SHOW_SPECIAL_PICK = true; render(); return; }
+  if (action === 'ap-copy-last-patient') {
+    const t = loadLastPatientTemplate();
+    if (!t) return;
+    AP_TEMP.caseType = t.caseType || AP_TEMP.caseType;
+    AP_TEMP.regions = (t.regions||[]).slice();
+    AP_TEMP.diagnosis = t.diagnosis || '';
+    AP_TEMP.chiefComplaints = t.chiefComplaints || '';
+    AP_TEMP.condition = t.condition || '';
+    AP_TEMP.surgeryType = t.surgeryType || AP_TEMP.surgeryType;
+    AP_OPEN_SECTION = 2;
+    toast('Copied \u2014 check and adjust as needed');
+    render();
+    return;
+  }
   if (action === 'ap-inv-toggle-group') {
     const key = el.dataset.value;
     AP_INV_ACTIVE_GROUP = (AP_INV_ACTIVE_GROUP === key) ? null : key;
@@ -10854,6 +10920,7 @@ document.addEventListener('click', async (e) => {
     }
     try {
       await dbPutPatient(p);
+      saveLastPatientTemplate(p);
       // These photos are already in IndexedDB (saved the moment they were picked \u2014
       // see handlePhotoInputChange / handleCategorizedPhotoChange). Reusing ph.tempId as
       // the id here just updates that same record rather than creating a duplicate.
@@ -13068,6 +13135,7 @@ document.addEventListener('change', async (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'ap-name' || e.target.id === 'ap-age-text') { updateApReadiness(); }
   if (e.target.id === 'more-search-input') {
     MORE_SEARCH = e.target.value;
     const container = document.getElementById('more-results-container');
