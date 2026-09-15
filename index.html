@@ -3409,8 +3409,11 @@ function computeWeeklyDigestStats() {
 }
 function renderAiDigestView() {
   const stats = computeWeeklyDigestStats();
-  return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
-    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-digest">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">This Week\u2019s Digest</h2><span style="width:36px;"></span></div>'
+  return '<div style="padding-bottom:100px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row between"><button class="icon-btn" data-action="close-ai-digest">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">This Week\u2019s Digest</h2><span style="width:36px;"></span></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;">'
     + '<div class="stat-card"><div class="stat-label">Surgeries (7 days)</div><div class="stat-value mono">'+stats.surgeriesThisWeek+'</div></div>'
     + '<div class="stat-card"><div class="stat-label">New OPD (7 days)</div><div class="stat-value mono">'+stats.newOpdThisWeek+'</div></div>'
@@ -3420,20 +3423,23 @@ function renderAiDigestView() {
     + (AI_DIGEST_SUMMARY
         ? '<div><div class="row between" style="margin-bottom:4px;"><span></span>'+speakButtonHtml('ai-digest-answer-text')+'</div><div class="card" id="ai-digest-answer-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_DIGEST_SUMMARY)+'</div></div>'
         : aiButtonHtml('ai-write-digest','AI: Write a summary',true,null,'gemini'))
-    + '</div>';
+    + '</div></div>';
 }
 
 function renderAiAssistantView() {
   const disclaimer = '<div class="card" style="background:#fffbeb;border-color:#fde68a;">'
     + '<div style="display:flex;gap:8px;align-items:flex-start;"><span style="flex:none;color:#b45309;">'+ic('alert')+'</span><p style="font-size:11.5px;color:#92400e;margin:0;line-height:1.5;"><strong>Reference and support, not a decision-maker.</strong> For a case: considerations to weigh, never a single diagnosis or plan. For technique: the standard, widely-taught approach, not your final word \u2014 your training, seniors, and institutional protocol always take priority. The final call, always, is yours.</p></div>'
     + '</div>';
-  return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
-    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-assistant">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ask OrthoVault</h2><span style="width:36px;"></span></div>'
+  return '<div style="padding-bottom:100px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row between"><button class="icon-btn" data-action="close-ai-assistant">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ask OrthoVault</h2><span style="width:36px;"></span></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
     + disclaimer
     + '<div style="margin-top:12px;"><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Case vignette or surgical approach question</label>'+micButtonHtml('ai-assistant-input')+'</div><textarea class="textarea" id="ai-assistant-input" rows="5" placeholder="e.g. 42M, twisting injury, Lachman 2+, pivot shift positive, MRI shows ACL tear + lateral meniscus tear. What should I consider?\n\u2014 or \u2014\nWalk me through the standard approach for a TKR.">'+esc(AI_ASSISTANT_QUESTION||'')+'</textarea></div>'
     + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-assistant">'+ic('heart')+' Get considerations</button>'
     + (AI_ASSISTANT_ANSWER ? '<div style="margin-top:16px;"><div class="row between" style="margin-bottom:4px;"><span></span>'+speakButtonHtml('ai-assistant-answer-text')+'</div><div class="card" id="ai-assistant-answer-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_ASSISTANT_ANSWER)+'</div></div>' + disclaimer : '')
-    + '</div>';
+    + '</div></div>';
 }
 
 function renderAiHubView() {
@@ -3697,8 +3703,11 @@ function renderMarketingContactsView() {
   const q = (MC_SEARCH||'').toLowerCase();
   let list = loadMarketingContacts().sort((a,b)=>a.name.localeCompare(b.name));
   if (q) list = list.filter(c => c.name.toLowerCase().includes(q) || c.digits.includes(q));
-  return '<div style="padding:16px;padding-bottom:90px;">'
-    + '<div class="row gap3" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-mc">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Marketing Contacts ('+list.length+')</h2></div>'
+  return '<div style="padding-bottom:90px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3" style="margin-bottom:0;"><button class="icon-btn" data-action="close-mc">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Marketing Contacts ('+list.length+')</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
     + '<input class="input" placeholder="Search name/number" value="'+esc(MC_SEARCH||'')+'" oninput="MC_SEARCH=this.value;render()" style="margin-bottom:10px;">'
     + (list.length ? '<button class="btn btn-primary btn-block" style="margin-bottom:12px;" data-action="mc-start-broadcast">'+ic('message')+' Broadcast to all ('+list.length+')</button>' : '')
     + '<div class="row gap2" style="margin-bottom:14px;">'
@@ -3706,15 +3715,18 @@ function renderMarketingContactsView() {
     + '<button class="btn btn-sm" style="flex:1;" data-action="mc-export-csv">'+ic('download')+' Export CSV</button>'
     + '</div>'
     + list.map(c => '<div class="card" style="margin-bottom:6px;padding:10px 12px;"><b style="font-size:13.5px;">'+esc(c.name)+'</b><div style="font-size:12px;color:var(--muted);">'+esc(c.digits)+'</div></div>').join('')
-    + '</div>';
+    + '</div></div>';
 }
 function renderBroadcastQueueView() {
   if (!MC_BROADCAST_MSG) {
-    return '<div style="padding:16px;">'
-      + '<div class="row gap3" style="margin-bottom:14px;"><button class="icon-btn" data-action="mc-cancel-broadcast">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Broadcast Message</h2></div>'
+    return '<div style="padding-bottom:20px;">'
+      + '<div class="sticky-top px" style="padding:14px 16px;">'
+      + '<div class="row gap3"><button class="icon-btn" data-action="mc-cancel-broadcast">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Broadcast Message</h2></div>'
+      + '</div>'
+      + '<div class="px" style="padding-top:14px;">'
       + '<textarea class="input" id="mc-msg-input" rows="5" placeholder="Type your message / paste reel link..."></textarea>'
       + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="mc-confirm-msg">Start Sending</button>'
-      + '</div>';
+      + '</div></div>';
   }
   if (MC_QUEUE_INDEX >= MC_QUEUE.length) {
     return '<div style="padding:60px 24px;text-align:center;"><div style="font-size:40px;">\u2705</div><div style="font-weight:800;margin:8px 0;">All done</div><button class="btn" data-action="close-mc">Close</button></div>';
@@ -3873,8 +3885,11 @@ function renderDiagStatementView() {
   const label = new Date(m + '-01').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
   const total = entries.reduce((sum,r) => sum + Number(r.doctorCutAmount||0), 0);
   const profile = loadProfile();
-  return '<div class="px" style="padding-top:16px;padding-bottom:40px;">'
-    + '<div class="row between no-print" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-diag-statement">'+ic('back')+'</button><button class="btn btn-sm btn-primary" data-action="do-print">'+ic('printer')+' Print</button></div>'
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px no-print" style="padding:14px 16px;">'
+    + '<div class="row between"><button class="icon-btn" data-action="close-diag-statement">'+ic('back')+'</button><button class="btn btn-sm btn-primary" data-action="do-print">'+ic('printer')+' Print</button></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
     + '<div class="rx-sheet">'
     + '<div style="text-align:center;margin-bottom:16px;"><div style="font-weight:800;font-size:16px;">'+esc(profile.doctorName||'Doctor')+'</div><div style="font-size:12px;color:var(--muted);">Diagnostic Referral Statement \u2014 '+label+'</div></div>'
     + '<table style="width:100%;border-collapse:collapse;font-size:12px;">'
@@ -3885,7 +3900,7 @@ function renderDiagStatementView() {
       }).join('')
     + '<tr><td colspan="4" style="padding:10px 4px;text-align:right;font-weight:800;">Total</td><td style="padding:10px 4px;text-align:right;font-weight:800;">\u20b9'+total.toLocaleString('en-IN')+'</td></tr>'
     + '</table>'
-    + '</div></div>';
+    + '</div></div></div>';
 }
 function diagMonthlyBreakdownHtml() {
   const byMonth = {};
@@ -3963,8 +3978,11 @@ function renderDiagReferralsView() {
   const activeCount = DIAG_REFERRALS.filter(r => r.status !== 'paid').length;
   const formOpen = DIAG_ADD_CENTRE_OPEN || DIAG_ADD_REFERRAL_OPEN;
   const totalCutActive = DIAG_REFERRALS.filter(r => r.status !== 'paid').reduce((sum,r) => sum + (Number(r.doctorCutAmount)||0), 0);
-  return '<div class="px" style="padding-top:16px;padding-bottom:90px;">'
-    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-diag-referrals">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Diagnostic Referrals</h2><span style="width:36px;"></span></div>'
+  return '<div style="padding-bottom:90px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row between"><button class="icon-btn" data-action="close-diag-referrals">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Diagnostic Referrals</h2><span style="width:36px;"></span></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
     + (DIAG_ADD_CENTRE_OPEN ? diagAddCentreFormHtml() : '')
     + (DIAG_ADD_REFERRAL_OPEN ? diagAddReferralFormHtml() : '')
     + (formOpen ? '' : (
@@ -4020,7 +4038,7 @@ function renderDiagReferralsView() {
               + '</div>';
           }).join('')
       ))
-    + '</div>';
+    + '</div></div>';
 }
 
 function renderPlannedSurgeriesView() {
@@ -6162,14 +6180,17 @@ function buildPatientDataSummaryForAi() {
   }).join('\n');
 }
 function renderAiQueryView() {
-  return '<div class="px" style="padding-top:16px;padding-bottom:100px;">'
-    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-ai-query">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ask AI about your patients</h2><span style="width:36px;"></span></div>'
+  return '<div style="padding-bottom:100px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row between"><button class="icon-btn" data-action="close-ai-query">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Ask AI about your patients</h2><span style="width:36px;"></span></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
     + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;">Plain-language question over your current patient list (' + PATIENTS.length + ' patients). Answers only from your own data \u2014 nothing external.</p>'
     + '<div class="row between" style="margin-bottom:4px;"><span></span>'+micButtonHtml('ai-query-input')+'</div>'
     + '<textarea class="textarea" id="ai-query-input" rows="3" placeholder="e.g. List all CTEV cases from the last 6 months\u2026">'+esc(AI_QUERY_TEXT||'')+'</textarea>'
     + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-query">'+ic('shield')+' Ask</button>'
     + (AI_QUERY_ANSWER ? '<div style="margin-top:16px;"><div class="row between" style="margin-bottom:4px;"><span></span>'+speakButtonHtml('ai-query-answer-text')+'</div><div class="card" id="ai-query-answer-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_QUERY_ANSWER)+'</div></div>' : '')
-    + '</div>';
+    + '</div></div>';
 }
 
 function findSimilarCases(diagnosisText, limit) {
@@ -9055,11 +9076,14 @@ async function renderDuplicateFinderView() {
         + '</div>';
     }).join('<div style="border-top:1px dashed var(--border);margin:16px 0;"></div>');
   }
-  return '<div class="px" style="padding-top:16px;padding-bottom:40px;">'
-    + '<div class="row between" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-duplicate-finder">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Find Duplicate Patients</h2><span style="width:36px;"></span></div>'
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row between"><button class="icon-btn" data-action="close-duplicate-finder">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Find Duplicate Patients</h2><span style="width:36px;"></span></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:14px;">'
     + '<div class="card" style="background:#fffbeb;border-color:#fde68a;margin-bottom:14px;"><p style="font-size:11.5px;color:#92400e;margin:0;line-height:1.5;">Matched by exact patient name. Pick which record to keep as <b>primary</b> \u2014 follow-ups, investigations, injections and photos from the other record(s) are merged into it. The merged-away record then moves to <b>Recently Deleted</b> (30-day safety net) rather than being erased outright, but note that restoring it later won\u2019t automatically un-merge the data already copied into the primary.</p></div>'
     + body
-    + '</div>';
+    + '</div></div>';
 }
 
 async function mergeDuplicateGroup(groupIndex) {
