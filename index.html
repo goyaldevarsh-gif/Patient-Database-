@@ -12210,10 +12210,18 @@ document.addEventListener('click', async (e) => {
       const phone = c.digits.length === 10 ? '+91' + c.digits : '+' + c.digits;
       return 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:' + c.name.replace(/[\r\n]/g,' ') + '\r\nTEL;TYPE=CELL:' + phone + '\r\nEND:VCARD';
     }).join('\r\n');
-    const blob = new Blob([vcards], {type:'text/vcard'}); const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href=url; a.download='patient-contacts.vcf'; a.click();
-    setTimeout(()=>URL.revokeObjectURL(url), 5000);
-    toast('Downloaded \u2014 open the file and tap "Add All Contacts"');
+    const blob = new Blob([vcards], {type:'text/vcard'});
+    const filename = 'patient-contacts.vcf';
+    const file = new File([blob], filename, { type: 'text/vcard' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename });
+      toast('Choose "Mail" (send to yourself) or "Save to Files" \u2014 then open it from there for "Add All Contacts"');
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download=filename; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 5000);
+      toast('Downloaded \u2014 open the file and tap "Add All Contacts"');
+    }
     return;
   }
   if (action === 'mc-export-csv') {
