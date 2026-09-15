@@ -1972,20 +1972,10 @@ function expandableSectionHtml(id, title, content, defaultExpanded = false) {
 
 // Reminder status badge
 function reminderStatusBadgeHtml(patient) {
-  const manual = patient.lastReminderSentAt || 0;
-  const auto = patient.lastAutoReminderSentAt || 0;
-  const failedAt = patient.lastAutoReminderFailedAt || 0;
-  const lastSent = Math.max(manual, auto);
-
-  // A failure only matters if it's the MOST RECENT event \u2014 once a send (auto or
-  // manual) succeeds after it, lastAutoReminderFailedAt gets cleared server-side,
-  // but this guards against any stale-ordering edge case too.
-  if (failedAt && failedAt > lastSent) {
-    const reminderLink = followUpReminderLink(patient);
-    const errText = patient.lastAutoReminderError ? esc(patient.lastAutoReminderError) : 'Connection issue';
-    return '<span class="badge badge-red" style="font-size:10px;">\u2717 Reminder failed \u2014 '+errText+'</span>'
-      + (reminderLink ? ' <a href="'+esc(reminderLink)+'" target="_blank" rel="noopener" style="font-size:10px;font-weight:700;color:var(--accent);text-decoration:none;">Send Manually</a>' : '');
-  }
+  // lastAutoReminderSentAt is kept in this max() only for backward-compat with
+  // historical timestamps from when the WhatsApp-automation existed; nothing
+  // writes to it anymore.
+  const lastSent = Math.max(patient.lastReminderSentAt || 0, patient.lastAutoReminderSentAt || 0);
 
   if (!lastSent) {
     return '<span class="badge badge-muted" style="font-size:10px;">Not reminded</span>';
