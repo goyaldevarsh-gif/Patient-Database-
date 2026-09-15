@@ -6110,7 +6110,7 @@ function initApTemp() {
   // would lose them for good. See handlePhotoInputChange / handleCategorizedPhotoChange.
   AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
-  AP_OPEN_SECTION = 2;
+  AP_OPEN_SECTION = AP_TEMP.caseType === 'surgical' ? 4 : 2;
   AP_DIAG_CONFIRMED = false;
   AP_INVESTIGATIONS = [];
   AP_INV_CATEGORY = 'xray';
@@ -10608,7 +10608,7 @@ document.addEventListener('click', async (e) => {
     return; 
   }
 
-  if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') AP_TEMP.condition = ''; render(); return; }
+  if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') { AP_TEMP.condition = ''; AP_OPEN_SECTION = 4; } else { AP_OPEN_SECTION = 2; } render(); return; }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
   if (action === 'ap-set-payment') { syncApTempFromDom(); AP_TEMP.paymentMethod = el.dataset.value; render(); return; }
   if (action === 'ap-toggle-section') {
