@@ -9718,7 +9718,7 @@ document.addEventListener('click', async (e) => {
     if (p) { p.nextFollowUpDate = ''; p.followUpConfirmedAt = null; p.followUpPurpose = ''; await dbPutPatient(p); await refreshPatients(); toast('Follow-up marked completed'); }
     LP_MENU_PATIENT_ID = null; render(); return;
   }
-  if (LP_MENU_PATIENT_ID && ['open-patient','attn-snooze-followup','attn-mark-lost','toggle-research-flag'].includes(action)) { LP_MENU_PATIENT_ID = null; }
+  if (LP_MENU_PATIENT_ID && ['open-patient','attn-snooze-followup','attn-mark-lost','toggle-research-flag'].includes(action)) { LP_MENU_PATIENT_ID = null; await render(); }
 
   if (action === 'toast-button') {
     if (window.__toastButtonCallback) {
