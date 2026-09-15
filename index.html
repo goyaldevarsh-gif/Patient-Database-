@@ -3306,14 +3306,21 @@ function saveMarketingContactsLocal(list) {
   try { localStorage.setItem(MARKETING_CONTACTS_KEY, JSON.stringify(list)); } catch (e) {}
 }
 function saveMarketingContacts(list) { saveMarketingContactsLocal(list); syncMarketingContactsToCloud(); }
+function shortDiagnosisForContact(diagnosis) {
+  const d = (diagnosis || '').trim();
+  if (!d) return '';
+  const cut = d.split(',')[0].trim(); // first clause is usually the core diagnosis
+  return cut.length > 28 ? cut.slice(0, 28).trim() : cut;
+}
 function syncMarketingContact(patient) {
   if (!patient || !patient.whatsapp) return;
   let digits = String(patient.whatsapp).replace(/\D/g, '');
   if (!digits) return;
   const list = loadMarketingContactsLocal();
   const existing = list.find(c => c.digits === digits);
-  if (existing) { existing.name = patient.name || existing.name; }
-  else { list.push({ digits, name: patient.name || 'Unknown', addedAt: Date.now() }); }
+  const diagnosis = shortDiagnosisForContact(patient.diagnosis);
+  if (existing) { existing.name = patient.name || existing.name; existing.diagnosis = diagnosis; }
+  else { list.push({ digits, name: patient.name || 'Unknown', diagnosis, addedAt: Date.now() }); }
   saveMarketingContacts(list);
 }
 function backfillMarketingContacts() {
@@ -3324,8 +3331,9 @@ function backfillMarketingContacts() {
     let digits = String(patient.whatsapp).replace(/\D/g, '');
     if (!digits) return;
     const existing = list.find(c => c.digits === digits);
-    if (existing) { existing.name = patient.name || existing.name; }
-    else { list.push({ digits, name: patient.name || 'Unknown', addedAt: Date.now() }); }
+    const diagnosis = shortDiagnosisForContact(patient.diagnosis);
+    if (existing) { existing.name = patient.name || existing.name; existing.diagnosis = diagnosis; }
+    else { list.push({ digits, name: patient.name || 'Unknown', diagnosis, addedAt: Date.now() }); }
   });
   saveMarketingContactsLocal(list);
   syncMarketingContactsToCloud();
@@ -3714,7 +3722,7 @@ function renderMarketingContactsView() {
     + '<button class="btn btn-sm" style="flex:1;" data-action="mc-export-vcard">'+ic('users')+' Save All to Contacts</button>'
     + '<button class="btn btn-sm" style="flex:1;" data-action="mc-export-csv">'+ic('download')+' Export CSV</button>'
     + '</div>'
-    + list.map(c => '<div class="card" style="margin-bottom:6px;padding:10px 12px;"><b style="font-size:13.5px;">'+esc(c.name)+'</b><div style="font-size:12px;color:var(--muted);">'+esc(c.digits)+'</div></div>').join('')
+    + list.map(c => '<div class="card" style="margin-bottom:6px;padding:10px 12px;"><b style="font-size:13.5px;">'+esc(c.name)+'</b>'+(c.diagnosis?' <span style="font-size:11px;color:var(--accent-dark);font-weight:600;">'+esc(c.diagnosis)+'</span>':'')+'<div style="font-size:12px;color:var(--muted);">'+esc(c.digits)+'</div></div>').join('')
     + '</div></div>';
 }
 function renderBroadcastQueueView() {
@@ -12232,7 +12240,10 @@ document.addEventListener('click', async (e) => {
     if (!contacts.length) { toast('No contacts to export'); return; }
     const vcards = contacts.map(c => {
       const phone = c.digits.length === 10 ? '+91' + c.digits : '+' + c.digits;
-      return 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:' + c.name.replace(/[\r\n]/g,' ') + '\r\nTEL;TYPE=CELL:' + phone + '\r\nEND:VCARD';
+      const firstName = (c.name || 'Unknown').trim().split(' ')[0];
+      const lastName = 'Patient' + (c.diagnosis ? ' ' + c.diagnosis : '');
+      const fullDisplay = firstName + ' ' + lastName;
+      return 'BEGIN:VCARD\r\nVERSION:3.0\r\nN:' + lastName.replace(/[\r\n;]/g,' ') + ';' + firstName.replace(/[\r\n;]/g,' ') + ';;;\r\nFN:' + fullDisplay.replace(/[\r\n]/g,' ') + '\r\nTEL;TYPE=CELL:' + phone + '\r\nEND:VCARD';
     }).join('\r\n');
     const blob = new Blob([vcards], {type:'text/vcard'});
     const filename = 'patient-contacts.vcf';
