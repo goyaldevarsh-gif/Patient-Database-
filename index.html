@@ -2713,6 +2713,68 @@ function daysAgoLabel(dateStr) {
 function greetingWord() { const h = new Date().getHours(); if (h < 12) return 'Good morning'; if (h < 17) return 'Good afternoon'; return 'Good evening'; }
 
 /* ---- Dashboard + Practice Insights ---- */
+function computeFollowUpCompliance() {
+  // Only counts patients who were ever "in a follow-up cycle" \u2014 has a follow-up date
+  // set (now or previously), has at least one logged follow-up visit, or was marked
+  // lost. A single-visit OPD case with no follow-up plan at all doesn't belong here.
+  const tracked = PATIENTS.filter(p => p.nextFollowUpDate || (p.followUps && p.followUps.length) || p.status === 'Lost to follow-up');
+  let returned = 0, lost = 0, pending = 0;
+  tracked.forEach(p => {
+    if (p.followUps && p.followUps.length) returned++;
+    else if (p.status === 'Lost to follow-up') lost++;
+    else pending++;
+  });
+  const complianceBase = returned + lost; // pending excluded \u2014 outcome not known yet
+  const compliancePct = complianceBase ? Math.round((returned / complianceBase) * 100) : null;
+
+  const byMonth = {};
+  PATIENTS.forEach(p => {
+    (p.followUps || []).forEach(fu => {
+      if (!fu.date) return;
+      const key = fu.date.slice(0, 7);
+      byMonth[key] = (byMonth[key] || 0) + 1;
+    });
+  });
+  const months = Object.keys(byMonth).sort();
+  const last6 = months.slice(-6);
+
+  return { totalTracked: tracked.length, returned, lost, pending, compliancePct, byMonth, last6 };
+}
+function renderFollowUpReportView() {
+  const s = computeFollowUpCompliance();
+  const maxVal = Math.max(...s.last6.map(m => s.byMonth[m]), 1);
+  const chart = s.last6.length ? '<div class="row" style="align-items:flex-end;gap:8px;height:110px;padding:10px 4px 4px;margin-bottom:14px;">'
+    + s.last6.map(m => {
+        const val = s.byMonth[m];
+        const pct = Math.max(6, Math.round((val / maxVal) * 100));
+        const label = new Date(m + '-01').toLocaleDateString('en-IN', { month: 'short' });
+        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">'
+          + '<div style="font-size:10px;font-weight:700;color:var(--muted);">'+val+'</div>'
+          + '<div style="width:100%;height:'+pct+'%;background:var(--accent);border-radius:4px 4px 0 0;min-height:6px;"></div>'
+          + '<span style="font-size:9.5px;color:var(--muted);">'+label+'</span>'
+          + '</div>';
+      }).join('')
+    + '</div>' : '<p style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">No follow-up visits logged yet.</p>';
+
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-followup-report">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Follow-up Report</h2></div>'
+    + '</div>'
+    + '<div class="px" style="padding-top:16px;">'
+    + (s.compliancePct !== null ? '<div class="card" style="text-align:center;padding:20px;margin-bottom:16px;background:'+(s.compliancePct>=70?'var(--emerald-bg)':'var(--amber-bg)')+';border-color:'+(s.compliancePct>=70?'var(--emerald-border)':'var(--amber-border)')+';">'
+        + '<div style="font-size:34px;font-weight:800;color:'+(s.compliancePct>=70?'var(--emerald)':'#b45309')+';line-height:1;">'+s.compliancePct+'%</div>'
+        + '<div style="font-size:12px;font-weight:700;color:var(--muted);margin-top:4px;">Follow-up Compliance Rate</div>'
+        + '</div>' : '')
+    + '<div class="row gap2" style="margin-bottom:16px;">'
+    + '<div style="flex:1;background:var(--emerald-bg);border:1.5px solid var(--emerald-border);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--emerald);">'+s.returned+'</div><div style="font-size:9.5px;font-weight:800;color:var(--emerald);text-transform:uppercase;">Returned</div></div>'
+    + '<div style="flex:1;background:var(--red-bg);border:1.5px solid var(--red-border);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--red);">'+s.lost+'</div><div style="font-size:9.5px;font-weight:800;color:var(--red);text-transform:uppercase;">Lost to FU</div></div>'
+    + '<div style="flex:1;background:var(--bg-soft);border:1.5px solid var(--border);border-radius:12px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:800;color:var(--muted);">'+s.pending+'</div><div style="font-size:9.5px;font-weight:800;color:var(--muted);text-transform:uppercase;">Pending</div></div>'
+    + '</div>'
+    + '<div class="field-label" style="margin-bottom:8px;">Visits logged, last 6 months</div>'
+    + chart
+    + '<p style="font-size:10.5px;color:var(--muted);text-align:center;">Compliance % = Returned \u00f7 (Returned + Lost). Pending cases aren\u2019t counted yet \u2014 outcome not known.</p>'
+    + '</div></div>';
+}
 function computeDashboardStats() {
   const today = todayStr();
   const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-6);
@@ -4386,6 +4448,7 @@ function moreBodyHtml() {
     { group:'cleanup', title:'Fix Name/Diagnosis Capitalization', sub:'Capitalize existing patient names and diagnoses', html: moreRowHtml('pencil', 'Fix Name/Diagnosis Capitalization', 'One-time cleanup \u2014 capitalizes existing patient names and diagnoses that were typed in lowercase', 'fix-capitalization') },
 
     { group:'finance', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
+    { group:'finance', title:'Follow-up Report', sub:'Compliance rate and monthly visit trends', html: moreRowHtml('calendar', 'Follow-up Report', 'See how many patients actually return, and your monthly follow-up trend', 'open-followup-report') },
     { group:'finance', title:'Marketing Contacts', sub:'Auto-synced patient contacts for broadcasts', html: moreRowHtml('users', 'Marketing Contacts', 'Every patient contact, auto-collected \u2014 broadcast reels/updates to all at once', 'open-mc') },
     { group:'finance', title:'Scheme Code Finder', sub:'RGHS / MAA Yojana package codes & rates', html: moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder') },
     { group:'finance', title:'Export Case Log', sub:'Spreadsheet of every case for audits/CME', html: moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log') },
@@ -5556,6 +5619,16 @@ function renderDashboardSection() {
           + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(tomorrowCount?'var(--accent-dark)':'var(--ink)')+';">'+tomorrowCount+'</span>'
           + '</button>'
         + '</div>';
+    }
+  }
+
+  if (PATIENTS.length) {
+    const compliance = computeFollowUpCompliance();
+    if (compliance.compliancePct !== null) {
+      html += '<button type="button" data-action="open-followup-report" class="row between" style="width:100%;background:none;border:none;padding:0 2px;margin:-10px 0 16px;">'
+        + '<span style="font-size:11.5px;color:var(--muted);">'+ic('trending')+' Follow-up compliance this period: <b style="color:'+(compliance.compliancePct>=70?'var(--emerald)':'#b45309')+';">'+compliance.compliancePct+'%</b></span>'
+        + '<span style="font-size:11px;color:var(--accent);font-weight:700;">Details \u203a</span>'
+        + '</button>';
     }
   }
 
@@ -8803,6 +8876,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'patient-ai-tools') { app.innerHTML = renderPatientAiToolsView(); return; }
   if (VIEW === 'diag-referrals') { app.innerHTML = renderDiagReferralsView(); return; }
   if (VIEW === 'diag-statement') { app.innerHTML = renderDiagStatementView(); return; }
+  if (VIEW === 'followup-report') { app.innerHTML = renderFollowUpReportView(); return; }
   if (VIEW === 'planned-surgeries') { app.innerHTML = renderPlannedSurgeriesView(); return; }
   if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
   if (VIEW === 'marketing-contacts') { app.innerHTML = renderMarketingContactsView(); return; }
@@ -9703,7 +9777,7 @@ function updateMasterVoiceUI() {
     // Hide entirely on screens that have their own fixed bottom action bar, or where a
     // generic floating trigger would visually clash with the screen's own content/buttons
     // (menus, AI sub-pages that ARE the AI feature already, forms with Save/Cancel bars, etc).
-    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement'];
+    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report'];
     // Search must stay available to every tier, not just AI tier \u2014 only the "Ask AI" menu
     // option inside is gated below, the button itself always shows (like the old search fab did).
     const shouldShow = !APP_LOCKED && !hideOnViews.includes(VIEW);
@@ -11980,6 +12054,8 @@ document.addEventListener('click', async (e) => {
   if (action === 'diag-toggle-monthly') { DIAG_SHOW_MONTHLY = !DIAG_SHOW_MONTHLY; render(); return; }
   if (action === 'diag-print-statement') { DIAG_STATEMENT_MONTH = el.dataset.value; VIEW = 'diag-statement'; render(); return; }
   if (action === 'close-diag-statement') { VIEW = 'diag-referrals'; DIAG_STATEMENT_MONTH = null; render(); return; }
+  if (action === 'open-followup-report') { VIEW = 'followup-report'; render(); return; }
+  if (action === 'close-followup-report') { VIEW = 'list'; render(); return; }
   if (action === 'diag-open-complete') {
     const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
     const centre = r ? DIAG_CENTRES.find(c => c.id === r.centreId) : null;
