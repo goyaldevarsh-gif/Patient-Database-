@@ -3701,7 +3701,10 @@ function renderMarketingContactsView() {
     + '<div class="row gap3" style="margin-bottom:14px;"><button class="icon-btn" data-action="close-mc">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Marketing Contacts ('+list.length+')</h2></div>'
     + '<input class="input" placeholder="Search name/number" value="'+esc(MC_SEARCH||'')+'" oninput="MC_SEARCH=this.value;render()" style="margin-bottom:10px;">'
     + (list.length ? '<button class="btn btn-primary btn-block" style="margin-bottom:12px;" data-action="mc-start-broadcast">'+ic('message')+' Broadcast to all ('+list.length+')</button>' : '')
-    + '<button class="btn btn-sm btn-block" style="margin-bottom:14px;" data-action="mc-export-csv">'+ic('download')+' Export CSV</button>'
+    + '<div class="row gap2" style="margin-bottom:14px;">'
+    + '<button class="btn btn-sm" style="flex:1;" data-action="mc-export-vcard">'+ic('users')+' Save All to Contacts</button>'
+    + '<button class="btn btn-sm" style="flex:1;" data-action="mc-export-csv">'+ic('download')+' Export CSV</button>'
+    + '</div>'
     + list.map(c => '<div class="card" style="margin-bottom:6px;padding:10px 12px;"><b style="font-size:13.5px;">'+esc(c.name)+'</b><div style="font-size:12px;color:var(--muted);">'+esc(c.digits)+'</div></div>').join('')
     + '</div>';
 }
@@ -5154,10 +5157,11 @@ function fmtDateWithDay(dateStr) {
 function followUpReminderMessage(patient) {
   const profile = loadProfile();
   const reg = regardingLine(patient);
+  const purpose = (patient.followUpPurpose || '').trim();
   const isOverdue = !!(patient.nextFollowUpDate && patient.nextFollowUpDate < todayStr());
   const dateLine = isOverdue
-    ? '\n\u0906\u092a\u0915\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDateWithDay(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0925\u0940\u0964'
-    : '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDateWithDay(patient.nextFollowUpDate) + ' \u0915\u094b \u0939\u0948 \u2014 \u0906\u092a\u0915\u093e \u0907\u0932\u093e\u091c \u0915\u0948\u0938\u093e \u091a\u0932 \u0930\u0939\u093e \u0939\u0948, \u092f\u0939 \u0926\u0947\u0916\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u092f\u0939 \u095b\u0930\u0942\u0930\u0940 \u0939\u0948\u0964';
+    ? '\n\u0906\u092a\u0915\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDateWithDay(patient.nextFollowUpDate) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0925\u0940\u0964' + (purpose ? ' (' + purpose + ' \u0915\u0947 \u0932\u093f\u090f)' : '')
+    : '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + (reg ? reg + ' ' : '') + fmtDateWithDay(patient.nextFollowUpDate) + ' \u0915\u094b \u0939\u0948' + (purpose ? ' \u2014 ' + purpose + ' \u0915\u0947 \u0932\u093f\u090f\u0964' : ' \u2014 \u0906\u092a\u0915\u093e \u0907\u0932\u093e\u091c \u0915\u0948\u0938\u093e \u091a\u0932 \u0930\u0939\u093e \u0939\u0948, \u092f\u0939 \u0926\u0947\u0916\u0928\u0947 \u0915\u0947 \u0932\u093f\u090f \u092f\u0939 \u095b\u0930\u0942\u0930\u0940 \u0939\u0948\u0964');
   const rescheduleLine = profile.clinicPhone
     ? '\n\n\u0905\u0917\u0930 \u0906\u092a \u0928\u0939\u0940\u0902 \u0906 \u092a\u093e \u0930\u0939\u0947, \u0915\u0943\u092a\u092f\u093e ' + profile.clinicPhone + ' \u092a\u0930 \u0915\u0949\u0932 \u0915\u0930\u0915\u0947 \u0928\u0908 \u0924\u093e\u0930\u0940\u0916 \u0924\u092f \u0915\u0930 \u0932\u0947\u0902, \u0924\u093e\u0915\u093f \u0907\u0932\u093e\u091c \u092c\u0940\u091a \u092e\u0947\u0902 \u0928 \u0930\u0941\u0915\u0947\u0964'
     : '';
@@ -5565,7 +5569,6 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
       + '</div>';
     return html;
   }
-  const queueEligible = items.filter(item => item.type === 'Follow-up' && item.patient.whatsapp);
   const remindedCount = items.filter(item => (item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt)).length;
   const pendingCount = items.length - remindedCount;
   const remindedActive = ATTN_FILTER === 'reminded';
@@ -5574,12 +5577,13 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
     + '<button type="button" data-action="attn-toggle-filter" data-value="reminded" style="flex:1;background:var(--emerald-bg);border:'+(remindedActive?'2.5px':'1.5px')+' solid var(--emerald-border);border-radius:12px;padding:'+(remindedActive?'7.5px 9px':'9px 10px')+';text-align:center;cursor:pointer;"><div style="font-size:19px;font-weight:800;color:var(--emerald);line-height:1.1;">'+remindedCount+'</div><div style="font-size:10px;font-weight:800;color:var(--emerald);text-transform:uppercase;letter-spacing:0.03em;margin-top:1px;">Reminded</div></button>'
     + '<button type="button" data-action="attn-toggle-filter" data-value="pending" style="flex:1;background:'+(pendingCount?'var(--amber-bg)':'var(--bg-soft)')+';border:'+(pendingActive?'2.5px':'1.5px')+' solid '+(pendingCount?'var(--amber-border)':'var(--border)')+';border-radius:12px;padding:'+(pendingActive?'7.5px 9px':'9px 10px')+';text-align:center;cursor:pointer;"><div style="font-size:19px;font-weight:800;color:'+(pendingCount?'#b45309':'var(--muted)')+';line-height:1.1;">'+pendingCount+'</div><div style="font-size:10px;font-weight:800;color:'+(pendingCount?'#b45309':'var(--muted)')+';text-transform:uppercase;letter-spacing:0.03em;margin-top:1px;">Pending</div></button>'
     + '</div>';
-  if (queueEligible.length) {
-    html += '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>';
-  }
   const displayItems = ATTN_FILTER === 'reminded' ? items.filter(item => (item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt))
     : ATTN_FILTER === 'pending' ? items.filter(item => !(item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt))
     : items;
+  const queueEligible = displayItems.filter(item => item.type === 'Follow-up' && item.patient.whatsapp);
+  if (queueEligible.length) {
+    html += '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>';
+  }
   if (ATTN_FILTER && !displayItems.length) {
     html += '<p style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;">No '+ATTN_FILTER+' follow-ups here.</p>';
     return html;
@@ -8627,18 +8631,18 @@ function reminderMiniCardHtml(p) {
 function renderTomorrowFollowUpsList() {
   const s = computeDashboardStats();
   if (!s.dueTomorrowList.length) return '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:24px;">No follow-ups due tomorrow.</p>';
-  const queueEligible = s.dueTomorrowList.filter(p => p.whatsapp);
   const remindedCount = s.dueTomorrowList.filter(p => (p.lastReminderSentAt || p.lastAutoReminderSentAt)).length;
   const pendingCount = s.dueTomorrowList.length - remindedCount;
   const remindedActive = ATTN_FILTER === 'reminded';
   const pendingActive = ATTN_FILTER === 'pending';
+  const displayList = ATTN_FILTER === 'reminded' ? s.dueTomorrowList.filter(p => (p.lastReminderSentAt || p.lastAutoReminderSentAt))
+    : ATTN_FILTER === 'pending' ? s.dueTomorrowList.filter(p => !(p.lastReminderSentAt || p.lastAutoReminderSentAt))
+    : s.dueTomorrowList;
+  const queueEligible = displayList.filter(p => p.whatsapp);
   const summaryBar = '<div class="row gap2" style="margin-bottom:10px;">'
     + '<button type="button" data-action="attn-toggle-filter" data-value="reminded" style="flex:1;background:var(--emerald-bg);border:'+(remindedActive?'2.5px':'1.5px')+' solid var(--emerald-border);border-radius:12px;padding:'+(remindedActive?'7.5px 9px':'9px 10px')+';text-align:center;cursor:pointer;"><div style="font-size:19px;font-weight:800;color:var(--emerald);line-height:1.1;">'+remindedCount+'</div><div style="font-size:10px;font-weight:800;color:var(--emerald);text-transform:uppercase;letter-spacing:0.03em;margin-top:1px;">Reminded</div></button>'
     + '<button type="button" data-action="attn-toggle-filter" data-value="pending" style="flex:1;background:'+(pendingCount?'var(--amber-bg)':'var(--bg-soft)')+';border:'+(pendingActive?'2.5px':'1.5px')+' solid '+(pendingCount?'var(--amber-border)':'var(--border)')+';border-radius:12px;padding:'+(pendingActive?'7.5px 9px':'9px 10px')+';text-align:center;cursor:pointer;"><div style="font-size:19px;font-weight:800;color:'+(pendingCount?'#b45309':'var(--muted)')+';line-height:1.1;">'+pendingCount+'</div><div style="font-size:10px;font-weight:800;color:'+(pendingCount?'#b45309':'var(--muted)')+';text-transform:uppercase;letter-spacing:0.03em;margin-top:1px;">Pending</div></button>'
     + '</div>';
-  const displayList = ATTN_FILTER === 'reminded' ? s.dueTomorrowList.filter(p => (p.lastReminderSentAt || p.lastAutoReminderSentAt))
-    : ATTN_FILTER === 'pending' ? s.dueTomorrowList.filter(p => !(p.lastReminderSentAt || p.lastAutoReminderSentAt))
-    : s.dueTomorrowList;
   if (ATTN_FILTER && !displayList.length) {
     return summaryBar + '<p style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;">No '+ATTN_FILTER+' follow-ups here.</p>';
   }
@@ -9784,7 +9788,7 @@ document.addEventListener('click', async (e) => {
     if (p && p.whatsapp) window.location.href = 'tel:'+String(p.whatsapp).replace(/\D/g,'');
     render(); return;
   }
-  if (action === 'lp-change-date') { LP_MENU_PATIENT_ID = null; QUICK_FU_PATIENT_ID = el.dataset.id; renderQuickFuModal(); return; }
+  if (action === 'lp-change-date') { LP_MENU_PATIENT_ID = null; await render(); QUICK_FU_PATIENT_ID = el.dataset.id; renderQuickFuModal(); return; }
   if (action === 'lp-mark-completed') {
     const p = getPatient(el.dataset.id);
     if (p) { p.nextFollowUpDate = ''; p.followUpConfirmedAt = null; p.followUpPurpose = ''; await dbPutPatient(p); await refreshPatients(); toast('Follow-up marked completed'); }
@@ -9986,7 +9990,13 @@ document.addEventListener('click', async (e) => {
     const p = getPatient(el.dataset.id);
     if (!p) return;
     const link = followUpReminderLink(p);
-    if (link) { p.lastReminderSentAt = Date.now(); dbPutPatient(p).then(refreshPatients); window.open(link, '_blank'); }
+    if (link) {
+      p.lastReminderSentAt = Date.now();
+      await dbPutPatient(p);
+      await refreshPatients();
+      window.open(link, '_blank');
+      render();
+    }
     return;
   }
   if (action === 'ai-sanity-check') {
@@ -10983,11 +10993,13 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'log-reminder-sent') {
     const p = getPatient(el.dataset.id);
-    if (p) { 
-      p.lastReminderSentAt = Date.now(); 
+    if (p) {
+      p.lastReminderSentAt = Date.now();
       haptic(15);
       toast('✓ Follow-up reminder sent to ' + p.name);
-      dbPutPatient(p).then(refreshPatients); 
+      await dbPutPatient(p);
+      await refreshPatients();
+      render();
     }
     return;
   }
@@ -11012,6 +11024,7 @@ document.addEventListener('click', async (e) => {
     const d = new Date(); d.setDate(d.getDate() + 7);
     p.nextFollowUpDate = d.toISOString().slice(0,10);
     p.followUpSnoozeCount = (p.followUpSnoozeCount || 0) + 1;
+    p.lastReminderSentAt = null; p.followUpConfirmedAt = null;
     await dbPutPatient(p);
     await refreshPatients();
     toast('Snoozed \u2014 will remind again in 7 days');
@@ -11231,7 +11244,7 @@ document.addEventListener('click', async (e) => {
           toastWithButton(
             '\u2713 Follow-up logged \u2014 next visit ' + fmtDate(p.nextFollowUpDate),
             'Send Reminder',
-            () => { p.lastReminderSentAt = Date.now(); dbPutPatient(p).then(refreshPatients); window.open(reminderLink, '_blank'); },
+            async () => { p.lastReminderSentAt = Date.now(); await dbPutPatient(p); await refreshPatients(); window.open(reminderLink, '_blank'); render(); },
             5000
           );
         } else {
@@ -11752,14 +11765,20 @@ document.addEventListener('click', async (e) => {
   if (action === 'trigger-ps-import') { document.getElementById('ps-import-file-input').click(); return; }
   if (action === 'start-tomorrow-reminder-queue') {
     const s = computeDashboardStats();
-    RQ_QUEUE = s.dueTomorrowList.filter(p => p.whatsapp).map(p => p.id);
+    const filteredList = ATTN_FILTER === 'reminded' ? s.dueTomorrowList.filter(p => (p.lastReminderSentAt || p.lastAutoReminderSentAt))
+      : ATTN_FILTER === 'pending' ? s.dueTomorrowList.filter(p => !(p.lastReminderSentAt || p.lastAutoReminderSentAt))
+      : s.dueTomorrowList;
+    RQ_QUEUE = filteredList.filter(p => p.whatsapp).map(p => p.id);
     RQ_INDEX = 0; RQ_SENT_COUNT = 0;
     if (!RQ_QUEUE.length) { toast('No patients with a saved WhatsApp number.'); return; }
     VIEW = 'reminder-queue'; render(); return;
   }
   if (action === 'start-reminder-queue') {
     const s = computeDashboardStats();
-    RQ_QUEUE = s.important.filter(item => item.type === 'Follow-up' && item.patient.whatsapp).map(item => item.patient.id);
+    const filteredItems = ATTN_FILTER === 'reminded' ? s.important.filter(item => (item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt))
+      : ATTN_FILTER === 'pending' ? s.important.filter(item => !(item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt))
+      : s.important;
+    RQ_QUEUE = filteredItems.filter(item => item.type === 'Follow-up' && item.patient.whatsapp).map(item => item.patient.id);
     RQ_INDEX = 0; RQ_SENT_COUNT = 0;
     if (!RQ_QUEUE.length) { toast('No patients with a saved WhatsApp number.'); return; }
     VIEW = 'reminder-queue'; render(); return;
@@ -12184,6 +12203,19 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'mc-mark-sent') { MC_QUEUE_INDEX++; render(); return; }
   if (action === 'mc-skip') { MC_QUEUE_INDEX++; render(); return; }
+  if (action === 'mc-export-vcard') {
+    const contacts = loadMarketingContacts();
+    if (!contacts.length) { toast('No contacts to export'); return; }
+    const vcards = contacts.map(c => {
+      const phone = c.digits.length === 10 ? '+91' + c.digits : '+' + c.digits;
+      return 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:' + c.name.replace(/[\r\n]/g,' ') + '\r\nTEL;TYPE=CELL:' + phone + '\r\nEND:VCARD';
+    }).join('\r\n');
+    const blob = new Blob([vcards], {type:'text/vcard'}); const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download='patient-contacts.vcf'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 5000);
+    toast('Downloaded \u2014 open the file and tap "Add All Contacts"');
+    return;
+  }
   if (action === 'mc-export-csv') {
     const rows = [['Name','Number']].concat(loadMarketingContacts().map(c=>[c.name,c.digits]));
     const csv = rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
