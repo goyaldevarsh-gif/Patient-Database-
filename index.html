@@ -6489,11 +6489,16 @@ function renderAddView() {
       + '</div>'
     );
 
-  const accordionSections = [
+  const notesHtml = '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="">'+esc(AP_TEMP.notes)+'</textarea></div>';
+  const accordionSections = isSurgical ? [
     [2, 'alert', tab2Label, complaintsHtml, true, 'Reason for visit and clinical details'],
     [3, 'flask', 'Investigations', investigationsHtml, true, 'Imaging, labs and reports'],
-    [4, isSurgical ? 'scalpel' : 'clock', tab3Label, trackingHtml, true, isSurgical ? 'Procedure, hospital and payment' : 'CTEV, RA or other special tracking'],
-    [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="">'+esc(AP_TEMP.notes)+'</textarea></div>', false, 'Anything else worth recording'],
+    [4, 'scalpel', tab3Label, trackingHtml, true, 'Procedure, hospital and payment'],
+    [5, 'file', 'More Info'+(isAiTier()?' & AI':''), notesHtml, false, 'Additional notes and observations'],
+  ] : [
+    [2, 'alert', tab2Label, complaintsHtml, true, 'Reason for visit and clinical details'],
+    [3, 'flask', 'Investigations', investigationsHtml, true, 'Imaging, labs and reports'],
+    [4, 'file', 'More Info'+(isAiTier()?' & AI':''), trackingHtml + '<div style="margin-top:14px;">'+notesHtml+'</div>', false, 'Special tracking (if applicable) and notes'],
   ];
 
   // Patient Details (section 1) stays pinned and always expanded \u2014 name/age are the fields
