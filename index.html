@@ -1219,7 +1219,7 @@ function relativeFollowupPickerHtml(idPrefix, currentDate, autoMode) {
   const autoAttr = autoMode ? ' data-relfu-mode="auto"' : '';
   return '<div class="row gap2" style="align-items:flex-end;">'
     + '<div style="flex:1;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">In</label>'
-    + '<input class="input" type="number" min="1" max="365" inputmode="numeric" placeholder="e.g. 2" id="'+idPrefix+'-num" data-relfu="num" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
+    + '<input class="input" type="number" min="1" max="365" inputmode="numeric" placeholder="" id="'+idPrefix+'-num" data-relfu="num" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
     + '</div>'
     + '<div style="flex:1.3;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Unit</label>'
     + '<select class="select" id="'+idPrefix+'-unit" data-relfu="unit" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
@@ -2158,7 +2158,7 @@ function quickPickerHtml() {
   const purposeLabel = { followup:'Add Follow-up Visit', reminder:'Add Reminder', investigation:'Add Investigation' }[QUICK_PICKER_PURPOSE] || 'Pick a patient';
   return '<div class="usearch-topbar">'
     + '<button class="icon-btn" data-action="close-quick-picker" aria-label="Close patient picker">'+ic('back')+'</button>'
-    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="quick-picker-input" autofocus placeholder="'+purposeLabel+' \u2014 pick a patient" value="'+esc(QUICK_PICKER_QUERY)+'"></div>'
+    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="quick-picker-input" autofocus placeholder="" value="'+esc(QUICK_PICKER_QUERY)+'"></div>'
     + '</div>'
     + '<div class="usearch-results" id="quick-picker-results">'+quickPickerResultsHtml()+'</div>';
 }
@@ -3506,7 +3506,7 @@ function renderAiAssistantView() {
     + '</div>'
     + '<div class="px" style="padding-top:14px;">'
     + disclaimer
-    + '<div style="margin-top:12px;"><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Case vignette or surgical approach question</label>'+micButtonHtml('ai-assistant-input')+'</div><textarea class="textarea" id="ai-assistant-input" rows="5" placeholder="e.g. 42M, twisting injury, Lachman 2+, pivot shift positive, MRI shows ACL tear + lateral meniscus tear. What should I consider?\n\u2014 or \u2014\nWalk me through the standard approach for a TKR.">'+esc(AI_ASSISTANT_QUESTION||'')+'</textarea></div>'
+    + '<div style="margin-top:12px;"><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Case vignette or surgical approach question</label>'+micButtonHtml('ai-assistant-input')+'</div><textarea class="textarea" id="ai-assistant-input" rows="5" placeholder="">'+esc(AI_ASSISTANT_QUESTION||'')+'</textarea></div>'
     + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-assistant">'+ic('heart')+' Get considerations</button>'
     + (AI_ASSISTANT_ANSWER ? '<div style="margin-top:16px;"><div class="row between" style="margin-bottom:4px;"><span></span>'+speakButtonHtml('ai-assistant-answer-text')+'</div><div class="card" id="ai-assistant-answer-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_ASSISTANT_ANSWER)+'</div></div>' + disclaimer : '')
     + '</div></div>';
@@ -3562,7 +3562,7 @@ function masterAiModalHtml() {
     + '</div>'
     + '<div style="padding:16px;">'
     + '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">e.g. "add patient 45M knee pain OPD ACL tear" \u00b7 "CTEV cases last 3 months" \u00b7 "iska summary do" \u00b7 "Patel ka follow-up Monday rakho"</div>'
-    + '<textarea class="textarea" id="master-ai-input" rows="4" placeholder="Type your request\u2026" autofocus style="margin-bottom:10px;">'+esc(MASTER_AI_INPUT)+'</textarea>'
+    + '<textarea class="textarea" id="master-ai-input" rows="4" placeholder="" autofocus style="margin-bottom:10px;">'+esc(MASTER_AI_INPUT)+'</textarea>'
     + '<div class="row gap2">'
     + '<button class="icon-btn" style="flex:none;width:44px;height:44px;background:var(--bg-soft);border-radius:12px;" data-action="master-ai-use-mic" title="Speak instead">'+ic('mic')+'</button>'
     + '<button class="btn btn-primary" style="flex:1;" data-action="master-ai-analyze">'+ic('sparkle')+' Send</button>'
@@ -3778,7 +3778,7 @@ function renderMarketingContactsView() {
     + '<div class="row gap3" style="margin-bottom:0;"><button class="icon-btn" data-action="close-mc">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Marketing Contacts ('+list.length+')</h2></div>'
     + '</div>'
     + '<div class="px" style="padding-top:14px;">'
-    + '<input class="input" placeholder="Search name/number" value="'+esc(MC_SEARCH||'')+'" oninput="MC_SEARCH=this.value;render()" style="margin-bottom:10px;">'
+    + '<input class="input" placeholder="" value="'+esc(MC_SEARCH||'')+'" oninput="MC_SEARCH=this.value;render()" style="margin-bottom:10px;">'
     + (list.length ? '<button class="btn btn-primary btn-block" style="margin-bottom:12px;" data-action="mc-start-broadcast">'+ic('message')+' Broadcast to all ('+list.length+')</button>' : '')
     + '<div class="row gap2" style="margin-bottom:14px;">'
     + '<button class="btn btn-sm" style="flex:1;" data-action="mc-export-vcard">'+ic('users')+' Save All to Contacts</button>'
@@ -3794,7 +3794,7 @@ function renderBroadcastQueueView() {
       + '<div class="row gap3"><button class="icon-btn" data-action="mc-cancel-broadcast">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Broadcast Message</h2></div>'
       + '</div>'
       + '<div class="px" style="padding-top:14px;">'
-      + '<textarea class="input" id="mc-msg-input" rows="5" placeholder="Type your message / paste reel link..."></textarea>'
+      + '<textarea class="input" id="mc-msg-input" rows="5" placeholder=""></textarea>'
       + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="mc-confirm-msg">Start Sending</button>'
       + '</div></div>';
   }
@@ -3893,8 +3893,8 @@ const ANANTA_STARTER_INVESTIGATIONS = [
 function diagAddCentreFormHtml() {
   const editing = DIAG_EDIT_CENTRE_ID ? DIAG_CENTRES.find(c => c.id === DIAG_EDIT_CENTRE_ID) : null;
   return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-    + '<label class="field-label">Centre name</label><input class="input" id="diag-centre-name" placeholder="e.g. Ananta Diagnostic" value="'+esc(editing?editing.name:'')+'" style="margin-bottom:10px;">'
-    + '<label class="field-label">Max pool % (your ceiling before any discount)</label><input class="input" type="number" id="diag-centre-pool" placeholder="e.g. 40" value="'+esc(editing?editing.maxPoolPercent:'40')+'" style="margin-bottom:10px;">'
+    + '<label class="field-label">Centre name</label><input class="input" id="diag-centre-name" placeholder="" value="'+esc(editing?editing.name:'')+'" style="margin-bottom:10px;">'
+    + '<label class="field-label">Max pool % (your ceiling before any discount)</label><input class="input" type="number" id="diag-centre-pool" placeholder="" value="'+esc(editing?editing.maxPoolPercent:'40')+'" style="margin-bottom:10px;">'
     + (!editing ? '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-load-ananta-starter">'+ic('download')+' Load Ananta\u2019s standard MRI/CT rate list</button>' : '<p style="font-size:10.5px;color:var(--muted);margin:0 0 10px;">'+(editing.investigations||[]).length+' investigation(s) saved. Add more from the main screen after saving.</p>')
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-centre">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-centre">'+ic('check')+' Save centre</button></div>'
     + '</div>';
@@ -3917,7 +3917,7 @@ function diagAddReferralFormHtml() {
     + (DIAG_CENTRES.length > 1 ? ('<label class="field-label">Diagnostic centre</label><select class="select" id="diag-ref-centre" style="margin-bottom:10px;">'
         + DIAG_CENTRES.map(c => '<option value="'+c.id+'"'+(c.id===centre.id?' selected':'')+'>'+esc(c.name)+'</option>').join('')
         + '</select>') : '')
-    + '<label class="field-label">Patient name</label><input class="input" id="diag-ref-patient" placeholder="Patient name" value="'+esc(DIAG_REF_PATIENT_DRAFT)+'" style="margin-bottom:10px;">'
+    + '<label class="field-label">Patient name</label><input class="input" id="diag-ref-patient" placeholder="" value="'+esc(DIAG_REF_PATIENT_DRAFT)+'" style="margin-bottom:10px;">'
     + (!investigations.length ? '<p style="font-size:12px;color:var(--muted);margin-bottom:10px;">This centre has no rate list yet \u2014 edit it to add investigations, or load Ananta\u2019s starter list.</p>' : (
         '<label class="field-label">Investigation</label><select class="select" id="diag-ref-investigation" style="margin-bottom:10px;">'
         + investigations.map(i => '<option value="'+esc(i.name)+'"'+(selectedInv&&i.name===selectedInv.name?' selected':'')+'>'+esc(i.name)+' ('+i.type+')</option>').join('')
@@ -3941,7 +3941,7 @@ function diagAddReferralFormHtml() {
       ))
     + '<div class="row gap2" style="margin-bottom:10px;">'
     + '<div style="flex:1;"><label class="field-label">Report date</label><input class="input" type="date" id="diag-ref-date" value="'+esc(DIAG_REF_DATE_DRAFT || todayStr())+'"></div>'
-    + '<div style="flex:1;"><label class="field-label">Report ID no.</label><input class="input" id="diag-ref-reportid" placeholder="From their report" value="'+esc(DIAG_REF_REPORTID_DRAFT)+'"></div>'
+    + '<div style="flex:1;"><label class="field-label">Report ID no.</label><input class="input" id="diag-ref-reportid" placeholder="" value="'+esc(DIAG_REF_REPORTID_DRAFT)+'"></div>'
     + '</div>'
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-referral">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-referral">'+ic('check')+' '+(DIAG_EDITING_REFERRAL_ID?'Update entry':'Save entry')+'</button></div>'
     + '</div>';
@@ -4141,9 +4141,9 @@ function renderPatientAiToolsView() {
     : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">A quick 2-3 sentence clinical recap for your own reference.</p>'+aiButtonHtml('ai-summarize-patient','Generate summary',false,null,'gemini'));
 
   const referralContent = '<label class="field-label">Refer to (specialty / doctor name)</label>'
-    + '<input class="input" id="ai-referral-specialist" placeholder="e.g. Rheumatologist, Physiotherapy, Dr. Sharma" value="'+esc(AI_REFERRAL_SPECIALIST)+'" style="margin-bottom:8px;">'
+    + '<input class="input" id="ai-referral-specialist" placeholder="" value="'+esc(AI_REFERRAL_SPECIALIST)+'" style="margin-bottom:8px;">'
     + '<label class="field-label">Reason for referral</label>'
-    + '<input class="input" id="ai-referral-reason" placeholder="e.g. Further evaluation of RA, post-op physiotherapy" value="'+esc(AI_REFERRAL_REASON)+'" style="margin-bottom:8px;">'
+    + '<input class="input" id="ai-referral-reason" placeholder="" value="'+esc(AI_REFERRAL_REASON)+'" style="margin-bottom:8px;">'
     + (AI_REFERRAL_LETTER
         ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-referral-letter-text')+'</div><div class="card" id="ai-referral-letter-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_REFERRAL_LETTER)+'</div>'
           + '<button class="btn btn-block" data-action="print-referral-letter">'+ic('printer')+' Print with letterhead</button>'
@@ -4183,7 +4183,7 @@ function renderSchemeFinderView() {
         + '<span class="score-badge" style="background:var(--accent-light);color:var(--accent-dark);">'+(isRghs?'RGHS':'MAA Yojana')+'</span>'
         + '<button class="btn btn-sm" data-action="scheme-change-scheme">Change scheme</button>'
       + '</div>'
-      + '<input class="input" id="scheme-search-input" placeholder="Search procedure, e.g. \u2018knee replacement\u2019 or \u2018plaster\u2019" value="'+esc(SCHEME_FINDER_QUERY)+'" style="margin-bottom:12px;">'
+      + '<input class="input" id="scheme-search-input" placeholder="" value="'+esc(SCHEME_FINDER_QUERY)+'" style="margin-bottom:12px;">'
       + '<div id="scheme-results-list">' + schemeResultsHtml(forCase) + '</div>'
       + '</div>';
   }
@@ -4417,7 +4417,7 @@ async function renderMoreView() {
 function moreSearchBarHtml() {
   return '<div class="row gap2" style="align-items:center;background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:9px 12px;margin-bottom:12px;">'
     + '<span style="flex:none;color:var(--muted);">'+ic('search')+'</span>'
-    + '<input type="text" id="more-search-input" placeholder="Search features\u2026" value="'+esc(MORE_SEARCH||'')+'" style="flex:1;border:none;background:none;font-size:13px;outline:none;">'
+    + '<input type="text" id="more-search-input" placeholder="" value="'+esc(MORE_SEARCH||'')+'" style="flex:1;border:none;background:none;font-size:13px;outline:none;">'
     + '<button type="button" class="icon-btn" style="width:24px;height:24px;flex:none;" data-action="more-search-clear">'+ic('x')+'</button>'
     + '</div>';
 }
@@ -4535,7 +4535,7 @@ function cbTagEditorHtml() {
   const suggestions = cbAllTags().filter(t => !CB_DRAFT_TAGS.includes(t));
   return '<label class="field-label" style="margin-top:10px;">Tags</label>'
     + '<div class="row gap2">'
-      + '<input class="input" id="cb-tag-input" placeholder="e.g. rare fracture, teaching case" style="flex:1;">'
+      + '<input class="input" id="cb-tag-input" placeholder="" style="flex:1;">'
       + '<button type="button" class="btn" data-action="cb-add-tag">'+ic('plus')+'</button>'
     + '</div>'
     + (CB_DRAFT_TAGS.length ? '<div class="chips" style="margin-top:8px;">' + CB_DRAFT_TAGS.map(t => '<button type="button" class="chip" data-action="cb-remove-draft-tag" data-tag="'+esc(t)+'" style="background:var(--accent-bg);color:var(--accent);border-color:var(--accent-border);">'+esc(t)+' '+ic('x')+'</button>').join('') + '</div>' : '')
@@ -4629,7 +4629,7 @@ async function renderClinicalBankView() {
     + '</div>'
     + '<div class="px" style="padding-top:14px;">'
     + '<p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">Interesting findings, saved separately from patient records \u2014 for papers, teaching, or your own reference.</p>'
-    + '<div class="search-wrap" style="margin-bottom:10px;">'+ic('search')+'<input class="search-input" id="cb-search-input" placeholder="Search notes or tags\u2026" value="'+esc(CB_SEARCH)+'"></div>'
+    + '<div class="search-wrap" style="margin-bottom:10px;">'+ic('search')+'<input class="search-input" id="cb-search-input" placeholder="" value="'+esc(CB_SEARCH)+'"></div>'
     + '<button type="button" class="btn btn-block" style="margin-bottom:14px;" data-action="cb-open-add">'+ic('plus')+' New Entry</button>'
     + '<div id="cb-results-list">' + cbResultsListHtml(filtered, imageMap) + '</div>'
     + '</div></div>';
@@ -4649,16 +4649,16 @@ async function renderClinicalBankDetailView() {
     + '<label class="field-label">Images</label>'
     + '<div id="cb-thumbs" style="position:relative;margin-top:8px;margin-bottom:14px;">' + thumbsHtml + '</div>'
     + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:10px;">'
-    + '<div><label class="field-label">Patient name (optional)</label><input class="input" id="cb-name" placeholder="e.g. Colleague\u2019s patient" value="'+esc(CB_DRAFT_NAME)+'"></div>'
-    + '<div><label class="field-label">Age</label><input class="input" type="number" id="cb-age" placeholder="Yrs" value="'+esc(CB_DRAFT_AGE)+'"></div>'
+    + '<div><label class="field-label">Patient name (optional)</label><input class="input" id="cb-name" placeholder="" value="'+esc(CB_DRAFT_NAME)+'"></div>'
+    + '<div><label class="field-label">Age</label><input class="input" type="number" id="cb-age" placeholder="" value="'+esc(CB_DRAFT_AGE)+'"></div>'
     + '</div>'
     + '<div style="margin-bottom:10px;"><label class="field-label">Phone number (optional)</label>'
     + '<div class="row gap2">'
-    + '<input class="input" type="tel" id="cb-phone" placeholder="For calling to ask about the case" value="'+esc(CB_DRAFT_PHONE)+'" style="flex:1;">'
+    + '<input class="input" type="tel" id="cb-phone" placeholder="" value="'+esc(CB_DRAFT_PHONE)+'" style="flex:1;">'
     + (CB_DRAFT_PHONE ? '<a href="tel:'+esc(CB_DRAFT_PHONE)+'" class="btn" style="flex:none;">'+ic('phone')+' Call</a>' : '')
     + '</div></div>'
     + '<label class="field-label">What\u2019s interesting about this?</label>'
-    + '<textarea class="textarea" id="cb-note" rows="3" placeholder="e.g. Rare bilateral presentation, unusual union pattern\u2026">'+esc(CB_DRAFT_NOTE)+'</textarea>'
+    + '<textarea class="textarea" id="cb-note" rows="3" placeholder="">'+esc(CB_DRAFT_NOTE)+'</textarea>'
     + cbTagEditorHtml()
     + '<button type="button" class="btn btn-primary btn-block" style="margin-top:14px;" data-action="cb-save-entry">'+ic('check')+' Save</button>'
     + '</div>';
@@ -4965,14 +4965,14 @@ function renderSettingsView() {
     + '</div>'
     + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.02em;margin:0 0 -4px;">OrthoVault \u2014 Built for Orthopaedic Surgeons</p>'
     + '<p style="font-size:12px;color:var(--muted);margin:0;">These details print on the prescription letterhead. Fill them in once, edit anytime.</p>'
-    + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="e.g. Dr. Jane Smith"></div>'
-    + '<div><label class="field-label">Specialty (for WhatsApp)</label><input class="input" id="pr-specialty" value="'+esc(pr.specialty||'Orthopaedic Surgeon')+'" placeholder="e.g. Orthopaedic Surgeon"></div>'
-    + '<div><label class="field-label">Qualifications (for letterhead)</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
+    + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder=""></div>'
+    + '<div><label class="field-label">Specialty (for WhatsApp)</label><input class="input" id="pr-specialty" value="'+esc(pr.specialty||'Orthopaedic Surgeon')+'" placeholder=""></div>'
+    + '<div><label class="field-label">Qualifications (for letterhead)</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder=""></div>'
     + '<div><label class="field-label">Email (optional)</label><input class="input" type="email" id="pr-email" value="'+esc(pr.email||'')+'"></div>'
-    + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder="e.g. RMC-12345"></div>'
-    + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
-    + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="Full address">'+esc(pr.clinicAddress)+'</textarea></div>'
-    + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder="+91 ..."></div>'
+    + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder=""></div>'
+    + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder=""></div>'
+    + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="">'+esc(pr.clinicAddress)+'</textarea></div>'
+    + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder=""></div>'
     + '<div style="margin-top:20px;"><label class="field-label" style="font-weight:800;font-size:13px;">📍 WhatsApp Clinic Footer</label>'
     + '<p style="font-size:11px;color:var(--muted);margin:4px 0 12px;">Add 1-3 clinics. These auto-appear at the bottom of all WhatsApp messages.</p>'
     + (pr.clinicAddresses && pr.clinicAddresses.length ? pr.clinicAddresses.map((clinic, idx) => '<div class="card" style="padding:12px;background:rgba(67,56,202,0.03);border-color:#c7d2fe;margin-bottom:10px;">'
@@ -4981,9 +4981,9 @@ function renderSettingsView() {
         + '<button class="icon-btn" style="color:var(--red);" data-action="pr-remove-clinic" data-index="'+idx+'">'+ic('trash')+'</button>'
         + '</div>'
         + '<div style="display:flex;flex-direction:column;gap:8px;">'
-        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="name" placeholder="Clinic name (e.g., SMS Hospital)" value="'+esc(clinic.name)+'">'
-        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="timings" placeholder="Timings (e.g., 9am-5pm)" value="'+esc(clinic.timings||'')+'">'
-        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="mapsLink" placeholder="Google Maps link" value="'+esc(clinic.mapsLink||'')+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="name" placeholder="" value="'+esc(clinic.name)+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="timings" placeholder="" value="'+esc(clinic.timings||'')+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="mapsLink" placeholder="" value="'+esc(clinic.mapsLink||'')+'">'
         + '</div></div>').join('') : '')
     + '<button class="btn btn-sm" style="margin-bottom:16px;" data-action="pr-add-clinic">'+ic('plus')+' Add clinic</button>'
     + '</div>'
@@ -5163,13 +5163,13 @@ function renderOnboardingView() {
   return '<div style="padding-bottom:90px;min-height:100vh;">'
     + '<div class="px" style="padding-top:calc(24px + env(safe-area-inset-top, 0px));display:flex;flex-direction:column;gap:14px;">'
     + '<div style="text-align:center;margin-bottom:4px;"><img src="icons/icon-192.png" style="width:56px;height:56px;border-radius:14px;box-shadow:0 4px 14px rgba(67,56,202,0.3);"><h1 style="font-size:20px;font-weight:800;margin:10px 0 2px;">Welcome to Ortho<span style="color:var(--accent);">Vault</span></h1><p style="font-size:12px;color:var(--muted);margin:0;">Quick one-time setup \u2014 takes a minute</p></div>'
-    + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder="e.g. Dr. Jane Smith"></div>'
-    + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder="MS Orthopaedics, FIFA Dip. Sports Medicine"></div>'
+    + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder=""></div>'
+    + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder=""></div>'
     + '<div><label class="field-label">Email (optional)</label><input class="input" type="email" id="pr-email" value="'+esc(pr.email||'')+'"></div>'
-    + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder="e.g. RMC-12345"></div>'
-    + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder="e.g. Mittal Clinic"></div>'
-    + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="Full address">'+esc(pr.clinicAddress)+'</textarea></div>'
-    + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder="+91 ..."></div>'
+    + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder=""></div>'
+    + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder=""></div>'
+    + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="">'+esc(pr.clinicAddress)+'</textarea></div>'
+    + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder=""></div>'
     + syncCardHtml()
     + '<p style="font-size:11px;color:var(--muted);margin:0;">Signing in now means your data (and this profile) survive a reinstall or new device. You can always do this later from More.</p>'
     + '<button class="btn btn-primary btn-block" data-action="onboarding-continue">Continue to OrthoVault</button>'
@@ -5418,7 +5418,7 @@ function renderQuickFuModal() {
     + '<div class="row between" style="margin-bottom:2px;"><h3 style="font-size:15px;font-weight:800;margin:0;">'+ic('calendar')+' Follow-up for '+esc(p.name)+'</h3><button class="icon-btn" data-action="quick-fu-cancel">'+ic('x')+'</button></div>'
     + '<p style="font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Sets this patient\u2019s next follow-up date \u2014 shows up on Dashboard\u2019s Needs Attention when due.</p>'
     + '<div style="margin-bottom:10px;">'+relativeFollowupPickerHtml('quick-fu-date', p.nextFollowUpDate || '', false)+'</div>'
-    + '<div style="margin-bottom:14px;"><label class="field-label">Purpose (optional) \u2014 helps you remember why</label>'+renderQuickTextChips(PURPOSE_LIB_KEY,'quick-fu-purpose')+'<input class="input" id="quick-fu-purpose" placeholder="e.g. Suture removal, X-ray review" value="'+esc(p.followUpPurpose||'')+'">'+autocompleteBoxHtml('quick-fu-purpose')+'</div>'
+    + '<div style="margin-bottom:14px;"><label class="field-label">Purpose (optional) \u2014 helps you remember why</label>'+renderQuickTextChips(PURPOSE_LIB_KEY,'quick-fu-purpose')+'<input class="input" id="quick-fu-purpose" placeholder="" value="'+esc(p.followUpPurpose||'')+'">'+autocompleteBoxHtml('quick-fu-purpose')+'</div>'
     + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="quick-fu-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="quick-fu-save" data-patient-id="'+p.id+'">Save</button></div>'
     + '</div></div>';
   setupFollowupFormValidation();
@@ -5797,7 +5797,7 @@ function closeUniversalSearch() {
 }
 function usearchOverlayHtml() {
   return '<div class="usearch-topbar">'
-    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="usearch-input" autofocus placeholder="Search anything \u2014 ID, diagnosis, notes\u2026" value="'+esc(USEARCH_QUERY)+'"></div>'
+    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="usearch-input" autofocus placeholder="" value="'+esc(USEARCH_QUERY)+'"></div>'
     + '<button class="icon-btn" data-action="close-usearch">'+ic('x')+'</button>'
     + '</div>'
     + '<div class="usearch-results" id="usearch-results">'+usearchResultsHtml()+'</div>';
@@ -6027,7 +6027,7 @@ function renderPatientsView() {
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px 10px;">'
     + '<div class="row gap3" style="margin-bottom:10px;align-items:center;"><button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Patients</h2><span style="font-size:12px;color:var(--muted);">'+PATIENTS.length+' total</span></div>'
-    + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search anything \u2014 ID, diagnosis, notes\u2026" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
+    + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
     + sortFilterRow
     + ((SEARCH || FILTER_TYPE !== 'all' || activeFilterCount) ? (
@@ -6268,7 +6268,7 @@ function renderAiQueryView() {
     + '<div class="px" style="padding-top:14px;">'
     + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;">Plain-language question over your current patient list (' + PATIENTS.length + ' patients). Answers only from your own data \u2014 nothing external.</p>'
     + '<div class="row between" style="margin-bottom:4px;"><span></span>'+micButtonHtml('ai-query-input')+'</div>'
-    + '<textarea class="textarea" id="ai-query-input" rows="3" placeholder="e.g. List all CTEV cases from the last 6 months\u2026">'+esc(AI_QUERY_TEXT||'')+'</textarea>'
+    + '<textarea class="textarea" id="ai-query-input" rows="3" placeholder="">'+esc(AI_QUERY_TEXT||'')+'</textarea>'
     + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-query">'+ic('shield')+' Ask</button>'
     + (AI_QUERY_ANSWER ? '<div style="margin-top:16px;"><div class="row between" style="margin-bottom:4px;"><span></span>'+speakButtonHtml('ai-query-answer-text')+'</div><div class="card" id="ai-query-answer-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_QUERY_ANSWER)+'</div></div>' : '')
     + '</div></div>';
@@ -6390,23 +6390,23 @@ function renderAddView() {
   const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
 
   const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">Patient name <span style="color:var(--red);">*Required</span> <span id="ap-name-check"></span></label><input class="input" id="ap-name" autofocus placeholder="Patient name" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
+      + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">Patient name <span style="color:var(--red);">*Required</span> <span id="ap-name-check"></span></label><input class="input" id="ap-name" autofocus placeholder="" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div class="row gap2" style="align-items:flex-end;">'
       + '<div style="flex:1;min-width:0;border-left:3px solid var(--accent);padding-left:10px;">'
         + '<label class="field-label" style="color:var(--accent-dark);font-weight:800;">Age <span style="color:var(--red);">*Required</span> <span id="ap-age-check"></span></label>'
-        + '<input class="input" type="text" id="ap-age-text" placeholder="e.g. 45, 6mo, 15 days" value="'+esc(formatAge(AP_TEMP)==='\u2014' ? '' : formatAge(AP_TEMP))+'" style="max-width:200px;font-size:12px;font-weight:700;border-radius:8px;">'
+        + '<input class="input" type="text" id="ap-age-text" placeholder="" value="'+esc(formatAge(AP_TEMP)==='\u2014' ? '' : formatAge(AP_TEMP))+'" style="max-width:200px;font-size:12px;font-weight:700;border-radius:8px;">'
         + '</div>'
       + '<div style="flex:none;"><label class="field-label">Sex</label><div class="seg">'
       + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
       + '</div>'
-      + '<div style="opacity:0.75;"><label class="field-label" style="font-weight:500;font-size:11px;">Occupation <i>(optional)</i></label><input class="input" id="ap-occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(AP_TEMP.occupation)+'"></div>'
-      + '<div style="opacity:0.75;"><label class="field-label" style="font-weight:500;font-size:11px;">WhatsApp number <i>(optional)</i></label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="10-digit number or with +country code" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
+      + '<div style="opacity:0.75;"><label class="field-label" style="font-weight:500;font-size:11px;">Occupation <i>(optional)</i></label><input class="input" id="ap-occupation" placeholder="" value="'+esc(AP_TEMP.occupation)+'"></div>'
+      + '<div style="opacity:0.75;"><label class="field-label" style="font-weight:500;font-size:11px;">WhatsApp number <i>(optional)</i></label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
       + '</div>';
 
   const complaintsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + (!isSurgical ? '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Pain both knees for 6 months, worse on stairs">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
-      + '<div class="row gap2" style="align-items:flex-end;"><div style="flex:1;min-width:0;"><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ap-duration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(AP_TEMP.symptomDuration)+'"></div><div style="flex:none;"><label class="field-label">Side</label>'+sideToggleHtml('ap-set-side', AP_TEMP.side)+'</div></div>'
-      + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" maxlength="500" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Right knee primary OA, K-L grade 4">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
+      + (!isSurgical ? '<div style="border-left:3px solid var(--accent);padding-left:10px;margin-bottom:12px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">Chief complaints (presenting symptoms)</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ap-complaints')+'<textarea class="textarea" id="ap-complaints" rows="2" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="">'+esc(AP_TEMP.chiefComplaints)+'</textarea>'+autocompleteBoxHtml('ap-complaints')+'</div>' : '')
+      + '<div class="row gap2" style="align-items:flex-end;"><div style="flex:1;min-width:0;"><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ap-duration" placeholder="" value="'+esc(AP_TEMP.symptomDuration)+'"></div><div style="flex:none;"><label class="field-label">Side</label>'+sideToggleHtml('ap-set-side', AP_TEMP.side)+'</div></div>'
+      + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">Diagnosis (free text, for records/Rx)</label>'+renderQuickTextChips(DIAGNOSIS_LIB_KEY,'ap-diagnosis')+'<textarea class="textarea" id="ap-diagnosis" rows="2" maxlength="500" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="">'+esc(AP_TEMP.diagnosis)+'</textarea>'+autocompleteBoxHtml('ap-diagnosis')
         + '<div id="ap-diag-ai-suggest-block">'+apDiagAiSuggestBlockHtml()+'</div>'
       + '</div>'
       + regionSpecialtyChipsHtml(AP_TEMP.regions, 'ap-toggle-region', 'ap-auto-region')
@@ -6437,17 +6437,17 @@ function renderAddView() {
       + '<details style="border-radius:8px;background:rgba(67,56,202,0.04);border:1px solid rgba(67,56,202,0.15);margin-top:8px;"><summary style="cursor:pointer;font-weight:700;padding:10px 12px;color:var(--accent-dark);">'+ic('plus')+' Quick add injection (optional)</summary>'
       + '<div style="padding:0 12px 12px;">'
       + '<label class="field-label" style="font-size:11px;color:var(--muted);">Injection type & site</label>'+renderQuickTextChips(INJECTION_LIB_KEY,'ap-inj-label')
-      + '<input class="input" id="ap-inj-label" placeholder="e.g. Intra-articular steroid — Right knee" style="margin-bottom:8px;" data-field="apInjLabel">'
+      + '<input class="input" id="ap-inj-label" placeholder="" style="margin-bottom:8px;" data-field="apInjLabel">'
       + autocompleteBoxHtml('ap-inj-label')
       + '<label class="field-label" style="font-size:11px;color:var(--muted);margin-top:8px;">Notes (optional)</label>'
-      + '<textarea class="textarea" id="ap-inj-notes" rows="2" placeholder="e.g. 40mg triamcinolone" style="font-size:12px;" data-field="apInjNotes"></textarea>'
+      + '<textarea class="textarea" id="ap-inj-notes" rows="2" placeholder="" style="font-size:12px;" data-field="apInjNotes"></textarea>'
       + '</div></details>'
       + '</div>';
 
   const trackingHtml = isSurgical ? (
       '<div style="display:flex;flex-direction:column;gap:12px;">'
       + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
-      + '<div><label class="field-label" style="color:var(--accent-dark);font-weight:800;">'+ic('alert')+' Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="e.g. Total Knee Replacement" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
+      + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;opacity:0.75;">'
       + '<div><label class="field-label" style="font-weight:500;font-size:11px;">Hospital <i>(optional)</i></label><input class="input" id="ap-hospital" value="'+esc(AP_TEMP.hospital||'')+'"></div>'
       + '<div><label class="field-label" style="font-weight:500;font-size:11px;">Anaesthesia <i>(optional)</i></label><select class="select" id="ap-anaesthesia"><option value=""'+(!AP_TEMP.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(AP_TEMP.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
@@ -6460,8 +6460,8 @@ function renderAddView() {
       + (AP_SHOW_PAYMENT ? (
           '<div style="padding:0 12px 12px;">'
           + '<div class="seg">' + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.paymentMethod===v?' active':'')+'" data-action="ap-set-payment" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
-          + (AP_TEMP.paymentMethod==='Insurance' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-insurance" placeholder="Insurance type / company name" value="'+esc(AP_TEMP.insuranceType||'')+'" style="margin-top:8px;">' : '')
-          + (AP_TEMP.paymentMethod==='Cash' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-cash-amount" type="number" inputmode="numeric" placeholder="Cash amount (\u20b9)" value="'+esc(AP_TEMP.cashAmount||'')+'" style="margin-top:8px;">' : '')
+          + (AP_TEMP.paymentMethod==='Insurance' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-insurance" placeholder="" value="'+esc(AP_TEMP.insuranceType||'')+'" style="margin-top:8px;">' : '')
+          + (AP_TEMP.paymentMethod==='Cash' || AP_TEMP.paymentMethod==='Both' ? '<input class="input" id="ap-cash-amount" type="number" inputmode="numeric" placeholder="" value="'+esc(AP_TEMP.cashAmount||'')+'" style="margin-top:8px;">' : '')
           + '</div>'
         ) : '')
       + '</div>'
@@ -6490,7 +6490,7 @@ function renderAddView() {
     [2, 'alert', tab2Label, complaintsHtml, true, 'Reason for visit and clinical details'],
     [3, 'flask', 'Investigations', investigationsHtml, false, 'Imaging, labs and reports'],
     [4, isSurgical ? 'scalpel' : 'clock', tab3Label, trackingHtml, isSurgical, isSurgical ? 'Procedure, hospital and payment' : 'CTEV, RA or other special tracking'],
-    [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>', false, 'Anything else worth recording'],
+    [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="">'+esc(AP_TEMP.notes)+'</textarea></div>', false, 'Anything else worth recording'],
   ];
 
   // Patient Details (section 1) stays pinned and always expanded \u2014 name/age are the fields
@@ -6634,10 +6634,10 @@ function renderOverviewTab(p) {
   const isSurgical = p.caseType === 'surgical';
 
   let clinicalBody = (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
-    + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="e.g. 6 months, 2 weeks" value="'+esc(p.symptomDuration||'')+'"></div>'
-    + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="e.g. Manual labourer, Desk job" value="'+esc(p.occupation||'')+'"></div>'
+    + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="" value="'+esc(p.symptomDuration||'')+'"></div>'
+    + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="" value="'+esc(p.occupation||'')+'"></div>'
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label><div class="row gap1">'+micButtonHtml('ov-notes')+'<button type="button" class="icon-btn" style="width:26px;height:26px;" data-action="open-reading-mode" data-id="'+p.id+'" title="Reading Mode">'+ic('book')+'</button></div></div>'
-    + '<textarea class="textarea" id="ov-notes" rows="5" maxlength="5000" data-field="notes" placeholder="'+(isSurgical?'Intra-op findings, complications, plan\u2026':'Findings, plan, relevant history\u2026')+'">'+esc(p.notes)+'</textarea></div>'
+    + '<textarea class="textarea" id="ov-notes" rows="5" maxlength="5000" data-field="notes" placeholder="">'+esc(p.notes)+'</textarea></div>'
     + (p.condition ? '<div class="row between" style="align-items:center;"><span style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></span><button type="button" class="chip" style="font-size:10px;padding:3px 8px;" data-action="ov-show-tracking-pick">Change</button></div>'
         + (OV_SHOW_TRACKING_PICK ? '<select class="select" id="ov-tracking-select" style="margin-top:6px;"><option value="">\u2014 None (remove tracking) \u2014</option><option value="ctev"'+(p.condition==='ctev'?' selected':'')+'>CTEV</option><option value="ra"'+(p.condition==='ra'?' selected':'')+'>RA</option><option value="osteoporosis"'+(p.condition==='osteoporosis'?' selected':'')+'>Osteoporosis</option><option value="trauma"'+(p.condition==='trauma'?' selected':'')+'>Trauma</option></select>' : '')
         : (!isSurgical ? (OV_SHOW_TRACKING_PICK
@@ -6646,7 +6646,7 @@ function renderOverviewTab(p) {
 
   let communicateBody = '<div class="card">'
     + '<label class="field-label">WhatsApp number</label>'
-    + '<input class="input" type="tel" id="ov-whatsapp" data-field="whatsapp" placeholder="10-digit number (India) or with +country code" value="'+esc(p.whatsapp)+'"><p class="validation-helper" id="ov-whatsapp-helper" style="margin-bottom:10px;"></p>'
+    + '<input class="input" type="tel" id="ov-whatsapp" data-field="whatsapp" placeholder="" value="'+esc(p.whatsapp)+'"><p class="validation-helper" id="ov-whatsapp-helper" style="margin-bottom:10px;"></p>'
     + (waLink(p)
         ? '<div class="row gap2"><a href="'+esc(waLink(p))+'" target="_blank" rel="noopener" class="btn btn-block" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;flex:2;">'+ic('message')+' Message on WhatsApp</a><a href="tel:+'+esc(toWaNumber(p.whatsapp))+'" class="btn" style="flex:1;text-decoration:none;" title="Call">'+ic('phone')+'</a></div>'
         : '<p style="font-size:11px;color:var(--muted);">Save a number to send messages.</p>')
@@ -6731,9 +6731,9 @@ function renderOverviewTab(p) {
             + '<button class="btn btn-sm" data-action="cancel-convert-surgical">Cancel</button>')
       : CONVERT_SURGICAL_STEP === 'planned-form'
         ? ('<div style="font-size:12.5px;font-weight:700;color:#92400e;">Planned surgery details (tentative \u2014 update once OT ho jaaye)</div>'
-            + '<div><label class="field-label">Tentative procedure</label><input class="input" id="ps-tentative-procedure" placeholder="e.g. TKR, ORIF" value="'+esc(p.procedure||'')+'"></div>'
+            + '<div><label class="field-label">Tentative procedure</label><input class="input" id="ps-tentative-procedure" placeholder="" value="'+esc(p.procedure||'')+'"></div>'
             + '<div><label class="field-label">Target date (optional)</label><input class="input" type="date" id="ps-tentative-date" value="'+esc(p.surgeryDate||'')+'"></div>'
-            + '<div><label class="field-label">Hospital (optional)</label><input class="input" id="ps-tentative-hospital" placeholder="Hospital name" value="'+esc(p.hospital||'')+'"></div>'
+            + '<div><label class="field-label">Hospital (optional)</label><input class="input" id="ps-tentative-hospital" placeholder="" value="'+esc(p.hospital||'')+'"></div>'
             + '<button class="btn btn-primary btn-sm btn-block" data-action="save-planned-surgery-details">'+ic('check')+' Save as Awaiting Surgery</button>')
       : (isSurgical && p.surgeryStatus === 'awaiting')
         ? ('<div class="row gap2" style="align-items:center;"><span style="flex:none;">'+ic('clock')+'</span><span style="flex:1;font-size:12.5px;font-weight:700;color:#92400e;">Awaiting Surgery \u2014 OT abhi baaki hai</span></div>'
@@ -6965,7 +6965,7 @@ function renderSmartFollowupFormLayer1(p) {
     + '<button type="button" class="chip" data-action="fu-status-select" data-status="Slower">⚠️ Slower</button>'
     + '<button type="button" class="chip" data-action="fu-status-select" data-status="Issue">🚨 Issue</button>'
     + '</div>'
-    + '<input class="input" id="fu-label" placeholder="e.g. 2 weeks / 6 weeks / check-up" value="'+esc(suggested)+'" style="margin-bottom:10px;">'
+    + '<input class="input" id="fu-label" placeholder="" value="'+esc(suggested)+'" style="margin-bottom:10px;">'
     + '</div>'
     + '<div style="margin-bottom:16px;">'
     + '<label class="field-label">Next follow-up?</label>'
@@ -7031,7 +7031,7 @@ function renderSmartFollowupFormLayer3(p) {
     + '</summary>'
     + '<div style="padding:0 12px 14px;">'
     + '<div class="row between" style="margin-bottom:8px;"><span style="font-size:11px;color:var(--muted);">ROM, complications, concerns\u2026</span>'+micButtonHtml('fu-notes')+'</div>'
-    + '<textarea class="textarea" id="fu-notes" rows="3" maxlength="5000" placeholder="Type or use the mic\u2026" style="background:#fff;"></textarea>'
+    + '<textarea class="textarea" id="fu-notes" rows="3" maxlength="5000" placeholder="" style="background:#fff;"></textarea>'
     + '</div>'
     + '</details>';
 
@@ -7117,9 +7117,9 @@ function renderInjectionsTab(p) {
     addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inj">'+ic('plus')+' Add injection</button>';
   } else {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-      + '<label class="field-label">Injection (type + site)</label>'+renderQuickTextChips(INJECTION_LIB_KEY,'inj-label')+'<input class="input" id="inj-label" placeholder="e.g. Intra-articular steroid \u2014 Right knee" style="margin-bottom:10px;">'
+      + '<label class="field-label">Injection (type + site)</label>'+renderQuickTextChips(INJECTION_LIB_KEY,'inj-label')+'<input class="input" id="inj-label" placeholder="" style="margin-bottom:10px;">'
       + '<label class="field-label">Date</label><input class="input" type="date" id="inj-date" value="'+todayStr()+'" style="margin-bottom:10px;">'
-      + '<div class="row between" style="margin:0 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes (optional)</label>'+micButtonHtml('inj-notes')+'</div><textarea class="textarea" id="inj-notes" rows="2" maxlength="2000" placeholder="Dose, response, next due\u2026"></textarea>'
+      + '<div class="row between" style="margin:0 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes (optional)</label>'+micButtonHtml('inj-notes')+'</div><textarea class="textarea" id="inj-notes" rows="2" maxlength="2000" placeholder=""></textarea>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-inj">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-inj">Save injection</button></div>'
       + '</div>';
   }
@@ -7181,19 +7181,19 @@ async function renderInvestigationsTab(p) {
     addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inv">'+ic('plus')+' Add investigation</button>';
   } else {
     addBlock = '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
-      + '<label class="field-label" style="font-weight:700;">Investigation Type</label><input class="input" id="inv-label" placeholder="e.g. CBC, Blood Sugar, Lipid Profile" style="margin-bottom:12px;">'
+      + '<label class="field-label" style="font-weight:700;">Investigation Type</label><input class="input" id="inv-label" placeholder="" style="margin-bottom:12px;">'
       + '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:12px;">'
       + '<label class="field-label">Parameter Details</label>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:8px;">'
-      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Parameter name</label><input class="input" id="inv-param" placeholder="e.g. Hemoglobin" style="font-size:12px;"></div>'
-      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Value</label><input class="input" id="inv-value" type="text" inputmode="decimal" placeholder="e.g. 12.5" style="font-size:12px;"></div>'
-      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Unit</label><input class="input" id="inv-unit" placeholder="e.g. g/dL" style="font-size:12px;"></div>'
+      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Parameter name</label><input class="input" id="inv-param" placeholder="" style="font-size:12px;"></div>'
+      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Value</label><input class="input" id="inv-value" type="text" inputmode="decimal" placeholder="" style="font-size:12px;"></div>'
+      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Unit</label><input class="input" id="inv-unit" placeholder="" style="font-size:12px;"></div>'
       + '</div>'
       + '</div>'
       + '<label class="field-label">Test Date</label><input class="input" type="date" id="inv-date" value="'+todayStr()+'" style="margin-bottom:12px;">'
       + '<label class="field-label">Photos / Reports (optional)</label><div id="inv-thumbs">'+thumbGridHtml(INV_PHOTOS,'inv-remove-photo')+'</div>'
       + '<label class="add-photo-tile" style="width:100%;justify-content:center;margin:8px 0;">'+ic('plus')+'<span>Add photo, PDF, or document</span><input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" multiple data-inv-input style="display:none;"></label>'
-      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('inv-notes')+'</div><textarea class="textarea" id="inv-notes" rows="2" maxlength="2000" placeholder="Reference range, interpretation\u2026"></textarea>'
+      + '<div class="row between" style="margin:10px 0 5px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('inv-notes')+'</div><textarea class="textarea" id="inv-notes" rows="2" maxlength="2000" placeholder=""></textarea>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="cancel-add-inv">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="submit-inv">Save test result</button></div>'
       + '</div>';
   }
@@ -7248,14 +7248,14 @@ function renderRxMedRows() {
     + '<div class="row between" style="margin-bottom:8px;"><span style="font-weight:800;font-size:11px;color:var(--muted);text-transform:uppercase;">Medicine '+(idx+1)+'</span>'
     + (RX_TEMP.medicines.length>1 ? '<button class="icon-btn" data-action="rx-remove-med" data-id="'+m.id+'">'+ic('trash')+'</button>' : '')
     + '</div>'
-    + '<input class="input" id="rxm-'+m.id+'-name" list="rx-med-names" placeholder="Medicine name" value="'+esc(m.name)+'" style="margin-bottom:8px;">'
+    + '<input class="input" id="rxm-'+m.id+'-name" list="rx-med-names" placeholder="" value="'+esc(m.name)+'" style="margin-bottom:8px;">'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
-    + '<input class="input" id="rxm-'+m.id+'-dose" placeholder="Dose e.g. 500mg" value="'+esc(m.dose)+'">'
-    + '<input class="input" id="rxm-'+m.id+'-frequency" placeholder="Freq e.g. 1-0-1" value="'+esc(m.frequency)+'">'
+    + '<input class="input" id="rxm-'+m.id+'-dose" placeholder="" value="'+esc(m.dose)+'">'
+    + '<input class="input" id="rxm-'+m.id+'-frequency" placeholder="" value="'+esc(m.frequency)+'">'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-    + '<input class="input" id="rxm-'+m.id+'-duration" placeholder="Duration e.g. 5 days" value="'+esc(m.duration)+'">'
-    + '<input class="input" id="rxm-'+m.id+'-instructions" placeholder="e.g. after food" value="'+esc(m.instructions)+'">'
+    + '<input class="input" id="rxm-'+m.id+'-duration" placeholder="" value="'+esc(m.duration)+'">'
+    + '<input class="input" id="rxm-'+m.id+'-instructions" placeholder="" value="'+esc(m.instructions)+'">'
     + '</div>'
     + '</div>'
   ).join('') + '<datalist id="rx-med-names">'+medNameSuggestions().map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>';
@@ -7288,7 +7288,7 @@ async function renderPrescriptionsTab(p) {
       + renderQuickAddChips()
       + '<div id="rx-med-rows">'+renderRxMedRows()+'</div>'
       + '<button class="btn btn-outline-dashed btn-block" data-action="rx-add-med" style="margin-bottom:12px;">'+ic('plus')+' Add another medicine</button>'
-      + '<label class="field-label">Advice</label><textarea class="textarea" rows="2" id="rx-advice" placeholder="General advice, activity restriction\u2026">'+esc(RX_TEMP.advice)+'</textarea>'
+      + '<label class="field-label">Advice</label><textarea class="textarea" rows="2" id="rx-advice" placeholder="">'+esc(RX_TEMP.advice)+'</textarea>'
       + '<label class="field-label" style="margin-top:10px;">Photos (optional \u2014 old prescriptions, referral notes)</label><div id="rx-thumbs">'+thumbGridHtml(RX_PHOTOS,'rx-remove-photo')+'</div>'
       + '<label class="field-label" style="margin-top:10px;">Follow-up date (optional)</label>'
       + relativeFollowupPickerHtml('rx-followUpDate', RX_TEMP.followUpDate, false)
@@ -8001,8 +8001,8 @@ function surgicalDetailsSectionHtml(p) {
     + (OV_SHOW_PAYMENT ? (
         '<div style="padding:0 12px 12px;">'
         + '<div class="seg">' + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
-        + (p.paymentMethod==='Insurance' || p.paymentMethod==='Both' ? '<input class="input" data-field="insuranceType" placeholder="Insurance type / company name" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
-        + (p.paymentMethod==='Cash' || p.paymentMethod==='Both' ? '<input class="input" type="number" inputmode="numeric" data-field="cashAmount" placeholder="Cash amount (\u20b9)" value="'+esc(p.cashAmount||'')+'" style="margin-top:8px;">' : '')
+        + (p.paymentMethod==='Insurance' || p.paymentMethod==='Both' ? '<input class="input" data-field="insuranceType" placeholder="" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
+        + (p.paymentMethod==='Cash' || p.paymentMethod==='Both' ? '<input class="input" type="number" inputmode="numeric" data-field="cashAmount" placeholder="" value="'+esc(p.cashAmount||'')+'" style="margin-top:8px;">' : '')
         + '</div>'
       ) : '')
     + '</div>';
@@ -8067,7 +8067,7 @@ async function renderCtevTab(p) {
         + '<label class="field-label" style="margin-top:8px;">Abduction achieved (\u00b0, optional)</label><input class="input" type="number" min="0" max="90" id="ctev-s-'+f+'-abduction" value="'+esc(CTEV_SESSION_TEMP[f+'Abduction'])+'"></div>'; });
     }
     html += '<div style="margin-top:10px;">'
-      + '<label class="field-label">Notes</label><textarea class="textarea" id="ctev-s-notes" rows="2" placeholder="Cast tolerance, skin check\u2026">'+esc(CTEV_SESSION_TEMP.notes)+'</textarea>'
+      + '<label class="field-label">Notes</label><textarea class="textarea" id="ctev-s-notes" rows="2" placeholder="">'+esc(CTEV_SESSION_TEMP.notes)+'</textarea>'
       + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="ctev-cancel-add-session">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ctev-submit-session">Save session</button></div>'
       + '</div></div>';
   }
@@ -8116,7 +8116,7 @@ async function renderCtevTab(p) {
       + '<div><label class="field-label">Visit date</label><input class="input" type="date" id="ctev-bl-date" value="'+todayStr()+'"></div>'
       + '<div><label class="field-label">Hrs worn/day</label><input class="input" type="number" min="0" max="24" id="ctev-bl-hours" value="20"></div>'
       + '</div>'
-      + '<textarea class="textarea" id="ctev-bl-notes" rows="2" placeholder="Compliance, skin issues\u2026" style="margin-bottom:8px;"></textarea>'
+      + '<textarea class="textarea" id="ctev-bl-notes" rows="2" placeholder="" style="margin-bottom:8px;"></textarea>'
       + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="ctev-cancel-add-bracelog">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="ctev-submit-bracelog">Save</button></div>'
       + '</div>';
   }
@@ -8257,10 +8257,10 @@ function renderRaTab(p) {
     + '<label class="field-label" style="'+(overdueLabs?'color:#7f1d1d;':'')+'">Next monitoring labs due'+(overdueLabs?' \u2014 OVERDUE':'')+'</label>'
     + '<input class="input" type="date" data-ra-field="nextLabsDate" value="'+esc(ra.nextLabsDate)+'" style="margin-bottom:10px;">'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
-    + '<div><label class="field-label">CBC</label><input class="input" data-ra-field="monitoring.cbc" placeholder="e.g. Hb 12.5, TLC normal" value="'+esc(mon.cbc)+'"></div>'
-    + '<div><label class="field-label">LFT</label><input class="input" data-ra-field="monitoring.lft" placeholder="e.g. Normal" value="'+esc(mon.lft)+'"></div>'
+    + '<div><label class="field-label">CBC</label><input class="input" data-ra-field="monitoring.cbc" placeholder="" value="'+esc(mon.cbc)+'"></div>'
+    + '<div><label class="field-label">LFT</label><input class="input" data-ra-field="monitoring.lft" placeholder="" value="'+esc(mon.lft)+'"></div>'
     + '</div>'
-    + '<div style="margin-top:10px;"><label class="field-label">Creatinine</label><input class="input" data-ra-field="monitoring.creatinine" placeholder="e.g. 0.8 mg/dL" value="'+esc(mon.creatinine)+'"></div>'
+    + '<div style="margin-top:10px;"><label class="field-label">Creatinine</label><input class="input" data-ra-field="monitoring.creatinine" placeholder="" value="'+esc(mon.creatinine)+'"></div>'
     + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0;">Latest values only \u2014 not a dated history. DMARD/biologic monitoring per standard protocols.</p>'
     + '</div>';
 
@@ -8538,7 +8538,7 @@ function renderDetailShell(p) {
     + '<button class="icon-btn" data-action="back-to-list" style="margin-top:2px;">'+ic('back')+'</button>'
     + '<div style="min-width:0;flex:1;">'
     + (EDITING_PATIENT_CODE
-        ? '<div class="row gap2"><input class="input" id="patient-code-input" value="'+esc(p.patientCode||'')+'" style="flex:1;" placeholder="e.g. PT0001"><button class="icon-btn" style="color:var(--emerald);" data-action="save-patient-code" title="Save">'+ic('check')+'</button><button class="icon-btn" data-action="cancel-edit-patient-code" title="Cancel">'+ic('x')+'</button></div>'
+        ? '<div class="row gap2"><input class="input" id="patient-code-input" value="'+esc(p.patientCode||'')+'" style="flex:1;" placeholder=""><button class="icon-btn" style="color:var(--emerald);" data-action="save-patient-code" title="Save">'+ic('check')+'</button><button class="icon-btn" data-action="cancel-edit-patient-code" title="Cancel">'+ic('x')+'</button></div>'
         : '<div class="row between" style="align-items:baseline;">'
           + (p.patientCode
               ? '<button style="background:none;border:none;padding:0;font-weight:800;font-size:14px;color:var(--accent-dark);font-family:\'JetBrains Mono\',monospace;" data-action="edit-patient-code">'+esc(p.patientCode)+'</button>'
@@ -8549,9 +8549,9 @@ function renderDetailShell(p) {
           + '</div>')
     + (EDITING_PATIENT_NAME
         ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:2px;">'
-          + '<input class="input" id="patient-name-input" value="'+esc(EDITING_HEADER_NAME_DRAFT)+'" style="font-size:14px;padding:6px 10px;" placeholder="Patient name">'
+          + '<input class="input" id="patient-name-input" value="'+esc(EDITING_HEADER_NAME_DRAFT)+'" style="font-size:14px;padding:6px 10px;" placeholder="">'
           + '<div class="row gap2">'
-          + '<input class="input" id="patient-age-input" value="'+esc(EDITING_HEADER_AGE_DRAFT)+'" placeholder="e.g. 45, 6mo, 15 days" style="flex:1;font-size:12px;padding:6px 10px;">'
+          + '<input class="input" id="patient-age-input" value="'+esc(EDITING_HEADER_AGE_DRAFT)+'" placeholder="" style="flex:1;font-size:12px;padding:6px 10px;">'
           + '<div class="seg" style="flex:none;">'
           + ['M','F'].map(s => '<button type="button" class="seg-btn'+(EDITING_HEADER_SEX===s?' active':'')+'" data-action="edit-header-set-sex" data-value="'+s+'">'+s+'</button>').join('')
           + '</div>'
@@ -8713,7 +8713,7 @@ function renderReminderForm() {
   const patient = REMINDER_FORM_PATIENT_ID ? getPatient(REMINDER_FORM_PATIENT_ID) : null;
   return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
     + '<label class="field-label">New reminder'+(patient?' for '+escName(patient.name):'')+'</label>'
-    + '<textarea class="textarea" id="rem-text" rows="2" placeholder="e.g. Order implant set for Tuesday\u2019s OT list"></textarea>'
+    + '<textarea class="textarea" id="rem-text" rows="2" placeholder=""></textarea>'
     + (!patient ? '<label class="field-label" style="margin-top:8px;">Category</label><div class="seg">'+REMINDER_CATEGORIES.map(c=>'<button class="seg-btn'+(REMINDER_FORM_CATEGORY===c?' active':'')+'" data-action="reminder-set-category" data-value="'+c+'">'+c+'</button>').join('')+'</div>' : '')
     + '<label class="field-label" style="margin-top:8px;">Due date (optional)</label><input class="input" type="date" id="rem-date" value="'+esc(REMINDER_FORM_DATE)+'">'
     + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="reminder-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="reminder-save">Save reminder</button></div>'
@@ -9072,7 +9072,7 @@ async function renderImageViewerFrame(url, imgId) {
     + (isVid ? '<video src="'+url+'" controls playsinline style="max-width:100%;max-height:78vh;margin:auto;display:block;"></video>' : '<img src="'+url+'" style="touch-action:none;transform-origin:center center;">')
     + '<div class="modal-note-bar">'
     + (rec && rec.imageCategory === 'xray' ? '<select class="select" id="viewer-xray-subtype-select" data-imgid="'+imgId+'" style="margin-bottom:6px;font-size:12px;">'+ALL_XRAY_SUBTYPES.map(s=>'<option'+(rec.xraySubtype===s?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
-    + '<input class="input" id="img-note-input" data-img-note="'+imgId+'" placeholder="Add a note for this image \u2014 what to remember\u2026" value="'+esc(note)+'"></div>';
+    + '<input class="input" id="img-note-input" data-img-note="'+imgId+'" placeholder="" value="'+esc(note)+'"></div>';
 }
 function viewerNav(dir) {
   if (!IMG_GALLERY) return;
@@ -13579,8 +13579,8 @@ function syncCardHtml() {
     + '<label class="field-label">Cloud Sync Account</label>'
     + '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Set this up once to prepare for multi-device sync. Sync isn\u2019t active yet \u2014 your data stays local for now.</p>'
     + '<div style="display:flex;flex-direction:column;gap:8px;">'
-    + '<input class="input" id="auth-email" type="email" placeholder="Email" autocomplete="username">'
-    + '<input class="input" id="auth-password" type="password" placeholder="Password (min 6 characters)" autocomplete="current-password">'
+    + '<input class="input" id="auth-email" type="email" placeholder="" autocomplete="username">'
+    + '<input class="input" id="auth-password" type="password" placeholder="" autocomplete="current-password">'
     + '</div>'
     + '<div class="row gap2" style="margin-top:10px;">'
     + '<button class="btn btn-sm" style="flex:1;" data-action="email-sign-up">Create Account</button>'
