@@ -6400,7 +6400,7 @@ function renderAddView() {
       + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
       + '</div>'
       + '<div style="opacity:0.75;"><label class="field-label" style="font-weight:500;font-size:11px;">Occupation <i>(optional)</i></label><input class="input" id="ap-occupation" placeholder="" value="'+esc(AP_TEMP.occupation)+'"></div>'
-      + '<div style="opacity:0.75;"><label class="field-label" style="font-weight:500;font-size:11px;">WhatsApp number <i>(optional)</i></label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
+      + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">WhatsApp number</label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
       + '</div>';
 
   const complaintsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
@@ -6488,8 +6488,8 @@ function renderAddView() {
 
   const accordionSections = [
     [2, 'alert', tab2Label, complaintsHtml, true, 'Reason for visit and clinical details'],
-    [3, 'flask', 'Investigations', investigationsHtml, false, 'Imaging, labs and reports'],
-    [4, isSurgical ? 'scalpel' : 'clock', tab3Label, trackingHtml, isSurgical, isSurgical ? 'Procedure, hospital and payment' : 'CTEV, RA or other special tracking'],
+    [3, 'flask', 'Investigations', investigationsHtml, true, 'Imaging, labs and reports'],
+    [4, isSurgical ? 'scalpel' : 'clock', tab3Label, trackingHtml, true, isSurgical ? 'Procedure, hospital and payment' : 'CTEV, RA or other special tracking'],
     [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="">'+esc(AP_TEMP.notes)+'</textarea></div>', false, 'Anything else worth recording'],
   ];
 
