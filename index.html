@@ -4447,6 +4447,7 @@ function moreBodyHtml() {
 
     { group:'cleanup', title:'Find Duplicate Patients', sub:'Scan for likely-duplicate cases by name', html: moreRowHtml('funnel', 'Find Duplicate Patients', 'Scan for likely-duplicate cases by name and merge them safely', 'open-duplicate-finder') },
     { group:'cleanup', title:'Unfiled Photos', sub:'Recover photos from forms that were never finished', html: moreRowHtml('camera', 'Unfiled Photos'+(UNFILED_COUNT_CACHE?' ('+UNFILED_COUNT_CACHE+')':''), 'Photos saved from a form that was never finished \u2014 file or delete them', 'open-unfiled-photos') },
+    { group:'cleanup', title:'Photo Gallery', sub:'Browse all patient photos in one grid', html: moreRowHtml('camera', 'Photo Gallery', 'Instagram-style grid of every patient\u2019s photos \u2014 filter by category, region, time or patient', 'open-photo-gallery') },
     { group:'cleanup', title:'Fix Follow-up Week Labels', sub:'Recalculate "2 Weeks / 6 Weeks" labels', html: moreRowHtml('clock', 'Fix Follow-up Week Labels', 'Recalculates "2 Weeks / 6 Weeks" etc labels from surgery/visit date instead of the previous visit', 'fix-followup-labels') },
     { group:'cleanup', title:'Fix Name/Diagnosis Capitalization', sub:'Capitalize existing patient names and diagnoses', html: moreRowHtml('pencil', 'Fix Name/Diagnosis Capitalization', 'One-time cleanup \u2014 capitalizes existing patient names and diagnoses that were typed in lowercase', 'fix-capitalization') },
 
@@ -6864,6 +6865,68 @@ const IMGREC_GROUPS = [
   { key:'labs', label:'Labs / Reports', categories:['investigations'] },
 ];
 let IMGREC_SELECT_MODE = false;
+let GALLERY_CATEGORY = 'all';
+let GALLERY_REGION = 'all';
+let GALLERY_TIMEPERIOD = 'month';
+let GALLERY_PATIENT_SEARCH = '';
+async function renderPhotoGalleryView() {
+  revokeActiveUrls();
+  const items = await computeGalleryImages();
+
+  const catOptions = [['all','All'],['xray','X-ray'],['clinical','Clinical'],['wound','Wound'],['ct','CT'],['mri','MRI'],['usg','USG'],['ot','Intra-op']];
+  const regionOptions = [['all','All Regions'], ...CASE_REGIONS.map(r => [r.key, r.key])];
+  const timeOptions = [['week','This Week'],['month','This Month'],['3months','Last 3 Months'],['all','All Time']];
+
+  const filtersHtml = '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">'
+    + '<input class="input" id="gallery-patient-search" placeholder="" value="'+esc(GALLERY_PATIENT_SEARCH)+'" style="font-size:13px;">'
+    + '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;">'
+    + '<select class="select" id="gallery-category" style="flex:none;width:auto;font-size:12px;">'+catOptions.map(([v,l])=>'<option value="'+v+'"'+(GALLERY_CATEGORY===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'
+    + '<select class="select" id="gallery-region" style="flex:none;width:auto;font-size:12px;">'+regionOptions.map(([v,l])=>'<option value="'+v+'"'+(GALLERY_REGION===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'
+    + '<select class="select" id="gallery-time" style="flex:none;width:auto;font-size:12px;">'+timeOptions.map(([v,l])=>'<option value="'+v+'"'+(GALLERY_TIMEPERIOD===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'
+    + '</div></div>';
+
+  if (!items.length) {
+    return '<div style="padding-bottom:40px;">'
+      + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3"><button class="icon-btn" data-action="close-photo-gallery">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Photo Gallery</h2></div></div>'
+      + '<div class="px" style="padding-top:14px;">' + filtersHtml
+      + '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">No photos match these filters.</div>'
+      + '</div></div>';
+  }
+
+  const gridHtml = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:3px;">'
+    + items.map((item, idx) => {
+        const url = trackUrl(URL.createObjectURL(item.img.blob));
+        return '<div style="position:relative;aspect-ratio:1;overflow:hidden;background:var(--bg-soft);" data-action="gallery-view-image" data-idx="'+idx+'" data-url="'+esc(url)+'" data-imgid="'+item.img.id+'">'
+          + '<img src="'+url+'" style="width:100%;height:100%;object-fit:cover;">'
+          + '<div style="position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.7));padding:12px 6px 4px;"><span style="color:#fff;font-size:9.5px;font-weight:700;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(item.patient?esc(item.patient.name):'Unknown')+'</span></div>'
+          + '</div>';
+      }).join('')
+    + '</div>';
+
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3"><button class="icon-btn" data-action="close-photo-gallery">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Photo Gallery</h2></div></div>'
+    + '<div class="px" style="padding-top:14px;">' + filtersHtml
+    + '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">'+items.length+' photo'+(items.length!==1?'s':'')+'</div>'
+    + gridHtml
+    + '</div></div>';
+}
+async function computeGalleryImages() {
+  const all = await dbGetAllImages();
+  const cutoffDays = GALLERY_TIMEPERIOD === 'week' ? 7 : GALLERY_TIMEPERIOD === 'month' ? 30 : GALLERY_TIMEPERIOD === '3months' ? 90 : null;
+  const cutoffMs = cutoffDays ? Date.now() - cutoffDays*86400000 : null;
+  const searchLower = GALLERY_PATIENT_SEARCH.trim().toLowerCase();
+
+  return all.filter(img => {
+    if (cutoffMs && img.createdAt < cutoffMs) return false;
+    const cat = img.isIntraOp ? 'ot' : (img.imageCategory || 'other');
+    if (GALLERY_CATEGORY !== 'all' && cat !== GALLERY_CATEGORY) return false;
+    const patient = PATIENTS.find(p => p.id === img.patientId);
+    if (GALLERY_REGION !== 'all' && !(patient && (patient.regions||[]).includes(GALLERY_REGION))) return false;
+    if (searchLower && !(patient && patient.name && patient.name.toLowerCase().includes(searchLower))) return false;
+    return true;
+  }).map(img => ({ img, patient: PATIENTS.find(p => p.id === img.patientId) || null }))
+    .sort((a,b) => (b.img.createdAt||0) - (a.img.createdAt||0));
+}
 let IMGREC_SELECTED_IDS = new Set();
 function imgrecCatLabel(k) { const f = IMAGES_RECORDS_SECTIONS.find(s=>s[0]===k); return f?f[1]:k; }
 async function renderImagesRecordsTab(p) {
@@ -8921,6 +8984,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'privacy-policy') { app.innerHTML = renderPrivacyPolicyView(); return; }
   if (VIEW === 'terms') { app.innerHTML = renderTermsView(); return; }
   if (VIEW === 'unfiled-photos') { app.innerHTML = await renderUnfiledPhotosView(); return; }
+  if (VIEW === 'photo-gallery') { app.innerHTML = await renderPhotoGalleryView(); return; }
   if (VIEW === 'recently-deleted') { app.innerHTML = await renderRecentlyDeletedView(); return; }
   if (VIEW === 'research-cases') { app.innerHTML = renderResearchCasesView(); return; }
   if (VIEW === 'clinical-bank') { app.innerHTML = await renderClinicalBankView(); return; }
@@ -9785,7 +9849,7 @@ function updateMasterVoiceUI() {
     // Hide entirely on screens that have their own fixed bottom action bar, or where a
     // generic floating trigger would visually clash with the screen's own content/buttons
     // (menus, AI sub-pages that ARE the AI feature already, forms with Save/Cancel bars, etc).
-    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report'];
+    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report', 'photo-gallery'];
     // Search must stay available to every tier, not just AI tier \u2014 only the "Ask AI" menu
     // option inside is gated below, the button itself always shows (like the old search fab did).
     const shouldShow = !APP_LOCKED && !hideOnViews.includes(VIEW);
@@ -12538,6 +12602,16 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'open-photo-gallery') { VIEW = 'photo-gallery'; await render(); return; }
+  if (action === 'close-photo-gallery') { VIEW = 'more'; render(); return; }
+  if (action === 'gallery-view-image') {
+    const container = el.parentElement;
+    const items = Array.from(container.querySelectorAll('[data-action="gallery-view-image"]'));
+    const gallery = items.map(it => ({ url: it.dataset.url, imgid: it.dataset.imgid }));
+    const startIdx = parseInt(el.dataset.idx, 10);
+    await openImageViewer(el.dataset.url, el.dataset.imgid, gallery, startIdx);
+    return;
+  }
   if (action === 'open-unfiled-photos') { VIEW = 'unfiled-photos'; await render(); return; }
   if (action === 'close-unfiled-photos') { VIEW = 'more'; await render(); return; }
   if (action === 'unfiled-file') {
@@ -12896,6 +12970,10 @@ async function render_only_current_view() {
 
 document.addEventListener('change', async (e) => {
   const t = e.target;
+
+  if (t.id === 'gallery-category') { GALLERY_CATEGORY = t.value; render(); return; }
+  if (t.id === 'gallery-region') { GALLERY_REGION = t.value; render(); return; }
+  if (t.id === 'gallery-time') { GALLERY_TIMEPERIOD = t.value; render(); return; }
 
   if (t.id === 'diag-ref-centre') {
     diagStashReferralDrafts();
@@ -13317,6 +13395,11 @@ document.addEventListener('change', async (e) => {
 
 document.addEventListener('input', (e) => {
   if (e.target.id === 'ap-name' || e.target.id === 'ap-age-text') { updateApReadiness(); }
+  if (e.target.id === 'gallery-patient-search') {
+    clearTimeout(window.__galleryySearchTimer);
+    window.__galleryySearchTimer = setTimeout(() => { GALLERY_PATIENT_SEARCH = e.target.value; render(); }, 350);
+    return;
+  }
   if (e.target.id === 'more-search-input') {
     MORE_SEARCH = e.target.value;
     const container = document.getElementById('more-results-container');
