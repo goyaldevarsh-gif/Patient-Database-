@@ -297,7 +297,7 @@
   .badge-slate { color:var(--slate); background:var(--slate-bg); border-color:var(--slate-border); }
   .badge-muted { color:var(--muted); background:var(--bg-soft,#f8fafc); border-color:var(--border); }
 
-  label.field-label { display:block; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.03em; color:var(--muted); margin-bottom:6px; }
+  label.field-label { display:block; font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.03em; color:var(--ink); opacity:0.82; margin-bottom:6px; }
   .section-title { font-size:11px; font-weight:800; text-transform:uppercase; color:var(--muted); margin:16px 0 8px; }
   .input, .textarea, .select { width:100%; border:1px solid var(--border); border-radius:10px; padding:9px 11px; background:#fff; color:var(--ink); }
   .input:focus, .textarea:focus, .select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(67,56,202,0.15); }
@@ -6434,7 +6434,7 @@ function renderAddView() {
               ) : '')
             + '</div>';
         }).join('')
-      + '<details style="border-radius:8px;background:rgba(59,130,246,0.04);border:1px solid rgba(59,130,246,0.15);margin-top:8px;"><summary style="cursor:pointer;font-weight:700;padding:10px 12px;color:#1d4ed8;">'+ic('plus')+' Quick add injection (optional)</summary>'
+      + '<details style="border-radius:8px;background:rgba(67,56,202,0.04);border:1px solid rgba(67,56,202,0.15);margin-top:8px;"><summary style="cursor:pointer;font-weight:700;padding:10px 12px;color:var(--accent-dark);">'+ic('plus')+' Quick add injection (optional)</summary>'
       + '<div style="padding:0 12px 12px;">'
       + '<label class="field-label" style="font-size:11px;color:var(--muted);">Injection type & site</label>'+renderQuickTextChips(INJECTION_LIB_KEY,'ap-inj-label')
       + '<input class="input" id="ap-inj-label" placeholder="e.g. Intra-articular steroid — Right knee" style="margin-bottom:8px;" data-field="apInjLabel">'
@@ -6487,26 +6487,26 @@ function renderAddView() {
     );
 
   const accordionSections = [
-    [2, 'alert', tab2Label, complaintsHtml, true],
-    [3, 'flask', 'Investigations', investigationsHtml, false],
-    [4, isSurgical ? 'scalpel' : 'clock', tab3Label, trackingHtml, isSurgical],
-    [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>', false],
+    [2, 'alert', tab2Label, complaintsHtml, true, 'Reason for visit and clinical details'],
+    [3, 'flask', 'Investigations', investigationsHtml, false, 'Imaging, labs and reports'],
+    [4, isSurgical ? 'scalpel' : 'clock', tab3Label, trackingHtml, isSurgical, isSurgical ? 'Procedure, hospital and payment' : 'CTEV, RA or other special tracking'],
+    [5, 'file', 'Notes'+(isAiTier()?' & AI':''), '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Notes</label>'+micButtonHtml('ap-notes')+'</div><textarea class="textarea" id="ap-notes" rows="3" maxlength="5000" placeholder="Findings, plan, relevant history\u2026">'+esc(AP_TEMP.notes)+'</textarea></div>', false, 'Anything else worth recording'],
   ];
 
   // Patient Details (section 1) stays pinned and always expanded \u2014 name/age are the fields
   // a doctor most often wants to glance back at while filling the rest, so they shouldn't
   // require re-opening an accordion section to see.
   const pinnedDetailsHtml = '<div class="card" style="padding:13px 14px 16px;margin-bottom:10px;border-color:var(--accent-border);">'
-    + '<div class="row gap2" style="gap:10px;margin-bottom:10px;"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:rgba(67,56,202,0.12);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">1</span><span style="font-size:14px;font-weight:800;color:var(--ink);">Patient details</span></div>'
+    + '<div class="row gap2" style="gap:12px;margin-bottom:10px;"><span style="flex:none;width:40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(67,56,202,0.35);">'+ic('users')+'</span><div><span style="display:block;font-size:16px;font-weight:800;color:var(--ink);line-height:1.2;">1. Patient Details</span><span style="display:block;font-size:11px;color:var(--muted);">Basic information</span></div></div>'
     + detailsHtml
     + '</div>';
 
-  const accordionHtml = accordionSections.map(([n, icon, title, body, important]) => {
+  const accordionHtml = accordionSections.map(([n, icon, title, body, important, subtitle]) => {
     const open = AP_OPEN_SECTION === n;
-    return '<div class="card" style="padding:0;margin-bottom:10px;overflow:hidden;'+(important?'':'opacity:0.85;')+'" id="ap-section-'+n+'">'
+    return '<div class="card" style="padding:0;margin-bottom:10px;overflow:hidden;" id="ap-section-'+n+'">'
       + '<button type="button" class="row between" style="width:100%;padding:13px 14px;background:'+(open?'rgba(67,56,202,0.05)':'none')+';border:none;text-align:left;" data-action="ap-toggle-section" data-value="'+n+'">'
-      + '<span class="row gap2" style="gap:10px;"><span style="flex:none;width:26px;height:26px;border-radius:50%;background:'+(important?'rgba(67,56,202,0.12)':'var(--bg-soft)')+';color:'+(important?'var(--accent)':'var(--muted)')+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;">'+n+'</span><span style="font-size:'+(important?'14px':'13px')+';font-weight:'+(important?'800':'600')+';color:'+(important?'var(--ink)':'var(--muted)')+';">'+title+(important?'':' <i style="font-weight:400;">(optional)</i>')+'</span></span>'
-      + '<span style="color:var(--muted);transform:rotate('+(open?'-90':'90')+'deg);transition:transform 150ms;">'+ic('chevron')+'</span>'
+      + '<span class="row gap2" style="gap:12px;"><span style="flex:none;width:40px;height:40px;border-radius:50%;background:'+(important?'var(--accent)':'var(--bg-soft)')+';color:'+(important?'#fff':'var(--muted)')+';display:flex;align-items:center;justify-content:center;'+(important?'box-shadow:0 2px 8px rgba(67,56,202,0.35);':'border:1.5px solid var(--border);')+'">'+ic(icon)+'</span><div><span style="display:block;font-size:'+(important?'16px':'14px')+';font-weight:800;color:'+(important?'var(--ink)':'var(--muted)')+';line-height:1.2;">'+n+'. '+title+(important?'':' <i style="font-weight:500;font-size:12px;">(optional)</i>')+'</span><span style="display:block;font-size:11px;color:var(--muted);">'+subtitle+'</span></div></span>'
+      + '<span style="flex:none;color:var(--muted);transform:rotate('+(open?'-90':'90')+'deg);transition:transform 150ms;">'+ic('chevron')+'</span>'
       + '</button>'
       + (open ? '<div style="padding:4px 14px 16px;">'+body+'</div>' : '')
       + '</div>';
@@ -7011,10 +7011,10 @@ function renderSmartFollowupFormLayer2(p) {
 function renderSmartFollowupFormLayer3(p) {
   let html = '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px;display:flex;flex-direction:column;gap:12px;">';
 
-  html += '<details style="border-radius:10px;overflow:hidden;background:rgba(37,99,235,0.05);border:1px solid rgba(37,99,235,0.18);">'
-    + '<summary style="cursor:pointer;font-weight:700;display:flex;align-items:center;gap:8px;padding:10px 12px;color:#1d4ed8;">'
+  html += '<details style="border-radius:10px;overflow:hidden;background:rgba(67,56,202,0.05);border:1px solid rgba(67,56,202,0.18);">'
+    + '<summary style="cursor:pointer;font-weight:700;display:flex;align-items:center;gap:8px;padding:10px 12px;color:var(--accent-dark);">'
     + '<span style="flex:none;">'+ic('camera')+'</span><span>Add Photos</span>'
-    + (FU_INV_PHOTOS.length ? '<span class="badge" style="margin-left:auto;background:#2563eb;color:#fff;font-size:10px;">'+FU_INV_PHOTOS.length+'</span>' : '')
+    + (FU_INV_PHOTOS.length ? '<span class="badge" style="margin-left:auto;background:var(--accent);color:#fff;font-size:10px;">'+FU_INV_PHOTOS.length+'</span>' : '')
     + '</summary>'
     + '<div style="padding:0 12px 14px;">'
     + '<select class="select" id="fu-inv-category" style="margin-bottom:8px;">'
