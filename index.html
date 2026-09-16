@@ -6397,7 +6397,7 @@ function renderAddView() {
         + '<input class="input" type="text" id="ap-age-text" placeholder="" value="'+esc(formatAge(AP_TEMP)==='\u2014' ? '' : formatAge(AP_TEMP))+'" style="max-width:200px;font-size:12px;font-weight:700;border-radius:8px;">'
         + '</div>'
       + '<div style="flex:none;"><label class="field-label">Sex</label><div class="seg">'
-      + ['M','F'].map(s=>'<button class="seg-btn'+(AP_TEMP.sex===s?' active':'')+'" data-action="ap-set-sex" data-value="'+s+'">'+s+'</button>').join('') + '</div></div>'
+      + [['M','Male'],['F','Female']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.sex===v?' active':'')+'" data-action="ap-set-sex" data-value="'+v+'">'+l+'</button>').join('') + '</div></div>'
       + '</div>'
       + '<div style="opacity:0.75;"><label class="field-label" style="font-weight:500;font-size:11px;">Occupation <i>(optional)</i></label><input class="input" id="ap-occupation" placeholder="" value="'+esc(AP_TEMP.occupation)+'"></div>'
       + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">WhatsApp number</label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
