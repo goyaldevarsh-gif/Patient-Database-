@@ -2646,9 +2646,12 @@ const LAB_PARAMETERS = [
 
 const INJECTION_LIB_KEY = 'surgical-case-log-injection-lib-v1';
 function sideToggleHtml(action, currentSide, includeNA) {
-  const options = includeNA ? [['Left','Lt'],['Right','Rt'],['Bilateral','B/l'],['N/A','NA']] : [['Left','Lt'],['Right','Rt'],['Bilateral','B/l']];
-  return '<div class="seg" style="flex:none;">'
-    + options.map(([full,short])=>'<button type="button" class="seg-btn'+(currentSide===full?' active':'')+'" data-action="'+action+'" data-value="'+full+'">'+short+'</button>').join('')
+  const options = includeNA ? [['Left','L'],['Right','R'],['Bilateral','B/L'],['N/A','NA']] : [['Left','L'],['Right','R'],['Bilateral','B/L']];
+  return '<div class="row gap2" style="flex:none;">'
+    + options.map(([full,short])=>{
+        const active = currentSide===full;
+        return '<button type="button" style="flex:none;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:'+(short.length>1?'11px':'13px')+';border:1.5px solid '+(active?'var(--accent)':'var(--border)')+';background:'+(active?'var(--accent)':'#fff')+';color:'+(active?'#fff':'var(--muted)')+';" data-action="'+action+'" data-value="'+full+'">'+short+'</button>';
+      }).join('')
     + '</div>';
 }
 function autoCapitalizeWords(text) {
