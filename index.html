@@ -6638,6 +6638,23 @@ function relativeDaysUntil(dateStr) {
 function ovSnapCell(icon, label, value, valueColor) {
   return '<div style="flex:1;min-width:0;"><div style="color:var(--muted);margin-bottom:2px;font-size:10.5px;">'+label+'</div><div style="font-size:13px;font-weight:700;'+(valueColor?'color:'+valueColor+';':'')+'overflow-wrap:break-word;">'+esc(value||'\u2014')+'</div></div>';
 }
+let INITIAL_VISIT_SUMMARY_CACHE = [];
+async function computeInitialVisitSummary(p) {
+  if (!p.createdAt) return [];
+  const createdDateStr = new Date(p.createdAt).toISOString().slice(0,10);
+  const allImages = await dbGetImagesByPatient(p.id);
+  const initialImages = allImages.filter(img => new Date(img.createdAt).toISOString().slice(0,10) === createdDateStr);
+  const catLabel = { xray:'X-ray', clinical:'Clinical photo', wound:'Wound photo', ct:'CT', mri:'MRI', usg:'USG' };
+  const counts = {};
+  initialImages.forEach(img => {
+    const key = img.isIntraOp ? 'Intra-op photo' : (catLabel[img.imageCategory] || 'Photo');
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  const parts = Object.entries(counts).map(([label,count]) => count+' '+label+(count>1?'s':''));
+  const initialInjections = (p.injections||[]).filter(inj => inj.date === createdDateStr);
+  if (initialInjections.length) parts.push(initialInjections.length+' injection'+(initialInjections.length>1?'s':'')+' given');
+  return parts;
+}
 function renderOverviewTab(p) {
   const overdue = isOverdue(p.nextFollowUpDate);
   const isSurgical = p.caseType === 'surgical';
@@ -6701,6 +6718,7 @@ function renderOverviewTab(p) {
 
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
     + (p.condition === 'ra' && p.ra && p.ra.cspineFlag ? '<div class="cspine-alert">'+ic('alert')+' C-spine flagged \u2014 inform anaesthesia before any surgery (intubation/positioning precautions).</div>' : '')
+    + (INITIAL_VISIT_SUMMARY_CACHE.length ? '<div style="font-size:12.5px;font-weight:800;color:var(--accent-dark);background:rgba(67,56,202,0.06);border-radius:10px;padding:9px 12px;">'+ic('check')+' At first visit: '+INITIAL_VISIT_SUMMARY_CACHE.join(', ')+'</div>' : '')
     + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">'
     + (isAiTier() ? '<button type="button" class="card" style="text-align:center;padding:10px 4px;" data-action="ai-summarize-patient"><div style="color:var(--accent);margin-bottom:4px;display:flex;justify-content:center;">'+ic('sparkle')+'</div><div style="font-size:10px;font-weight:600;">Summary</div></button>' : '')
     + '<button type="button" class="card" style="text-align:center;padding:10px 4px;" data-action="open-export-summary"><div style="color:var(--ink);margin-bottom:4px;display:flex;justify-content:center;">'+ic('printer')+'</div><div style="font-size:10px;font-weight:600;">Print</div></button>'
@@ -7920,7 +7938,7 @@ async function renderTabBody(p) {
   if (!el) return;
   el.className = 'tab-content';
   saveTabState();
-  if (TAB === 'overview') { el.innerHTML = renderOverviewTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); return; }
+  if (TAB === 'overview') { INITIAL_VISIT_SUMMARY_CACHE = await computeInitialVisitSummary(p); el.innerHTML = renderOverviewTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); return; }
   if (TAB === 'ctev') { el.innerHTML = await renderCtevTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); return; }
   if (TAB === 'timeline') { el.innerHTML = await renderTimelineTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); return; }
   if (TAB === 'ra') { el.innerHTML = renderRaTab(p); setupSwipeNavigation(el, nextPatientTab, prevPatientTab); return; }
