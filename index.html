@@ -5999,30 +5999,27 @@ function renderPatientsView() {
         followUpLine = '<span style="color:var(--muted);">Follow-up not scheduled</span>';
       }
       const cardWaLink = waLink(p);
-      cards += '<div class="case-card" data-lp-id="'+p.id+'" data-action="open-patient" data-id="'+p.id+'"'+(cardWaLink?' data-wa-link="'+esc(cardWaLink)+'"':'')+'>'
-        + '<div style="flex:none;width:40px;height:40px;border-radius:50%;background:'+avatarColorFor(p.id)+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;margin-right:10px;">'+esc(nameInitials(p.name))+'</div>'
+      cards += '<div class="case-card" data-lp-id="'+p.id+'" data-action="open-patient" data-id="'+p.id+'"'+(cardWaLink?' data-wa-link="'+esc(cardWaLink)+'"':'')+' style="padding:10px 12px;">'
+        + '<div style="flex:none;width:34px;height:34px;border-radius:50%;background:'+avatarColorFor(p.id)+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11.5px;margin-right:9px;">'+esc(nameInitials(p.name))+'</div>'
         + '<div style="min-width:0;flex:1;">'
-        + '<div class="row between" style="align-items:center;">'
-        + '<span class="mono" style="font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:0.02em;">'+(p.patientCode?esc(p.patientCode):'\u2014')+'</span>'
-        + '<div class="row gap1" style="flex:none;">'
-        + (p.surgeryDate ? '<span style="font-size:9.5px;color:var(--muted);">'+esc(fmtDateShort(p.surgeryDate))+'</span>' : '')
+        + '<div class="row between" style="align-items:center;gap:6px;">'
+        + '<span class="row gap1" style="min-width:0;overflow:hidden;">'
+          + (dot ? '<span class="status-dot" style="background:'+dot.color+';flex:none;" title="'+dot.label+'"></span>' : '')
+          + '<span class="display" style="font-weight:800;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escName(p.name)+'</span>'
+          + '<span class="mono" style="font-size:10.5px;color:var(--muted);flex:none;">'+formatAge(p)+'\u00b7'+esc(p.sex||'')+'</span>'
+          + '</span>'
+        + '<span class="row gap1" style="flex:none;">'
         + (p.caseType==='surgical' && p.surgeryStatus==='awaiting'
-            ? '<span class="badge" style="font-size:9px;padding:2px 7px;background:rgba(217,119,6,0.14);color:#92400e;">'+ic('clock')+' Awaiting</span>'
-            : '<span class="badge badge-'+(p.caseType==='surgical'?'indigo':'slate')+'" style="font-size:9px;padding:2px 7px;">'+(p.caseType==='surgical'?'Surgical':'OPD')+'</span>')
+            ? '<span class="badge" style="font-size:8.5px;padding:2px 6px;background:rgba(217,119,6,0.14);color:#92400e;">'+ic('clock')+'</span>'
+            : '<span class="badge badge-'+(p.caseType==='surgical'?'indigo':'slate')+'" style="font-size:8.5px;padding:2px 6px;">'+(p.caseType==='surgical'?'Sx':'OPD')+'</span>')
+        + '</span>'
+        + '</div>'
+        + '<div class="row between" style="margin-top:2px;gap:6px;">'
+        + '<span style="font-size:11.5px;color:var(--accent-dark);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+(summaryText?esc(summaryText):'<span style="color:var(--muted);font-weight:500;">No diagnosis yet</span>')+'</span>'
+        + '<span style="font-size:10px;flex:none;">'+followUpLine+'</span>'
         + '</div>'
         + '</div>'
-        + '<div class="row gap2" style="margin-top:3px;">'
-        + (dot ? '<span class="status-dot" style="background:'+dot.color+';" title="'+dot.label+'"></span>' : '')
-        + '<span class="display" style="font-weight:800;font-size:15px;">'+escName(p.name)+'</span>'
-        + '<span class="mono" style="font-size:11px;color:var(--muted);">'+formatAge(p)+' \u00b7 '+esc(p.sex||'')+'</span>'
-        + '</div>'
-        + (summaryText
-            ? '<div style="background:rgba(67,56,202,0.09);border-radius:8px;padding:5px 9px;margin-top:5px;font-size:12.5px;font-weight:700;color:var(--accent-dark);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3;">'+esc(summaryText)+'</div>'
-            : '<div style="font-size:12px;color:var(--muted);margin-top:5px;">No diagnosis yet</div>')
-        + '<div style="font-size:11px;margin-top:4px;">'+followUpLine+'</div>'
-        + patientQuickActionsRowHtml(p)
-        + '</div>'
-        + '<span style="color:var(--muted);margin-left:8px;">'+ic('chevron')+'</span>'
+        + '<span style="color:var(--muted);margin-left:6px;flex:none;">'+ic('chevron')+'</span>'
         + '</div>';
     });
     cards += '</div>';
