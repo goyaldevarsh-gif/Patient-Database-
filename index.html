@@ -4411,7 +4411,7 @@ async function renderMoreView() {
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row gap3"><button class="icon-btn" data-action="close-more">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">More</h2></div>'
     + '</div>'
-    + '<div class="px" style="padding-top:10px;display:flex;flex-direction:column;gap:10px;">'
+    + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
     + moreSearchBarHtml()
     + '<div id="more-results-container">'+moreBodyHtml()+'</div>'
     + '<input type="file" accept=".zip,application/zip" id="import-file-input" style="display:none;">'
@@ -4487,34 +4487,34 @@ function moreBodyHtml() {
       ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:20px;">No features match \u201c'+esc(MORE_SEARCH)+'\u201d.</p>'
       : '<div style="display:flex;flex-direction:column;gap:8px;">'+matches.map(it => it.html).join('')+'</div>';
   } else {
-    bodyHtml = groupMeta.map(g => {
+    bodyHtml = '<div style="display:flex;flex-direction:column;gap:14px;">' + groupMeta.map(g => {
       const groupItems = items.filter(it => it.group === g.key);
       if (!groupItems.length) return '';
       const open = MORE_EXPANDED.has(g.key);
       return '<div>'
-        + '<button class="card" style="text-align:left;display:flex;align-items:center;gap:10px;width:100%;background:var(--bg-soft);" data-action="toggle-more-section" data-value="'+g.key+'">'
-        + '<span style="flex:none;color:var(--accent);">'+ic(g.icon)+'</span>'
-        + '<span style="flex:1;font-size:13px;font-weight:800;color:var(--accent-dark);text-transform:uppercase;letter-spacing:0.02em;">'+g.title+'</span>'
+        + '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;padding:18px;background:var(--bg-soft);" data-action="toggle-more-section" data-value="'+g.key+'">'
+        + '<span style="flex:none;color:var(--accent);transform:scale(1.2);transform-origin:left center;">'+ic(g.icon)+'</span>'
+        + '<span style="flex:1;font-size:14.5px;font-weight:800;color:var(--accent-dark);text-transform:uppercase;letter-spacing:0.02em;">'+g.title+'</span>'
         + '<span style="flex:none;color:var(--accent);transform:rotate('+(open?90:0)+'deg);">'+ic('chevron')+'</span>'
         + '</button>'
-        + (open ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">'+groupItems.map(it => it.html).join('')+'</div>' : '')
+        + (open ? '<div style="display:flex;flex-direction:column;gap:10px;margin-top:10px;">'+groupItems.map(it => it.html).join('')+'</div>' : '')
         + '</div>';
-    }).join('');
+    }).join('') + '</div>';
   }
   return bodyHtml;
 }
 function moreRowHtml(icon, title, sub, action, highlight) {
-  return '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;'+(highlight?'background:rgba(67,56,202,0.06);border-color:var(--accent);':'')+'" data-action="'+action+'">'
-    + '<span style="flex:none;color:var(--accent);">'+ic(icon)+'</span>'
-    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:700;color:'+(highlight?'var(--accent-dark)':'inherit')+';">'+title+'</span><span style="display:block;font-size:11px;color:var(--muted);margin-top:2px;">'+sub+'</span></span>'
+  return '<button class="card" style="text-align:left;display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;'+(highlight?'background:rgba(67,56,202,0.06);border-color:var(--accent);':'')+'" data-action="'+action+'">'
+    + '<span style="flex:none;color:var(--accent);transform:scale(1.15);">'+ic(icon)+'</span>'
+    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:15px;font-weight:700;color:'+(highlight?'var(--accent-dark)':'inherit')+';">'+title+'</span><span style="display:block;font-size:12px;color:var(--muted);margin-top:3px;">'+sub+'</span></span>'
     + '<span style="flex:none;color:var(--muted);">'+ic('chevron')+'</span>'
     + '</button>';
 }
 /* Variant that takes raw SVG markup (e.g. from DASH_ICONS) instead of an ICONS key name */
 function moreRowHtml2(svgMarkup, title, sub, action, highlight) {
-  return '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;'+(highlight?'background:rgba(67,56,202,0.06);border-color:var(--accent);':'')+'" data-action="'+action+'">'
-    + '<span style="flex:none;width:36px;height:36px;">'+svgMarkup+'</span>'
-    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:700;color:'+(highlight?'var(--accent-dark)':'inherit')+';">'+title+'</span><span style="display:block;font-size:11px;color:var(--muted);margin-top:2px;">'+sub+'</span></span>'
+  return '<button class="card" style="text-align:left;display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;'+(highlight?'background:rgba(67,56,202,0.06);border-color:var(--accent);':'')+'" data-action="'+action+'">'
+    + '<span style="flex:none;width:38px;height:38px;">'+svgMarkup+'</span>'
+    + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:15px;font-weight:700;color:'+(highlight?'var(--accent-dark)':'inherit')+';">'+title+'</span><span style="display:block;font-size:12px;color:var(--muted);margin-top:3px;">'+sub+'</span></span>'
     + '<span style="flex:none;color:var(--muted);">'+ic('chevron')+'</span>'
     + '</button>';
 }
