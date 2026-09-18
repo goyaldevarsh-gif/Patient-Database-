@@ -3849,11 +3849,12 @@ function renderReminderQueueView() {
 
 /* ================= Diagnostic Referral Tracker (v3 - rates + segment-code discount system) ================= */
 const DIAG_SEGMENT_CODES = [
-  { code: 'C1', discountPercent: 10 },
-  { code: 'C2', discountPercent: 15 },
-  { code: 'C3', discountPercent: 20 },
-  { code: 'C4', discountPercent: 30 },
-  { code: 'C5', discountPercent: 40 },
+  { code: 'A0', discountPercent: 0 },
+  { code: 'A1', discountPercent: 5 },
+  { code: 'A2', discountPercent: 10 },
+  { code: 'A3', discountPercent: 15 },
+  { code: 'A4', discountPercent: 20 },
+  { code: 'A5', discountPercent: 30 },
 ];
 // Starter rate list for Ananta Diagnostics, from their official rate card — ortho-relevant tests only.
 const ANANTA_STARTER_INVESTIGATIONS = [
