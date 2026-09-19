@@ -5637,6 +5637,16 @@ function renderDashboardSection() {
     }
   }
 
+  if (DIAG_REFERRALS.length) {
+    const curMonth = todayStr().slice(0,7);
+    const monthCommission = DIAG_REFERRALS.filter(r => r.reportDate && r.reportDate.slice(0,7) === curMonth)
+      .reduce((sum,r) => sum + Number(r.doctorCutAmount||0), 0);
+    html += '<button type="button" data-action="open-diag-referrals" class="row between" style="width:100%;background:none;border:none;padding:0 2px;margin:-10px 0 16px;">'
+      + '<span style="font-size:11.5px;color:var(--muted);">'+ic('flask')+' Referral commission this month: <b style="color:var(--emerald);">\u20b9'+monthCommission.toLocaleString('en-IN')+'</b></span>'
+      + '<span style="font-size:11px;color:var(--accent);font-weight:700;">Details \u203a</span>'
+      + '</button>';
+  }
+
   // ---- 3. MANAGE & TRACK ----
   html += '<div class="display" style="font-size:19px;font-weight:700;color:var(--ink);margin:0 0 10px;">Manage &amp; Track</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">'
@@ -13768,6 +13778,7 @@ function renderSplashScreen() {
     await refreshPatients();
     await runFollowupLabelMigrationOnce();
     loadReminders();
+    DIAG_REFERRALS = loadDiagReferrals();
     await loadFAQsAndTopics();
     await loadGoogleDriveCredentials();
     const justConnectedDrive = await handleOAuthCallback();
