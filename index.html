@@ -2882,6 +2882,12 @@ function unionBadgeClass(status) {
   if (['No union yet'].includes(status)) return 'badge-slate';
   return 'badge-red'; // Delayed union, Non-union
 }
+const RECOVERY_STATUS_META = {
+  Improving: { emoji: '\u2705', badge: 'badge-emerald' },
+  Stable: { emoji: '\u2192', badge: 'badge-slate' },
+  Slower: { emoji: '\u26a0\ufe0f', badge: 'badge-amber' },
+  Issue: { emoji: '\ud83d\udea8', badge: 'badge-red' },
+};
 function calcPOD(p, dateStr) {
   if (p.caseType !== 'surgical' || !p.surgeryDate || !dateStr) return null;
   const d1 = new Date(p.surgeryDate), d2 = new Date(dateStr);
@@ -7062,6 +7068,7 @@ function renderSmartFollowupFormLayer1(p) {
     + '<button type="button" class="chip" data-action="fu-status-select" data-status="Slower">⚠️ Slower</button>'
     + '<button type="button" class="chip" data-action="fu-status-select" data-status="Issue">🚨 Issue</button>'
     + '</div>'
+    + '<input type="hidden" id="fu-recovery-status" value="">'
     + '<input class="input" id="fu-label" placeholder="" value="'+esc(suggested)+'" style="margin-bottom:10px;">'
     + '</div>'
     + '<div style="margin-bottom:16px;">'
@@ -7194,6 +7201,7 @@ async function renderFollowupsTab(p) {
       + '<div class="row between" style="cursor:pointer;" data-action="toggle-fu" data-id="'+f.id+'">'
       + '<span style="font-weight:800;">'+esc(f.label)+' <span style="font-weight:400;color:var(--muted);">\u00b7 '+fmtDate(f.date)+(daysAgoLabel(f.date) ? ' ('+daysAgoLabel(f.date)+')' : '')+(pod!=null && pod>=0?' \u00b7 Post-op Day '+pod:'')+'</span></span>'
       + '<div class="row gap2">'
+      + (f.recoveryStatus && RECOVERY_STATUS_META[f.recoveryStatus] ? '<span class="badge '+RECOVERY_STATUS_META[f.recoveryStatus].badge+'" style="font-size:10px;">'+RECOVERY_STATUS_META[f.recoveryStatus].emoji+' '+esc(f.recoveryStatus)+'</span>' : '')
       + (f.woundStatus && f.woundStatus !== 'N/A' ? '<span class="badge '+woundBadgeClass(f.woundStatus)+'" style="font-size:10px;">'+esc(f.woundStatus)+'</span>' : '')
       + (f.unionStatus && f.unionStatus !== 'Not assessed' ? '<span class="badge '+unionBadgeClass(f.unionStatus)+'" style="font-size:10px;">'+esc(f.unionStatus)+'</span>' : '')
       + (f.imageCount ? '<span class="badge badge-slate">'+ic('camera')+f.imageCount+'</span>' : '')
@@ -11356,6 +11364,8 @@ document.addEventListener('click', async (e) => {
     const row = el.parentElement;
     if (row) row.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
+    const statusEl = document.getElementById('fu-recovery-status');
+    if (statusEl) statusEl.value = status;
     
     // Auto-fill label based on status
     if (status === 'Issue') {
@@ -11379,8 +11389,10 @@ document.addEventListener('click', async (e) => {
     const woundStatus = woundStatusEl ? woundStatusEl.value : 'N/A';
     const unionStatusEl = document.getElementById('fu-unionstatus');
     const unionStatus = unionStatusEl ? unionStatusEl.value : '';
+    const recoveryStatusEl = document.getElementById('fu-recovery-status');
+    const recoveryStatus = recoveryStatusEl ? recoveryStatusEl.value : '';
     const rom = null;
-    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, rom, imageCount: FU_INV_PHOTOS.length, createdAt: Date.now() };
+    const fu = { id: uid(), label, date, notes, woundStatus, unionStatus, recoveryStatus, rom, imageCount: FU_INV_PHOTOS.length, createdAt: Date.now() };
     // Snapshot so we can roll back the in-memory patient object if the save below fails \u2014
     // otherwise the UI would show a follow-up that was never actually persisted.
     const prevStatus = p.status;
