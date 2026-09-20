@@ -5717,16 +5717,18 @@ function renderDashboardSection() {
     .reduce((sum,r) => sum + Number(r.doctorCutAmount||0), 0);
   const showCommission = DIAG_REFERRALS.length > 0;
   if (showCompliance || showCommission) {
-    html += '<div class="card" style="padding:12px 14px;margin-bottom:18px;">'
-      + (showCompliance ? '<button type="button" data-action="open-followup-report" class="row between" style="width:100%;background:none;border:none;padding:2px 0;">'
-        + '<span style="font-size:11.5px;color:var(--muted);">'+ic('trending')+' Follow-up compliance this period: <b style="color:'+(complianceObj.compliancePct>=70?'var(--emerald)':'#b45309')+';">'+complianceObj.compliancePct+'%</b></span>'
-        + '<span style="font-size:11px;color:var(--accent);font-weight:700;">Details \u203a</span>'
+    html += '<div class="card" style="padding:12px 8px;margin-bottom:18px;">'
+      + '<div class="row" style="align-items:stretch;">'
+      + (showCompliance ? '<button type="button" data-action="open-followup-report" style="flex:1;min-width:0;text-align:left;background:none;border:none;padding:4px 10px;">'
+        + '<div style="font-size:10px;color:var(--muted);white-space:nowrap;">'+ic('trending')+' Follow-up compliance</div>'
+        + '<div style="font-size:16px;font-weight:800;margin-top:3px;color:'+(complianceObj.compliancePct>=70?'var(--emerald)':'#b45309')+';">'+complianceObj.compliancePct+'%</div>'
         + '</button>' : '')
-      + (showCompliance && showCommission ? '<div style="height:1px;background:var(--border);margin:8px 0;"></div>' : '')
-      + (showCommission ? '<button type="button" data-action="open-diag-referrals" class="row between" style="width:100%;background:none;border:none;padding:2px 0;">'
-        + '<span style="font-size:11.5px;color:var(--muted);">'+ic('flask')+' Referral commission this month: <b style="color:var(--emerald);">\u20b9'+monthCommission.toLocaleString('en-IN')+'</b></span>'
-        + '<span style="font-size:11px;color:var(--accent);font-weight:700;">Details \u203a</span>'
+      + (showCompliance && showCommission ? '<div style="width:1px;background:var(--border);margin:2px 0;"></div>' : '')
+      + (showCommission ? '<button type="button" data-action="open-diag-referrals" style="flex:1;min-width:0;text-align:left;background:none;border:none;padding:4px 10px;">'
+        + '<div style="font-size:10px;color:var(--muted);white-space:nowrap;">'+ic('flask')+' Referral commission</div>'
+        + '<div style="font-size:16px;font-weight:800;margin-top:3px;color:var(--emerald);">\u20b9'+monthCommission.toLocaleString('en-IN')+'</div>'
         + '</button>' : '')
+      + '</div>'
       + '</div>';
   }
 
@@ -11551,7 +11553,7 @@ document.addEventListener('click', async (e) => {
           toastWithButton(
             '\u2713 Follow-up logged \u2014 next visit ' + fmtDate(p.nextFollowUpDate),
             'Send Reminder',
-            async () => { p.lastReminderSentAt = Date.now(); await dbPutPatient(p); await refreshPatients(); window.open(reminderLink, '_blank'); render(); },
+            async () => { window.open(reminderLink, '_blank'); p.lastReminderSentAt = Date.now(); await dbPutPatient(p); await refreshPatients(); render(); },
             5000
           );
         } else {
