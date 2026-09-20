@@ -5717,16 +5717,16 @@ function renderDashboardSection() {
     .reduce((sum,r) => sum + Number(r.doctorCutAmount||0), 0);
   const showCommission = DIAG_REFERRALS.length > 0;
   if (showCompliance || showCommission) {
-    html += '<div class="card" style="padding:12px 8px;margin-bottom:18px;">'
+    html += '<div class="card" style="padding:8px 8px;margin-bottom:18px;">'
       + '<div class="row" style="align-items:stretch;">'
-      + (showCompliance ? '<button type="button" data-action="open-followup-report" style="flex:1;min-width:0;text-align:left;background:none;border:none;padding:4px 10px;">'
+      + (showCompliance ? '<button type="button" data-action="open-followup-report" style="flex:1;min-width:0;text-align:left;background:none;border:none;padding:2px 10px;">'
         + '<div style="font-size:10px;color:var(--muted);white-space:nowrap;">'+ic('trending')+' Follow-up compliance</div>'
-        + '<div style="font-size:16px;font-weight:800;margin-top:3px;color:'+(complianceObj.compliancePct>=70?'var(--emerald)':'#b45309')+';">'+complianceObj.compliancePct+'%</div>'
+        + '<div style="font-size:15px;font-weight:800;margin-top:1px;color:'+(complianceObj.compliancePct>=70?'var(--emerald)':'#b45309')+';">'+complianceObj.compliancePct+'%</div>'
         + '</button>' : '')
-      + (showCompliance && showCommission ? '<div style="width:1px;background:var(--border);margin:2px 0;"></div>' : '')
-      + (showCommission ? '<button type="button" data-action="open-diag-referrals" style="flex:1;min-width:0;text-align:left;background:none;border:none;padding:4px 10px;">'
+      + (showCompliance && showCommission ? '<div style="width:1px;background:var(--border);margin:0;"></div>' : '')
+      + (showCommission ? '<button type="button" data-action="open-diag-referrals" style="flex:1;min-width:0;text-align:left;background:none;border:none;padding:2px 10px;">'
         + '<div style="font-size:10px;color:var(--muted);white-space:nowrap;">'+ic('flask')+' Referral commission</div>'
-        + '<div style="font-size:16px;font-weight:800;margin-top:3px;color:var(--emerald);">\u20b9'+monthCommission.toLocaleString('en-IN')+'</div>'
+        + '<div style="font-size:15px;font-weight:800;margin-top:1px;color:var(--emerald);">\u20b9'+monthCommission.toLocaleString('en-IN')+'</div>'
         + '</button>' : '')
       + '</div>'
       + '</div>';
