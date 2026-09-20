@@ -860,7 +860,7 @@ function syncDiagDataToCloud() {
   if (!CURRENT_USER || !isAiTier()) return;
   try {
     firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('diag-data')
-      .set({ centres: DIAG_CENTRES, referrals: DIAG_REFERRALS })
+      .set({ centres: DIAG_CENTRES, referrals: DIAG_REFERRALS, watchlist: DIAG_WATCHLIST })
       .catch(function(err) { console.error('Diagnostic data cloud sync failed', err); });
   } catch (e) {}
 }
@@ -870,12 +870,14 @@ async function pullDiagDataFromCloud(uid) {
     const doc = await firestoreDB.collection('users').doc(uid).collection('meta').doc('diag-data').get();
     const localCentres = loadDiagCentres();
     const localReferrals = loadDiagReferrals();
+    const localWatchlist = loadDiagWatchlist();
     if (doc.exists) {
       const data = doc.data();
       if (Array.isArray(data.centres) && data.centres.length && !localCentres.length) { DIAG_CENTRES = data.centres; saveDiagCentresLocal(DIAG_CENTRES); }
       if (Array.isArray(data.referrals) && data.referrals.length && !localReferrals.length) { DIAG_REFERRALS = data.referrals; saveDiagReferralsLocal(DIAG_REFERRALS); }
-    } else if (localCentres.length || localReferrals.length) {
-      DIAG_CENTRES = localCentres; DIAG_REFERRALS = localReferrals;
+      if (Array.isArray(data.watchlist) && data.watchlist.length && !localWatchlist.length) { DIAG_WATCHLIST = data.watchlist; saveDiagWatchlistLocal(DIAG_WATCHLIST); }
+    } else if (localCentres.length || localReferrals.length || localWatchlist.length) {
+      DIAG_CENTRES = localCentres; DIAG_REFERRALS = localReferrals; DIAG_WATCHLIST = localWatchlist;
       syncDiagDataToCloud(); // first time signing in \u2014 seed the cloud copy from this device
     }
   } catch (e) { console.error('Diagnostic data cloud pull failed', e); }
@@ -2228,6 +2230,11 @@ let PRINT_RX = null; // {patient, prescription} when viewing a prescription in p
 let PRINT_CASE_SUMMARY = null; // patient object when viewing a case summary in print mode
 let PRINT_REFERRAL = null; // {patient, text, specialist} when printing a referral letter
 let PLANNED_SURGERIES = [];
+let DIAG_SCREEN_TAB = 'referrals'; // 'referrals' | 'watchlist'
+let DIAG_WATCHLIST = [];
+let DIAG_WATCH_ADD_OPEN = false;
+let DIAG_WATCH_EDIT_ID = null;
+let DIAG_WATCH_TEMP = { name:'', phone:'', complaint:'', date:'' };
 let DIAG_CENTRES = [];
 let DIAG_REFERRALS = [];
 let DIAG_ADD_CENTRE_OPEN = false;
@@ -2430,6 +2437,7 @@ let CAL_YEAR = new Date().getFullYear();
 let CAL_MONTH = new Date().getMonth(); // 0-indexed
 let CAL_SELECTED_DATE = todayStr();
 let CAL_SUBVIEW = 'overdue'; // 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'calendar'
+let BULK_RESCHEDULE_OPEN = false;
 let ATTN_FILTER = null; // null | 'pending' | 'reminded' \u2014 tap the Reminded/Pending box to filter
 let REMINDER_FORM_OPEN = false;
 let REMINDER_FORM_PATIENT_ID = null; // set when adding a reminder from a patient's page
@@ -3416,6 +3424,34 @@ function saveDiagReferralsLocal(list) {
   try { localStorage.setItem(DIAG_REFERRALS_KEY, JSON.stringify(list)); } catch (e) {}
 }
 function saveDiagReferrals(list) { saveDiagReferralsLocal(list); syncDiagDataToCloud(); }
+const DIAG_WATCHLIST_KEY = 'orthovault-diag-watchlist-v1';
+function loadDiagWatchlist() {
+  try { const raw = localStorage.getItem(DIAG_WATCHLIST_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
+}
+function saveDiagWatchlistLocal(list) {
+  try { localStorage.setItem(DIAG_WATCHLIST_KEY, JSON.stringify(list)); } catch (e) {}
+}
+function saveDiagWatchlist(list) { saveDiagWatchlistLocal(list); syncDiagDataToCloud(); }
+function diagWatchReminderLink(entry) {
+  const digits = toWaNumber(entry.phone);
+  if (!digits || !entry.date) return null;
+  const profile = loadProfile();
+  const isOverdue = entry.date < todayStr();
+  const dateLine = isOverdue
+    ? '\n\u0906\u092a\u0915\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + fmtDateWithDay(entry.date) + ' \u0915\u094b \u0930\u0916\u0940 \u0917\u0908 \u0925\u0940\u0964'
+    : '\n\u0906\u092a\u0915\u0940 \u0905\u0917\u0932\u0940 \u092b\u0949\u0932\u094b-\u0905\u092a \u0935\u093f\u095b\u093f\u091f ' + fmtDateWithDay(entry.date) + ' \u0915\u094b \u0939\u0948\u0964';
+  const rescheduleLine = profile.clinicPhone
+    ? '\n\n\u0905\u0917\u0930 \u0906\u092a \u0928\u0939\u0940\u0902 \u0906 \u092a\u093e \u0930\u0939\u0947, \u0915\u0943\u092a\u092f\u093e ' + profile.clinicPhone + ' \u092a\u0930 \u0915\u0949\u0932 \u0915\u0930\u0915\u0947 \u0928\u0908 \u0924\u093e\u0930\u0940\u0916 \u0924\u092f \u0915\u0930 \u0932\u0947\u0902, \u0924\u093e\u0915\u093f \u0907\u0932\u093e\u091c \u092c\u0940\u091a \u092e\u0947\u0902 \u0928 \u0930\u0941\u0915\u0947\u0964'
+    : '';
+  const msg = '\u0928\u092e\u0938\u094d\u0924\u0947 ' + entry.name + ' \u091c\u0940,'
+    + dateLine
+    + '\n\n\u0915\u0943\u092a\u092f\u093e \u0938\u093e\u0925 \u0932\u093e\u090f\u0902:\n\u2705 \u092a\u0941\u0930\u093e\u0928\u0947 X-ray/MRI/CT \u0930\u093f\u092a\u094b\u0930\u094d\u091f\n\u2705 \u091a\u0932 \u0930\u0939\u0940 \u0926\u0935\u093e\u0907\u092f\u093e\u0902'
+    + rescheduleLine
+    + '\n\n\u0927\u0928\u094d\u092f\u0935\u093e\u0926,'
+    + '\n' + (profile.doctorName || '[Set your name in Doctor Profile]')
+    + generateWhatsAppSignature();
+  return 'https://wa.me/' + digits + '?text=' + encodeURIComponent(msg);
+}
 
 function loadPlannedSurgeries() {
   try {
@@ -4063,7 +4099,12 @@ function renderDiagReferralsView() {
     + '<div class="row between"><button class="icon-btn" data-action="close-diag-referrals">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Diagnostic Referrals</h2><span style="width:36px;"></span></div>'
     + '</div>'
     + '<div class="px" style="padding-top:14px;">'
-    + (DIAG_ADD_CENTRE_OPEN ? diagAddCentreFormHtml() : '')
+    + '<div class="seg" style="margin-bottom:14px;">'
+    + '<button class="seg-btn'+(DIAG_SCREEN_TAB!=='watchlist'?' active':'')+'" data-action="diag-set-screen-tab" data-value="referrals">Referrals</button>'
+    + '<button class="seg-btn'+(DIAG_SCREEN_TAB==='watchlist'?' active':'')+'" data-action="diag-set-screen-tab" data-value="watchlist">Watchlist'+(DIAG_WATCHLIST.length?' ('+DIAG_WATCHLIST.length+')':'')+'</button>'
+    + '</div>'
+    + (DIAG_SCREEN_TAB === 'watchlist' ? renderDiagWatchlistTab() : (
+      (DIAG_ADD_CENTRE_OPEN ? diagAddCentreFormHtml() : '')
     + (DIAG_ADD_REFERRAL_OPEN ? diagAddReferralFormHtml() : '')
     + (formOpen ? '' : (
         '<div class="row gap2" style="margin-bottom:10px;">'
@@ -4118,9 +4159,45 @@ function renderDiagReferralsView() {
               + '</div>';
           }).join('')
       ))
+    ))
     + '</div></div>';
 }
 
+function diagWatchAddFormHtml() {
+  const editing = !!DIAG_WATCH_EDIT_ID;
+  return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:14px;">'
+    + '<label class="field-label">Patient name</label><input class="input" id="dw-name" value="'+esc(DIAG_WATCH_TEMP.name)+'" style="margin-bottom:8px;">'
+    + '<label class="field-label">Phone / WhatsApp number</label><input class="input" type="tel" id="dw-phone" value="'+esc(DIAG_WATCH_TEMP.phone)+'" style="margin-bottom:8px;">'
+    + '<label class="field-label">Complaint / why MRI-CT planned</label><textarea class="textarea" id="dw-complaint" rows="2" style="margin-bottom:8px;">'+esc(DIAG_WATCH_TEMP.complaint)+'</textarea>'
+    + '<label class="field-label">Call back on</label><input class="input" type="date" id="dw-date" value="'+esc(DIAG_WATCH_TEMP.date)+'" style="margin-bottom:10px;">'
+    + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="diag-watch-cancel-add">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="diag-watch-submit">'+(editing?'Save changes':'Add to watchlist')+'</button></div>'
+    + '</div>';
+}
+function diagWatchEntryHtml(w) {
+  const link = diagWatchReminderLink(w);
+  const overdue = w.date && w.date < todayStr();
+  return '<div class="card" style="margin-bottom:8px;padding:10px 12px;">'
+    + '<div class="row between" style="align-items:flex-start;">'
+    + '<div style="min-width:0;flex:1;">'
+    + '<div style="font-size:13px;font-weight:700;">'+esc(w.name)+'</div>'
+    + (w.complaint ? '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(w.complaint)+'</div>' : '')
+    + '<div style="font-size:11.5px;font-weight:700;margin-top:3px;color:'+(overdue?'#dc2626':'var(--accent-dark)')+';">'+(overdue?'Overdue \u2014 ':'Call back ')+fmtDate(w.date)+'</div>'
+    + '</div>'
+    + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-watch-edit" data-id="'+w.id+'" title="Edit">'+ic('pencil')+'</button>'
+    + '</div>'
+    + '<div class="row gap2" style="margin-top:8px;flex-wrap:wrap;">'
+    + (link ? '<a href="'+esc(link)+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;">'+ic('message')+' Remind</a>' : '')
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="diag-watch-convert" data-id="'+w.id+'">'+ic('plus')+' MRI/CT needed \u2192 Add to Patients</button>'
+    + '<button type="button" class="btn btn-sm" data-action="diag-watch-close" data-id="'+w.id+'">Not needed / Close</button>'
+    + '</div>'
+    + '</div>';
+}
+function renderDiagWatchlistTab() {
+  const sorted = [...DIAG_WATCHLIST].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  return '<p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">Patients you suspect may need an MRI/CT later \u2014 kept separate from the main Patients list until you decide. Add them here with a call-back date; convert to a full patient case only if the investigation is actually needed.</p>'
+    + (DIAG_WATCH_ADD_OPEN ? diagWatchAddFormHtml() : '<button class="btn btn-outline-dashed btn-block" style="margin-bottom:14px;" data-action="diag-watch-open-add">'+ic('plus')+' Add to watchlist</button>')
+    + (sorted.length ? sorted.map(diagWatchEntryHtml).join('') : '<div style="text-align:center;color:var(--muted);font-size:13px;padding:30px 0;">Watchlist is empty.</div>');
+}
 function renderPlannedSurgeriesView() {
   const sorted = [...PLANNED_SURGERIES].sort((a,b) => (a.date||'').localeCompare(b.date||''));
   return '<div style="padding-bottom:40px;">'
@@ -8854,6 +8931,15 @@ function renderTomorrowFollowUpsList() {
     return summaryBar + '<p style="font-size:12px;color:var(--muted);text-align:center;padding:16px 0;">No '+ATTN_FILTER+' follow-ups here.</p>';
   }
   return summaryBar
+    + '<div style="margin-bottom:12px;">'
+    + (!BULK_RESCHEDULE_OPEN
+        ? '<button type="button" class="btn btn-block" data-action="bulk-reschedule-open">'+ic('clock')+' Reschedule all '+s.dueTomorrowList.length+' to another day</button>'
+        : '<div class="card" style="background:var(--bg-soft);">'
+          + '<label class="field-label">New date for all '+s.dueTomorrowList.length+' follow-up(s)</label>'
+          + '<input class="input" type="date" id="bulk-reschedule-date" min="'+todayStr()+'" style="margin-bottom:10px;">'
+          + '<div class="row gap2"><button type="button" class="btn btn-sm" style="flex:1;" data-action="bulk-reschedule-cancel">Cancel</button><button type="button" class="btn btn-sm btn-primary" style="flex:2;" data-action="bulk-reschedule-confirm">'+ic('check')+' Move all</button></div>'
+          + '</div>')
+    + '</div>'
     + (queueEligible.length ? '<button type="button" class="btn btn-block" style="margin-bottom:12px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-tomorrow-reminder-queue">'+ic('message')+' Send reminders \u2014 '+queueEligible.length+' waiting</button>' : '')
     + displayList.map(p => {
     const waLink = p.whatsapp ? followUpReminderLink(p) : null;
@@ -11230,6 +11316,25 @@ document.addEventListener('click', async (e) => {
     render();
     return;
   }
+  if (action === 'bulk-reschedule-open') { BULK_RESCHEDULE_OPEN = true; render(); return; }
+  if (action === 'bulk-reschedule-cancel') { BULK_RESCHEDULE_OPEN = false; render(); return; }
+  if (action === 'bulk-reschedule-confirm') {
+    const dateEl = document.getElementById('bulk-reschedule-date');
+    const newDate = dateEl ? dateEl.value : '';
+    if (!newDate) { toast('Pehle date select karo'); return; }
+    const s = computeDashboardStats();
+    const list = s.dueTomorrowList.slice();
+    for (const p of list) {
+      p.nextFollowUpDate = newDate;
+      p.lastReminderSentAt = null; p.followUpConfirmedAt = null;
+      await dbPutPatient(p);
+    }
+    await refreshPatients();
+    BULK_RESCHEDULE_OPEN = false;
+    toast(list.length + ' follow-up(s) moved to ' + fmtDate(newDate));
+    render();
+    return;
+  }
   if (action === 'attn-snooze-followup') {
     const p = getPatient(el.dataset.id);
     if (!p) return;
@@ -12021,8 +12126,9 @@ document.addEventListener('click', async (e) => {
   if (action === 'open-diag-referrals') {
     DIAG_CENTRES = loadDiagCentres();
     DIAG_REFERRALS = loadDiagReferrals();
+    DIAG_WATCHLIST = loadDiagWatchlist();
     DIAG_ADD_CENTRE_OPEN = false; DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDIT_CENTRE_ID = null; DIAG_FILTER_CENTRE = ''; DIAG_VIEW_MODE = 'active';
-    DIAG_COMPLETING_ID = null; DIAG_SHOW_MONTHLY = false;
+    DIAG_COMPLETING_ID = null; DIAG_SHOW_MONTHLY = false; DIAG_SCREEN_TAB = 'referrals'; DIAG_WATCH_ADD_OPEN = false; DIAG_WATCH_EDIT_ID = null;
     VIEW = 'diag-referrals'; render(); return;
   }
   if (action === 'close-diag-referrals') { VIEW = 'more'; render(); return; }
@@ -12161,6 +12267,61 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'diag-set-view') { DIAG_VIEW_MODE = el.dataset.value; render(); return; }
+  if (action === 'diag-set-screen-tab') { DIAG_SCREEN_TAB = el.dataset.value; DIAG_WATCH_ADD_OPEN = false; DIAG_WATCH_EDIT_ID = null; render(); return; }
+  if (action === 'diag-watch-open-add') {
+    DIAG_WATCH_EDIT_ID = null;
+    DIAG_WATCH_TEMP = { name:'', phone:'', complaint:'', date:'' };
+    DIAG_WATCH_ADD_OPEN = true; render(); return;
+  }
+  if (action === 'diag-watch-cancel-add') { DIAG_WATCH_ADD_OPEN = false; DIAG_WATCH_EDIT_ID = null; render(); return; }
+  if (action === 'diag-watch-edit') {
+    const w = DIAG_WATCHLIST.find(x => x.id === el.dataset.id);
+    if (!w) return;
+    DIAG_WATCH_EDIT_ID = w.id;
+    DIAG_WATCH_TEMP = { name: w.name, phone: w.phone, complaint: w.complaint, date: w.date };
+    DIAG_WATCH_ADD_OPEN = true; render(); return;
+  }
+  if (action === 'diag-watch-submit') {
+    const name = (document.getElementById('dw-name')||{}).value || '';
+    const phone = (document.getElementById('dw-phone')||{}).value || '';
+    const complaint = (document.getElementById('dw-complaint')||{}).value || '';
+    const date = (document.getElementById('dw-date')||{}).value || '';
+    if (!name.trim() || !date) { toast('Naam aur date zaroori hai'); return; }
+    const data = { name: name.trim(), phone: phone.trim(), complaint: complaint.trim(), date };
+    if (DIAG_WATCH_EDIT_ID) {
+      const idx = DIAG_WATCHLIST.findIndex(x => x.id === DIAG_WATCH_EDIT_ID);
+      if (idx >= 0) DIAG_WATCHLIST[idx] = { ...DIAG_WATCHLIST[idx], ...data };
+    } else {
+      DIAG_WATCHLIST.push({ id: uid(), createdAt: Date.now(), ...data });
+    }
+    saveDiagWatchlist(DIAG_WATCHLIST);
+    DIAG_WATCH_ADD_OPEN = false; DIAG_WATCH_EDIT_ID = null;
+    toast('Saved');
+    render();
+    return;
+  }
+  if (action === 'diag-watch-close') {
+    DIAG_WATCHLIST = DIAG_WATCHLIST.filter(x => x.id !== el.dataset.id);
+    saveDiagWatchlist(DIAG_WATCHLIST);
+    toast('Removed from watchlist');
+    render();
+    return;
+  }
+  if (action === 'diag-watch-convert') {
+    const w = DIAG_WATCHLIST.find(x => x.id === el.dataset.id);
+    if (!w) return;
+    initApTemp();
+    AP_TEMP.caseType = 'opd';
+    AP_TEMP.name = w.name;
+    AP_TEMP.whatsapp = w.phone;
+    AP_TEMP.chiefComplaints = w.complaint;
+    AP_PHOTOS = []; AP_DUPLICATE_FROM = null;
+    DIAG_WATCHLIST = DIAG_WATCHLIST.filter(x => x.id !== w.id);
+    saveDiagWatchlist(DIAG_WATCHLIST);
+    VIEW = 'add';
+    render();
+    return;
+  }
   if (action === 'diag-toggle-monthly') { DIAG_SHOW_MONTHLY = !DIAG_SHOW_MONTHLY; render(); return; }
   if (action === 'diag-print-statement') { DIAG_STATEMENT_MONTH = el.dataset.value; VIEW = 'diag-statement'; render(); return; }
   if (action === 'close-diag-statement') { VIEW = 'diag-referrals'; DIAG_STATEMENT_MONTH = null; render(); return; }
@@ -12739,8 +12900,8 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  if (action === 'close-calendar') { REMINDER_FORM_OPEN = false; VIEW = 'list'; render(); return; }
-  if (action === 'cal-set-subview') { CAL_SUBVIEW = el.dataset.value; ATTN_FILTER = null; REMINDER_FORM_OPEN = false; render(); return; }
+  if (action === 'close-calendar') { REMINDER_FORM_OPEN = false; BULK_RESCHEDULE_OPEN = false; VIEW = 'list'; render(); return; }
+  if (action === 'cal-set-subview') { CAL_SUBVIEW = el.dataset.value; ATTN_FILTER = null; REMINDER_FORM_OPEN = false; BULK_RESCHEDULE_OPEN = false; render(); return; }
   if (action === 'cal-prev-month') { CAL_MONTH--; if (CAL_MONTH<0) { CAL_MONTH=11; CAL_YEAR--; } render(); return; }
   if (action === 'cal-next-month') { CAL_MONTH++; if (CAL_MONTH>11) { CAL_MONTH=0; CAL_YEAR++; } render(); return; }
   if (action === 'cal-today') { const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t; render(); return; }
@@ -13791,6 +13952,7 @@ function renderSplashScreen() {
     await runFollowupLabelMigrationOnce();
     loadReminders();
     DIAG_REFERRALS = loadDiagReferrals();
+    DIAG_WATCHLIST = loadDiagWatchlist();
     await loadFAQsAndTopics();
     await loadGoogleDriveCredentials();
     const justConnectedDrive = await handleOAuthCallback();
