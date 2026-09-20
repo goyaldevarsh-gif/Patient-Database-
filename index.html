@@ -8976,9 +8976,8 @@ function renderUpcomingFollowUpsList() {
       + '<div style="font-size:13.5px;font-weight:700;">'+escName(p.name)+'</div>'
       + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+followUpContextLine(p)+'</div>'
       + '</div>'
-      + (p.whatsapp ? '<button class="btn btn-sm" style="flex:none;background:#25D366;border-color:#25D366;color:#fff;" data-action="upcoming-send-reminder" data-id="'+p.id+'">'+ic('message')+' Send</button>' : '<span class="badge badge-slate" style="font-size:10px;">No WhatsApp</span>')
+      + (p.whatsapp && followUpReminderLink(p) ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" rel="noopener" class="btn btn-sm" style="flex:none;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;" data-action="log-reminder-sent" data-id="'+p.id+'">'+ic('message')+' Send</a>' : '<span class="badge badge-slate" style="font-size:10px;">No WhatsApp</span>')
       + '</div>'
-      + '<div id="upcoming-status-'+p.id+'" style="font-size:11px;color:var(--muted);margin-top:6px;"></div>'
       + '</div>';
   });
   return html;
@@ -10282,19 +10281,6 @@ document.addEventListener('click', async (e) => {
     const text = sourceEl ? sourceEl.textContent : '';
     if (!text || !text.trim()) return;
     speakToggle(text, el, el.dataset.lang);
-    return;
-  }
-  if (action === 'upcoming-send-reminder') {
-    const p = getPatient(el.dataset.id);
-    if (!p) return;
-    const link = followUpReminderLink(p);
-    if (link) {
-      p.lastReminderSentAt = Date.now();
-      await dbPutPatient(p);
-      await refreshPatients();
-      window.open(link, '_blank');
-      render();
-    }
     return;
   }
   if (action === 'ai-sanity-check') {
