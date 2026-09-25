@@ -2783,8 +2783,51 @@ function renderFollowUpReportView() {
     + '</div>'
     + '<div class="field-label" style="margin-bottom:8px;">Visits logged, last 6 months</div>'
     + chart
-    + '<p style="font-size:10.5px;color:var(--muted);text-align:center;">Compliance % = Returned \u00f7 (Returned + Lost). Pending cases aren\u2019t counted yet \u2014 outcome not known.</p>'
+    + '<p style="font-size:10.5px;color:var(--muted);text-align:center;margin-bottom:24px;">Compliance % = Returned \u00f7 (Returned + Lost). Pending cases aren\u2019t counted yet \u2014 outcome not known.</p>'
+    + renderFollowUpStatusBrowser()
     + '</div></div>';
+}
+function renderFollowUpStatusBrowser() {
+  const lostList = PATIENTS.filter(p => p.status === 'Lost to follow-up');
+  const completedList = PATIENTS.filter(p => p.status === 'Completed');
+  const pendingList = PATIENTS.filter(p => (!p.status || p.status === 'Active') && p.nextFollowUpDate)
+    .sort((a,b) => (a.nextFollowUpDate||'').localeCompare(b.nextFollowUpDate||''));
+  const watchList = [...DIAG_WATCHLIST].sort((a,b) => (a.date||'').localeCompare(b.date||''));
+  const tabs = [
+    ['lost', 'Lost to FU', lostList],
+    ['completed', 'Completed', completedList],
+    ['pending', 'Pending', pendingList],
+    ['watch', 'MRI/CT Watch', watchList],
+  ];
+  const active = tabs.find(t => t[0] === FUR_STATUS_TAB) || tabs[0];
+  const list = active[2];
+  const rowsHtml = active[0] === 'watch'
+    ? watchList.map(w => {
+        const overdue = w.date && w.date < todayStr();
+        const subLine = (overdue ? '<span style="color:var(--red);font-weight:700;">Overdue \u2014 </span>' : 'Call back ') + fmtDateShort(w.date) + (w.complaint ? ' \u00b7 ' + esc(w.complaint) : '');
+        return '<button type="button" class="card" style="text-align:left;display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;" data-action="fur-open-watch-entry" data-id="'+w.id+'">'
+          + '<span style="flex:none;width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11.5px;">'+esc(nameInitials(w.name))+'</span>'
+          + '<span style="min-width:0;flex:1;"><span style="display:block;font-weight:700;font-size:13.5px;">'+escName(w.name)+'</span><span style="display:block;font-size:11px;color:var(--muted);margin-top:1px;">'+subLine+'</span></span>'
+          + '<span style="flex:none;color:var(--muted);">'+ic('chevron')+'</span>'
+          + '</button>';
+      }).join('')
+    : list.map(p => {
+        const subLine = active[0] === 'pending' && p.nextFollowUpDate
+          ? (isOverdue(p.nextFollowUpDate) ? '<span style="color:var(--red);font-weight:700;">Overdue \u2014 </span>' : 'Next follow-up ') + fmtDateShort(p.nextFollowUpDate)
+          : followUpContextLine(p);
+        return '<button type="button" class="card" style="text-align:left;display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;" data-action="open-patient" data-id="'+p.id+'">'
+          + '<span style="flex:none;width:34px;height:34px;border-radius:50%;background:'+avatarColorFor(p.id)+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:11.5px;">'+esc(nameInitials(p.name))+'</span>'
+          + '<span style="min-width:0;flex:1;"><span style="display:block;font-weight:700;font-size:13.5px;">'+escName(p.name)+'</span><span style="display:block;font-size:11px;color:var(--muted);margin-top:1px;">'+subLine+'</span></span>'
+          + '<span style="flex:none;color:var(--muted);">'+ic('chevron')+'</span>'
+          + '</button>';
+      }).join('');
+  return '<div class="field-label" style="margin-bottom:8px;">Browse patients by follow-up status</div>'
+    + '<div class="seg" style="margin-bottom:12px;flex-wrap:wrap;">'
+    + tabs.map(([key,label,arr]) => '<button type="button" class="seg-btn'+(FUR_STATUS_TAB===key?' active':'')+'" data-action="fur-set-status-tab" data-value="'+key+'">'+label+' ('+arr.length+')</button>').join('')
+    + '</div>'
+    + (active[0] === 'watch' && watchList.length ? '<p style="font-size:10.5px;color:var(--muted);margin:0 0 10px;">Patients not yet in your main database \u2014 you\u2019re watching whether they\u2019ll need an MRI/CT. Tap to open the watchlist.</p>' : '')
+    + (!list.length ? '<p style="font-size:12px;color:var(--muted);text-align:center;padding:20px 0;">No patients in this group.</p>'
+      : '<div style="display:flex;flex-direction:column;gap:8px;">' + rowsHtml + '</div>');
 }
 function computeDashboardStats() {
   const today = todayStr();
@@ -3646,6 +3689,7 @@ function schemeSearchResults() {
 let SCHEME_VIEWING_IMPLANTS = null; // package code currently expanded, standalone mode
 let RQ_QUEUE = []; // array of patient ids in this reminder session
 let MC_SEARCH = ''; let MC_BROADCAST_MSG = ''; let MC_QUEUE = []; let MC_QUEUE_INDEX = 0;
+let FUR_STATUS_TAB = 'lost'; // 'lost' | 'completed' | 'pending'
 let LP_MENU_PATIENT_ID = null;
 let READING_MODE_PATIENT_ID = null;
 function renderReadingModeModal() {
@@ -5645,6 +5689,12 @@ function renderDashboardSection() {
   const todayFollowUpCount = s.important.filter(i => i.type === 'Follow-up' && !i.isOverdue).length;
   const tomorrowCount = s.dueTomorrowList.length;
 
+  const wTomorrow = new Date(); wTomorrow.setDate(wTomorrow.getDate() + 1);
+  const wTomorrowStr = wTomorrow.toISOString().slice(0,10);
+  const watchOverdueCount = DIAG_WATCHLIST.filter(w => w.date && w.date < todayStr()).length;
+  const watchTodayCount = DIAG_WATCHLIST.filter(w => w.date === todayStr()).length;
+  const watchTomorrowCount = DIAG_WATCHLIST.filter(w => w.date === wTomorrowStr).length;
+
   // ---- 1. ADD NEW (top priority \u2014 the most common thing to do on opening the app) ----
   html += '<div class="display" style="font-size:19px;font-weight:700;color:var(--ink);margin:4px 0 10px;">Create New</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;">'
@@ -5686,25 +5736,28 @@ function renderDashboardSection() {
   // ---- 2. FOLLOW-UPS (clearly labelled so it's obvious what these 3 tiles mean) ----
   if (PATIENTS.length) {
     html += '<div class="display" style="font-size:19px;font-weight:700;color:var(--ink);margin:4px 0 10px;">Follow-ups</div>';
-    if (overdueCount === 0 && todayFollowUpCount === 0 && tomorrowCount === 0) {
+    if (overdueCount === 0 && todayFollowUpCount === 0 && tomorrowCount === 0 && watchOverdueCount === 0 && watchTodayCount === 0 && watchTomorrowCount === 0) {
       html += '<button type="button" data-action="dash-goto-overdue" class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;margin-bottom:18px;background:var(--emerald-bg);">'
         + '<span style="flex:none;width:44px;height:44px;border-radius:12px;background:#fff;color:var(--emerald);display:flex;align-items:center;justify-content:center;">'+ic('check')+'</span>'
         + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:9.5px;font-weight:800;color:var(--emerald);letter-spacing:0.05em;opacity:0.75;">FOLLOW-UP STATUS</span><span style="display:block;font-size:14.5px;font-weight:800;color:var(--emerald);">All caught up</span></span>'
         + '<span style="flex:none;color:var(--emerald);">'+ic('chevron')+'</span>'
         + '</button>';
     } else {
-      html += '<div class="row gap2" style="margin-bottom:18px;">'
+      html += '<div class="row gap2" style="margin-bottom:18px;align-items:stretch;">'
         + '<button type="button" data-action="dash-goto-overdue" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(overdueCount?'background:var(--red-bg,#fef2f2);border-color:var(--red-border,#fecaca);':'')+'">'
           + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(overdueCount?'var(--red)':'var(--muted)')+';">OVERDUE</span>'
-          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(overdueCount?'var(--red)':'var(--ink)')+';">'+overdueCount+'</span>'
+          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(overdueCount?'var(--red)':'var(--ink)')+';">'+(overdueCount+watchOverdueCount)+'</span>'
+          + (watchOverdueCount ? '<span style="display:block;font-size:8.5px;font-weight:700;color:var(--accent-dark);opacity:0.85;margin-top:1px;">incl. '+watchOverdueCount+' watchlist</span>' : '')
           + '</button>'
         + '<button type="button" data-action="dash-goto-today" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(todayFollowUpCount?'background:#fffbeb;border-color:#fde68a;':'')+'">'
           + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(todayFollowUpCount?'#b45309':'var(--muted)')+';">TODAY</span>'
-          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(todayFollowUpCount?'#b45309':'var(--ink)')+';">'+todayFollowUpCount+'</span>'
+          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(todayFollowUpCount?'#b45309':'var(--ink)')+';">'+(todayFollowUpCount+watchTodayCount)+'</span>'
+          + (watchTodayCount ? '<span style="display:block;font-size:8.5px;font-weight:700;color:var(--accent-dark);opacity:0.85;margin-top:1px;">incl. '+watchTodayCount+' watchlist</span>' : '')
           + '</button>'
         + '<button type="button" data-action="dash-goto-tomorrow" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(tomorrowCount?'background:rgba(67,56,202,0.06);border-color:#c7d2fe;':'')+'">'
           + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(tomorrowCount?'var(--accent-dark)':'var(--muted)')+';">TOMORROW</span>'
-          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(tomorrowCount?'var(--accent-dark)':'var(--ink)')+';">'+tomorrowCount+'</span>'
+          + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(tomorrowCount?'var(--accent-dark)':'var(--ink)')+';">'+(tomorrowCount+watchTomorrowCount)+'</span>'
+          + (watchTomorrowCount ? '<span style="display:block;font-size:8.5px;font-weight:700;color:var(--accent-dark);opacity:0.85;margin-top:1px;">incl. '+watchTomorrowCount+' watchlist</span>' : '')
           + '</button>'
         + '</div>';
     }
@@ -12315,6 +12368,17 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-diag-statement') { VIEW = 'diag-referrals'; DIAG_STATEMENT_MONTH = null; render(); return; }
   if (action === 'open-followup-report') { VIEW = 'followup-report'; render(); return; }
   if (action === 'close-followup-report') { VIEW = 'list'; render(); return; }
+  if (action === 'fur-set-status-tab') { FUR_STATUS_TAB = el.dataset.value; render(); return; }
+  if (action === 'fur-open-watch-entry') {
+    DIAG_CENTRES = loadDiagCentres();
+    DIAG_REFERRALS = loadDiagReferrals();
+    DIAG_WATCHLIST = loadDiagWatchlist();
+    DIAG_ADD_CENTRE_OPEN = false; DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDIT_CENTRE_ID = null; DIAG_FILTER_CENTRE = ''; DIAG_VIEW_MODE = 'active';
+    DIAG_COMPLETING_ID = null; DIAG_SHOW_MONTHLY = false; DIAG_SCREEN_TAB = 'watchlist'; DIAG_WATCH_ADD_OPEN = false; DIAG_WATCH_EDIT_ID = null;
+    const w = DIAG_WATCHLIST.find(x => x.id === el.dataset.id);
+    if (w) { DIAG_WATCH_EDIT_ID = w.id; DIAG_WATCH_TEMP = { name: w.name, phone: w.phone, complaint: w.complaint, date: w.date }; DIAG_WATCH_ADD_OPEN = true; }
+    VIEW = 'diag-referrals'; render(); return;
+  }
   if (action === 'diag-open-complete') {
     const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
     const centre = r ? DIAG_CENTRES.find(c => c.id === r.centreId) : null;
