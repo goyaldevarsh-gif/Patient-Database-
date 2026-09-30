@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delete Your Account &amp; Data — OrthoVault</title>
+<style>
+  :root {
+    --ink: #0f172a;
+    --muted: #55637a;
+    --bg: #f7f8fb;
+    --card: #ffffff;
+    --accent: #2563eb;
+    --accent-dark: #1d4ed8;
+    --border: #e2e6ee;
+    --red: #dc2626;
+    --red-bg: #fef2f2;
+    --red-border: #fecaca;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  .wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 60px;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  header .logo {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    background: var(--accent);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 18px;
+  }
+  header h1 { font-size: 20px; margin: 0; font-weight: 800; }
+  header p { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 24px;
+    margin-bottom: 18px;
+  }
+  h2 { font-size: 16px; font-weight: 800; margin: 0 0 10px; }
+  p { font-size: 14.5px; color: var(--ink); margin: 0 0 12px; }
+  .muted { color: var(--muted); font-size: 13.5px; }
+  ol, ul { margin: 0 0 12px; padding-left: 20px; font-size: 14.5px; }
+  li { margin-bottom: 8px; }
+  .steps .card { background: #f0f5ff; border-color: #c7d9fb; }
+  .btn {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 14px;
+    padding: 11px 18px;
+    border-radius: 10px;
+    margin-top: 6px;
+  }
+  .btn:hover { background: var(--accent-dark); }
+  .notice {
+    background: var(--red-bg);
+    border: 1px solid var(--red-border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 13.5px;
+    color: #991b1b;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 8px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: 0.03em; }
+  footer { text-align: center; font-size: 12px; color: var(--muted); margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">O</div>
+    <div>
+      <h1>OrthoVault</h1>
+      <p>Delete Your Account &amp; Data</p>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>How to request deletion</h2>
+    <p>OrthoVault is a personal patient-record app used by an individual orthopaedic surgeon. Accounts are created and managed by the practising doctor, not self-registered by patients. To request deletion of a doctor account and all associated data, follow the steps below.</p>
+    <div class="steps">
+      <div class="card">
+        <ol>
+          <li>Send an email to <strong>orthovault1@gmail.com</strong> from the email address registered with your OrthoVault account.</li>
+          <li>Use the subject line: <strong>"Account Deletion Request"</strong>.</li>
+          <li>Include your registered account email and, if possible, the approximate date the account was created.</li>
+          <li>We will confirm your identity and process the deletion request within <strong>7 business days</strong>.</li>
+        </ol>
+        <a class="btn" href="mailto:orthovault1@gmail.com?subject=Account%20Deletion%20Request">Email to Request Deletion</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>What gets deleted</h2>
+    <table>
+      <tr><th>Data type</th><th>Action</th></tr>
+      <tr><td>Account credentials (email, login)</td><td>Permanently deleted</td></tr>
+      <tr><td>Patient case records created by this account</td><td>Permanently deleted</td></tr>
+      <tr><td>Uploaded photos / images</td><td>Permanently deleted</td></tr>
+      <tr><td>Cloud backups tied to the account</td><td>Permanently deleted</td></tr>
+    </table>
+    <p class="muted" style="margin-top:10px;">Deletion is irreversible. Locally exported backups on your own device are not affected and must be removed separately by you.</p>
+  </div>
+
+  <div class="card">
+    <h2>Retention period</h2>
+    <p class="muted">Once a deletion request is confirmed, associated data is removed from our active systems within 7 business days. Residual copies in routine encrypted backups (if any) are purged within 30 days as part of standard backup rotation.</p>
+  </div>
+
+  <div class="notice">
+    Need help or have questions about this process? Contact <strong>orthovault1@gmail.com</strong> and we'll assist you directly.
+  </div>
+
+  <footer>OrthoVault — Patient Record Management for Orthopaedic Surgeons</footer>
+</div>
+</body>
+</html>
