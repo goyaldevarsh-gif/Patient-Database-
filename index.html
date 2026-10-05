@@ -741,6 +741,21 @@
   .icon-20 { width: 20px !important; height: 20px !important; stroke-width: 2 !important; }
   .icon-16 { width: 16px !important; height: 16px !important; stroke-width: 2 !important; }
 
+
+  /* ===== UX polish batch ===== */
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+  body { overscroll-behavior-y:none; }
+  button, a, .chip, .btn, .icon-btn, .case-card, .dash-tile, .bottom-nav-btn, input, select, textarea { touch-action:manipulation; }
+  button, .chip, .bottom-nav-btn, .dash-tile { -webkit-user-select:none; user-select:none; }
+  .dash-tile .dv, .stat-value, .score-badge .sv { font-variant-numeric:tabular-nums; }
+  .toast { bottom:calc(88px + env(safe-area-inset-bottom, 0px)); max-width:calc(100% - 32px); text-align:center; line-height:1.35; box-shadow:0 8px 24px rgba(15,23,42,0.28); border:1px solid rgba(255,255,255,0.08); pointer-events:none; }
+  .chips { scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; }
+  .chip { scroll-snap-align:start; transition:background 150ms ease, color 150ms ease, border-color 150ms ease; }
+  .btn, .icon-btn { transition:background 150ms ease, border-color 150ms ease, box-shadow 150ms ease; }
+  button:focus-visible, a:focus-visible, .chip:focus-visible, .btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important; }
+  }
 </style>
 </head>
 <body>
@@ -10112,6 +10127,49 @@ document.addEventListener('touchend', (e) => {
     window.open(card.dataset.waLink, '_blank');
   }
 }, { passive: false });
+
+/* ================= System back button (Android back / iOS edge swipe) ================= */
+(function initSystemBack() {
+  try { history.replaceState({ ov: 'base' }, ''); history.pushState({ ov: 'guard' }, ''); } catch (e) { return; }
+  let lastExitPress = 0;
+  function closeTopOverlay() {
+    try {
+      if (document.querySelector('.modal-overlay') && typeof closeImageViewer === 'function') { closeImageViewer(); return true; }
+      if (MASTER_VOICE_STATE !== 'idle') { const b = document.querySelector('[data-action="master-voice-cancel"],[data-action="master-voice-edit-cancel"]'); if (b) { b.click(); return true; } }
+      if (READING_MODE_PATIENT_ID) { const b = document.querySelector('[data-action="close-reading-mode"]'); if (b) { b.click(); return true; } }
+      if (LP_MENU_PATIENT_ID) { LP_MENU_PATIENT_ID = null; render(); return true; }
+      const us = document.getElementById('usearch-overlay');
+      if (us && us.style.display !== 'none') { EDU_SEARCH = null; render(); return true; }
+      if (MASTER_AI_OPEN) { MASTER_AI_OPEN = false; render(); return true; }
+      if (SORT_MODAL_OPEN) { SORT_MODAL_OPEN = false; render(); return true; }
+      if (FILTER_MODAL_OPEN) { FILTER_MODAL_OPEN = false; render(); return true; }
+      if (SHOW_ADD_MENU) { SHOW_ADD_MENU = false; render(); return true; }
+      if (COMBINED_FAB_MENU_OPEN) { COMBINED_FAB_MENU_OPEN = false; updateCombinedFabMenu(); return true; }
+      const more = document.getElementById('patient-more-nav-btn');
+      if (more && document.querySelector('.menu-popup-btn')) { more.click(); return true; }
+    } catch (e) { console.error('closeTopOverlay', e); }
+    return false;
+  }
+  window.addEventListener('popstate', () => {
+    try {
+      if (APP_LOCKED) { history.pushState({ ov: 'guard' }, ''); return; }
+      if (closeTopOverlay()) { history.pushState({ ov: 'guard' }, ''); return; }
+      const btn = findBackActionBtn();
+      if (btn) {
+        btn.click();
+        if (VIEW === 'add' && btn.dataset && btn.dataset.confirmed) toast('Back dabao phir se — changes discard honge');
+        history.pushState({ ov: 'guard' }, '');
+        return;
+      }
+      if (VIEW !== 'list' && VIEW !== 'onboarding') { VIEW = 'list'; render(); window.scrollTo(0, 0); history.pushState({ ov: 'guard' }, ''); return; }
+      const now = Date.now();
+      if (now - lastExitPress < 2000) { history.back(); return; }
+      lastExitPress = now;
+      toast('Back dabao phir se exit karne ke liye');
+      history.pushState({ ov: 'guard' }, '');
+    } catch (e) { console.error('back handler', e); try { history.pushState({ ov: 'guard' }, ''); } catch (e2) {} }
+  });
+})();
 
 let LP_TIMER = null;
 document.addEventListener('touchstart', (e) => {
