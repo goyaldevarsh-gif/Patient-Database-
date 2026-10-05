@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="app-build" content="20261005.1">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -2090,6 +2091,7 @@ async function callGeminiDirect(payload) {
 let PATIENTS = [];
 let CLINICAL_BANK = [];
 let VIEW = 'list';
+let LAST_RENDERED_VIEW = null, LAST_RENDERED_KEY = null, DETAIL_ORIGIN = null, PENDING_SCROLL_RESTORE = null, PATIENTS_VISIBLE = 40, PATIENTS_LIST_SIG = '';
 let SELECTED_ID = null;
 let SEARCH = '';
 let FILTER_TYPE = 'all';
@@ -6087,6 +6089,8 @@ function renderFilterModal() {
 }
 function renderPatientsView() {
   saveFilterState();
+  const _sig = FILTER_TYPE + '|' + SORT_BY + '|' + SEARCH + '|' + JSON.stringify(ACTIVE_FILTERS || {});
+  if (_sig !== PATIENTS_LIST_SIG) { PATIENTS_LIST_SIG = _sig; PATIENTS_VISIBLE = 40; }
   const counts = { all: PATIENTS.length };
   CASE_REGIONS.forEach(r => counts[r.key] = PATIENTS.filter(p => (p.regions||[]).includes(r.key)).length);
 
@@ -6140,7 +6144,7 @@ function renderPatientsView() {
   } else {
     cards = '<div style="display:flex;flex-direction:column;gap:8px;">';
     let lastGroupKey = null;
-    filtered.forEach(p => {
+    filtered.slice(0, PATIENTS_VISIBLE).forEach(p => {
       const gk = patientGroupKey(p);
       if (gk !== lastGroupKey) {
         cards += '<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:0.03em;margin:'+(lastGroupKey?'10px':'0')+' 0 -2px 4px;">'+PATIENT_GROUP_LABELS[gk]+'</div>';
@@ -6186,6 +6190,9 @@ function renderPatientsView() {
         + '<span style="color:var(--muted);margin-left:6px;flex:none;">'+ic('chevron')+'</span>'
         + '</div>';
     });
+    if (filtered.length > PATIENTS_VISIBLE) {
+      cards += '<button type="button" class="btn btn-block" style="margin-top:4px;" data-action="patients-show-more">Show '+Math.min(40, filtered.length - PATIENTS_VISIBLE)+' more ('+(filtered.length - PATIENTS_VISIBLE)+' remaining)</button>';
+    }
     cards += '</div>';
   }
 
@@ -9091,9 +9098,18 @@ function renderRemindersTabView() {
 async function render() {
   const app = document.getElementById('app');
   SHOW_PATIENT_MORE_MENU = false;
-  app.classList.remove('view-transition'); void app.offsetWidth; app.classList.add('view-transition');
+  const viewKey = VIEW + (VIEW === 'detail' ? ':' + SELECTED_ID : '');
+  const viewChanged = viewKey !== LAST_RENDERED_KEY;
+  if (viewChanged && VIEW === 'detail' && LAST_RENDERED_VIEW !== 'detail') {
+    DETAIL_ORIGIN = ['list','patients','reminders-tab'].includes(LAST_RENDERED_VIEW) ? { view: LAST_RENDERED_VIEW, y: window.scrollY } : null;
+  }
+  if (LAST_RENDERED_VIEW === 'add' && VIEW !== 'add') { try { clearApDraft(); } catch (e) {} }
+  LAST_RENDERED_VIEW = VIEW; LAST_RENDERED_KEY = viewKey;
+  app.classList.remove('view-transition');
+  if (viewChanged) { void app.offsetWidth; app.classList.add('view-transition'); }
   try {
     await renderCurrentView(app);
+    if (PENDING_SCROLL_RESTORE != null) { const _y = PENDING_SCROLL_RESTORE; PENDING_SCROLL_RESTORE = null; requestAnimationFrame(() => window.scrollTo(0, _y)); }
     if (LP_MENU_PATIENT_ID) app.insertAdjacentHTML('beforeend', renderLpContextMenu());
     if (READING_MODE_PATIENT_ID) app.insertAdjacentHTML('beforeend', renderReadingModeModal());
   } catch (err) {
@@ -10171,6 +10187,116 @@ document.addEventListener('touchend', (e) => {
   });
 })();
 
+/* ================= Top banners, update watcher, add-form draft ================= */
+function ovBanner(id, html, buttons, autoHideMs) {
+  try {
+    let host = document.getElementById('ov-banners');
+    if (!host) {
+      host = document.createElement('div'); host.id = 'ov-banners';
+      host.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:260;display:flex;flex-direction:column;align-items:center;gap:6px;padding:calc(8px + env(safe-area-inset-top,0px)) 10px 0;pointer-events:none;';
+      document.body.appendChild(host);
+    }
+    const old = document.getElementById(id); if (old) old.remove();
+    const b = document.createElement('div'); b.id = id;
+    b.style.cssText = 'pointer-events:auto;width:100%;max-width:500px;display:flex;align-items:center;gap:8px;background:#1e293b;color:#fff;border-radius:12px;padding:9px 10px 9px 14px;font-size:12.5px;font-weight:600;box-shadow:0 8px 24px rgba(15,23,42,0.35);border:1px solid rgba(255,255,255,0.1);';
+    const msg = document.createElement('div'); msg.style.cssText = 'flex:1;min-width:0;line-height:1.35;'; msg.innerHTML = html; b.appendChild(msg);
+    buttons.forEach(bt => {
+      const x = document.createElement('button'); x.type = 'button'; x.textContent = bt.label;
+      x.style.cssText = 'flex:none;border:none;border-radius:8px;padding:7px 11px;font-size:12px;font-weight:800;' + (bt.primary ? 'background:#818cf8;color:#0f172a;' : 'background:rgba(255,255,255,0.12);color:#fff;');
+      x.addEventListener('click', () => { b.remove(); if (bt.fn) bt.fn(); });
+      b.appendChild(x);
+    });
+    host.appendChild(b);
+    if (autoHideMs) setTimeout(() => { if (b.parentNode) b.remove(); }, autoHideMs);
+  } catch (e) { console.error('ovBanner', e); }
+}
+
+/* Update watcher: compares the <meta name="app-build"> of the running page with the live index.html */
+(function initUpdateWatcher() {
+  if (location.protocol === 'file:' || !window.fetch) return;
+  const pageUrl = new URL('index.html', location.href).href;
+  const myBuild = (document.querySelector('meta[name="app-build"]') || {}).content || null;
+  if (!myBuild) return;
+  let shown = false, lastCheck = 0;
+  async function remoteBuild() {
+    try {
+      const r = await fetch(pageUrl, { cache: 'no-store' });
+      if (!r.ok || !r.body) return null;
+      const reader = r.body.getReader(), dec = new TextDecoder(); let txt = '';
+      while (true) {
+        const { value, done } = await reader.read(); if (done) break;
+        txt += dec.decode(value, { stream: true });
+        const m = txt.match(/name="app-build"\s+content="([^"]+)"/);
+        if (m) { reader.cancel(); return m[1]; }
+        if (txt.length > 60000) { reader.cancel(); break; }
+      }
+    } catch (e) {}
+    return null;
+  }
+  async function check() {
+    if (shown || !navigator.onLine) return;
+    if (Date.now() - lastCheck < 3 * 60 * 1000) return;
+    lastCheck = Date.now();
+    const rb = await remoteBuild();
+    if (rb && rb !== myBuild) {
+      shown = true;
+      ovBanner('ov-update-banner', 'Nayi update ready hai', [
+        { label: 'Later', fn: () => { shown = false; lastCheck = Date.now() + 20 * 60 * 1000; } },
+        { label: 'Refresh', primary: true, fn: async () => {
+            try { if (VIEW === 'add') saveApDraft(); } catch (e) {}
+            try { await fetch(pageUrl, { cache: 'reload' }); } catch (e) {}
+            location.reload();
+        } }
+      ]);
+    }
+  }
+  setTimeout(check, 20000);
+  setInterval(check, 20 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+})();
+
+/* Add-patient draft autosave (text fields only; photos are already stored in IndexedDB as they are added) */
+const AP_DRAFT_KEY = 'orthovault-add-draft-v1';
+function saveApDraft() {
+  try {
+    if (VIEW !== 'add' || !AP_TEMP) return;
+    syncApTempFromDom();
+    const has = (AP_TEMP.name && AP_TEMP.name.trim()) || (AP_TEMP.diagnosis && AP_TEMP.diagnosis.trim()) || (AP_TEMP.chiefComplaints && AP_TEMP.chiefComplaints.trim());
+    if (!has) return;
+    localStorage.setItem(AP_DRAFT_KEY, JSON.stringify({ t: Date.now(), temp: AP_TEMP, section: AP_OPEN_SECTION }));
+  } catch (e) {}
+}
+function clearApDraft() { try { localStorage.removeItem(AP_DRAFT_KEY); } catch (e) {} }
+function loadApDraft() {
+  try {
+    const d = JSON.parse(localStorage.getItem(AP_DRAFT_KEY) || 'null');
+    if (!d || !d.temp || Date.now() - d.t > 48 * 3600 * 1000) return null;
+    return d;
+  } catch (e) { return null; }
+}
+['input', 'change'].forEach(evt => document.addEventListener(evt, () => {
+  if (VIEW !== 'add' || !AP_TEMP) return;
+  clearTimeout(window.__apDraftT); window.__apDraftT = setTimeout(saveApDraft, 800);
+}));
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveApDraft(); });
+window.addEventListener('pagehide', saveApDraft);
+(function initDraftResume() {
+  let tries = 0;
+  const iv = setInterval(() => {
+    tries++; if (tries > 20) { clearInterval(iv); return; }
+    if (APP_LOCKED || VIEW !== 'list') return;
+    clearInterval(iv);
+    const d = loadApDraft(); if (!d) return;
+    ovBanner('ov-draft-banner', 'Unsaved patient draft: <b>' + esc(d.temp.name || 'No name') + '</b>', [
+      { label: 'Discard', fn: clearApDraft },
+      { label: 'Resume', primary: true, fn: () => {
+          try { initApTemp(); Object.assign(AP_TEMP, d.temp); if (d.section) AP_OPEN_SECTION = d.section; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW = 'add'; render(); }
+          catch (e) { console.error('resume draft', e); }
+      } }
+    ], 25000);
+  }, 2500);
+})();
+
 let LP_TIMER = null;
 document.addEventListener('touchstart', (e) => {
   const card = e.target.closest('[data-lp-id]');
@@ -10446,6 +10572,7 @@ document.addEventListener('click', async (e) => {
     el.disabled = false;
     return;
   }
+  if (action === 'patients-show-more') { PATIENTS_VISIBLE += 40; render(); return; }
   if (action === 'toggle-add-menu') { SHOW_ADD_MENU = !SHOW_ADD_MENU; render(); return; }
   if (action === 'add-menu-new-opd') { SHOW_ADD_MENU = false; initApTemp(); AP_TEMP.caseType = 'opd'; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW = 'add'; render(); return; }
   if (action === 'add-menu-new-surgical') { SHOW_ADD_MENU = false; initApTemp(); AP_TEMP.caseType = 'surgical'; AP_PHOTOS = []; AP_DUPLICATE_FROM = null; VIEW = 'add'; render(); return; }
@@ -10975,7 +11102,12 @@ document.addEventListener('click', async (e) => {
     window.scrollTo(0,0);
     return;
   }
-  if (action === 'back-to-list') { revokeActiveUrls(); VIEW='list'; await refreshPatients(); render(); window.scrollTo(0,0); return; }
+  if (action === 'back-to-list') {
+    revokeActiveUrls();
+    let restoreY = null;
+    if (VIEW === 'detail' && DETAIL_ORIGIN) { VIEW = DETAIL_ORIGIN.view; restoreY = DETAIL_ORIGIN.y; } else { VIEW = 'list'; }
+    await refreshPatients(); PENDING_SCROLL_RESTORE = restoreY; render(); window.scrollTo(0, restoreY == null ? 0 : restoreY); return;
+  }
   if (action === 'set-filter') { FILTER_TYPE = el.dataset.value; render(); return; }
   if (action === 'toggle-show-all-attention') { SHOW_ALL_ATTENTION = !SHOW_ALL_ATTENTION; render(); return; }
   if (action === 'attn-toggle-filter') { ATTN_FILTER = (ATTN_FILTER === el.dataset.value) ? null : el.dataset.value; render(); return; }
