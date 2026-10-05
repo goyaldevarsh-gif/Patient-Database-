@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261005.1">
+<meta name="app-build" content="20261005.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -5647,7 +5647,8 @@ function toast(msg) {
   el.classList.remove('toast-hidden');
   void el.offsetWidth;
   clearTimeout(window.__toastTimer);
-  window.__toastTimer = setTimeout(() => { el.classList.add('toast-hidden'); }, 1800);
+  const _plain = String(msg).replace(/<[^>]*>/g, '');
+  window.__toastTimer = setTimeout(() => { el.classList.add('toast-hidden'); }, Math.min(5000, Math.max(1800, 1200 + _plain.length * 45)));
 }
 
 function toastWithButton(msg, buttonLabel, onButtonClick, duration = 4000) {
@@ -6562,7 +6563,7 @@ function renderAddView() {
   const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
 
   const detailsHtml = '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">Patient name <span style="color:var(--red);">*Required</span> <span id="ap-name-check"></span></label><input class="input" id="ap-name" autofocus placeholder="" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
+      + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">Patient name <span style="color:var(--red);">*Required</span> <span id="ap-name-check"></span></label><input class="input" id="ap-name" autofocus autocapitalize="words" autocomplete="off" placeholder="" maxlength="100" value="'+esc(AP_TEMP.name)+'"></div>'
       + '<div class="row gap2" style="align-items:flex-end;">'
       + '<div style="flex:1;min-width:0;border-left:3px solid var(--accent);padding-left:10px;">'
         + '<label class="field-label" style="color:var(--accent-dark);font-weight:800;">Age <span style="color:var(--red);">*Required</span> <span id="ap-age-check"></span></label>'
@@ -8808,7 +8809,7 @@ function renderDetailShell(p) {
           + '</div>')
     + (EDITING_PATIENT_NAME
         ? '<div style="display:flex;flex-direction:column;gap:8px;margin-top:2px;">'
-          + '<input class="input" id="patient-name-input" value="'+esc(EDITING_HEADER_NAME_DRAFT)+'" style="font-size:14px;padding:6px 10px;" placeholder="">'
+          + '<input class="input" id="patient-name-input" autocapitalize="words" autocomplete="off" value="'+esc(EDITING_HEADER_NAME_DRAFT)+'" style="font-size:14px;padding:6px 10px;" placeholder="">'
           + '<div class="row gap2">'
           + '<input class="input" id="patient-age-input" value="'+esc(EDITING_HEADER_AGE_DRAFT)+'" placeholder="" style="flex:1;font-size:12px;padding:6px 10px;">'
           + '<div class="seg" style="flex:none;">'
@@ -10295,6 +10296,31 @@ window.addEventListener('pagehide', saveApDraft);
       } }
     ], 25000);
   }, 2500);
+})();
+
+/* ================= Storage persistence + error safety net ================= */
+(function initSafetyNets() {
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persisted().then(already => { if (!already) navigator.storage.persist().catch(() => {}); }).catch(() => {});
+    }
+  } catch (e) {}
+  let lastClickTs = 0, lastErrToastTs = 0;
+  document.addEventListener('click', () => { lastClickTs = Date.now(); }, true);
+  function onFailure(err) {
+    try {
+      const msg = String((err && (err.message || err.reason)) || err || '');
+      console.error('[OrthoVault] unhandled:', err);
+      if (/ResizeObserver|Script error|NetworkError|Failed to fetch|Load failed|network|offline|AbortError|permission-denied|unavailable/i.test(msg)) return;
+      const now = Date.now();
+      if (now - lastClickTs < 4000 && now - lastErrToastTs > 8000) {
+        lastErrToastTs = now;
+        toast('Kuch gadbad hui — dobara try karo');
+      }
+    } catch (e) {}
+  }
+  window.addEventListener('error', (e) => { if (e && e.error) onFailure(e.error); });
+  window.addEventListener('unhandledrejection', (e) => { onFailure(e && e.reason); });
 })();
 
 let LP_TIMER = null;
