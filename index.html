@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261005.2">
+<meta name="app-build" content="20261006.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -757,6 +757,20 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important; }
   }
+
+  /* Header Dx / Proc rows */
+  .hdr-row { display:flex; align-items:flex-start; gap:8px; }
+  .hdr-pill { flex:none; width:42px; box-sizing:border-box; text-align:center; font-size:9.5px; font-weight:800; letter-spacing:0.04em; text-transform:uppercase; border-radius:6px; padding:2px 0; margin-top:1px; line-height:1.35; }
+  .hdr-pill.dx { background:var(--accent); color:#fff; }
+  .hdr-pill.proc { background:var(--ink); color:var(--bg,#fff); }
+  .hdr-pill.co { background:var(--slate-bg); color:var(--slate); border:1px solid var(--slate-border); padding:1px 0; }
+  .hdr-txt { flex:1; min-width:0; overflow-wrap:break-word; line-height:1.3; font-size:13px; font-weight:800; color:var(--accent-dark); }
+  .hdr-row.proc-row { margin:8px -12px -9px; padding:7px 12px 8px; background:rgba(15,23,42,0.06); border-top:1px solid rgba(67,56,202,0.16); border-radius:0 0 12px 12px; }
+  .hdr-row.proc-row .hdr-txt { font-size:12.5px; font-weight:700; color:var(--ink); }
+  .hdr-row.co-row .hdr-txt { font-weight:600; color:var(--ink); }
+  .hdr-row.empty .hdr-txt { font-style:italic; font-weight:600; color:var(--muted); }
+  [data-theme="dark"] .hdr-pill.dx { color:#0f172a; }
+  [data-theme="dark"] .hdr-row.proc-row { background:rgba(255,255,255,0.06); border-top-color:rgba(165,180,252,0.2); }
 </style>
 </head>
 <body>
@@ -1214,6 +1228,16 @@ function displayDiagnosis(s) {
   if (!s) return '';
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+function hdrDxProcHtml(p, isSurgical, diagText, procText) {
+  const row = (cls, pillCls, pill, text, empty) =>
+    '<div class="hdr-row ' + cls + (empty ? ' empty' : '') + '"><span class="hdr-pill ' + pillCls + '">' + pill + '</span><span class="hdr-txt">' + esc(text) + '</span></div>';
+  if (isSurgical) {
+    return row('dx-row', 'dx', 'Dx', diagText || 'Not added yet', !diagText)
+         + row('proc-row', 'proc', 'Proc', procText || 'Not added yet', !procText);
+  }
+  const realDx = !!displayDiagnosis(p.diagnosis);
+  return realDx ? row('dx-row', 'dx', 'Dx', diagText, false) : row('co-row', 'co', 'C/O', diagText, false);
+}
 function fmtDate(d) { if (!d) return '\u2014'; const dt = new Date(d); if (isNaN(dt)) return '\u2014'; return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}); }
 function fmtDateShort(d) { if (!d) return '\u2014'; const dt = new Date(d); if (isNaN(dt)) return '\u2014'; return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}); }
 
@@ -1249,7 +1273,24 @@ function relativeFollowupPickerHtml(idPrefix, currentDate, autoMode) {
 }
 function todayStr() { return new Date().toISOString().slice(0,10); }
 
-const SURGERY_TYPES = ['Arthroplasty','Arthroscopy','Trauma','Spine','Other'];
+const SURGERY_TYPE_GROUPS = [
+  { label:'Core', items:[['Trauma','Trauma'],['Arthroplasty','Arthroplasty'],['Arthroscopy','Arthroscopy / Sports'],['Spine','Spine']] },
+  { label:'By region', items:[['Hand & Wrist','Hand & Wrist'],['Shoulder & Elbow','Shoulder & Elbow'],['Foot & Ankle','Foot & Ankle'],['Pelvis & Acetabulum','Pelvis & Acetabulum']] },
+  { label:'Special', items:[['Paediatric Ortho','Paediatric Ortho (CTEV, DDH...)'],['Deformity / Limb Reconstruction','Deformity / Limb Reconstruction'],['Nonunion / Malunion / Revision','Nonunion / Malunion / Revision'],['Infection / Debridement','Infection / Debridement'],['Tumour / Oncology','Tumour / Oncology'],['Soft tissue / Amputation / Implant removal','Soft tissue / Amputation / Implant removal']] },
+  { label:'', items:[['Other','Other']] }
+];
+const SURGERY_TYPES = SURGERY_TYPE_GROUPS.reduce((a, g) => a.concat(g.items.map(i => i[0])), []);
+function surgeryTypeOptionsHtml(selected) {
+  const known = SURGERY_TYPES.includes(selected);
+  const opt = (v, l) => '<option value="' + esc(v) + '"' + (selected === v ? ' selected' : '') + '>' + esc(l) + '</option>';
+  return (selected && !known ? opt(selected, selected) : '')
+    + SURGERY_TYPE_GROUPS.map(g => g.label
+        ? '<optgroup label="' + g.label + '">' + g.items.map(i => opt(i[0], i[1])).join('') + '</optgroup>'
+        : g.items.map(i => opt(i[0], i[1])).join('')).join('');
+}
+function isTraumaLike(p) {
+  return !!p && (p.surgeryType === 'Trauma' || p.surgeryType === 'Nonunion / Malunion / Revision' || p.condition === 'trauma');
+}
 
 // ---- Government scheme package data (RGHS / MAA Yojana), NABH rates ----
 const SCHEME_RGHS = [
@@ -2515,7 +2556,7 @@ function newPatientShape() {
   return {
     id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [], surgeryStatus:'',
     caseType:'surgical', condition:'', laterality:'bilateral',
-    surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'',
+    surgeryType:'Trauma', procedure:'', hospital:'', anaesthesiaType:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active', notes:'', whatsapp:'',
     lastReminderSentAt: null, followUpSnoozeCount: 0, researchFlag: false, researchNote: '',
     nextFollowUpDate:'',
@@ -5497,7 +5538,7 @@ function suggestVisitLabel(patient) {
 function suggestNextFollowUpDate(patient) {
   const diagnosis = displayDiagnosis(patient.diagnosis || patient.chiefComplaints || '');
   const isSurgical = patient.caseType === 'surgical';
-  const isTrauma = patient.surgeryType === 'Trauma' || patient.condition === 'trauma';
+  const isTrauma = isTraumaLike(patient);
   const pod = isSurgical ? calcPOD(patient, todayStr()) : null;
   
   let days = 7;
@@ -6391,7 +6432,7 @@ function initApTemp() {
   // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
   // would lose them for good. See handlePhotoInputChange / handleCategorizedPhotoChange.
   AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
-    surgeryType:'Arthroplasty', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
+    surgeryType:'Trauma', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
   AP_OPEN_SECTION = AP_TEMP.caseType === 'surgical' ? 4 : 2;
   AP_DIAG_CONFIRMED = false;
   AP_INVESTIGATIONS = [];
@@ -6619,7 +6660,7 @@ function renderAddView() {
 
   const trackingHtml = isSurgical ? (
       '<div style="display:flex;flex-direction:column;gap:12px;">'
-      + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+SURGERY_TYPES.map(t=>'<option'+(AP_TEMP.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
+      + '<div><label class="field-label">Surgery type</label><select class="select" id="ap-type">'+surgeryTypeOptionsHtml(AP_TEMP.surgeryType)+'</select></div>'
       + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">Procedure</label>'+renderQuickTextChips(PROCEDURE_LIB_KEY,'ap-procedure')+'<input class="input" id="ap-procedure" style="border-color:var(--accent);border-width:1.5px;background:rgba(67,56,202,0.03);" placeholder="" value="'+esc(AP_TEMP.procedure)+'"></div>'+autocompleteBoxHtml('ap-procedure')
       + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;opacity:0.75;">'
       + '<div><label class="field-label" style="font-weight:500;font-size:11px;">Hospital <i>(optional)</i></label><input class="input" id="ap-hospital" value="'+esc(AP_TEMP.hospital||'')+'"></div>'
@@ -7160,7 +7201,7 @@ async function renderImagesRecordsTab(p) {
   let body = '<div class="px" style="padding-top:14px;padding-bottom:20px;">';
   if (IMAGES_RECORDS_SUBVIEW === 'xray') {
     const xrayImages = allImages.filter(im => im.imageCategory === 'xray');
-    const isTrauma = p.surgeryType === 'Trauma' || p.condition === 'trauma';
+    const isTrauma = isTraumaLike(p);
     const isSurgical = p.caseType === 'surgical';
     const relevantSubtypes = XRAY_SUBTYPES.filter(st => {
       if (xrayImages.some(im => im.xraySubtype === st)) return true;
@@ -7252,7 +7293,7 @@ function renderSmartFollowupFormLayer2(p) {
       + (lastFu && lastWound !== 'N/A' ? '<p style="font-size:10px;color:var(--muted);margin:0 0 10px;">Carried forward from last visit \u2014 change if different</p>' : '<div style="margin-bottom:6px;"></div>');
   }
   
-  if (p.surgeryType === 'Trauma' || p.condition === 'trauma') {
+  if (isTraumaLike(p)) {
     const lastUnion = (lastFu && lastFu.unionStatus && UNION_STATUS_OPTIONS.includes(lastFu.unionStatus)) ? lastFu.unionStatus : 'Not assessed';
     html += '<div class="row" style="margin-bottom:2px;">'
       + '<label class="field-label" style="margin-bottom:0;">Union Status</label>'
@@ -8247,7 +8288,7 @@ function surgicalDetailsSectionHtml(p) {
     + '</div>'
     + ((p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+(p.hospital?ovSnapCell('clipboard','Hospital',p.hospital):'')+(p.anaesthesiaType?ovSnapCell('shield','Anaesthesia',p.anaesthesiaType):'')+'</div>' : '')
     + (p.paymentMethod ? ovSnapCell('clipboard','Payment', p.paymentMethod + (p.paymentMethod!=='Insurance'&&p.cashAmount?' \u2014 \u20b9'+p.cashAmount:'') + (p.paymentMethod!=='Cash'&&p.insuranceType?' \u2014 '+p.insuranceType:'')) : '');
-  const body = '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+SURGERY_TYPES.map(t=>'<option'+(p.surgeryType===t?' selected':'')+'>'+t+'</option>').join('')+'</select></div>'
+  const body = '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+surgeryTypeOptionsHtml(p.surgeryType)+'</select></div>'
     + '<p style="font-size:10.5px;color:var(--muted);margin:0 0 4px;">Diagnosis, Procedure and Surgery Date are edited from the header above (kept in one place).</p>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
     + '<div><label class="field-label">Hospital (optional)</label><input class="input" data-field="hospital" value="'+esc(p.hospital||'')+'"></div>'
@@ -8829,8 +8870,7 @@ function renderDetailShell(p) {
           + '</div>')
         : (diagnosisLine
             ? ('<button type="button" style="display:block;width:100%;text-align:left;background:rgba(67,56,202,0.09);border:none;border-radius:12px;padding:9px 12px;margin-top:6px;cursor:pointer;" data-action="edit-header-diagnosis">'
-                + '<div style="font-size:13px;font-weight:800;color:var(--accent-dark);overflow-wrap:break-word;line-height:1.3;">'+esc(diagText || '\u2014')+'</div>'
-                + (isSurgical && procText ? '<div style="font-size:11.5px;font-weight:700;color:var(--ink);overflow-wrap:break-word;line-height:1.3;margin-top:2px;">'+esc(procText)+'</div>' : '')
+                + hdrDxProcHtml(p, isSurgical, diagText, procText)
               + '</button>')
             : '<button type="button" class="btn btn-sm" style="margin-top:6px;" data-action="edit-header-diagnosis">'+ic('plus')+' Add diagnosis'+(isSurgical?' / procedure':'')+'</button>'
           ))
