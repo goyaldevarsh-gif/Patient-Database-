@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261006.2">
+<meta name="app-build" content="20261007.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -2030,6 +2030,86 @@ function expandableSectionHtml(id, title, content, defaultExpanded = false) {
 }
 
 // Reminder status badge
+// ---- Reminder history model: log every reminder, auto-resolve outcome, gate repeat nagging ----
+const REMINDER_LIMIT_KEY = 'orthovault-reminder-limit';
+function getReminderLimit() {
+  try { const v = localStorage.getItem(REMINDER_LIMIT_KEY); if (v === null) return 2; const n = parseInt(v, 10); return isNaN(n) ? 2 : n; } catch (e) { return 2; }
+}
+function setReminderLimit(n) { try { localStorage.setItem(REMINDER_LIMIT_KEY, String(n)); } catch (e) {} }
+function logReminder(p, channel) {
+  p.reminderLog = p.reminderLog || [];
+  p.reminderLog.push({ ts: Date.now(), forDate: p.nextFollowUpDate || '', channel: channel || 'whatsapp', outcome: 'pending' });
+  if (p.reminderLog.length > 60) p.reminderLog.splice(0, p.reminderLog.length - 60);
+  p.lastReminderSentAt = Date.now();
+}
+function resolveReminders(p, outcome) {
+  (p.reminderLog || []).forEach(r => { if (r.outcome === 'pending') r.outcome = outcome; });
+}
+function reminderStreak(p) {
+  const log = p.reminderLog || []; let n = 0;
+  for (let i = log.length - 1; i >= 0; i--) {
+    if (log[i].outcome === 'came') break;
+    if (log[i].outcome === 'void') continue;
+    n++;
+  }
+  return n;
+}
+function reminderStats(p) {
+  const log = (p.reminderLog || []).filter(r => r.outcome !== 'void');
+  const came = log.filter(r => r.outcome === 'came').length;
+  const pending = log.filter(r => r.outcome === 'pending').length;
+  return { total: log.length, came: came, pending: pending, noResp: log.length - came - pending };
+}
+const REMINDER_GAP_KEY = 'orthovault-reminder-gap';
+function getReminderGap() {
+  try { const v = localStorage.getItem(REMINDER_GAP_KEY); if (v === null) return 10; const n = parseInt(v, 10); return isNaN(n) ? 10 : n; } catch (e) { return 10; }
+}
+function setReminderGap(n) { try { localStorage.setItem(REMINDER_GAP_KEY, String(n)); } catch (e) {} }
+// Days since the last un-answered reminder (null if none / patient already came since)
+function daysSinceLastReminder(p) {
+  const log = p.reminderLog || [];
+  for (let i = log.length - 1; i >= 0; i--) {
+    if (log[i].outcome === 'came') return null;
+    if (log[i].outcome === 'void') continue;
+    return Math.floor((Date.now() - log[i].ts) / 86400000);
+  }
+  return null;
+}
+async function reminderGate(e, p, href) {
+  const lim = getReminderLimit();
+  const gap = getReminderGap();
+  const streak = reminderStreak(p);
+  const since = daysSinceLastReminder(p);
+  const tooSoon = gap > 0 && since !== null && since < gap;
+  const tooMany = lim > 0 && streak >= lim;
+  if (!tooSoon && !tooMany) return true;
+  if (e && e.preventDefault) e.preventDefault();
+  const msg = tooMany
+    ? p.name + ' ko ' + streak + ' reminder bhej chuke ho, jawab/visit nahi aaya. Call karna ya snooze/lost better hai. Phir bhi WhatsApp bhejna hai?'
+    : p.name + ' ko ' + (since === 0 ? 'aaj hi' : since + ' din pehle') + ' reminder bheja tha. Patient ko ' + gap + ' din ka window dena better hai (' + (gap - since) + ' din baaki). Abhi phir bhejna hai?';
+  const ok = await showConfirmDialog({
+    title: tooMany ? 'Phir se reminder?' : 'Itni jaldi?',
+    message: msg, confirmText: 'Bhej do', cancelText: 'Rehne do'
+  });
+  if (ok && href) window.open(href, '_blank');
+  return ok;
+}
+function reminderHistoryCardHtml(p) {
+  const log = p.reminderLog || [];
+  if (!log.length) return '';
+  const st = reminderStats(p);
+  const lim = getReminderLimit();
+  const hit = lim > 0 && reminderStreak(p) >= lim;
+  const lab = { came: 'aaya', 'no-response': 'nahi aaya', pending: 'wait', void: 'reschedule' };
+  const col = { came: 'var(--emerald)', 'no-response': 'var(--red)', pending: '#b45309', void: 'var(--muted)' };
+  const rows = log.slice(-6).reverse().map(r => '<div class="row between" style="font-size:11.5px;padding:3px 0;"><span>' + fmtDate(new Date(r.ts).toISOString().slice(0,10)) + ' · ' + (r.channel === 'call' ? 'Call' : 'WhatsApp') + '</span><span style="font-weight:700;color:' + (col[r.outcome] || 'var(--muted)') + ';">' + (lab[r.outcome] || r.outcome) + '</span></div>').join('');
+  return '<div class="card" style="margin-bottom:10px;">'
+    + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:4px;">REMINDER HISTORY</div>'
+    + '<div style="font-size:12.5px;font-weight:700;">Reminded ' + st.total + '× · ' + st.came + ' aaya · ' + st.noResp + ' nahi aaya' + (st.pending ? ' · ' + st.pending + ' wait' : '') + '</div>'
+    + (hit ? '<div style="font-size:11px;color:#b45309;font-weight:600;margin-top:3px;">Limit hit — ab call ya snooze/lost karo, WhatsApp repeat mat karo.</div>' : '')
+    + '<div style="margin-top:6px;">' + rows + '</div></div>';
+}
+
 function reminderStatusBadgeHtml(patient) {
   // lastAutoReminderSentAt is kept in this max() only for backward-compat with
   // historical timestamps from when the WhatsApp-automation existed; nothing
@@ -2558,7 +2638,7 @@ function newPatientShape() {
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Trauma', procedure:'', hospital:'', anaesthesiaType:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active', notes:'', whatsapp:'',
-    lastReminderSentAt: null, followUpSnoozeCount: 0, researchFlag: false, researchNote: '',
+    lastReminderSentAt: null, reminderLog: [], followUpSnoozeCount: 0, researchFlag: false, researchNote: '',
     nextFollowUpDate:'',
     preOpImageCount:0, followUps:[], investigations:[], prescriptions:[], injections:[],
     ctev: null, ra: null, osteo: null,
@@ -3777,7 +3857,7 @@ function renderLpContextMenu() {
     + (waNum ? box('phone','Call','lp-call') : '')
     + box('users','Open Profile','open-patient')
     + box('bookmark', p.researchFlag?'Remove from Research':'Bookmark for Research', 'toggle-research-flag')
-    + (hasFollowUp && waNum ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" class="row gap3" style="width:100%;padding:13px 16px;background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--ink);font-size:14.5px;font-weight:600;margin-bottom:8px;" data-action="lp-close"><span style="flex:none;color:var(--accent);">'+ic('message')+'</span><span>Send Reminder</span></a>' : '')
+    + (hasFollowUp && waNum ? '<a href="'+esc(followUpReminderLink(p))+'" target="_blank" class="row gap3" style="width:100%;padding:13px 16px;background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;text-decoration:none;color:var(--ink);font-size:14.5px;font-weight:600;margin-bottom:8px;" data-action="log-reminder-sent" data-id="'+p.id+'"><span style="flex:none;color:var(--accent);">'+ic('message')+'</span><span>Send Reminder</span></a>' : '')
     + (hasFollowUp ? box('calendar','Change Date','lp-change-date') : '')
     + (hasFollowUp ? box('check','Follow-up Completed','lp-mark-completed') : '')
     + (hasFollowUp ? box('clock','Snooze 7 days','attn-snooze-followup') : '')
@@ -5194,7 +5274,13 @@ function renderAppSettingsView() {
     + (loadTheme()==='auto' ? '<p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Light 6 AM\u20137 PM, Dark otherwise \u2014 switches automatically.</p>' : '')
     + '<div class="card"><label class="field-label">Text Size</label><div class="row between"><span style="font-size:13px;font-weight:600;">App-wide size</span><div class="seg" style="width:auto;">'
     + [['small','Small'],['medium','Medium'],['large','Large']].map(([v,l])=>'<button class="seg-btn'+(loadFontSize()===v?' active':'')+'" data-action="set-font-size" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
-    + '</div></div></div>'
+    + '</div></div>'
+    + '<div class="card"><label class="field-label">Reminder limit</label><div class="row between"><span style="font-size:13px;font-weight:600;">Bina jawab ke max</span><div class="seg" style="width:auto;">'
+    + [[1,'1'],[2,'2'],[3,'3'],[0,'No limit']].map(([v,l])=>'<button class="seg-btn'+(getReminderLimit()===v?' active':'')+'" data-action="set-reminder-limit" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
+    + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Itne unanswered reminders ke baad WhatsApp bhejne se pehle confirm poochega.</p>'
+    + '<div class="row between" style="margin-top:12px;"><span style="font-size:13px;font-weight:600;">Do reminders ke beech gap</span><div class="seg" style="width:auto;">'
+    + [[5,'5d'],[7,'7d'],[10,'10d'],[14,'14d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getReminderGap()===v?' active':'')+'" data-action="set-reminder-gap" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
+    + '</div></div></div></div>'
     + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
     + '</div>'
     + notifCardHtml()
@@ -5907,13 +5993,16 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
         const days = overdueDays(item.date);
         const severityText = item.isOverdue ? (days > 0 ? days+' day'+(days>1?'s':'')+' overdue' : 'Overdue') : 'Due today';
         const waLink = (item.type === 'Follow-up' && item.patient.whatsapp) ? followUpReminderLink(item.patient) : null;
-        const showEscalation = item.type === 'Follow-up' && item.isOverdue && days >= 3;
+        const rStats = reminderStats(item.patient);
+        const rLim = getReminderLimit();
+        const limitHit = item.type === 'Follow-up' && rLim > 0 && reminderStreak(item.patient) >= rLim;
+        const showEscalation = item.type === 'Follow-up' && ((item.isOverdue && days >= 3) || limitHit);
         const showTrackingSnooze = (item.type === 'RA labs' || item.type === 'DEXA scan') && item.isOverdue && days >= 3;
         const trackingField = item.type === 'RA labs' ? 'ra' : 'dexa';
         const lostArmed = ARMED_DELETE === 'attn-mark-lost:'+item.patient.id;
         const lastReminded = Math.max(item.patient.lastReminderSentAt || 0, item.patient.lastAutoReminderSentAt || 0) || null;
         const remindedDaysAgo = lastReminded ? Math.floor((Date.now() - lastReminded) / 86400000) : null;
-        const remindedText = remindedDaysAgo === null ? '' : (remindedDaysAgo === 0 ? ' \u00b7 reminded today' : ' \u00b7 reminded '+remindedDaysAgo+'d ago');
+        const remindedText = remindedDaysAgo === null ? '' : (remindedDaysAgo === 0 ? ' \u00b7 reminded today' : ' \u00b7 reminded '+remindedDaysAgo+'d ago') + (rStats.total > 1 ? ' (' + rStats.total + '\u00d7)' : '');
         const snoozeCount = item.patient.followUpSnoozeCount || 0;
         return '<div data-lp-id="'+item.patient.id+'" style="padding:8px 14px;border-bottom:1px solid var(--border);">'
           + '<div class="row between">'
@@ -5922,13 +6011,15 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
             + '<span style="min-width:0;overflow:hidden;">'
               + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.patient.name)+'</span>'
               + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+esc(remindedText)+'</span>'
+              + (rStats.total ? '<span style="display:block;font-size:10.5px;font-weight:600;margin-top:1px;color:'+(limitHit?'#b45309':'var(--muted)')+';">'+(limitHit ? 'Jawab nahi aaya \u2014 call ya snooze karo \u00b7 ' : '')+'came '+rStats.came+' of '+rStats.total+(function(){const d=daysSinceLastReminder(item.patient),g=getReminderGap();return (d!==null&&g>0&&d<g)?' \u00b7 next reminder in '+(g-d)+'d':'';})()+'</span>' : '')
               + '<span style="display:block;font-size:10.5px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+followUpContextLine(item.patient)+'</span>'
               + (item.patient.followUpPurpose ? '<span style="display:block;font-size:10.5px;color:var(--accent-dark);font-weight:700;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+ic('bookmark')+' '+esc(item.patient.followUpPurpose)+'</span>' : '')
             + '</span>'
           + '</span>'
           + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+item.patient.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
           + '</div>'
-          + (showEscalation ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;">'
+          + (showEscalation ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;flex-wrap:wrap;">'
+              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-log-call" data-id="'+item.patient.id+'">'+ic('phone')+' Call kiya</button>'
               + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;'+(snoozeCount>0?'color:#b45309;border-color:var(--amber-border,#fde68a);background:var(--amber-bg,#fffbeb);':'')+'" data-action="attn-snooze-followup" data-id="'+item.patient.id+'" title="'+(snoozeCount>0?'Already snoozed '+snoozeCount+' time'+(snoozeCount>1?'s':''):'')+'">'+ic('clock')+' '+(snoozeCount>0?'Snooze again':'Snooze 7d')+'</button>'
               + (lostArmed
                   ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+item.patient.id+'">'+ic('check')+' Confirm?</button>'
@@ -6893,7 +6984,7 @@ function renderOverviewTab(p) {
         + '</div>' : '')
     + '</div>';
 
-  let usefulBody = reminderMiniCardHtml(p)
+  let usefulBody = reminderHistoryCardHtml(p) + reminderMiniCardHtml(p)
     + (isAiTier() ? universalAiMenuHtml(p.id) : '');
 
   // ---- Compact read-only summary (default view) ----
@@ -10393,7 +10484,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'lp-change-date') { LP_MENU_PATIENT_ID = null; await render(); QUICK_FU_PATIENT_ID = el.dataset.id; renderQuickFuModal(); return; }
   if (action === 'lp-mark-completed') {
     const p = getPatient(el.dataset.id);
-    if (p) { p.nextFollowUpDate = ''; p.followUpConfirmedAt = null; p.followUpPurpose = ''; await dbPutPatient(p); await refreshPatients(); toast('Follow-up marked completed'); }
+    if (p) { resolveReminders(p, 'came'); p.nextFollowUpDate = ''; p.followUpConfirmedAt = null; p.followUpPurpose = ''; await dbPutPatient(p); await refreshPatients(); toast('Follow-up marked completed'); }
     LP_MENU_PATIENT_ID = null; render(); return;
   }
   if (LP_MENU_PATIENT_ID && ['open-patient','attn-snooze-followup','attn-mark-lost','toggle-research-flag'].includes(action)) { LP_MENU_PATIENT_ID = null; await render(); }
@@ -10421,6 +10512,7 @@ document.addEventListener('click', async (e) => {
     if (purpose) recordTextUsed(PURPOSE_LIB_KEY, purpose);
     p.nextFollowUpDate = date;
     p.followUpSnoozeCount = 0;
+    resolveReminders(p, 'void');
     p.lastReminderSentAt = null;
     p.followUpConfirmedAt = null;
     await dbPutPatient(p);
@@ -11589,7 +11681,10 @@ document.addEventListener('click', async (e) => {
   if (action === 'log-reminder-sent') {
     const p = getPatient(el.dataset.id);
     if (p) {
-      p.lastReminderSentAt = Date.now();
+      const okSend = await reminderGate(e, p, el.href);
+      LP_MENU_PATIENT_ID = null;
+      if (!okSend) { render(); return; }
+      logReminder(p, 'whatsapp');
       haptic(15);
       toast('✓ Follow-up reminder sent to ' + p.name);
       await dbPutPatient(p);
@@ -11623,6 +11718,7 @@ document.addEventListener('click', async (e) => {
     const list = s.dueTomorrowList.slice();
     for (const p of list) {
       p.nextFollowUpDate = newDate;
+      resolveReminders(p, 'void');
       p.lastReminderSentAt = null; p.followUpConfirmedAt = null;
       await dbPutPatient(p);
     }
@@ -11632,12 +11728,26 @@ document.addEventListener('click', async (e) => {
     render();
     return;
   }
+  if (action === 'attn-log-call') {
+    const p = getPatient(el.dataset.id);
+    if (!p) return;
+    logReminder(p, 'call');
+    await dbPutPatient(p);
+    await refreshPatients();
+    haptic(15);
+    toast('Call logged \u2014 ' + p.name);
+    render();
+    return;
+  }
+  if (action === 'set-reminder-gap') { setReminderGap(parseInt(el.dataset.value, 10)); render(); return; }
+  if (action === 'set-reminder-limit') { setReminderLimit(parseInt(el.dataset.value, 10)); render(); return; }
   if (action === 'attn-snooze-followup') {
     const p = getPatient(el.dataset.id);
     if (!p) return;
     const d = new Date(); d.setDate(d.getDate() + 7);
     p.nextFollowUpDate = d.toISOString().slice(0,10);
     p.followUpSnoozeCount = (p.followUpSnoozeCount || 0) + 1;
+    resolveReminders(p, 'no-response');
     p.lastReminderSentAt = null; p.followUpConfirmedAt = null;
     await dbPutPatient(p);
     await refreshPatients();
@@ -11658,6 +11768,7 @@ document.addEventListener('click', async (e) => {
     if (!confirmed) return;
     p.status = 'Lost to follow-up';
     p.followUpSnoozeCount = 0;
+    resolveReminders(p, 'no-response');
     await dbPutPatient(p);
     await refreshPatients();
     ARMED_DELETE = null;
@@ -11801,6 +11912,7 @@ document.addEventListener('click', async (e) => {
     const prevNextFollowUpDate = p.nextFollowUpDate;
     const prevSnoozeCount = p.followUpSnoozeCount;
     const prevLastReminderSentAt = p.lastReminderSentAt;
+    const prevReminderLog = JSON.stringify(p.reminderLog || []);
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
     const noFollowUpNeeded = document.getElementById('fu-no-followup-needed');
@@ -11826,6 +11938,7 @@ document.addEventListener('click', async (e) => {
       nextFuDefaulted = true;
     }
     p.followUpSnoozeCount = 0; p.lastReminderSentAt = null;
+    resolveReminders(p, 'came');
     const originalHtml = el.innerHTML;
     el.innerHTML = '<span class="spinner"></span> Saving\u2026';
     el.disabled = true;
@@ -11862,7 +11975,7 @@ document.addEventListener('click', async (e) => {
           toastWithButton(
             '\u2713 Follow-up logged \u2014 next visit ' + fmtDate(p.nextFollowUpDate),
             'Send Reminder',
-            async () => { window.open(reminderLink, '_blank'); p.lastReminderSentAt = Date.now(); await dbPutPatient(p); await refreshPatients(); render(); },
+            async () => { window.open(reminderLink, '_blank'); logReminder(p, 'whatsapp'); await dbPutPatient(p); await refreshPatients(); render(); },
             5000
           );
         } else {
@@ -11878,6 +11991,7 @@ document.addEventListener('click', async (e) => {
       p.nextFollowUpDate = prevNextFollowUpDate;
       p.followUpSnoozeCount = prevSnoozeCount;
       p.lastReminderSentAt = prevLastReminderSentAt;
+      p.reminderLog = JSON.parse(prevReminderLog);
       el.innerHTML = originalHtml;
       el.disabled = false;
       toast('\u26a0\ufe0f Could not save follow-up \u2014 try again');
@@ -12403,7 +12517,11 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'rq-send') {
     const p = getPatient(el.dataset.id);
-    if (p) { p.lastReminderSentAt = Date.now(); dbPutPatient(p).then(refreshPatients); }
+    if (p) {
+      const okSend = await reminderGate(e, p, el.href);
+      if (!okSend) return;
+      logReminder(p, 'whatsapp'); dbPutPatient(p).then(refreshPatients);
+    }
     RQ_SENT_COUNT++; RQ_INDEX++; render(); return;
   }
   if (action === 'rq-skip') { RQ_INDEX++; render(); return; }
@@ -13173,7 +13291,7 @@ document.addEventListener('click', async (e) => {
       surgeryDate: todayStr(), nextFollowUpDate: '', notes: '', status: 'Active', surgeryStatus: '',
       paymentMethod: '', insuranceType: '', cashAmount: '',
       investigations: [], followUps: [], prescriptions: [], injections: [], tags: [],
-      followUpSnoozeCount: 0, lastReminderSentAt: null, lastAutoReminderSentAt: null, followUpConfirmedAt: null,
+      followUpSnoozeCount: 0, lastReminderSentAt: null, reminderLog: [], lastAutoReminderSentAt: null, followUpConfirmedAt: null,
       researchFlag: false, researchNote: '', pinned: false, isOpenFracture: false, pjiSuspected: false,
       createdAt: Date.now(),
     };
