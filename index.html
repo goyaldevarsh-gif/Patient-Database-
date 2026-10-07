@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261007.2">
+<meta name="app-build" content="20261007.3">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -10454,6 +10454,47 @@ window.addEventListener('pagehide', saveApDraft);
   window.addEventListener('unhandledrejection', (e) => { onFailure(e && e.reason); });
 })();
 
+// ---- Sign out = full local wipe (shared-device privacy). Data comes back via cloud sync / backup restore. ----
+async function signOutAndWipe() {
+  const n = (typeof PATIENTS !== 'undefined' && PATIENTS) ? PATIENTS.length : 0;
+  let lastBk = 0;
+  try { lastBk = Math.max(parseInt(localStorage.getItem(BACKUP_REMINDER_KEY) || '0', 10) || 0, parseInt(localStorage.getItem('last-drive-backup-time') || '0', 10) || 0); } catch (e) {}
+  let pending = 0;
+  try { pending = loadPendingSync().length; } catch (e) {}
+  const bkLine = lastBk
+    ? 'Last backup: ' + new Date(lastBk).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + '.'
+    : 'Koi backup abhi tak nahi liya hai!';
+  const msg = 'Is phone se saara data (' + n + ' patients, photos, settings) hat jayega aur app bilkul fresh ho jayegi.<br><br>'
+    + bkLine + (pending ? '<br>' + pending + ' unsynced change(s) bhi chale jayenge.' : '')
+    + '<br><br>Wapas login karke cloud/backup se restore kar sakte ho.';
+  const ok = await showConfirmDialog({ title: 'Sign out & clear data?', message: msg, confirmText: 'Sign out & clear', cancelText: 'Cancel', destructive: true });
+  if (!ok) return;
+  try { stopCloudSync(); } catch (e) {}
+  try { stopImageCloudSync(); } catch (e) {}
+  try { await firebase.auth().signOut(); } catch (err) { toast('Sign-out failed - data not cleared'); return; }
+  try {
+    const db = await openDB();
+    const names = Array.from(db.objectStoreNames);
+    if (names.length) {
+      await new Promise((res, rej) => {
+        const tx = db.transaction(names, 'readwrite');
+        names.forEach(nm => tx.objectStore(nm).clear());
+        tx.oncomplete = res; tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+      });
+    }
+  } catch (e) { console.error('wipe: IndexedDB clear failed', e); toast('Could not clear all data'); }
+  // localStorage: wipe everything except harmless device preferences
+  try {
+    const keep = [THEME_KEY, FONT_SIZE_KEY, ACCENT_KEY, ONBOARDING_DONE_KEY, REMINDER_LIMIT_KEY, REMINDER_GAP_KEY];
+    const saved = {};
+    keep.forEach(k => { const v = localStorage.getItem(k); if (v !== null) saved[k] = v; });
+    localStorage.clear();
+    Object.keys(saved).forEach(k => localStorage.setItem(k, saved[k]));
+  } catch (e) {}
+  try { sessionStorage.clear(); } catch (e) {}
+  location.reload();
+}
+
 let LP_TIMER = null;
 document.addEventListener('touchstart', (e) => {
   const card = e.target.closest('[data-lp-id]');
@@ -10597,16 +10638,7 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
-  if (action === 'account-sign-out') {
-    try {
-      await firebase.auth().signOut();
-      toast('Signed out');
-      render();
-    } catch (err) {
-      toast('Sign-out failed');
-    }
-    return;
-  }
+  if (action === 'account-sign-out') { await signOutAndWipe(); return; }
   if (action === 'ai-suggest-investigations') {
     const p = AP_TEMP || getPatient(SELECTED_ID);
     const originalHtml = el.innerHTML;
@@ -12438,20 +12470,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); updateStorageIndicator(); return; }
   if (action === 'close-settings') { VIEW = 'more'; render(); return; }
   if (action === 'close-app-settings') { VIEW = 'more'; render(); return; }
-  if (action === 'logout') {
-    if (confirm('Sign out? All local data stays, only the cloud sync account will be disconnected.')) {
-      firebase.auth().signOut().then(() => {
-        CURRENT_USER = null;
-        CURRENT_PLAN = 'free';
-        toast('Signed out');
-        render();
-      }).catch(err => {
-        console.error('Logout error:', err);
-        toast('Error signing out: ' + err.message);
-      });
-    }
-    return;
-  }
+  if (action === 'logout') { await signOutAndWipe(); return; }
   if (action === 'close-cloud-sync') { VIEW = 'more'; render(); return; }
   if (action === 'close-drive-backup') { VIEW = 'more'; render(); return; }
   if (action === 'open-app-settings') { VIEW = 'app-settings'; render(); return; }
