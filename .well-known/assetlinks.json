@@ -1,8 +1,23 @@
-[{
-      "relation": ["delegate_permission/common.handle_all_urls"],
-      "target": {
-        "namespace": "android_app",
-        "package_name": "com.orthovault.app",
-        "sha256_cert_fingerprints": ["21:3B:36:DF:34:4E:25:22:90:AF:42:5A:75:F5:24:14:4E:AD:03:1E:07:EE:CB:88:4F:3B:DC:7C:96:19:BC:2A"]
-      }
-    }]
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.devarsh.orthovault",
+      "sha256_cert_fingerprints": [
+        "C5:5E:DE:97:7F:05:91:BB:21:0C:7F:47:34:1F:15:92:B6:8D:73:4B:90:F2:24:FB:0C:67:EF:F9:55:FA:DC:F9",
+        "99:3E:9F:32:BC:DF:2F:7D:49:32:47:D6:EB:EF:5E:2D:35:57:A7:3A:33:64:BE:2E:3B:C2:9A:1C:0C:7B:EC:C2"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.orthovault.app",
+      "sha256_cert_fingerprints": [
+        "21:3B:36:DF:34:4E:25:22:90:AF:42:5A:75:F5:24:14:4E:AD:03:1E:07:EE:CB:88:4F:3B:DC:7C:96:19:BC:2A"
+      ]
+    }
+  }
+]
