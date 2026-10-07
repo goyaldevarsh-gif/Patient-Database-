@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261007.3">
+<meta name="app-build" content="20261007.4">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -2085,11 +2085,11 @@ async function reminderGate(e, p, href) {
   if (!tooSoon && !tooMany) return true;
   if (e && e.preventDefault) e.preventDefault();
   const msg = tooMany
-    ? p.name + ' ko ' + streak + ' reminder bhej chuke ho, jawab/visit nahi aaya. Call karna ya snooze/lost better hai. Phir bhi WhatsApp bhejna hai?'
-    : p.name + ' ko ' + (since === 0 ? 'aaj hi' : since + ' din pehle') + ' reminder bheja tha. Patient ko ' + gap + ' din ka window dena better hai (' + (gap - since) + ' din baaki). Abhi phir bhejna hai?';
+    ? p.name + ' has already received ' + streak + ' reminder(s) with no response or visit. A call, snooze or marking as lost may be better. Send another WhatsApp anyway?'
+    : p.name + ' was reminded ' + (since === 0 ? 'today' : since + ' day(s) ago') + '. Giving the patient a ' + gap + '-day window is better (' + (gap - since) + ' day(s) left). Send again now?';
   const ok = await showConfirmDialog({
-    title: tooMany ? 'Phir se reminder?' : 'Itni jaldi?',
-    message: msg, confirmText: 'Bhej do', cancelText: 'Rehne do'
+    title: tooMany ? 'Remind again?' : 'Too soon to remind?',
+    message: msg, confirmText: 'Send anyway', cancelText: 'Cancel'
   });
   if (ok && href) window.open(href, '_blank');
   return ok;
@@ -2100,13 +2100,13 @@ function reminderHistoryCardHtml(p) {
   const st = reminderStats(p);
   const lim = getReminderLimit();
   const hit = lim > 0 && reminderStreak(p) >= lim;
-  const lab = { came: 'aaya', 'no-response': 'nahi aaya', pending: 'wait', void: 'reschedule' };
+  const lab = { came: 'came', 'no-response': 'no response', pending: 'waiting', void: 'rescheduled' };
   const col = { came: 'var(--emerald)', 'no-response': 'var(--red)', pending: '#b45309', void: 'var(--muted)' };
   const rows = log.slice(-6).reverse().map(r => '<div class="row between" style="font-size:11.5px;padding:3px 0;"><span>' + fmtDate(new Date(r.ts).toISOString().slice(0,10)) + ' · ' + (r.channel === 'call' ? 'Call' : 'WhatsApp') + '</span><span style="font-weight:700;color:' + (col[r.outcome] || 'var(--muted)') + ';">' + (lab[r.outcome] || r.outcome) + '</span></div>').join('');
   return '<div class="card" style="margin-bottom:10px;">'
     + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:4px;">REMINDER HISTORY</div>'
-    + '<div style="font-size:12.5px;font-weight:700;">Reminded ' + st.total + '× · ' + st.came + ' aaya · ' + st.noResp + ' nahi aaya' + (st.pending ? ' · ' + st.pending + ' wait' : '') + '</div>'
-    + (hit ? '<div style="font-size:11px;color:#b45309;font-weight:600;margin-top:3px;">Limit hit — ab call ya snooze/lost karo, WhatsApp repeat mat karo.</div>' : '')
+    + '<div style="font-size:12.5px;font-weight:700;">Reminded ' + st.total + '× · ' + st.came + ' came · ' + st.noResp + ' no response' + (st.pending ? ' · ' + st.pending + ' waiting' : '') + '</div>'
+    + (hit ? '<div style="font-size:11px;color:#b45309;font-weight:600;margin-top:3px;">Limit reached — call, snooze or mark lost instead of sending another WhatsApp.</div>' : '')
     + '<div style="margin-top:6px;">' + rows + '</div></div>';
 }
 
@@ -3188,14 +3188,14 @@ async function classifyMasterVoiceIntent(transcript) {
     const askClaude = callGeminiDirect;
     const currentPatient = (VIEW === 'detail' && SELECTED_ID) ? getPatient(SELECTED_ID) : null;
     const contextLine = currentPatient ? ('\n\nContext: the doctor currently has ' + currentPatient.name + '\u2019s case open on screen \u2014 so "iska"/"is patient ka"/"isko"/"this patient" refers to ' + currentPatient.name + ' unless a different name is clearly said.') : '';
-    const sys = 'You interpret a spoken or typed command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "set_followup" | "summarize_patient" | "referral_letter" | "query_patients" | "list_by_condition" | "generate_digest_report" | "add_investigation" | "add_injection" | "update_field" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-assistant","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "patientAge": number or null, "patientSex": "M" or "F" or null, "diagnosis": string or null, "chiefComplaints": string or null, "side": "Left" or "Right" or "Bilateral" or null, "followUpDate": "YYYY-MM-DD" or null, "referralSpecialist": string or null, "referralReason": string or null, "condition": one of "ctev","ra","osteo","trauma", or null, "queryFilter": string or null (free-text description of what to filter/search for across all patients, e.g. "opd cases", "knee surgeries last month"), "investigationName": string or null, "investigationValue": string or null, "investigationUnit": string or null, "injectionType": string or null, "injectionSite": string or null, "fieldName": one of "whatsapp","diagnosis","chiefComplaints","notes","status","side", or null, "fieldValue": string or null, "confirmationText": a short, friendly one-sentence description in the SAME language/style as the command (Hindi/Hinglish if the command was in Hindi/Hinglish) describing exactly what will happen \u2014 if any clinical details were captured, mention that they\u2019ve been filled in and just need a quick check, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: any generic "patient add karna hai" / "naya case banao" / "add a new patient" \u2192 new_case. Extract EVERY clinical detail mentioned in the same breath \u2014 age, sex, diagnosis, side, chief complaints \u2014 into the matching fields above, even if a lot was said at once. "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "calendar/reminders/follow-ups dikhao" \u2192 open_view view=calendar. "sab patients ke baare mein sawaal poochna hai" \u2192 open_view view=ai-query. "kuch bhi pooch sakta hoon" / general clinical/technique question not tied to a specific patient \u2192 open_view view=ai-assistant. "X ko [date] follow-up ke liye bulao" \u2192 set_followup with patientQuery=X and followUpDate resolved from today\u2019s date (kal/tomorrow, N din baad, agle hafte, explicit dates, etc). "iska/is patient ka summary banao" \u2192 summarize_patient with patientQuery=name if said, else null (falls back to currently open patient). "iska referral letter banao [specialist] ke liye" \u2192 referral_letter with patientQuery, referralSpecialist, referralReason. "sab CTEV/RA/osteoporosis/trauma cases dikhao" / "list of X condition patients" \u2192 list_by_condition with condition set. "OPD cases dikhao" / "last month ke surgical cases" / any broader filtered listing of patients not tied to one named condition \u2192 query_patients with queryFilter describing what was asked. "practice ka report do" / "is week ka summary" \u2192 generate_digest_report. "iska/is patient ka investigation/lab add karo [name] [value] [unit]" \u2192 add_investigation with patientQuery (falls back to open patient), investigationName, investigationValue, investigationUnit. "isko/is patient ko injection do [type] [site]" \u2192 add_injection with patientQuery, injectionType, injectionSite. "X ka phone/whatsapp number update karo [number]" / "iska diagnosis change karo [new diagnosis]" / "isme note add karo [text]" / "status active/inactive karo" / "side change karo left/right/bilateral" \u2192 update_field with patientQuery (falls back to open patient), fieldName set to the matching field, and fieldValue holding the new value exactly as said (for whatsapp, digits only). If genuinely ambiguous or unsupported (editing a field not in the fieldName list, deleting records, etc.), use "unclear".' + contextLine;
+    const sys = 'You interpret a spoken or typed command for a clinical practice app (OrthoVault) into a structured action. Today\u2019s date is ' + todayStr() + '. Return ONLY JSON, no markdown fences: {"action": "open_view" | "search_patient" | "new_case" | "set_followup" | "summarize_patient" | "referral_letter" | "query_patients" | "list_by_condition" | "generate_digest_report" | "add_investigation" | "add_injection" | "update_field" | "unclear", "view": one of "ai-hub","ai-query","ai-digest","ai-assistant","calendar","more","list", or null, "patientQuery": string or null, "caseType": "opd" or "surgical" or null, "patientName": string or null, "patientAge": number or null, "patientSex": "M" or "F" or null, "diagnosis": string or null, "chiefComplaints": string or null, "side": "Left" or "Right" or "Bilateral" or null, "followUpDate": "YYYY-MM-DD" or null, "referralSpecialist": string or null, "referralReason": string or null, "condition": one of "ctev","ra","osteo","trauma", or null, "queryFilter": string or null (free-text description of what to filter/search for across all patients, e.g. "opd cases", "knee surgeries last month"), "investigationName": string or null, "investigationValue": string or null, "investigationUnit": string or null, "injectionType": string or null, "injectionSite": string or null, "fieldName": one of "whatsapp","diagnosis","chiefComplaints","notes","status","side", or null, "fieldValue": string or null, "confirmationText": a short, friendly one-sentence description in English (even if the command was spoken in Hindi or Hinglish) describing exactly what will happen \u2014 if any clinical details were captured, mention that they\u2019ve been filled in and just need a quick check, phrased like "Main ... karne ja raha hoon", or if action is "unclear", a short note saying it wasn\u2019t understood and to try rephrasing}.\n\nGuidance: any generic "patient add karna hai" / "naya case banao" / "add a new patient" \u2192 new_case. Extract EVERY clinical detail mentioned in the same breath \u2014 age, sex, diagnosis, side, chief complaints \u2014 into the matching fields above, even if a lot was said at once. "X ka case kholo/dikhao" \u2192 search_patient with patientQuery=X. "digest/weekly summary dikhao" \u2192 open_view view=ai-digest. "calendar/reminders/follow-ups dikhao" \u2192 open_view view=calendar. "sab patients ke baare mein sawaal poochna hai" \u2192 open_view view=ai-query. "kuch bhi pooch sakta hoon" / general clinical/technique question not tied to a specific patient \u2192 open_view view=ai-assistant. "X ko [date] follow-up ke liye bulao" \u2192 set_followup with patientQuery=X and followUpDate resolved from today\u2019s date (kal/tomorrow, N din baad, agle hafte, explicit dates, etc). "iska/is patient ka summary banao" \u2192 summarize_patient with patientQuery=name if said, else null (falls back to currently open patient). "iska referral letter banao [specialist] ke liye" \u2192 referral_letter with patientQuery, referralSpecialist, referralReason. "sab CTEV/RA/osteoporosis/trauma cases dikhao" / "list of X condition patients" \u2192 list_by_condition with condition set. "OPD cases dikhao" / "last month ke surgical cases" / any broader filtered listing of patients not tied to one named condition \u2192 query_patients with queryFilter describing what was asked. "practice ka report do" / "is week ka summary" \u2192 generate_digest_report. "iska/is patient ka investigation/lab add karo [name] [value] [unit]" \u2192 add_investigation with patientQuery (falls back to open patient), investigationName, investigationValue, investigationUnit. "isko/is patient ko injection do [type] [site]" \u2192 add_injection with patientQuery, injectionType, injectionSite. "X ka phone/whatsapp number update karo [number]" / "iska diagnosis change karo [new diagnosis]" / "isme note add karo [text]" / "status active/inactive karo" / "side change karo left/right/bilateral" \u2192 update_field with patientQuery (falls back to open patient), fieldName set to the matching field, and fieldValue holding the new value exactly as said (for whatsapp, digits only). If genuinely ambiguous or unsupported (editing a field not in the fieldName list, deleting records, etc.), use "unclear".' + contextLine;
     const result = await askClaude({ systemPrompt: sys, userMessage: transcript, maxTokens: 350 });
     let raw = (result.data.text || '').trim();
     raw = raw.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
     MASTER_VOICE_RESULT = JSON.parse(raw);
   } catch (err) {
     console.error('Master voice intent classification failed:', err);
-    MASTER_VOICE_RESULT = { action: 'unclear', confirmationText: 'Kuch gadbad ho gayi \u2014 dobara try karein.' };
+    MASTER_VOICE_RESULT = { action: 'unclear', confirmationText: 'Something went wrong - please try again.' };
   }
   MASTER_VOICE_STATE = 'confirming';
   updateMasterVoiceUI();
@@ -3251,11 +3251,11 @@ async function executeMasterVoiceAction() {
       } else if (VIEW === 'detail' && SELECTED_ID) {
         target = getPatient(SELECTED_ID);
       } else {
-        toast('Kis patient ke liye, naam bhi boliye');
+        toast('Please say the patient name too');
       }
       if (target) {
         if (r.action === 'referral_letter' && !r.referralSpecialist) {
-          toast('Kisko refer karna hai woh bhi boliye \u2014 e.g. "ortho ko refer karo"');
+          toast('Please say who to refer to, e.g. "refer to ortho"');
         } else {
           MASTER_VOICE_STATE = 'thinking';
           updateMasterVoiceUI();
@@ -3319,7 +3319,7 @@ async function executeMasterVoiceAction() {
       } else if (VIEW === 'detail' && SELECTED_ID) {
         target = getPatient(SELECTED_ID);
       } else {
-        toast('Kis patient ke liye, naam bhi boliye');
+        toast('Please say the patient name too');
       }
       if (target) {
         try {
@@ -3356,7 +3356,7 @@ async function executeMasterVoiceAction() {
       } else if (VIEW === 'detail' && SELECTED_ID) {
         target = getPatient(SELECTED_ID);
       } else {
-        toast('Kis patient ke liye, naam bhi boliye');
+        toast('Please say the patient name too');
       }
       const allowedFields = ['whatsapp', 'diagnosis', 'chiefComplaints', 'notes', 'status', 'side'];
       if (target && r.fieldName && allowedFields.includes(r.fieldName) && r.fieldValue) {
@@ -3379,7 +3379,7 @@ async function executeMasterVoiceAction() {
           toast('Update failed \u2014 try again');
         }
       } else if (target) {
-        toast('Field ya value samajh nahi aaya \u2014 dobara try karein');
+        toast('Could not understand the field or value - please try again');
       }
     }
   }
@@ -5275,10 +5275,10 @@ function renderAppSettingsView() {
     + '<div class="card"><label class="field-label">Text Size</label><div class="row between"><span style="font-size:13px;font-weight:600;">App-wide size</span><div class="seg" style="width:auto;">'
     + [['small','Small'],['medium','Medium'],['large','Large']].map(([v,l])=>'<button class="seg-btn'+(loadFontSize()===v?' active':'')+'" data-action="set-font-size" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div>'
-    + '<div class="card"><label class="field-label">Reminder limit</label><div class="row between"><span style="font-size:13px;font-weight:600;">Bina jawab ke max</span><div class="seg" style="width:auto;">'
+    + '<div class="card"><label class="field-label">Reminder limit</label><div class="row between"><span style="font-size:13px;font-weight:600;">Max unanswered reminders</span><div class="seg" style="width:auto;">'
     + [[1,'1'],[2,'2'],[3,'3'],[0,'No limit']].map(([v,l])=>'<button class="seg-btn'+(getReminderLimit()===v?' active':'')+'" data-action="set-reminder-limit" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
-    + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Itne unanswered reminders ke baad WhatsApp bhejne se pehle confirm poochega.</p>'
-    + '<div class="row between" style="margin-top:12px;"><span style="font-size:13px;font-weight:600;">Do reminders ke beech gap</span><div class="seg" style="width:auto;">'
+    + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">The app asks for confirmation before another WhatsApp once this many reminders go unanswered.</p>'
+    + '<div class="row between" style="margin-top:12px;"><span style="font-size:13px;font-weight:600;">Gap between reminders</span><div class="seg" style="width:auto;">'
     + [[5,'5d'],[7,'7d'],[10,'10d'],[14,'14d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getReminderGap()===v?' active':'')+'" data-action="set-reminder-gap" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
     + '</div></div></div></div>'
     + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
@@ -6011,7 +6011,7 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
             + '<span style="min-width:0;overflow:hidden;">'
               + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.patient.name)+'</span>'
               + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+esc(remindedText)+'</span>'
-              + (rStats.total ? '<span style="display:block;font-size:10.5px;font-weight:600;margin-top:1px;color:'+(limitHit?'#b45309':'var(--muted)')+';">'+(limitHit ? 'Jawab nahi aaya \u2014 call ya snooze karo \u00b7 ' : '')+'came '+rStats.came+' of '+rStats.total+(function(){const d=daysSinceLastReminder(item.patient),g=getReminderGap();return (d!==null&&g>0&&d<g)?' \u00b7 next reminder in '+(g-d)+'d':'';})()+'</span>' : '')
+              + (rStats.total ? '<span style="display:block;font-size:10.5px;font-weight:600;margin-top:1px;color:'+(limitHit?'#b45309':'var(--muted)')+';">'+(limitHit ? 'No response \u2014 call or snooze \u00b7 ' : '')+'came '+rStats.came+' of '+rStats.total+(function(){const d=daysSinceLastReminder(item.patient),g=getReminderGap();return (d!==null&&g>0&&d<g)?' \u00b7 next reminder in '+(g-d)+'d':'';})()+'</span>' : '')
               + '<span style="display:block;font-size:10.5px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+followUpContextLine(item.patient)+'</span>'
               + (item.patient.followUpPurpose ? '<span style="display:block;font-size:10.5px;color:var(--accent-dark);font-weight:700;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+ic('bookmark')+' '+esc(item.patient.followUpPurpose)+'</span>' : '')
             + '</span>'
@@ -6019,7 +6019,7 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
           + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+item.patient.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
           + '</div>'
           + (showEscalation ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;flex-wrap:wrap;">'
-              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-log-call" data-id="'+item.patient.id+'">'+ic('phone')+' Call kiya</button>'
+              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-log-call" data-id="'+item.patient.id+'">'+ic('phone')+' Called</button>'
               + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;'+(snoozeCount>0?'color:#b45309;border-color:var(--amber-border,#fde68a);background:var(--amber-bg,#fffbeb);':'')+'" data-action="attn-snooze-followup" data-id="'+item.patient.id+'" title="'+(snoozeCount>0?'Already snoozed '+snoozeCount+' time'+(snoozeCount>1?'s':''):'')+'">'+ic('clock')+' '+(snoozeCount>0?'Snooze again':'Snooze 7d')+'</button>'
               + (lostArmed
                   ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+item.patient.id+'">'+ic('check')+' Confirm?</button>'
@@ -7051,10 +7051,10 @@ function renderOverviewTab(p) {
     + '<div class="card" style="background:'+(CONVERT_SURGICAL_STEP || (isSurgical && p.surgeryStatus==='awaiting') ? 'rgba(217,119,6,0.06)' : 'rgba(226,232,240,0.4)')+';border-color:'+(CONVERT_SURGICAL_STEP || (isSurgical && p.surgeryStatus==='awaiting') ? '#fde68a' : '#cbd5e1')+';margin-top:8px;padding:10px 12px;">'
     + '<div style="display:flex;flex-direction:column;gap:8px;">'
     + (CONVERT_SURGICAL_STEP === 'choose'
-        ? ('<div style="font-size:12.5px;font-weight:700;color:#92400e;">Surgery ho chuki hai ya abhi planned hai?</div>'
+        ? ('<div style="font-size:12.5px;font-weight:700;color:#92400e;">Surgery already done, or still planned?</div>'
             + '<div class="row gap2">'
             + '<button class="btn btn-sm" style="flex:1;" data-action="convert-surgical-done">'+ic('check')+' Already Done</button>'
-            + '<button class="btn btn-sm btn-primary" style="flex:1;" data-action="convert-surgical-planned">'+ic('clock')+' Planned / OT Baaki</button>'
+            + '<button class="btn btn-sm btn-primary" style="flex:1;" data-action="convert-surgical-planned">'+ic('clock')+' Planned / Awaiting OT</button>'
             + '</div>'
             + '<button class="btn btn-sm" data-action="cancel-convert-surgical">Cancel</button>')
       : CONVERT_SURGICAL_STEP === 'planned-form'
@@ -7064,7 +7064,7 @@ function renderOverviewTab(p) {
             + '<div><label class="field-label">Hospital (optional)</label><input class="input" id="ps-tentative-hospital" placeholder="" value="'+esc(p.hospital||'')+'"></div>'
             + '<button class="btn btn-primary btn-sm btn-block" data-action="save-planned-surgery-details">'+ic('check')+' Save as Awaiting Surgery</button>')
       : (isSurgical && p.surgeryStatus === 'awaiting')
-        ? ('<div class="row gap2" style="align-items:center;"><span style="flex:none;">'+ic('clock')+'</span><span style="flex:1;font-size:12.5px;font-weight:700;color:#92400e;">Awaiting Surgery \u2014 OT abhi baaki hai</span></div>'
+        ? ('<div class="row gap2" style="align-items:center;"><span style="flex:none;">'+ic('clock')+'</span><span style="flex:1;font-size:12.5px;font-weight:700;color:#92400e;">Awaiting Surgery \u2014 OT pending</span></div>'
             + '<div style="font-size:11px;color:var(--muted);">Actual Procedure/Date/Hospital upar edit kar ke, phir neeche mark done kar do.</div>'
             + '<button class="btn btn-sm btn-primary btn-block" data-action="mark-surgery-done">'+ic('check')+' Mark Surgery Done</button>')
       : (!isSurgical ? '<button class="btn btn-sm btn-block" style="font-size:12px;" data-action="convert-to-surgical">'+ic('plus')+' Convert to Surgical</button>' : convertToOpdButtonHtml(p)))
@@ -10154,9 +10154,9 @@ function renderMasterVoiceOverlay() {
   if (MASTER_VOICE_STATE === 'idle') return '';
   let body = '';
   if (MASTER_VOICE_STATE === 'listening') {
-    body = '<div style="text-align:center;padding:24px 16px;"><div style="width:64px;height:64px;margin:0 auto 12px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;animation:mic-pulse 1.1s infinite;">'+ic('mic')+'</div><p style="font-size:13px;color:var(--muted);margin:0;">Sun raha hoon\u2026</p><button class="btn btn-sm" style="margin-top:16px;" data-action="master-voice-cancel">Cancel</button></div>';
+    body = '<div style="text-align:center;padding:24px 16px;"><div style="width:64px;height:64px;margin:0 auto 12px;border-radius:50%;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;animation:mic-pulse 1.1s infinite;">'+ic('mic')+'</div><p style="font-size:13px;color:var(--muted);margin:0;">Listening\u2026</p><button class="btn btn-sm" style="margin-top:16px;" data-action="master-voice-cancel">Cancel</button></div>';
   } else if (MASTER_VOICE_STATE === 'thinking') {
-    body = '<div style="text-align:center;padding:24px 16px;"><span class="spinner"></span><p style="font-size:13px;color:var(--ink);margin-top:12px;font-style:italic;">\u201c'+esc(MASTER_VOICE_TRANSCRIPT)+'\u201d</p><p style="font-size:12px;color:var(--muted);margin-top:4px;">Samajh raha hoon\u2026</p></div>';
+    body = '<div style="text-align:center;padding:24px 16px;"><span class="spinner"></span><p style="font-size:13px;color:var(--ink);margin-top:12px;font-style:italic;">\u201c'+esc(MASTER_VOICE_TRANSCRIPT)+'\u201d</p><p style="font-size:12px;color:var(--muted);margin-top:4px;">Understanding\u2026</p></div>';
   } else if (MASTER_VOICE_STATE === 'confirming' && MASTER_VOICE_EDITING) {
     body = '<div style="padding:20px 16px;">'
       + '<label class="field-label">Edit what you said</label>'
@@ -10168,7 +10168,7 @@ function renderMasterVoiceOverlay() {
     const actionable = r.action && r.action !== 'unclear';
     body = '<div style="padding:20px 16px;">'
       + '<p style="font-size:11px;color:var(--muted);margin:0 0 10px;">\u201c'+esc(MASTER_VOICE_TRANSCRIPT)+'\u201d</p>'
-      + '<p style="font-size:15px;font-weight:700;margin:0 0 18px;line-height:1.4;">'+esc(r.confirmationText||'Samajh nahi aaya, dobara try karein.')+'</p>'
+      + '<p style="font-size:15px;font-weight:700;margin:0 0 18px;line-height:1.4;">'+esc(r.confirmationText||"Couldn't understand - please try again.")+'</p>'
       + (actionable
           ? '<div class="row gap2" style="margin-bottom:8px;"><button class="btn" style="flex:1;" data-action="master-voice-cancel">Cancel</button><button class="btn btn-primary" style="flex:1;" data-action="master-voice-confirm">'+ic('check')+' Confirm</button></div>'
             + '<button class="btn btn-block btn-sm" data-action="master-voice-edit-start">'+ic('pencil')+' Not quite right \u2014 edit</button>'
@@ -10305,7 +10305,7 @@ document.addEventListener('touchend', (e) => {
       const btn = findBackActionBtn();
       if (btn) {
         btn.click();
-        if (VIEW === 'add' && btn.dataset && btn.dataset.confirmed) toast('Back dabao phir se — changes discard honge');
+        if (VIEW === 'add' && btn.dataset && btn.dataset.confirmed) toast('Press back again - changes will be discarded');
         history.pushState({ ov: 'guard' }, '');
         return;
       }
@@ -10313,7 +10313,7 @@ document.addEventListener('touchend', (e) => {
       const now = Date.now();
       if (now - lastExitPress < 2000) { history.back(); return; }
       lastExitPress = now;
-      toast('Back dabao phir se exit karne ke liye');
+      toast('Press back again to exit');
       history.pushState({ ov: 'guard' }, '');
     } catch (e) { console.error('back handler', e); try { history.pushState({ ov: 'guard' }, ''); } catch (e2) {} }
   });
@@ -10372,7 +10372,7 @@ function ovBanner(id, html, buttons, autoHideMs) {
     const rb = await remoteBuild();
     if (rb && rb !== myBuild) {
       shown = true;
-      ovBanner('ov-update-banner', 'Nayi update ready hai', [
+      ovBanner('ov-update-banner', 'New update available', [
         { label: 'Later', fn: () => { shown = false; lastCheck = Date.now() + 20 * 60 * 1000; } },
         { label: 'Refresh', primary: true, fn: async () => {
             try { if (VIEW === 'add') saveApDraft(); } catch (e) {}
@@ -10446,7 +10446,7 @@ window.addEventListener('pagehide', saveApDraft);
       const now = Date.now();
       if (now - lastClickTs < 4000 && now - lastErrToastTs > 8000) {
         lastErrToastTs = now;
-        toast('Kuch gadbad hui — dobara try karo');
+        toast('Something went wrong - please try again');
       }
     } catch (e) {}
   }
@@ -10463,10 +10463,10 @@ async function signOutAndWipe() {
   try { pending = loadPendingSync().length; } catch (e) {}
   const bkLine = lastBk
     ? 'Last backup: ' + new Date(lastBk).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + '.'
-    : 'Koi backup abhi tak nahi liya hai!';
-  const msg = 'Is phone se saara data (' + n + ' patients, photos, settings) hat jayega aur app bilkul fresh ho jayegi.<br><br>'
-    + bkLine + (pending ? '<br>' + pending + ' unsynced change(s) bhi chale jayenge.' : '')
-    + '<br><br>Wapas login karke cloud/backup se restore kar sakte ho.';
+    : 'No backup has been taken yet!';
+  const msg = 'All data on this phone (' + n + ' patients, photos, settings) will be removed and the app will start fresh.<br><br>'
+    + bkLine + (pending ? '<br>' + pending + ' unsynced change(s) will also be lost.' : '')
+    + '<br><br>You can restore from cloud sync or a backup after signing in again.';
   const ok = await showConfirmDialog({ title: 'Sign out & clear data?', message: msg, confirmText: 'Sign out & clear', cancelText: 'Cancel', destructive: true });
   if (!ok) return;
   try { stopCloudSync(); } catch (e) {}
@@ -11745,7 +11745,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'bulk-reschedule-confirm') {
     const dateEl = document.getElementById('bulk-reschedule-date');
     const newDate = dateEl ? dateEl.value : '';
-    if (!newDate) { toast('Pehle date select karo'); return; }
+    if (!newDate) { toast('Select a date first'); return; }
     const s = computeDashboardStats();
     const list = s.dueTomorrowList.slice();
     for (const p of list) {
@@ -12720,7 +12720,7 @@ document.addEventListener('click', async (e) => {
     const phone = (document.getElementById('dw-phone')||{}).value || '';
     const complaint = (document.getElementById('dw-complaint')||{}).value || '';
     const date = (document.getElementById('dw-date')||{}).value || '';
-    if (!name.trim() || !date) { toast('Naam aur date zaroori hai'); return; }
+    if (!name.trim() || !date) { toast('Name and date are required'); return; }
     const data = { name: name.trim(), phone: phone.trim(), complaint: complaint.trim(), date };
     if (DIAG_WATCH_EDIT_ID) {
       const idx = DIAG_WATCHLIST.findIndex(x => x.id === DIAG_WATCH_EDIT_ID);
