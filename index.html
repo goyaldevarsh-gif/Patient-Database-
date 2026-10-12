@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261012.1">
+<meta name="app-build" content="20261012.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -4372,6 +4372,7 @@ function renderDiagReferralsView() {
         + (activeCount ? ('<div class="card" style="background:var(--emerald-bg);border-color:var(--emerald-border);padding:10px 14px;margin-bottom:10px;text-align:center;"><div style="font-size:10.5px;color:var(--muted);">Pending cut (active entries)</div><div style="font-size:19px;font-weight:800;color:var(--emerald);">\u20b9'+totalCutActive.toLocaleString('en-IN')+'</div></div>') : '')
         + '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-toggle-monthly">'+ic('calendar')+' '+(DIAG_SHOW_MONTHLY?'Hide':'Show')+' monthly cut breakdown</button>'
         + (DIAG_SHOW_MONTHLY ? diagMonthlyBreakdownHtml() : '')
+        + Object.keys(DIAG_STARTERS).filter(k => !DIAG_CENTRES.some(c => (c.name||'').toLowerCase().indexOf(k) !== -1)).map(k => '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;border-color:#c7d2fe;color:#4338ca;" data-action="diag-quick-add-starter" data-key="'+k+'">'+ic('plus')+' Add '+DIAG_STARTERS[k].label+' (rate list ready)</button>').join('')
         + '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-toggle-centres-list">'+ic('shield')+' '+(DIAG_SHOW_CENTRES?'Hide':'Manage')+' centres ('+DIAG_CENTRES.length+')</button>'
         + (DIAG_SHOW_CENTRES ? (DIAG_CENTRES.length ? DIAG_CENTRES.map(c => (
             '<div class="card" style="margin-bottom:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;">'
@@ -12642,6 +12643,16 @@ document.addEventListener('click', async (e) => {
     VIEW = 'diag-referrals'; render(); return;
   }
   if (action === 'close-diag-referrals') { VIEW = 'more'; render(); return; }
+  if (action === 'diag-quick-add-starter') {
+    const st = DIAG_STARTERS[el.dataset.key];
+    if (!st) return;
+    if (DIAG_CENTRES.some(c => (c.name||'').toLowerCase().indexOf(el.dataset.key) !== -1)) { toast(st.label + ' already added'); return; }
+    DIAG_CENTRES.push({ id: uid(), name: st.label, maxPoolPercent: 40, investigations: st.list().map(i => ({...i})) });
+    saveDiagCentres(DIAG_CENTRES);
+    toast(st.label + ' added with ' + st.list().length + ' tests');
+    render();
+    return;
+  }
   if (action === 'diag-toggle-centres-list') { DIAG_SHOW_CENTRES = !DIAG_SHOW_CENTRES; render(); return; }
   if (action === 'diag-delete-centre') {
     const orphanedCount = DIAG_REFERRALS.filter(r => r.centreId === el.dataset.id).length;
