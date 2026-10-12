@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261007.4">
+<meta name="app-build" content="20261012.1">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -2384,7 +2384,7 @@ let DIAG_ADD_REFERRAL_CENTRE = '';
 let DIAG_ADD_REFERRAL_INVESTIGATION = '';
 let DIAG_ADD_REFERRAL_CONTRAST = 'without'; // 'without' | 'with'
 let DIAG_ADD_REFERRAL_CODE = '';
-let DIAG_LOAD_ANANTA_ON_SAVE = false;
+let DIAG_LOAD_ANANTA_ON_SAVE = '';
 let DIAG_SHOW_MONTHLY = false;
 let DIAG_COMPLETING_ID = null;
 let DIAG_COMPLETE_INVESTIGATION = '';
@@ -4118,12 +4118,88 @@ const ANANTA_STARTER_INVESTIGATIONS = [
   { name: 'MRI Dorsal Spine Screening', type: 'MRI', withoutContrast: 3000, withContrast: 3000 },
 ];
 
+// Starter rate list for Emkay Diagnostics (MRI rate list EMK001-EMK173 + CT rate list) — ortho-relevant tests only.
+// contrastCharge = contrast & consumables component already included in withContrast.
+const EMKAY_STARTER_INVESTIGATIONS = [
+  { name: "MRI Cervical Spine", type: 'MRI', withoutContrast: 5000, withContrast: 8500, contrastCharge: 3500, code: 'EMK055' },
+  { name: "MRI Cervical Spine Screening", type: 'MRI', withoutContrast: 3500, withContrast: 3500, code: 'EMK057' },
+  { name: "MRI Cervico-Dorsal Spine", type: 'MRI', withoutContrast: 6000, withContrast: 9500, contrastCharge: 3500, code: 'EMK060' },
+  { name: "MRI Dorsal Spine", type: 'MRI', withoutContrast: 5000, withContrast: 8500, contrastCharge: 3500, code: 'EMK061' },
+  { name: "MRI Dorsal Spine Screening", type: 'MRI', withoutContrast: 3500, withContrast: 3500, code: 'EMK063' },
+  { name: "MRI Dorso-Lumbar Spine", type: 'MRI', withoutContrast: 6000, withContrast: 9500, contrastCharge: 3500, code: 'EMK064' },
+  { name: "MRI Lumbar Spine", type: 'MRI', withoutContrast: 5000, withContrast: 8500, contrastCharge: 3500, code: 'EMK066' },
+  { name: "MRI Lumbar Spine Screening", type: 'MRI', withoutContrast: 3500, withContrast: 3500, code: 'EMK070' },
+  { name: "MRI Lumbosacral Spine", type: 'MRI', withoutContrast: 5000, withContrast: 5000, code: 'EMK068' },
+  { name: "MRI LS Spine Screening", type: 'MRI', withoutContrast: 3500, withContrast: 3500, code: 'EMK071' },
+  { name: "MRI Spine Any One Part", type: 'MRI', withoutContrast: 5000, withContrast: 5000, code: 'EMK072' },
+  { name: "MRI Spine Screening (One Part)", type: 'MRI', withoutContrast: 3500, withContrast: 3500, code: 'EMK079' },
+  { name: "MRI Spine Any One Part + Whole Spine Screening", type: 'MRI', withoutContrast: 8500, withContrast: 8500, code: 'EMK073' },
+  { name: "MRI Cervical Spine + Whole Spine Screening", type: 'MRI', withoutContrast: 8500, withContrast: 8500, code: 'EMK075' },
+  { name: "MRI Lumbar Spine + Whole Spine Screening", type: 'MRI', withoutContrast: 8500, withContrast: 8500, code: 'EMK076' },
+  { name: "MRI Lumbosacral Spine + Whole Spine Screening", type: 'MRI', withoutContrast: 8500, withContrast: 8500, code: 'EMK077' },
+  { name: "MRI Dorsal Spine + Whole Spine Screening", type: 'MRI', withoutContrast: 8500, withContrast: 8500, code: 'EMK078' },
+  { name: "MRI Whole Spine Screening", type: 'MRI', withoutContrast: 9500, withContrast: 9500, code: 'EMK074' },
+  { name: "MRI CV Junction", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK019' },
+  { name: "MRI Sacral Spine (With Contrast only)", type: 'MRI', withoutContrast: 8500, withContrast: 8500, contrastCharge: 3500, code: 'EMK165' },
+  { name: "MRI Coccyx", type: 'MRI', withoutContrast: 5000, withContrast: 5000, code: 'EMK156' },
+  { name: "MRI SI Joint", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK080' },
+  { name: "MRI Screening SI Joint", type: 'MRI', withoutContrast: 3500, withContrast: 3500, code: 'EMK030' },
+  { name: "MRI Sternoclavicular Joint", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK162' },
+  { name: "MRI Pelvis", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK099' },
+  { name: "MRI Pelvis With Hip", type: 'MRI', withoutContrast: 6500, withContrast: 11000, contrastCharge: 4500, code: 'EMK101' },
+  { name: "MRI Right Hip Joint", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK103' },
+  { name: "MRI Left Hip Joint", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK105' },
+  { name: "MRI Both Hip Joints", type: 'MRI', withoutContrast: 6000, withContrast: 6000, code: 'EMK107' },
+  { name: "MRI Screening Both Hip Joints", type: 'MRI', withoutContrast: 4500, withContrast: 4500, code: 'EMK163' },
+  { name: "MRI Right Knee", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK108' },
+  { name: "MRI Left Knee", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK110' },
+  { name: "MRI Both Knee Joints (With Contrast only)", type: 'MRI', withoutContrast: 14500, withContrast: 14500, contrastCharge: 7000, code: 'EMK112' },
+  { name: "MRI Right Shoulder", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK113' },
+  { name: "MRI Left Shoulder", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK115' },
+  { name: "MRI Both Shoulder Joints", type: 'MRI', withoutContrast: 11000, withContrast: 15500, contrastCharge: 4500, code: 'EMK117' },
+  { name: "MRI Wrist", type: 'MRI', withoutContrast: 5000, withContrast: 5000, code: 'EMK125' },
+  { name: "MRI Ankle", type: 'MRI', withoutContrast: 5500, withContrast: 5500, code: 'EMK127' },
+  { name: "MRI Foot", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK126' },
+  { name: "MRI Right Hand", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK167' },
+  { name: "MRI Left Hand", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK168' },
+  { name: "MRI Right Finger", type: 'MRI', withoutContrast: 5000, withContrast: 5000, code: 'EMK170' },
+  { name: "MRI Left Finger", type: 'MRI', withoutContrast: 5000, withContrast: 5000, code: 'EMK171' },
+  { name: "MRI Thumb", type: 'MRI', withoutContrast: 5500, withContrast: 5500, code: 'EMK149' },
+  { name: "MRI Any Other Joint", type: 'MRI', withoutContrast: 5500, withContrast: 5500, code: 'EMK128' },
+  { name: "MRI Humerus", type: 'MRI', withoutContrast: 5500, withContrast: 5500, code: 'EMK119' },
+  { name: "MRI Forearm", type: 'MRI', withoutContrast: 5500, withContrast: 5500, code: 'EMK121' },
+  { name: "MRI Thigh", type: 'MRI', withoutContrast: 5500, withContrast: 5500, code: 'EMK120' },
+  { name: "MRI Femur", type: 'MRI', withoutContrast: 5500, withContrast: 5500, code: 'EMK122' },
+  { name: "MRI Thigh / Leg", type: 'MRI', withoutContrast: 5500, withContrast: 9000, contrastCharge: 3500, code: 'EMK147' },
+  { name: "MRI Right Upper Limb", type: 'MRI', withoutContrast: 5000, withContrast: 5000, code: 'EMK154' },
+  { name: "MRI Left Upper Limb", type: 'MRI', withoutContrast: 5000, withContrast: 5000, code: 'EMK155' },
+  { name: "MRI Screening Left Leg", type: 'MRI', withoutContrast: 3500, withContrast: 3500, code: 'EMK164' },
+  { name: "MRI Gluteal Region", type: 'MRI', withoutContrast: 6000, withContrast: 6000, code: 'EMK135' },
+  { name: "MRI Brachial Plexus", type: 'MRI', withoutContrast: 6000, withContrast: 6000, code: 'EMK134' },
+  { name: "MRI Right Brachial Plexus", type: 'MRI', withoutContrast: 6000, withContrast: 6000, code: 'EMK145' },
+  { name: "MRI Lumbar Plexus (With Contrast only)", type: 'MRI', withoutContrast: 8500, withContrast: 8500, contrastCharge: 3500, code: 'EMK069' },
+  { name: "MRI Neurography Brachial & Lumbar Plexus (With Contrast only)", type: 'MRI', withoutContrast: 10500, withContrast: 10500, contrastCharge: 3500, code: 'EMK084' },
+  { name: "CT Hip Joints", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT Cervical Spine", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT Dorsal Spine", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT Lumbosacral Spine", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT 3D (One Part)", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT Right Knee", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT Left Knee", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT Ankle", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT Foot", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT Shoulder", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT Wrist Joint", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+  { name: "CT Elbow", type: 'CT', withoutContrast: 5000, withContrast: 5000 },
+];
+const DIAG_STARTERS = { ananta: { label: 'Ananta Diagnostic', list: () => ANANTA_STARTER_INVESTIGATIONS }, emkay: { label: 'Emkay Diagnostics', list: () => EMKAY_STARTER_INVESTIGATIONS } };
+
 function diagAddCentreFormHtml() {
   const editing = DIAG_EDIT_CENTRE_ID ? DIAG_CENTRES.find(c => c.id === DIAG_EDIT_CENTRE_ID) : null;
   return '<div class="card" style="background:rgba(67,56,202,0.04);border-color:#c7d2fe;margin-bottom:12px;">'
     + '<label class="field-label">Centre name</label><input class="input" id="diag-centre-name" placeholder="" value="'+esc(editing?editing.name:'')+'" style="margin-bottom:10px;">'
     + '<label class="field-label">Max pool % (your ceiling before any discount)</label><input class="input" type="number" id="diag-centre-pool" placeholder="" value="'+esc(editing?editing.maxPoolPercent:'40')+'" style="margin-bottom:10px;">'
-    + (!editing ? '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-load-ananta-starter">'+ic('download')+' Load Ananta\u2019s standard MRI/CT rate list</button>' : '<p style="font-size:10.5px;color:var(--muted);margin:0 0 10px;">'+(editing.investigations||[]).length+' investigation(s) saved. Add more from the main screen after saving.</p>')
+    + (!editing ? '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-load-starter" data-key="ananta">'+ic('download')+' Load Ananta\u2019s standard MRI/CT rate list</button><button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-load-starter" data-key="emkay">'+ic('download')+' Load Emkay\u2019s standard MRI/CT rate list</button>' : '<p style="font-size:10.5px;color:var(--muted);margin:0 0 10px;">'+(editing.investigations||[]).length+' investigation(s) saved. Add more from the main screen after saving.</p>')
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-centre">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-centre">'+ic('check')+' Save centre</button></div>'
     + '</div>';
 }
@@ -12579,11 +12655,13 @@ document.addEventListener('click', async (e) => {
   if (action === 'diag-edit-centre') { DIAG_EDIT_CENTRE_ID = el.dataset.id; DIAG_ADD_CENTRE_OPEN = true; DIAG_ADD_REFERRAL_OPEN = false; DIAG_SHOW_CENTRES = false; render(); return; }
   if (action === 'diag-open-add-centre') { DIAG_ADD_CENTRE_OPEN = true; DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDIT_CENTRE_ID = null; render(); return; }
   if (action === 'diag-cancel-add-centre') { DIAG_ADD_CENTRE_OPEN = false; DIAG_EDIT_CENTRE_ID = null; render(); return; }
-  if (action === 'diag-load-ananta-starter') {
+  if (action === 'diag-load-starter') {
+    const st = DIAG_STARTERS[el.dataset.key];
+    if (!st) return;
     const nameEl = document.getElementById('diag-centre-name');
-    if (nameEl && !nameEl.value.trim()) nameEl.value = 'Ananta Diagnostic';
-    toast('Starter list will attach when you save');
-    DIAG_LOAD_ANANTA_ON_SAVE = true;
+    if (nameEl && !nameEl.value.trim()) nameEl.value = st.label;
+    toast(st.label + ' list will attach when you save');
+    DIAG_LOAD_ANANTA_ON_SAVE = el.dataset.key;
     return;
   }
   if (action === 'diag-save-centre') {
@@ -12596,10 +12674,10 @@ document.addEventListener('click', async (e) => {
       const c = DIAG_CENTRES.find(x => x.id === DIAG_EDIT_CENTRE_ID);
       if (c) { c.name = name; c.maxPoolPercent = maxPoolPercent; }
     } else {
-      const investigations = DIAG_LOAD_ANANTA_ON_SAVE ? ANANTA_STARTER_INVESTIGATIONS.map(i => ({...i})) : [];
+      const investigations = DIAG_LOAD_ANANTA_ON_SAVE && DIAG_STARTERS[DIAG_LOAD_ANANTA_ON_SAVE] ? DIAG_STARTERS[DIAG_LOAD_ANANTA_ON_SAVE].list().map(i => ({...i})) : [];
       DIAG_CENTRES.push({ id: uid(), name, maxPoolPercent, investigations });
     }
-    DIAG_LOAD_ANANTA_ON_SAVE = false;
+    DIAG_LOAD_ANANTA_ON_SAVE = '';
     saveDiagCentres(DIAG_CENTRES);
     DIAG_ADD_CENTRE_OPEN = false; DIAG_EDIT_CENTRE_ID = null;
     toast('Centre saved');
