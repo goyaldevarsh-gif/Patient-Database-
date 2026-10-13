@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261012.2">
+<meta name="app-build" content="20261013.11">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -160,7 +160,7 @@
   // Load stored Google Drive credentials on app start
   async function loadGoogleDriveCredentials() {
     try {
-      const db = await openIndexedDB();
+      const db = await openDB();
       const tx = db.transaction('settings', 'readonly');
       const store = tx.objectStore('settings');
       const result = await new Promise((resolve, reject) => {
@@ -791,7 +791,7 @@
 /* ================= IndexedDB layer ================= */
 
 const DB_NAME = 'surgical-case-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 let dbPromise = null;
 
 function openDB() {
@@ -806,6 +806,7 @@ function openDB() {
         s.createIndex('patientId','patientId',{unique:false});
       }
       if (!db.objectStoreNames.contains('clinicalBank')) db.createObjectStore('clinicalBank', { keyPath:'id' });
+      if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings', { keyPath:'id' });
     };
     req.onsuccess = e => resolve(e.target.result);
     req.onerror = e => reject(e.target.error);
@@ -2075,7 +2076,32 @@ function daysSinceLastReminder(p) {
   }
   return null;
 }
+/* Drop the newest reminder log entry (used when a send did not actually go through). */
+function undoLastReminder(p) {
+  const log = p.reminderLog || [];
+  if (!log.length) return false;
+  log.pop();
+  p.lastReminderSentAt = log.length ? (log[log.length - 1].ts || 0) : 0;
+  return true;
+}
+const REMINDER_RECHECK_MS = 2 * 60 * 60 * 1000; // a tap within 2h of the last one = "did it actually go?"
 async function reminderGate(e, p, href) {
+  // Recent tap on the same patient: WhatsApp may have crashed / not sent. Ask instead of blocking.
+  const lastLog = (p.reminderLog || [])[(p.reminderLog || []).length - 1];
+  if (lastLog && lastLog.outcome === 'pending' && (Date.now() - lastLog.ts) < REMINDER_RECHECK_MS) {
+    if (e && e.preventDefault) e.preventDefault();
+    const mins = Math.max(1, Math.round((Date.now() - lastLog.ts) / 60000));
+    const ago = mins < 60 ? mins + ' min ago' : Math.round(mins / 60) + ' hr ago';
+    const resend = await showConfirmDialog({
+      title: 'Did the message go?',
+      message: 'A reminder to <b>' + esc(p.name) + '</b> was logged ' + ago + '. If WhatsApp crashed or it did not send, tap Resend \u2014 the earlier entry will be replaced, not counted twice.',
+      confirmText: 'Not sent \u2014 resend', cancelText: 'Yes, it went'
+    });
+    if (!resend) return false;
+    undoLastReminder(p);
+    if (href) window.open(href, '_blank');
+    return true;
+  }
   const lim = getReminderLimit();
   const gap = getReminderGap();
   const streak = reminderStreak(p);
@@ -2102,12 +2128,13 @@ function reminderHistoryCardHtml(p) {
   const hit = lim > 0 && reminderStreak(p) >= lim;
   const lab = { came: 'came', 'no-response': 'no response', pending: 'waiting', void: 'rescheduled' };
   const col = { came: 'var(--emerald)', 'no-response': 'var(--red)', pending: '#b45309', void: 'var(--muted)' };
-  const rows = log.slice(-6).reverse().map(r => '<div class="row between" style="font-size:11.5px;padding:3px 0;"><span>' + fmtDate(new Date(r.ts).toISOString().slice(0,10)) + ' · ' + (r.channel === 'call' ? 'Call' : 'WhatsApp') + '</span><span style="font-weight:700;color:' + (col[r.outcome] || 'var(--muted)') + ';">' + (lab[r.outcome] || r.outcome) + '</span></div>').join('');
+  const rows = log.filter(r => r && isFinite(new Date(r.ts))).slice(-6).reverse().map(r => '<div class="row between" style="font-size:11.5px;padding:3px 0;"><span>' + fmtDate(new Date(r.ts).toISOString().slice(0,10)) + ' · ' + (r.channel === 'call' ? 'Call' : 'WhatsApp') + '</span><span style="font-weight:700;color:' + (col[r.outcome] || 'var(--muted)') + ';">' + (lab[r.outcome] || r.outcome) + '</span></div>').join('');
   return '<div class="card" style="margin-bottom:10px;">'
     + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:4px;">REMINDER HISTORY</div>'
     + '<div style="font-size:12.5px;font-weight:700;">Reminded ' + st.total + '× · ' + st.came + ' came · ' + st.noResp + ' no response' + (st.pending ? ' · ' + st.pending + ' waiting' : '') + '</div>'
     + (hit ? '<div style="font-size:11px;color:#b45309;font-weight:600;margin-top:3px;">Limit reached — call, snooze or mark lost instead of sending another WhatsApp.</div>' : '')
-    + '<div style="margin-top:6px;">' + rows + '</div></div>';
+    + '<div style="margin-top:6px;">' + rows + '</div>'
+    + '<button type="button" class="btn btn-sm" style="margin-top:8px;font-size:11px;" data-action="undo-last-reminder" data-id="' + p.id + '">Undo last reminder (did not send)</button></div>';
 }
 
 function reminderStatusBadgeHtml(patient) {
@@ -2495,6 +2522,22 @@ async function renderNotificationsView() {
   return html;
 }
 const CHANGELOG = [
+  { version:'1.4.0', date:'2026-10-13', features: [
+      'Overdue follow-ups sorted into buckets \u2014 Remind now, Call or decide, Waiting for reply, and Cold (4+ weeks) \u2014 with a note on whether the patient never came back or came and then stopped',
+      'Clean up overdue, one by one \u2014 a card for each overdue patient with Remind, Called, new date, Completed, Lost and Skip',
+      'Master Excel \u2014 one tap on More builds a colour-coded Excel of every patient with procedure, injections, investigations and follow-up status, plus follow-up, investigation and injection tabs',
+      'Month-end Excel for Diagnostic Referrals \u2014 patient, centre, investigation, rate, discount code and your cut, with totals and a centre-wise summary',
+      'Emkay Diagnostics added with its ortho MRI and CT rate list, alongside Ananta \u2014 both add in one tap with the same A0\u2013A5 discount codes',
+      'Place / Residence for every patient (village, town or city) with autocomplete from places you already use; searchable too',
+      'Reminder history with limits \u2014 the app asks before a third reminder or within 10 days of the last one, and "Did the message go?" handles WhatsApp crashes without double-counting',
+      'Sign out now fully clears the phone for a fresh start; sign in again to restore from cloud or a backup',
+    ], improvements: [
+      'More menu reorganised: Master Excel on top, then Backup & Account, Practice, Data & Reports, Learn & Notes, Settings & Help',
+      'Sign in / sign out moved out of Doctor Profile into Backup & Account; one-time fixes moved into App Settings \u2192 Maintenance; Unfiled Photos moved into Photo Gallery',
+      'Overdue list no longer stops at 8 patients \u2014 everyone shows, with the Cold group collapsed',
+      'The whole app is now in English',
+      'Dashboard Overdue card shows how many are cold (4+ weeks)',
+    ] },
   { version:'1.3.0', date:'2026-08-24', features: [
       'Bottom navigation \u2014 Patients, Followups, + (Add), Reminders, More, always at the bottom instead of scattered buttons',
       'Patient pages now have their tabs at the bottom too \u2014 Overview, Follow-Up, Images & Records, Timeline primary, with Prescriptions (and CTEV/RA/Bone Health tracking) under "More"',
@@ -2634,7 +2677,7 @@ function peekNextPatientCode() {
 
 function newPatientShape() {
   return {
-    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [], surgeryStatus:'',
+    id: uid(), patientCode: nextPatientCode(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', place:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions: [], surgeryStatus:'',
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Trauma', procedure:'', hospital:'', anaesthesiaType:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active', notes:'', whatsapp:'',
@@ -4252,6 +4295,55 @@ function diagAddReferralFormHtml() {
 }
 
 let DIAG_STATEMENT_MONTH = null;
+/* Month-end diagnostic referral export -> CSV (opens directly in Excel). month = 'YYYY-MM' or 'all'. */
+function exportDiagReferralsCsv(month) {
+  const all = month === 'all';
+  const list = DIAG_REFERRALS.filter(r => all ? true : ((r.reportDate || '').slice(0,7) === month))
+    .sort((a,b) => (a.reportDate||'').localeCompare(b.reportDate||'') || (a.createdAt||0) - (b.createdAt||0));
+  if (!list.length) { toast('No entries for this month'); return; }
+  const headers = ['Date','Patient','Diagnostic Centre','Investigation','Contrast','Report ID','Rate (Rs)','Discount Code','Patient Discount %','Patient Discount (Rs)','Pool %','My Cut %','My Cut (Rs)','Status','Paid On'];
+  const rows = [headers.map(csvCell).join(',')];
+  const byCentre = {};
+  let totRate = 0, totDisc = 0, totCut = 0;
+  list.forEach(r => {
+    const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
+    const cname = centre ? centre.name : '(deleted centre)';
+    const complete = !!(r.reportDate && r.segmentCode);
+    const rate = Number(r.rate) || 0, disc = Number(r.patientDiscountAmount) || 0, cut = Number(r.doctorCutAmount) || 0;
+    const pool = centre ? Number(centre.maxPoolPercent || 40) : '';
+    rows.push([
+      r.reportDate || '', r.patientName || '', cname, r.investigation || '',
+      r.contrastType === 'with' ? 'With contrast' : 'Without contrast', r.reportId || '',
+      rate, r.segmentCode || '', r.patientDiscountPercent == null ? '' : r.patientDiscountPercent, disc,
+      pool, r.doctorCutPercent == null ? '' : r.doctorCutPercent, cut,
+      r.status === 'paid' ? 'Paid' : (complete ? 'Pending' : 'Incomplete'),
+      r.paidAt ? new Date(r.paidAt).toISOString().slice(0,10) : ''
+    ].map(csvCell).join(','));
+    totRate += rate; totDisc += disc; totCut += cut;
+    const b = byCentre[cname] || (byCentre[cname] = { n: 0, rate: 0, disc: 0, cut: 0 });
+    b.n++; b.rate += rate; b.disc += disc; b.cut += cut;
+  });
+  rows.push('');
+  rows.push(['TOTAL','','','','','', totRate,'','', totDisc,'','', totCut,'',''].map(csvCell).join(','));
+  rows.push('');
+  rows.push(['Centre-wise summary','Entries','','','','','Total Rate (Rs)','','','Total Discount (Rs)','','','My Cut (Rs)','',''].map(csvCell).join(','));
+  Object.keys(byCentre).forEach(k => {
+    const b = byCentre[k];
+    rows.push([k, b.n,'','','','', b.rate,'','', b.disc,'','', b.cut,'',''].map(csvCell).join(','));
+  });
+  const csv = '﻿' + rows.join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'OrthoVault-diagnostic-referrals-' + (all ? 'all-months' : month) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  toast('Exported ' + list.length + ' entries');
+}
+
 function renderDiagStatementView() {
   const m = DIAG_STATEMENT_MONTH;
   const entries = DIAG_REFERRALS.filter(r => r.reportDate && r.reportDate.slice(0,7) === m && r.segmentCode)
@@ -4261,7 +4353,7 @@ function renderDiagStatementView() {
   const profile = loadProfile();
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px no-print" style="padding:14px 16px;">'
-    + '<div class="row between"><button class="icon-btn" data-action="close-diag-statement">'+ic('back')+'</button><button class="btn btn-sm btn-primary" data-action="do-print">'+ic('printer')+' Print</button></div>'
+    + '<div class="row between"><button class="icon-btn" data-action="close-diag-statement">'+ic('back')+'</button><div class="row gap2"><button class="btn btn-sm" data-action="diag-export-csv" data-value="'+m+'">'+ic('download')+' Excel</button><button class="btn btn-sm btn-primary" data-action="do-print">'+ic('printer')+' Print</button></div></div>'
     + '</div>'
     + '<div class="px" style="padding-top:14px;">'
     + '<div class="rx-sheet">'
@@ -4306,9 +4398,10 @@ function diagMonthlyBreakdownHtml() {
       + '<span style="font-size:12.5px;">'+label+'</span>'
       + '<div class="row gap2" style="align-items:center;">'
       + '<span style="font-size:13px;font-weight:800;color:var(--emerald);">\u20b9'+byMonth[m].toLocaleString('en-IN')+'</span>'
+      + '<button type="button" class="icon-btn" style="width:26px;height:26px;" data-action="diag-export-csv" data-value="'+m+'" title="Download Excel (CSV)">'+ic('download')+'</button>'
       + '<button type="button" class="icon-btn" style="width:26px;height:26px;" data-action="diag-print-statement" data-value="'+m+'" title="Print statement">'+ic('printer')+'</button>'
       + '</div></div>';
-  }).join('') + '</div>';
+  }).join('') + '<button type="button" class="btn btn-sm btn-block" style="margin-top:10px;" data-action="diag-export-csv" data-value="all">'+ic('download')+' Download all months (Excel)</button></div>';
 }
 function diagCompleteEntryFormHtml(r) {
   const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
@@ -4657,7 +4750,7 @@ async function purchaseSubscription(sku) {
   }
 }
 
-let MORE_EXPANDED = new Set(['settings']);
+let MORE_EXPANDED = new Set();
 let MORE_SEARCH = '';
 
 // Social Media Content Ideas (FAQ Vault)
@@ -4772,54 +4865,42 @@ function moreBodyHtml() {
   // Each item carries its own searchable title/sub text alongside the actual row HTML,
   // so the search box can filter across every group without needing to re-parse HTML.
   const items = [
+    { group:'master', title:'Master Patient Database Excel', sub:'One tap - every patient, procedure, injections, investigations, follow-ups in one colour-coded Excel', html: moreRowHtml('file', 'Master Excel \u2014 all patients', 'One tap: every patient, procedure, injections, investigations and follow-ups in one colour-coded Excel', 'export-master-xlsx', true) },
+    { group:'backup', title:'Account & Cloud Sync', sub:'Sign in, sign out, cloud sync status', html: moreRowHtml('shield', 'Account & Cloud Sync', !CURRENT_USER ? 'Not signed in \u2014 tap to sign in' : ('Signed in as ' + (CURRENT_USER.email || '') + (isAiTier() ? ' \u2014 syncing automatically' : '')), 'open-cloud-sync') },
+    { group:'backup', title:'Google Drive Backup', sub:'Back up to Google Drive, restore from Drive', html: moreRowHtml('upload', 'Google Drive Backup', 'Connect Google Drive, back up now or restore from Drive', 'open-drive-backup') },
+    { group:'backup', title:'Export Backup', sub:'Zip of all cases, photos, reminders', html: moreRowHtml('download', 'Export Backup', 'Zip of all cases, photos, reminders \u2014 pick your Drive folder for an off-device copy', 'export-backup') },
+    { group:'backup', title:'Import Backup', sub:'Restore from a previously exported zip', html: moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import') },
+    { group:'backup', title:'Recently Deleted', sub:'Restore a case deleted by mistake', html: moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted') },
+    { group:'practice', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
+    { group:'practice', title:'Follow-up Report', sub:'Compliance rate and monthly visit trends', html: moreRowHtml('calendar', 'Follow-up Report', 'See how many patients actually return, and your monthly follow-up trend', 'open-followup-report') },
+    { group:'practice', title:'Marketing Contacts', sub:'Auto-synced patient contacts for broadcasts', html: moreRowHtml('users', 'Marketing Contacts', 'Every patient contact, auto-collected \u2014 broadcast reels/updates to all at once', 'open-mc') },
+    { group:'practice', title:'Scheme Code Finder', sub:'RGHS / MAA Yojana package codes & rates', html: moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder') },
+    { group:'data', title:'Photo Gallery', sub:'Browse all patient photos in one grid', html: moreRowHtml('camera', 'Photo Gallery', 'Instagram-style grid of every patient\u2019s photos \u2014 filter by category, region, time or patient', 'open-photo-gallery') },
+    { group:'data', title:'Find Duplicate Patients', sub:'Scan for likely-duplicate cases by name', html: moreRowHtml('funnel', 'Find Duplicate Patients', 'Scan for likely-duplicate cases by name and merge them safely', 'open-duplicate-finder') },
+    { group:'data', title:'Research Cases', sub:'Cases flagged for papers & study', html: moreRowHtml('bookmark', 'Research Cases'+(PATIENTS.filter(p=>p.researchFlag).length ? ' ('+PATIENTS.filter(p=>p.researchFlag).length+')' : ''), 'Cases flagged for papers, case reports & study', 'open-research-cases') },
+    { group:'learn', title:'Clinical Bank', sub:'Interesting X-rays, CT findings & notes', html: moreRowHtml('camera', 'Clinical Bank'+(CLINICAL_BANK.length ? ' ('+CLINICAL_BANK.length+')' : ''), 'Interesting X-rays, CT findings & notes \u2014 kept separate from patient records', 'open-clinical-bank') },
+    { group:'learn', title:'Topics to Read', sub:'Research papers and topics you want to study', html: moreRowHtml('bookmark', 'Topics to Read'+(ACADEMIC_VAULT_TOPICS.length ? ' ('+ACADEMIC_VAULT_TOPICS.length+')' : ''), 'Research papers and topics you want to study', 'open-academic-vault') },
+    { group:'learn', title:'Content Ideas', sub:'Patient questions for social media content', html: moreRowHtml('sparkle', 'Content Ideas'+(CONTENT_IDEAS_FAQS.length ? ' ('+CONTENT_IDEAS_FAQS.length+')' : ''), 'Patient questions for social media content', 'open-content-ideas') },
     { group:'settings', title:'Doctor / Clinic Profile', sub:'Name, qualifications, letterhead', html: moreRowHtml('gear', 'Doctor / Clinic Profile', 'Name, qualifications, letterhead', 'open-settings') },
     { group:'settings', title:'App Settings', sub:'Dark mode, storage, AI usage', html: moreRowHtml('gear', 'App Settings', 'Dark mode, storage, AI usage', 'open-app-settings') },
-    { group:'settings', title:'Notifications', sub:'Due reminders and recent activity', html: moreRowHtml('clock', 'Notifications'+(notifCount?' ('+notifCount+')':''), 'Due reminders and recent activity', 'open-notifications') },
-
-    { group:'ai', title:'OrthoVault AI', sub:'Everywhere AI helps in the app', html: (isAiTier() ? '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;background:rgba(67,56,202,0.06);border-color:var(--accent);" data-action="open-ai-hub">'
+    { group:'settings', title:'OrthoVault AI', sub:'Everywhere AI helps in the app', html: (isAiTier() ? '<button class="card" style="text-align:left;display:flex;align-items:center;gap:12px;width:100%;background:rgba(67,56,202,0.06);border-color:var(--accent);" data-action="open-ai-hub">'
         + '<span style="flex:none;width:32px;height:32px;"><img src="'+AI_ICON_URI+'" alt="AI" style="width:100%;height:100%;object-fit:contain;"></span>'
         + '<span style="flex:1;min-width:0;"><span style="display:block;font-size:14px;font-weight:700;color:var(--accent-dark);">OrthoVault AI</span><span style="display:block;font-size:11px;color:var(--muted);margin-top:2px;">Everywhere AI helps in the app \u2014 patient queries, digest, clinical assistant</span></span>'
         + '<span style="flex:none;color:var(--muted);">'+ic('chevron')+'</span>'
         + '</button>' : '') },
-    { group:'ai', title:'Upgrade Plan', sub:'Unlock Pro or AI tier features', html: (!isAiTier() ? moreRowHtml('sparkle', 'Upgrade Plan', isProOrAbove() ? 'You\u2019re on Pro \u2014 tap to see AI tier' : 'Unlock Pro or AI tier features', 'open-upgrade', true) : '') },
-
-    { group:'backup', title:'Cloud Sync', sub:'AI tier automatic backup', html: moreRowHtml('shield', 'Cloud Sync (AI tier)', !CURRENT_USER ? 'Not signed in \u2014 tap to set up' : (isAiTier() ? 'Signed in \u2014 backing up automatically' : 'Signed in \u2014 upgrade to AI tier to enable'), 'open-cloud-sync') },
-    { group:'backup', title:'Export Backup', sub:'Zip of all cases, photos, reminders', html: moreRowHtml('download', 'Export Backup', 'Zip of all cases, photos, reminders \u2014 pick your Drive folder for an off-device copy', 'export-backup') },
-    { group:'backup', title:'Import Backup', sub:'Restore from a previously exported zip', html: moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import') },
-    { group:'backup', title:'Recently Deleted', sub:'Restore a case deleted by mistake', html: moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted') },
-
-    { group:'cleanup', title:'Find Duplicate Patients', sub:'Scan for likely-duplicate cases by name', html: moreRowHtml('funnel', 'Find Duplicate Patients', 'Scan for likely-duplicate cases by name and merge them safely', 'open-duplicate-finder') },
-    { group:'cleanup', title:'Unfiled Photos', sub:'Recover photos from forms that were never finished', html: moreRowHtml('camera', 'Unfiled Photos'+(UNFILED_COUNT_CACHE?' ('+UNFILED_COUNT_CACHE+')':''), 'Photos saved from a form that was never finished \u2014 file or delete them', 'open-unfiled-photos') },
-    { group:'cleanup', title:'Photo Gallery', sub:'Browse all patient photos in one grid', html: moreRowHtml('camera', 'Photo Gallery', 'Instagram-style grid of every patient\u2019s photos \u2014 filter by category, region, time or patient', 'open-photo-gallery') },
-    { group:'cleanup', title:'Fix Follow-up Week Labels', sub:'Recalculate "2 Weeks / 6 Weeks" labels', html: moreRowHtml('clock', 'Fix Follow-up Week Labels', 'Recalculates "2 Weeks / 6 Weeks" etc labels from surgery/visit date instead of the previous visit', 'fix-followup-labels') },
-    { group:'cleanup', title:'Fix Name/Diagnosis Capitalization', sub:'Capitalize existing patient names and diagnoses', html: moreRowHtml('pencil', 'Fix Name/Diagnosis Capitalization', 'One-time cleanup \u2014 capitalizes existing patient names and diagnoses that were typed in lowercase', 'fix-capitalization') },
-
-    { group:'finance', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
-    { group:'finance', title:'Follow-up Report', sub:'Compliance rate and monthly visit trends', html: moreRowHtml('calendar', 'Follow-up Report', 'See how many patients actually return, and your monthly follow-up trend', 'open-followup-report') },
-    { group:'finance', title:'Marketing Contacts', sub:'Auto-synced patient contacts for broadcasts', html: moreRowHtml('users', 'Marketing Contacts', 'Every patient contact, auto-collected \u2014 broadcast reels/updates to all at once', 'open-mc') },
-    { group:'finance', title:'Scheme Code Finder', sub:'RGHS / MAA Yojana package codes & rates', html: moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder') },
-    { group:'finance', title:'Export Case Log', sub:'Spreadsheet of every case for audits/CME', html: moreRowHtml('file', 'Export Case Log (Excel/CSV)', 'A spreadsheet of every case \u2014 audits, CME, research', 'export-case-log') },
-
-    { group:'research', title:'Research Cases', sub:'Cases flagged for papers & study', html: moreRowHtml('bookmark', 'Research Cases'+(PATIENTS.filter(p=>p.researchFlag).length ? ' ('+PATIENTS.filter(p=>p.researchFlag).length+')' : ''), 'Cases flagged for papers, case reports & study', 'open-research-cases') },
-    { group:'research', title:'Clinical Bank', sub:'Interesting X-rays, CT findings & notes', html: moreRowHtml('camera', 'Clinical Bank'+(CLINICAL_BANK.length ? ' ('+CLINICAL_BANK.length+')' : ''), 'Interesting X-rays, CT findings & notes \u2014 kept separate from patient records', 'open-clinical-bank') },
-
-    { group:'learning', title:'Topics to Read', sub:'Research papers and topics you want to study', html: moreRowHtml('bookmark', 'Topics to Read'+(ACADEMIC_VAULT_TOPICS.length ? ' ('+ACADEMIC_VAULT_TOPICS.length+')' : ''), 'Research papers and topics you want to study', 'open-academic-vault') },
-    { group:'learning', title:'Content Ideas', sub:'Patient questions for social media content', html: moreRowHtml('sparkle', 'Content Ideas'+(CONTENT_IDEAS_FAQS.length ? ' ('+CONTENT_IDEAS_FAQS.length+')' : ''), 'Patient questions for social media content', 'open-content-ideas') },
-
-    { group:'help', title:'About & Help Guide', sub:'What OrthoVault does and how to use every feature', html: moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about') },
-    { group:'help', title:'What\u2019s New', sub:'Latest updates and improvements', html: moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new') },
+    { group:'settings', title:'Upgrade Plan', sub:'Unlock Pro or AI tier features', html: (!isAiTier() ? moreRowHtml('sparkle', 'Upgrade Plan', isProOrAbove() ? 'You\u2019re on Pro \u2014 tap to see AI tier' : 'Unlock Pro or AI tier features', 'open-upgrade', true) : '') },
+    { group:'settings', title:'About & Help Guide', sub:'What OrthoVault does and how to use every feature', html: moreRowHtml('info', 'About & Help Guide', 'What OrthoVault does and how to use every feature', 'open-about') },
+    { group:'settings', title:'What\u2019s New', sub:'Latest updates and improvements', html: moreRowHtml('sparkle', 'What\u2019s New', 'Latest updates and improvements', 'open-whats-new') },
   ].filter(it => it.html); // drop conditionally-empty entries (e.g. Upgrade Plan when already on AI tier)
 
   const groupMeta = [
-    { key:'settings', title:'Profile & Settings', icon:'gear' },
-    { key:'ai', title:'AI', icon:'sparkle' },
-    { key:'backup', title:'Backup & Restore', icon:'shield' },
-    { key:'cleanup', title:'Data Cleanup & Utilities', icon:'funnel' },
-    { key:'finance', title:'Practice & Finance', icon:'tag' },
-    { key:'research', title:'Research & Clinical Bank', icon:'flask' },
-    { key:'learning', title:'Learning & Content', icon:'book' },
-    { key:'help', title:'Help', icon:'info' },
+    { key:'backup', title:'Backup & Account', icon:'shield' },
+    { key:'practice', title:'Practice', icon:'tag' },
+    { key:'data', title:'Data & Reports', icon:'funnel' },
+    { key:'learn', title:'Learn & Notes', icon:'book' },
+    { key:'settings', title:'Settings & Help', icon:'gear' },
   ];
+  const masterItem = items.find(it => it.group === 'master');
 
   const query = (MORE_SEARCH || '').trim().toLowerCase();
   let bodyHtml;
@@ -4829,7 +4910,7 @@ function moreBodyHtml() {
       ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:20px;">No features match \u201c'+esc(MORE_SEARCH)+'\u201d.</p>'
       : '<div style="display:flex;flex-direction:column;gap:8px;">'+matches.map(it => it.html).join('')+'</div>';
   } else {
-    bodyHtml = '<div style="display:flex;flex-direction:column;gap:14px;">' + groupMeta.map(g => {
+    bodyHtml = '<div style="display:flex;flex-direction:column;gap:14px;">' + (masterItem ? masterItem.html : '') + groupMeta.map(g => {
       const groupItems = items.filter(it => it.group === g.key);
       if (!groupItems.length) return '';
       const open = MORE_EXPANDED.has(g.key);
@@ -5110,7 +5191,8 @@ let ABOUT_EXPANDED = new Set(['getting-started']);
 const ABOUT_SECTIONS = [
   { key:'getting-started', title:'Getting Started', icon:'clipboard', items:[
     ['Bottom navigation', 'Patients, Followups, + (Add), Reminders, More \u2014 always at the bottom. The purple + circle opens a quick menu: New OPD Case, New Surgical Case, Add Follow-up, Add Reminder, Add Investigation.'],
-    ['Adding a case', 'Tap the + button \u2192 New OPD/Surgical Case. Choose OPD or Surgical, then work through the 4 colour-highlighted sections (Patient Details, Complaints & Diagnosis, Investigations, Special Tracking/Surgery Details) and save.'],
+    ['Adding a case', 'Tap the + button \u2192 New OPD/Surgical Case. Choose OPD or Surgical, then work through the 4 colour-highlighted sections (Patient Details, Complaints & Diagnosis, Investigations, Special Tracking/Surgery Details) and save. In Patient Details, fill Place / Residence (village, town or city) \u2014 it autocompletes from places you have used before, so spellings stay consistent.'],
+    ['Where things live (More menu)', 'More opens with a one-tap Master Excel button at the top, then five sections: Backup & Account, Practice, Data & Reports, Learn & Notes, and Settings & Help. Use the search bar at the top of More to jump to any feature by name.'],
     ['Finding a patient', 'Tap "Patients" in the bottom bar \u2014 full list with its own search bar. The Dashboard also has a tap-to-search bar that jumps you straight there.'],
     ['Opening a patient', 'Tap anywhere on a patient card to open their full record.'],
     ['Editing anything later', 'Overview shows a compact read-only summary by default \u2014 tap the pencil icon (top-right) any time to edit any field.'],
@@ -5144,8 +5226,12 @@ const ABOUT_SECTIONS = [
   { key:'when-tools', title:'When to Use Which Special Tool', icon:'search', items:[
     ['CTEV / RA / Osteoporosis tracking', 'Switches on automatically as soon as the diagnosis matches (or set it manually in Add Case, or later via Overview \u2192 Clinical \u2192 "+ Track a condition"). CTEV gives Pirani scoring per cast with a trend + tenotomy alert; RA gives DAS28/CDAI/SDAI tracking, monitoring labs, and treatment history; Osteoporosis gives DEXA T-score tracking (spine/hip/wrist) and a FRAX/risk-factor guide.'],
   ]},
-  { key:'practice-tools', title:'Scheme Code Finder', icon:'clipboard', items:[
-    ['Scheme Code Finder', 'More \u2192 Scheme Code Finder \u2014 search RGHS or MAA Yojana package codes and rates by procedure name. Also available inside a patient\u2019s Overview so you can attach a matched package directly to that case (shows up in Print Case Summary too). Free local search, no AI cost.'],
+  { key:'practice-tools', title:'Practice Tools (More \u2192 Practice)', icon:'clipboard', items:[
+    ['Diagnostic Referrals', 'Track MRI/CT/USG referrals and your cut. Add a centre once (Ananta and Emkay have ready rate lists \u2014 one tap), then Add Entry: patient, investigation, with/without contrast, discount code (A0\u2013A5) and the app works out the patient discount and your cut from the centre\u2019s pool %. Active vs Paid history, pending-cut total, monthly breakdown with a printable statement, and a Watchlist tab for patients to call back after a scan.'],
+    ['Month-end Excel for referrals', 'In the monthly breakdown tap the download icon on any month (or "Download all months") \u2014 you get an Excel/CSV with date, patient, centre, investigation, rate, code, discount, your cut, paid status, plus totals and a centre-wise summary.'],
+    ['Follow-up Report', 'Your compliance rate (returned vs lost), monthly visit chart, and a browser for patients by status \u2014 Lost, Completed, Pending, MRI/CT Watch.'],
+    ['Marketing Contacts', 'Every patient contact is collected automatically. Broadcast a message to all one by one, save everyone to your phone contacts, or export CSV.'],
+    ['Scheme Code Finder', 'Search RGHS or MAA Yojana package codes and rates by procedure name. Also available inside a patient\u2019s Overview so you can attach a matched package directly to that case (shows up in Print Case Summary too). Free local search, no AI cost.'],
   ]},
   { key:'tabs', title:'Patient Record Tabs', icon:'file', items:[
     ['Bottom tab bar', 'Overview, Follow-Up, Images & Records, Timeline sit at the bottom of a patient\u2019s page. Prescriptions (and CTEV/RA/Bone Health if that tracking is on) live under the "More" button next to them.'],
@@ -5158,7 +5244,7 @@ const ABOUT_SECTIONS = [
   { key:'smart', title:'Smart Features', icon:'search', items:[
     ['Region auto-detect', 'On Overview, tap "Auto-detect" to guess the region/specialty (Upper Limb, Spine, Trauma, etc.) from the diagnosis and procedure text \u2014 adjust manually anytime.'],
     ['Autocomplete memory', 'Diagnosis, Chief Complaints, Procedure, and Tags remember what you\u2019ve typed before \u2014 start typing 2+ letters to see matching past entries, in any word order.'],
-    ['Universal search', 'The floating search button searches every field \u2014 name, ID, diagnosis, notes, investigations, prescriptions \u2014 across all cases.'],
+    ['Universal search', 'The floating search button searches every field \u2014 name, ID, place, diagnosis, notes, investigations, prescriptions \u2014 across all cases.'],
     ['WhatsApp messaging', 'From Overview: a general message, a Follow-up Reminder (auto-fills the visit reason and date), and a direct Call button \u2014 messages are in Hindi, using your saved profile name.'],
     ['Photo zoom, notes & download', 'Open any photo: use the +/\u2212 buttons or pinch/double-tap to zoom, add a note that shows boldly on the image, or download it.'],
   ]},
@@ -5171,31 +5257,38 @@ const ABOUT_SECTIONS = [
     ['Pediatrics', 'Weight-based dose calculator and a Rickets management reference, shown automatically for pediatric OPD cases.'],
   ]},
   { key:'organized', title:'Staying Organized', icon:'calendar', items:[
-    ['Followups tab', 'Bottom bar \u2192 Followups. Three views \u2014 Due (overdue + today\u2019s, with snooze and WhatsApp reminder), Upcoming, and Calendar. A "Tomorrow" banner at the top lists whoever\u2019s due tomorrow, so you can message them today.'],
+    ['Followups tab', 'Bottom bar \u2192 Followups. Five views \u2014 Overdue, Today, Tomorrow, Upcoming and Calendar. Tomorrow lets you message patients a day ahead.'],
+    ['Overdue is sorted for you', 'Overdue follow-ups are split into buckets: Remind now (under 4 weeks, no recent reminder), Call or decide (reminders sent, no response), Waiting for reply (reminded in the last few days \u2014 nothing to do) and Cold (4+ weeks overdue, collapsed). Each patient shows whether they never came back after the first visit or came before and then stopped. Cold patients keep all their details \u2014 if they return, just add a follow-up visit and they are active again.'],
+    ['Clean up overdue, one by one', 'On the Overdue view tap "Clean up overdue". You see one patient at a time with diagnosis, last visit, follow-ups done and reminders sent, and decide: Remind, Called, a new follow-up date (+1 week / +2 weeks / +1 month / custom), Completed, Lost, Skip. Great for clearing a pile in a few minutes.'],
+    ['Completed / Lost', 'Mark Completed when a patient no longer needs follow-up (healed, discharged) \u2014 they leave the overdue list. Lost to follow-up is for patients you could not reach. Both are reversible from the patient\u2019s status control, and adding a follow-up visit makes them Active again.'],
+    ['Reminder limits', 'The app tracks every reminder sent. After 2 unanswered reminders (or within 10 days of the last one) it asks before sending another, so patients are not spammed \u2014 change both limits in More \u2192 App Settings. The Send Reminders button on Overdue only takes the Remind now list.'],
+    ['If WhatsApp crashed', 'Tap the same patient\u2019s reminder again within 2 hours and the app asks "Did the message go?" \u2014 choose "Not sent \u2014 resend" and the earlier entry is replaced, not counted twice. A patient\u2019s Reminder History card also has "Undo last reminder".'],
     ['Reminders tab', 'Bottom bar \u2192 Reminders \u2014 a separate list for clinic/OT/general tasks, not tied to a specific patient\u2019s follow-up.'],
     ['Pinning', 'Pin an important case from Overview \u2014 it shows in a "Quick Access" strip on the Dashboard.'],
     ['Tags', 'Free-form labels (Interesting, Teaching Slide, Complication\u2026) \u2014 filter the Patients list by tag.'],
     ['Region filter', 'Patients tab chips filter by Upper Limb, Lower Limb, Hand, Spine, Trauma, etc. \u2014 works for OPD and Surgical cases alike.'],
   ]},
   { key:'data', title:'Your Data & Privacy', icon:'shield', items:[
-    ['Local + optional cloud sync', 'Everything works fully offline and always stays on this device first. Sign in under More \u2192 Cloud Sync and your patients, photos, and Doctor Profile also sync privately across your own devices. A failed sync now retries automatically \u2014 a banner on the home screen shows if anything is still pending.'],
+    ['Local + optional cloud sync', 'Everything works fully offline and always stays on this device first. Sign in under More \u2192 Backup & Account \u2192 Account & Cloud Sync and your patients, photos, and Doctor Profile also sync privately across your own devices. A failed sync now retries automatically \u2014 a banner on the home screen shows if anything is still pending.'],
     ['Photos are safe even mid-form', 'A photo is saved to the device the moment you pick it \u2014 not only when you finish the form. If a form is ever interrupted before Save, the photo isn\u2019t lost.'],
     ['Backup', 'More \u2192 Export Backup saves a zip of everything, including your Doctor Profile. Do this regularly, ideally to Google Drive.'],
-    ['Case Log export', 'More \u2192 Export Case Log (Excel/CSV) \u2014 a spreadsheet of every case.'],
+    ['Master Excel', 'More \u2192 Master Excel (top button) \u2014 one tap builds a colour-coded Excel of every patient: place, diagnosis, procedure, hospital, injections, investigations, follow-up status and reminders. Overdue rows are tinted, the follow-up status cell is colour-coded, header and name stay frozen and every column has filters. Extra tabs list every follow-up visit, investigation and injection. It is built fresh each time from what is on the phone, so tap it again after adding patients.'],
+    ['Signing out', 'Sign out (More \u2192 Backup & Account \u2192 Account & Cloud Sync) clears all patient data, photos and settings from this phone so the next person starts fresh. Your cloud copy and backups stay safe \u2014 sign in again to restore. Take a backup first if you are not on cloud sync.'],
     ['Recently Deleted', 'Deleting a patient doesn\u2019t erase it right away \u2014 More \u2192 Recently Deleted keeps it for 30 days with a Restore button.'],
-    ['Unfiled Photos', 'More \u2192 Unfiled Photos \u2014 the safety net for any photo that ended up without a patient/category link. File it properly or delete it \u2014 nothing is ever auto-deleted.'],
+    ['Unfiled Photos', 'More \u2192 Data & Reports \u2192 Photo Gallery \u2192 Unfiled photos \u2014 the safety net for any photo that ended up without a patient/category link. File it properly or delete it \u2014 nothing is ever auto-deleted.'],
     ['App Lock', 'Optional 6-digit PIN lock (More \u2192 App Settings).'],
   ]},
   { key:'customize', title:'Customization', icon:'gear', items:[
-    ['Doctor / Clinic Profile', 'More \u2192 Doctor / Clinic Profile \u2014 name, qualifications, clinic address and phone, used on prescriptions and WhatsApp messages.'],
-    ['App Settings', 'More \u2192 App Settings \u2014 App Lock, dark/light/auto theme, accent color, Daily Reminders, and the Patient ID counter.'],
-    ['Cloud Sync', 'More \u2192 Cloud Sync \u2014 sign in/out, separate from your profile details.'],
+    ['Doctor / Clinic Profile', 'More \u2192 Settings & Help \u2192 Doctor / Clinic Profile \u2014 name, qualifications, clinic address and phone, used on prescriptions and WhatsApp messages. Sign in/out lives under Backup & Account, not here.'],
+    ['App Settings', 'More \u2192 Settings & Help \u2192 App Settings \u2014 App Lock, dark/light/auto theme, text size, accent color, Daily Reminders, reminder limit and gap, the Patient ID counter, and a Maintenance box with one-time fixes (follow-up week labels, name/diagnosis capitalization).'],
+    ['Account & Cloud Sync', 'More \u2192 Backup & Account \u2192 Account & Cloud Sync \u2014 sign in/out and sync status, separate from your profile details.'],
   ]},
   { key:'tips', title:'Tips for Getting the Most Out of It', icon:'pin', items:[
     ['One follow-up date to rule them all', 'Always keep "next follow-up" current \u2014 set it from Follow-Up or a Prescription, and every reminder (home card, Calendar, WhatsApp) stays accurate without extra work.'],
     ['Duplicate Case for back-to-back surgeries', 'Operating on two similar cases same day? Open the first patient \u2192 Duplicate Case \u2014 diagnosis, procedure, region and side all carry over, you just adjust name and age.'],
+    ['Clear overdue every week', 'Open Followups \u2192 Overdue and run \u201cClean up overdue\u201d once a week. Mark finished cases Completed so the list only ever holds patients who really need chasing.'],
     ['Tag as you go', 'Mark teaching cases, complications, or exam cases with Tags the moment you notice them \u2014 far easier than trying to remember later.'],
-    ['Back up regularly', 'More \u2192 Export Backup, ideally saved to Google Drive \u2014 do this every week or two.'],
+    ['Back up regularly', 'More \u2192 Backup & Account \u2192 Export Backup, ideally saved to Google Drive \u2014 do this every week or two.'],
     ['Let Auto-detect do the typing', 'Fill in Diagnosis/Procedure first, then tap Auto-detect for Region \u2014 it\u2019s usually right, and you only need to adjust occasionally.'],
   ]},
 ];
@@ -5304,12 +5397,6 @@ function renderSettingsView() {
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">Doctor / clinic profile</h2>'
     + '</div></div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
-    + '<div class="card" style="background:var(--slate-bg);padding:12px;border-radius:8px;margin-bottom:4px;">'
-    + '<div style="font-size:11px;color:var(--muted);font-weight:600;">Cloud account</div>'
-    + '<div style="font-size:13px;font-weight:700;margin-top:4px;">'+esc(userEmail)+'</div>'
-    + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">Plan: '+esc(userPlan)+'</div>'
-    + (CURRENT_USER ? '<button class="btn" style="font-size:11px;padding:6px 10px;margin-top:8px;background:var(--red-bg);color:var(--red);border-color:var(--red);" data-action="logout">Sign out</button>' : '<div style="font-size:11px;color:var(--muted);margin-top:8px;">Sign in to sync data across devices</div>')
-    + '</div>'
     + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.02em;margin:0 0 -4px;">OrthoVault \u2014 Built for Orthopaedic Surgeons</p>'
     + '<p style="font-size:12px;color:var(--muted);margin:0;">These details print on the prescription letterhead. Fill them in once, edit anytime.</p>'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder=""></div>'
@@ -5361,6 +5448,9 @@ function renderAppSettingsView() {
     + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
     + '</div>'
     + notifCardHtml()
+    + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">MAINTENANCE (one-time fixes)</div>'
+    + moreRowHtml('clock', 'Fix Follow-up Week Labels', 'Recalculates "2 Weeks / 6 Weeks" labels from surgery/visit date instead of the previous visit', 'fix-followup-labels')
+    + moreRowHtml('pencil', 'Fix Name/Diagnosis Capitalization', 'Capitalizes existing patient names and diagnoses typed in lowercase', 'fix-capitalization')
     + moreRowHtml('shield', 'Backup & Cloud Sync', 'Auto backup, cloud sync status', 'open-cloud-sync')
     + (isAiTier() ? (
         '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">AI USAGE</div>'
@@ -5511,24 +5601,68 @@ async function renderCloudSyncView() {
 /* First screen on a fresh install: doctor sets up their profile + cloud sign-in before
    entering the app, so a reinstall doesn't mean starting from scratch. Skippable \u2014
    everything here stays editable later from More \u2192 Doctor / Clinic Profile. */
+let AI_ASSISTANT_QUESTION = '', AI_ASSISTANT_ANSWER = null;
+// Small localStorage-backed key/value helpers (FAQs, academic topics)
+async function idbGet(store, key) {
+  try { const v = localStorage.getItem('orthovault-kv-' + store + '-' + key); return v == null ? null : JSON.parse(v); } catch (e) { return null; }
+}
+async function idbSet(store, key, val) {
+  try { localStorage.setItem('orthovault-kv-' + store + '-' + key, JSON.stringify(val)); } catch (e) {}
+}
+let ONB_STEP = 1; // 1 = about you, 2 = clinic, 3 = cloud backup
+/* Saves whatever fields of the current onboarding step are on screen into the profile (steps not on screen are left untouched). */
+function onbStash() {
+  const pr = Object.assign({}, loadProfile());
+  [['doctorName', 'pr-doctorName'], ['qualifications', 'pr-qualifications'], ['specialty', 'pr-specialty'], ['regNumber', 'pr-regNumber'],
+   ['email', 'pr-email'], ['clinicName', 'pr-clinicName'], ['clinicAddress', 'pr-clinicAddress'], ['clinicPhone', 'pr-clinicPhone']].forEach(function (pair) {
+    const el = document.getElementById(pair[1]);
+    if (el) pr[pair[0]] = el.value.trim();
+  });
+  saveProfile(pr, true);
+  return pr;
+}
 function renderOnboardingView() {
   const pr = loadProfile();
+  const step = ONB_STEP;
+  const titles = ['About you', 'Your clinic', 'Back up your data'];
+  const bar = '<div class="row" style="gap:6px;margin:4px 0 2px;">' + [1, 2, 3].map(function (n) {
+    return '<div style="flex:1;height:5px;border-radius:3px;background:' + (n <= step ? 'var(--accent)' : 'var(--border)') + ';"></div>';
+  }).join('') + '</div>'
+    + '<div class="row between" style="font-size:11.5px;color:var(--muted);font-weight:700;"><span>Step ' + step + ' of 3</span><span>' + titles[step - 1] + '</span></div>';
+  let body = '';
+  if (step === 1) {
+    body = '<div><h2 style="font-size:17px;font-weight:800;margin:0 0 2px;">Tell us about you</h2><p style="font-size:12px;color:var(--muted);margin:0;">This prints on your prescriptions and WhatsApp messages. You can edit it any time later.</p></div>'
+      + '<div><label class="field-label">Your name (as it should print)</label><input class="input" id="pr-doctorName" placeholder="Dr. Full Name" value="' + esc(pr.doctorName) + '"></div>'
+      + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" placeholder="MBBS, MS (Ortho)" value="' + esc(pr.qualifications) + '"></div>'
+      + '<div><label class="field-label">Specialty</label><input class="input" id="pr-specialty" value="' + esc(pr.specialty || 'Orthopaedic Surgeon') + '"></div>'
+      + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="' + esc(pr.regNumber) + '"></div>'
+      + '<div><label class="field-label">Email (optional)</label><input class="input" type="email" id="pr-email" value="' + esc(pr.email || (CURRENT_USER && CURRENT_USER.email) || '') + '"></div>'
+      + '<button class="btn btn-primary btn-block" data-action="onboarding-next">Next →</button>'
+      + '<button class="btn btn-block" style="background:transparent;border-color:transparent;color:var(--accent-dark);font-size:12px;" data-action="onboarding-goto-signin">Already use OrthoVault on another device? Sign in</button>';
+  } else if (step === 2) {
+    body = '<div><h2 style="font-size:17px;font-weight:800;margin:0 0 2px;">Your clinic</h2><p style="font-size:12px;color:var(--muted);margin:0;">Used on the prescription letterhead. You can add more clinics later in your profile.</p></div>'
+      + '<div><label class="field-label">Clinic / hospital name</label><input class="input" id="pr-clinicName" value="' + esc(pr.clinicName) + '"></div>'
+      + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="3" id="pr-clinicAddress">' + esc(pr.clinicAddress) + '</textarea></div>'
+      + '<div><label class="field-label">Clinic phone</label><input class="input" type="tel" id="pr-clinicPhone" value="' + esc(pr.clinicPhone) + '"></div>'
+      + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="onboarding-back">← Back</button><button class="btn btn-primary" style="flex:2;" data-action="onboarding-next">Next →</button></div>';
+  } else {
+    const acct = CURRENT_USER
+      ? '<div class="card" style="background:var(--emerald-bg);border-color:var(--emerald-border);"><div style="font-size:13px;font-weight:800;color:var(--emerald);">✓ Signed in</div><div style="font-size:12px;margin-top:2px;">' + esc(CURRENT_USER.email || '') + '</div><div style="font-size:11px;color:var(--muted);margin-top:6px;">Your patients, photos and profile now back up to the cloud automatically.</div></div>'
+      : '<div class="card"><div style="display:flex;flex-direction:column;gap:8px;">'
+        + '<input class="input" id="auth-email" type="email" placeholder="Email" autocomplete="username">'
+        + '<input class="input" id="auth-password" type="password" placeholder="Password (min 6 characters)" autocomplete="current-password">'
+        + '</div><div class="row gap2" style="margin-top:10px;"><button class="btn btn-sm" style="flex:1;" data-action="email-sign-up">Create Account</button><button class="btn btn-primary btn-sm" style="flex:1;" data-action="email-sign-in">Sign In</button></div>'
+        + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0;">First time here? Tap Create Account. Already have an account on another device? Tap Sign In and your data comes back.</p></div>';
+    body = '<div><h2 style="font-size:17px;font-weight:800;margin:0 0 2px;">Back up your data</h2><p style="font-size:12px;color:var(--muted);margin:0;">Your patients are saved on this phone. A free account also backs them up to the cloud, so a lost phone or reinstall never means starting over.</p></div>'
+      + acct
+      + '<div class="row gap2"><button class="btn" style="flex:1;" data-action="onboarding-back">← Back</button><button class="btn btn-primary" style="flex:2;" data-action="onboarding-continue">' + (CURRENT_USER ? 'Finish' : 'Start using OrthoVault') + '</button></div>'
+      + (CURRENT_USER ? '' : '<button class="btn btn-block" style="background:transparent;border-color:transparent;color:var(--muted);font-size:12px;" data-action="onboarding-skip">Skip cloud backup for now</button>');
+  }
   return '<div style="padding-bottom:90px;min-height:100vh;">'
     + '<div class="px" style="padding-top:calc(24px + env(safe-area-inset-top, 0px));display:flex;flex-direction:column;gap:14px;">'
-    + '<div style="text-align:center;margin-bottom:4px;"><img src="icons/icon-192.png" style="width:56px;height:56px;border-radius:14px;box-shadow:0 4px 14px rgba(67,56,202,0.3);"><h1 style="font-size:20px;font-weight:800;margin:10px 0 2px;">Welcome to Ortho<span style="color:var(--accent);">Vault</span></h1><p style="font-size:12px;color:var(--muted);margin:0;">Quick one-time setup \u2014 takes a minute</p></div>'
-    + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder=""></div>'
-    + '<div><label class="field-label">Qualifications</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder=""></div>'
-    + '<div><label class="field-label">Email (optional)</label><input class="input" type="email" id="pr-email" value="'+esc(pr.email||'')+'"></div>'
-    + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder=""></div>'
-    + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder=""></div>'
-    + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="">'+esc(pr.clinicAddress)+'</textarea></div>'
-    + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder=""></div>'
-    + syncCardHtml()
-    + '<p style="font-size:11px;color:var(--muted);margin:0;">Signing in now means your data (and this profile) survive a reinstall or new device. You can always do this later from More.</p>'
-    + '<button class="btn btn-primary btn-block" data-action="onboarding-continue">Continue to OrthoVault</button>'
-    + '<button class="btn btn-block" style="background:transparent;border-color:transparent;color:var(--muted);font-size:12px;" data-action="onboarding-skip">Skip for now</button>'
-    + '</div>'
-    + '</div>';
+    + '<div style="text-align:center;margin-bottom:2px;"><img src="icons/icon-192.png" style="width:52px;height:52px;border-radius:13px;box-shadow:0 4px 14px rgba(67,56,202,0.3);"><h1 style="font-size:19px;font-weight:800;margin:8px 0 0;">Welcome to Ortho<span style="color:var(--accent);">Vault</span></h1></div>'
+    + bar + body
+    + '</div></div>';
 }
 
 function toWaNumber(raw) {
@@ -5908,6 +6042,7 @@ function renderDashboardSection() {
   const dueRemindersCount = (REMINDERS && REMINDERS.length) ? REMINDERS.filter(r => !r.done && r.dueDate && r.dueDate <= todayStr()).length : 0;
 
   const overdueCount = s.important.filter(i => i.type === 'Follow-up' && i.isOverdue).length;
+  const coldOverdueCount = s.important.filter(i => i.type === 'Follow-up' && i.isOverdue && overdueDays(i.date) >= FU_COLD_DAYS).length;
   const todayFollowUpCount = s.important.filter(i => i.type === 'Follow-up' && !i.isOverdue).length;
   const tomorrowCount = s.dueTomorrowList.length;
 
@@ -5970,6 +6105,7 @@ function renderDashboardSection() {
           + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(overdueCount?'var(--red)':'var(--muted)')+';">OVERDUE</span>'
           + '<span style="display:block;font-size:21px;font-weight:800;line-height:1.25;color:'+(overdueCount?'var(--red)':'var(--ink)')+';">'+(overdueCount+watchOverdueCount)+'</span>'
           + (watchOverdueCount ? '<span style="display:block;font-size:8.5px;font-weight:700;color:var(--accent-dark);opacity:0.85;margin-top:1px;">incl. '+watchOverdueCount+' watchlist</span>' : '')
+          + (coldOverdueCount ? '<span style="display:block;font-size:8.5px;font-weight:700;color:var(--muted);margin-top:1px;">'+coldOverdueCount+' cold (4w+)</span>' : '')
           + '</button>'
         + '<button type="button" data-action="dash-goto-today" class="card" style="flex:1;text-align:left;padding:10px 8px;min-width:0;'+(todayFollowUpCount?'background:#fffbeb;border-color:#fde68a;':'')+'">'
           + '<span style="display:block;font-size:8.5px;font-weight:800;letter-spacing:0.02em;opacity:0.75;color:'+(todayFollowUpCount?'#b45309':'var(--muted)')+';">TODAY</span>'
@@ -6031,6 +6167,184 @@ function renderDashboardSection() {
   return html;
 }
 
+
+/* ================= Overdue triage: buckets + one-by-one cleanup ================= */
+const FU_COLD_DAYS = 28; // 4+ weeks overdue = "cold"
+let ATTN_OPEN = { remind: true, decide: true, waiting: false, cold: false, labs: true };
+let ATTN_SHOWALL = {};
+let CU_QUEUE = [], CU_INDEX = 0, CU_STATS = { remind: 0, called: 0, date: 0, done: 0, lost: 0, skip: 0 };
+
+function fuClassify(item) {
+  const p = item.patient;
+  const days = overdueDays(item.date);
+  const visits = (p.followUps || []).length;
+  const lim = getReminderLimit(), gap = getReminderGap();
+  const streak = reminderStreak(p), since = daysSinceLastReminder(p);
+  let bucket;
+  if (days >= FU_COLD_DAYS) bucket = 'cold';
+  else if (lim > 0 && streak >= lim) bucket = 'decide';
+  else if (gap > 0 && since !== null && since < gap && reminderStats(p).pending > 0) bucket = 'waiting';
+  else bucket = 'remind';
+  return { bucket: bucket, days: days, visits: visits,
+    reason: visits ? ('Came ' + visits + '×, then stopped') : 'Never came back after first visit' };
+}
+const FU_BUCKET_META = {
+  remind:  { title: 'Remind now', hint: 'Overdue under 4 weeks, no recent reminder', color: 'var(--red)' },
+  decide:  { title: 'Call or decide', hint: 'Reminders sent, no response', color: '#b45309' },
+  waiting: { title: 'Waiting for reply', hint: 'Reminded recently - nothing to do yet', color: 'var(--muted)' },
+  cold:    { title: 'Cold (4+ weeks overdue)', hint: 'Details stay saved - add a follow-up visit when they return', color: 'var(--muted)' },
+  labs:    { title: 'RA labs / DEXA overdue', hint: '', color: '#b45309' }
+};
+function attnSectionHtml(key, list) {
+  if (!list.length) return '';
+  const m = FU_BUCKET_META[key];
+  const open = !!ATTN_OPEN[key];
+  const lim = ATTN_SHOWALL[key] ? list.length : 10;
+  let h = '<button type="button" data-action="attn-toggle-section" data-value="' + key + '" style="width:100%;text-align:left;background:none;border:none;padding:6px 2px;margin-top:6px;display:flex;align-items:center;justify-content:space-between;gap:8px;">'
+    + '<span><span style="font-size:13px;font-weight:800;color:' + m.color + ';">' + m.title + '</span> <span class="badge badge-muted" style="font-size:10px;">' + list.length + '</span>'
+    + (m.hint ? '<span style="display:block;font-size:10.5px;color:var(--muted);margin-top:1px;">' + m.hint + '</span>' : '') + '</span>'
+    + '<span style="color:var(--muted);font-size:12px;">' + (open ? '▲' : '▼') + '</span></button>';
+  if (open) {
+    h += '<div class="card" style="margin-bottom:12px;padding:6px 0;border-left:3px solid ' + m.color + ';">'
+      + list.slice(0, lim).map(attnRowHtml).join('')
+      + (list.length > lim ? '<div style="padding:8px 14px 2px;"><button class="chip" data-action="attn-section-all" data-value="' + key + '">Show all ' + list.length + '</button></div>' : '')
+      + '</div>';
+  }
+  return h;
+}
+function renderOverdueBuckets(items) {
+  const fu = items.filter(i => i.type === 'Follow-up');
+  const other = items.filter(i => i.type !== 'Follow-up');
+  const g = { remind: [], decide: [], waiting: [], cold: [] };
+  fu.forEach(i => g[fuClassify(i).bucket].push(i));
+  g.cold.sort((a, b) => overdueDays(a.date) - overdueDays(b.date));
+  const remindWa = g.remind.filter(i => i.patient.whatsapp).length;
+  let h = '';
+  if (fu.length) {
+    h += '<div class="card" style="margin-bottom:10px;padding:12px 14px;">'
+      + '<div style="font-size:13px;font-weight:800;margin-bottom:6px;">' + fu.length + ' overdue follow-up' + (fu.length > 1 ? 's' : '') + '</div>'
+      + '<div style="font-size:11.5px;color:var(--muted);line-height:1.6;">'
+      + '<b style="color:var(--red);">' + g.remind.length + '</b> remind now · <b style="color:#b45309;">' + g.decide.length + '</b> call/decide · <b>' + g.waiting.length + '</b> waiting · <b>' + g.cold.length + '</b> cold</div>'
+      + '<button type="button" class="btn btn-primary btn-block" style="margin-top:10px;" data-action="fu-cleanup-start">' + ic('check') + ' Clean up overdue, one by one</button>'
+      + (remindWa ? '<button type="button" class="btn btn-block" style="margin-top:8px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-reminder-queue">' + ic('message') + ' Send reminders — ' + remindWa + ' waiting</button>' : '')
+      + '</div>';
+  }
+  h += attnSectionHtml('remind', g.remind) + attnSectionHtml('decide', g.decide) + attnSectionHtml('waiting', g.waiting)
+     + attnSectionHtml('labs', other) + attnSectionHtml('cold', g.cold);
+  return h;
+}
+
+function fuCuStart() {
+  const s = computeDashboardStats();
+  const order = { remind: 0, decide: 1, waiting: 2, cold: 3 };
+  const list = s.important.filter(i => i.isOverdue && i.type === 'Follow-up')
+    .map(i => ({ id: i.patient.id, b: order[fuClassify(i).bucket], d: overdueDays(i.date) }))
+    .sort((a, b) => a.b - b.b || b.d - a.d);
+  CU_QUEUE = list.map(x => x.id); CU_INDEX = 0;
+  CU_STATS = { remind: 0, called: 0, date: 0, done: 0, lost: 0, skip: 0 };
+  if (!CU_QUEUE.length) { toast('No overdue follow-ups'); return false; }
+  VIEW = 'fu-cleanup'; render(); return true;
+}
+function renderFuCleanupView() {
+  if (CU_INDEX >= CU_QUEUE.length) {
+    const t = CU_STATS;
+    return '<div style="padding:50px 24px;text-align:center;">'
+      + '<div style="font-size:40px;margin-bottom:10px;">✅</div>'
+      + '<div style="font-weight:800;font-size:16px;margin-bottom:10px;">Cleanup done</div>'
+      + '<div style="color:var(--muted);font-size:13px;line-height:1.8;margin-bottom:20px;">Reminded ' + t.remind + ' · Called ' + t.called + ' · New date ' + t.date + '<br>Completed ' + t.done + ' · Lost ' + t.lost + ' · Skipped ' + t.skip + '</div>'
+      + '<button class="btn btn-primary" data-action="close-fu-cleanup">Back to follow-ups</button></div>';
+  }
+  const p = getPatient(CU_QUEUE[CU_INDEX]);
+  if (!p) { CU_INDEX++; return renderFuCleanupView(); }
+  const item = { patient: p, date: p.nextFollowUpDate, type: 'Follow-up', isOverdue: true };
+  const info = fuClassify(item);
+  const meta = FU_BUCKET_META[info.bucket];
+  const st = reminderStats(p);
+  const lastFu = getLastFollowUpDate(p);
+  const isSurg = p.caseType === 'surgical';
+  const clinical = isSurg ? (p.procedure || displayDiagnosis(p.diagnosis) || '') : (displayDiagnosis(p.diagnosis || p.chiefComplaints) || '');
+  const wa = p.whatsapp ? followUpReminderLink(p) : null;
+  const row = (k, v) => '<div class="row between" style="font-size:12px;padding:3px 0;"><span style="color:var(--muted);">' + k + '</span><span style="font-weight:700;text-align:right;">' + v + '</span></div>';
+  return '<div style="padding-bottom:40px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;">'
+    + '<div class="row between"><div class="row gap3"><button class="icon-btn" data-action="close-fu-cleanup">' + ic('x') + '</button><h2 style="font-size:16px;font-weight:800;margin:0;">Overdue cleanup</h2></div>'
+    + '<span style="font-size:12.5px;color:var(--muted);font-weight:700;">' + (CU_INDEX + 1) + ' of ' + CU_QUEUE.length + '</span></div></div>'
+    + '<div class="px" style="padding-top:10px;">'
+    + '<div class="card" style="margin-bottom:12px;">'
+    + '<div class="row between" style="align-items:flex-start;"><div style="min-width:0;"><div style="font-weight:800;font-size:16px;">' + escName(p.name) + '</div>'
+    + '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">' + esc(formatAge(p)) + ' · ' + esc(p.sex || '') + (p.place ? ' · 📍 ' + esc(p.place) : '') + '</div></div>'
+    + '<span class="badge" style="font-size:10px;color:' + meta.color + ';border:1px solid ' + meta.color + ';background:none;white-space:nowrap;">' + meta.title + '</span></div>'
+    + (clinical ? '<div style="background:rgba(67,56,202,0.09);border-radius:7px;padding:4px 8px;margin-top:8px;font-size:12px;font-weight:700;color:var(--accent-dark);">' + esc(clinical) + '</div>' : '')
+    + '<div style="margin-top:8px;">'
+    + row('Status', '<span style="color:' + (info.visits ? '#b45309' : 'var(--red)') + ';">' + esc(info.reason) + '</span>')
+    + row(isSurg ? 'Operated' : 'First seen', p.surgeryDate ? fmtDateShort(p.surgeryDate) : '-')
+    + row('Last follow-up visit', lastFu ? fmtDateShort(lastFu) : 'none')
+    + row('Was due', fmtDateShort(p.nextFollowUpDate) + ' (' + info.days + ' days ago)')
+    + row('Reminders', st.total ? (st.total + '× · ' + st.noResp + ' no response' + (st.pending ? ' · ' + st.pending + ' waiting' : '')) : 'none yet')
+    + (p.followUpPurpose ? row('Purpose', esc(p.followUpPurpose)) : '')
+    + '</div></div>'
+    + '<div class="row gap2" style="margin-bottom:8px;">'
+    + (wa ? '<a href="' + esc(wa) + '" target="_blank" rel="noopener" class="btn" style="flex:1;background:#25D366;border-color:#25D366;color:#fff;text-decoration:none;text-align:center;" data-action="fu-cu-remind" data-id="' + p.id + '">' + ic('message') + ' Remind</a>'
+          : '<div style="flex:1;font-size:11px;color:var(--muted);align-self:center;">No WhatsApp number saved</div>')
+    + '<button class="btn" style="flex:1;" data-action="fu-cu-called" data-id="' + p.id + '">' + ic('phone') + ' Called</button></div>'
+    + '<div class="field-label" style="margin:10px 0 6px;">New follow-up date</div>'
+    + '<div class="row gap2" style="margin-bottom:8px;flex-wrap:wrap;">'
+    + [[7, '+1 week'], [14, '+2 weeks'], [30, '+1 month']].map(x => '<button class="chip" data-action="fu-cu-date" data-id="' + p.id + '" data-days="' + x[0] + '">' + x[1] + '</button>').join('')
+    + '<input type="date" class="input" id="cu-date" style="flex:1;min-width:130px;padding:6px 8px;font-size:12px;"><button class="chip" data-action="fu-cu-date" data-id="' + p.id + '" data-days="custom">Set</button></div>'
+    + '<div class="row gap2" style="margin-top:10px;">'
+    + '<button class="btn" style="flex:1;color:var(--emerald);border-color:var(--emerald-border);" data-action="fu-cu-completed" data-id="' + p.id + '">' + ic('check') + ' Completed</button>'
+    + '<button class="btn" style="flex:1;color:var(--red);border-color:var(--red-border);" data-action="fu-cu-lost" data-id="' + p.id + '">Lost</button></div>'
+    + '<div class="row gap2" style="margin-top:8px;"><button class="btn btn-sm" style="flex:1;" data-action="fu-cu-skip">Skip</button>'
+    + '<button class="btn btn-sm" style="flex:1;" data-action="open-patient" data-id="' + p.id + '">Open patient</button></div>'
+    + '</div></div>';
+}
+
+function attnRowHtml(item) {
+  const typeIcon = { 'Follow-up':'calendar', 'RA labs':'file', 'DEXA scan':'file' };
+        const days = overdueDays(item.date);
+        const severityText = item.isOverdue ? (days > 0 ? days+' day'+(days>1?'s':'')+' overdue' : 'Overdue') : 'Due today';
+        const waLink = (item.type === 'Follow-up' && item.patient.whatsapp) ? followUpReminderLink(item.patient) : null;
+        const rStats = reminderStats(item.patient);
+        const rLim = getReminderLimit();
+        const limitHit = item.type === 'Follow-up' && rLim > 0 && reminderStreak(item.patient) >= rLim;
+        const showEscalation = item.type === 'Follow-up' && (item.isOverdue || limitHit);
+        const fuInfo = (item.type === 'Follow-up' && item.isOverdue) ? fuClassify(item) : null;
+        const showTrackingSnooze = (item.type === 'RA labs' || item.type === 'DEXA scan') && item.isOverdue && days >= 3;
+        const trackingField = item.type === 'RA labs' ? 'ra' : 'dexa';
+        const lostArmed = ARMED_DELETE === 'attn-mark-lost:'+item.patient.id;
+        const lastReminded = Math.max(item.patient.lastReminderSentAt || 0, item.patient.lastAutoReminderSentAt || 0) || null;
+        const remindedDaysAgo = lastReminded ? Math.floor((Date.now() - lastReminded) / 86400000) : null;
+        const remindedText = remindedDaysAgo === null ? '' : (remindedDaysAgo === 0 ? ' \u00b7 reminded today' : ' \u00b7 reminded '+remindedDaysAgo+'d ago') + (rStats.total > 1 ? ' (' + rStats.total + '\u00d7)' : '');
+        const snoozeCount = item.patient.followUpSnoozeCount || 0;
+        return '<div data-lp-id="'+item.patient.id+'" style="padding:8px 14px;border-bottom:1px solid var(--border);">'
+          + '<div class="row between">'
+          + '<span data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px;min-width:0;">'
+            + '<span style="color:'+(item.isOverdue?'var(--red)':'#b45309')+';flex-shrink:0;">'+ic(typeIcon[item.type]||'calendar')+'</span>'
+            + '<span style="min-width:0;overflow:hidden;">'
+              + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.patient.name)+'</span>'
+              + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+esc(remindedText)+'</span>'
+              + (rStats.total ? '<span style="display:block;font-size:10.5px;font-weight:600;margin-top:1px;color:'+(limitHit?'#b45309':'var(--muted)')+';">'+(limitHit ? 'No response \u2014 call or snooze \u00b7 ' : '')+'came '+rStats.came+' of '+rStats.total+(function(){const d=daysSinceLastReminder(item.patient),g=getReminderGap();return (d!==null&&g>0&&d<g)?' \u00b7 next reminder in '+(g-d)+'d':'';})()+'</span>' : '')
+              + (fuInfo ? '<span style="display:block;font-size:10.5px;font-weight:700;margin-top:1px;color:'+(fuInfo.visits?'#b45309':'var(--red)')+';">'+esc(fuInfo.reason)+'</span>' : '')
+              + '<span style="display:block;font-size:10.5px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+followUpContextLine(item.patient)+'</span>'
+              + (item.patient.followUpPurpose ? '<span style="display:block;font-size:10.5px;color:var(--accent-dark);font-weight:700;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+ic('bookmark')+' '+esc(item.patient.followUpPurpose)+'</span>' : '')
+            + '</span>'
+          + '</span>'
+          + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+item.patient.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
+          + '</div>'
+          + (showEscalation ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;flex-wrap:wrap;">'
+              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-log-call" data-id="'+item.patient.id+'">'+ic('phone')+' Called</button>'
+              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;'+(snoozeCount>0?'color:#b45309;border-color:var(--amber-border,#fde68a);background:var(--amber-bg,#fffbeb);':'')+'" data-action="attn-snooze-followup" data-id="'+item.patient.id+'" title="'+(snoozeCount>0?'Already snoozed '+snoozeCount+' time'+(snoozeCount>1?'s':''):'')+'">'+ic('clock')+' '+(snoozeCount>0?'Snooze again':'Snooze 7d')+'</button>'
+              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--emerald);border-color:var(--emerald-border);" data-action="attn-mark-completed" data-id="'+item.patient.id+'">'+ic('check')+' Completed</button>'
+              + (lostArmed
+                  ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+item.patient.id+'">'+ic('check')+' Confirm?</button>'
+                  : '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--muted);" data-action="arm-delete" data-arm="attn-mark-lost:'+item.patient.id+'">Lost to follow-up</button>')
+              + '</div>' : '')
+          + (showTrackingSnooze ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;">'
+              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-tracking" data-id="'+item.patient.id+'" data-field="'+trackingField+'">'+ic('clock')+' Snooze 14d</button>'
+              + '</div>' : '')
+          + '</div>';
+}
+
 /* Follow-up / RA-labs / DEXA overdue+due-today list \u2014 lives in the Followups tab's "Due" segment */
 function renderNeedsAttentionBlock(s, filterOverdue) {
   const items = filterOverdue === undefined ? s.important : s.important.filter(i => i.isOverdue === filterOverdue);
@@ -6043,6 +6357,7 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
       + '</div>';
     return html;
   }
+  if (filterOverdue === true) return html + renderOverdueBuckets(items);
   const remindedCount = items.filter(item => (item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt)).length;
   const pendingCount = items.length - remindedCount;
   const remindedActive = ATTN_FILTER === 'reminded';
@@ -6066,47 +6381,7 @@ function renderNeedsAttentionBlock(s, filterOverdue) {
   const shown = showAll ? displayItems.slice(0,8) : displayItems.slice(0,3);
   const typeIcon = { 'Follow-up':'calendar', 'RA labs':'file', 'DEXA scan':'file' };
   html += '<div class="card" style="margin-bottom:12px;padding:6px 0;border-left:3px solid var(--red);">'
-    + shown.map(item => {
-        const days = overdueDays(item.date);
-        const severityText = item.isOverdue ? (days > 0 ? days+' day'+(days>1?'s':'')+' overdue' : 'Overdue') : 'Due today';
-        const waLink = (item.type === 'Follow-up' && item.patient.whatsapp) ? followUpReminderLink(item.patient) : null;
-        const rStats = reminderStats(item.patient);
-        const rLim = getReminderLimit();
-        const limitHit = item.type === 'Follow-up' && rLim > 0 && reminderStreak(item.patient) >= rLim;
-        const showEscalation = item.type === 'Follow-up' && ((item.isOverdue && days >= 3) || limitHit);
-        const showTrackingSnooze = (item.type === 'RA labs' || item.type === 'DEXA scan') && item.isOverdue && days >= 3;
-        const trackingField = item.type === 'RA labs' ? 'ra' : 'dexa';
-        const lostArmed = ARMED_DELETE === 'attn-mark-lost:'+item.patient.id;
-        const lastReminded = Math.max(item.patient.lastReminderSentAt || 0, item.patient.lastAutoReminderSentAt || 0) || null;
-        const remindedDaysAgo = lastReminded ? Math.floor((Date.now() - lastReminded) / 86400000) : null;
-        const remindedText = remindedDaysAgo === null ? '' : (remindedDaysAgo === 0 ? ' \u00b7 reminded today' : ' \u00b7 reminded '+remindedDaysAgo+'d ago') + (rStats.total > 1 ? ' (' + rStats.total + '\u00d7)' : '');
-        const snoozeCount = item.patient.followUpSnoozeCount || 0;
-        return '<div data-lp-id="'+item.patient.id+'" style="padding:8px 14px;border-bottom:1px solid var(--border);">'
-          + '<div class="row between">'
-          + '<span data-action="open-patient" data-id="'+item.patient.id+'" style="cursor:pointer;flex:1;display:flex;align-items:center;gap:8px;min-width:0;">'
-            + '<span style="color:'+(item.isOverdue?'var(--red)':'#b45309')+';flex-shrink:0;">'+ic(typeIcon[item.type]||'calendar')+'</span>'
-            + '<span style="min-width:0;overflow:hidden;">'
-              + '<span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(item.patient.name)+'</span>'
-              + '<span style="display:block;font-size:11px;color:'+(item.isOverdue?'var(--red)':'#b45309')+';font-weight:600;">'+esc(item.type)+' \u00b7 '+severityText+esc(remindedText)+'</span>'
-              + (rStats.total ? '<span style="display:block;font-size:10.5px;font-weight:600;margin-top:1px;color:'+(limitHit?'#b45309':'var(--muted)')+';">'+(limitHit ? 'No response \u2014 call or snooze \u00b7 ' : '')+'came '+rStats.came+' of '+rStats.total+(function(){const d=daysSinceLastReminder(item.patient),g=getReminderGap();return (d!==null&&g>0&&d<g)?' \u00b7 next reminder in '+(g-d)+'d':'';})()+'</span>' : '')
-              + '<span style="display:block;font-size:10.5px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+followUpContextLine(item.patient)+'</span>'
-              + (item.patient.followUpPurpose ? '<span style="display:block;font-size:10.5px;color:var(--accent-dark);font-weight:700;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+ic('bookmark')+' '+esc(item.patient.followUpPurpose)+'</span>' : '')
-            + '</span>'
-          + '</span>'
-          + (waLink ? '<a href="'+esc(waLink)+'" target="_blank" rel="noopener" class="icon-btn" data-action="log-reminder-sent" data-id="'+item.patient.id+'" style="flex-shrink:0;color:#25D366;" title="Send WhatsApp reminder">'+ic('message')+'</a>' : '')
-          + '</div>'
-          + (showEscalation ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;flex-wrap:wrap;">'
-              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-log-call" data-id="'+item.patient.id+'">'+ic('phone')+' Called</button>'
-              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;'+(snoozeCount>0?'color:#b45309;border-color:var(--amber-border,#fde68a);background:var(--amber-bg,#fffbeb);':'')+'" data-action="attn-snooze-followup" data-id="'+item.patient.id+'" title="'+(snoozeCount>0?'Already snoozed '+snoozeCount+' time'+(snoozeCount>1?'s':''):'')+'">'+ic('clock')+' '+(snoozeCount>0?'Snooze again':'Snooze 7d')+'</button>'
-              + (lostArmed
-                  ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+item.patient.id+'">'+ic('check')+' Confirm?</button>'
-                  : '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--muted);" data-action="arm-delete" data-arm="attn-mark-lost:'+item.patient.id+'">Lost to follow-up</button>')
-              + '</div>' : '')
-          + (showTrackingSnooze ? '<div class="row" style="gap:6px;margin-top:7px;padding-left:26px;">'
-              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-snooze-tracking" data-id="'+item.patient.id+'" data-field="'+trackingField+'">'+ic('clock')+' Snooze 14d</button>'
-              + '</div>' : '')
-          + '</div>';
-      }).join('')
+    + shown.map(attnRowHtml).join('')
     + (!showAll ? '<div style="padding:8px 14px 2px;"><button class="chip" data-action="toggle-show-all-attention">Show all '+displayItems.length+'</button></div>' : '')
     + '</div>';
   return html;
@@ -6129,6 +6404,7 @@ function searchFields(p) {
     ['Clinical notes', p.notes],
     ['Tags', (p.tags||[]).join(', ')],
     ['Co-morbidities', (p.comorbidities||[]).join(', ')],
+    ['Place', p.place],
     ['WhatsApp number', p.whatsapp],
   ];
   (p.followUps||[]).forEach(f => {
@@ -6599,7 +6875,7 @@ function initApTemp() {
   // during this wizard can be written to IndexedDB immediately, instead of sitting
   // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
   // would lose them for good. See handlePhotoInputChange / handleCategorizedPhotoChange.
-  AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
+  AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', place:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Trauma', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
   AP_OPEN_SECTION = AP_TEMP.caseType === 'surgical' ? 4 : 2;
   AP_DIAG_CONFIRMED = false;
@@ -6614,7 +6890,7 @@ function initApTemp() {
   AI_EXAM_SUGGESTIONS = null;
 }
 function syncApTempFromDom() {
-  ['name','age','ageMonths','ageDays','occupation','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital','nextFollowUpDate'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : f === 'nextFollowUpDate' ? 'ap-next-fu-date' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
+  ['name','age','ageMonths','ageDays','occupation','place','diagnosis','procedure','whatsapp','notes','symptomDuration','insuranceType','cashAmount','hospital','nextFollowUpDate'].forEach(f => { const el = document.getElementById(f === 'symptomDuration' ? 'ap-duration' : f === 'insuranceType' ? 'ap-insurance' : f === 'cashAmount' ? 'ap-cash-amount' : f === 'nextFollowUpDate' ? 'ap-next-fu-date' : 'ap-'+f); if (el) AP_TEMP[f] = el.value; });
   const typeEl = document.getElementById('ap-type'); if (typeEl) AP_TEMP.surgeryType = typeEl.value;
   const anaesEl = document.getElementById('ap-anaesthesia'); if (anaesEl) AP_TEMP.anaesthesiaType = anaesEl.value;
   const dateEl = document.getElementById('ap-date'); if (dateEl) AP_TEMP.surgeryDate = dateEl.value;
@@ -6781,6 +7057,7 @@ function renderAddView() {
       + '<div style="flex:none;"><label class="field-label">Sex</label><div class="seg">'
       + [['M','Male'],['F','Female']].map(([v,l])=>'<button class="seg-btn'+(AP_TEMP.sex===v?' active':'')+'" data-action="ap-set-sex" data-value="'+v+'">'+l+'</button>').join('') + '</div></div>'
       + '</div>'
+      + '<div><label class="field-label">Place / Residence <i style="font-weight:400;font-size:11px;">(village, town or city)</i></label><input class="input" id="ap-place" list="place-list" autocomplete="off" placeholder="" value="'+esc(AP_TEMP.place||'')+'">'+placeDatalistHtml()+'</div>'
       + '<div style="opacity:0.75;"><label class="field-label" style="font-weight:500;font-size:11px;">Occupation <i>(optional)</i></label><input class="input" id="ap-occupation" placeholder="" value="'+esc(AP_TEMP.occupation)+'"></div>'
       + '<div style="border-left:3px solid var(--accent);padding-left:10px;"><label class="field-label" style="color:var(--accent-dark);font-weight:800;">WhatsApp number</label><input class="input" type="tel" id="ap-whatsapp" pattern="[+0-9]{10,15}" placeholder="" value="'+esc(AP_TEMP.whatsapp)+'"><p class="validation-helper" id="ap-whatsapp-helper"></p></div>'
       + '</div>';
@@ -7033,12 +7310,19 @@ async function computeInitialVisitSummary(p) {
   if (initialInjections.length) parts.push(initialInjections.length+' injection'+(initialInjections.length>1?'s':'')+' given');
   return parts;
 }
+function placeDatalistHtml() {
+  const seen = {};
+  (PATIENTS || []).forEach(x => { const v = (x.place || '').trim(); if (v) seen[v] = (seen[v] || 0) + 1; });
+  const opts = Object.keys(seen).sort((a, b) => seen[b] - seen[a]).slice(0, 300);
+  return '<datalist id="place-list">' + opts.map(v => '<option value="' + esc(v) + '"></option>').join('') + '</datalist>';
+}
 function renderOverviewTab(p) {
   const overdue = isOverdue(p.nextFollowUpDate);
   const isSurgical = p.caseType === 'surgical';
 
   let clinicalBody = (!isSurgical ? '<div><label class="field-label">Chief complaints</label>'+renderQuickTextChips(CHIEF_COMPLAINT_LIB_KEY,'ov-complaints')+'<textarea class="textarea" id="ov-complaints" rows="2" data-field="chiefComplaints">'+esc(p.chiefComplaints||'')+'</textarea>'+autocompleteBoxHtml('ov-complaints')+'</div>' : '')
     + '<div><label class="field-label">Duration of symptoms (optional)</label><input class="input" id="ov-duration" data-field="symptomDuration" placeholder="" value="'+esc(p.symptomDuration||'')+'"></div>'
+    + '<div><label class="field-label">Place / Residence (village, town or city)</label><input class="input" data-field="place" list="place-list" autocomplete="off" placeholder="" value="'+esc(p.place||'')+'">'+placeDatalistHtml()+'</div>'
     + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="" value="'+esc(p.occupation||'')+'"></div>'
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label><div class="row gap1">'+micButtonHtml('ov-notes')+'<button type="button" class="icon-btn" style="width:26px;height:26px;" data-action="open-reading-mode" data-id="'+p.id+'" title="Reading Mode">'+ic('book')+'</button></div></div>'
     + '<textarea class="textarea" id="ov-notes" rows="5" maxlength="5000" data-field="notes" placeholder="">'+esc(p.notes)+'</textarea></div>'
@@ -7071,6 +7355,7 @@ function renderOverviewTab(p) {
       + '<div style="flex:1;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Chief Complaint</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.chiefComplaints||'\u2014')+'</div></div>'
       + '<div style="flex:none;max-width:35%;"><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Duration</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.symptomDuration||'\u2014')+'</div></div>'
       + '</div>' : '')
+    + (p.place ? '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Place / Residence</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.place)+'</div></div>' : '')
     + (p.occupation ? '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Occupation</div><div style="font-size:12.5px;font-weight:600;">'+esc(p.occupation)+'</div></div>' : '')
     + ((p.comorbidities||[]).length ? '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:5px;">Co-morbidities</div><div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.comorbidities.map(c=>'<span class="badge badge-indigo" style="font-weight:600;">+ '+esc(c)+'</span>').join('')+'</div></div>' : '')
     + '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Clinical Notes</div><div style="font-size:12.5px;color:#334155;white-space:pre-wrap;">'+(p.notes ? esc(p.notes) : '<span style="color:var(--muted);">No notes yet.</span>')+'</div></div>'
@@ -7274,6 +7559,7 @@ async function renderPhotoGalleryView() {
   const timeOptions = [['week','This Week'],['month','This Month'],['3months','Last 3 Months'],['all','All Time']];
 
   const filtersHtml = '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">'
+    + '<button type="button" class="btn btn-sm btn-block" data-action="open-unfiled-photos">'+ic('camera')+' Unfiled photos'+(UNFILED_COUNT_CACHE?' ('+UNFILED_COUNT_CACHE+')':'')+' \u2014 recover photos without a patient</button>'
     + '<input class="input" id="gallery-patient-search" placeholder="" value="'+esc(GALLERY_PATIENT_SEARCH)+'" style="font-size:13px;">'
     + '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;">'
     + '<select class="select" id="gallery-category" style="flex:none;width:auto;font-size:12px;">'+catOptions.map(([v,l])=>'<option value="'+v+'"'+(GALLERY_CATEGORY===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'
@@ -9028,6 +9314,7 @@ function renderDetailShell(p) {
           + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="cancel-edit-patient-name">Cancel</button><button class="btn btn-sm btn-primary" style="flex:1;" data-action="save-patient-name">'+ic('check')+' Save</button></div>'
           + '</div>'
         : '<h2 style="font-size:15px;font-weight:800;margin:2px 0 0;overflow-wrap:break-word;">'+escName(p.name)+' <span style="font-weight:700;color:var(--ink);font-size:13.5px;">'+formatAge(p)+' \u00b7 '+esc(p.sex)+'</span> <span style="display:inline-flex;vertical-align:-3px;cursor:pointer;" data-action="edit-patient-name" title="Edit name, age, sex">'+ic('pencil')+'</span></h2>')
+    + (p.place ? '<div style="font-size:11.5px;color:var(--muted);margin-top:2px;">\u{1F4CD} '+esc(p.place)+'</div>' : '')
     + '<div style="margin-top:6px;">'+statusBadgesHtml+'</div>'
     + (EDITING_HEADER_DIAGNOSIS
         ? ('<div style="background:rgba(67,56,202,0.09);border-radius:12px;padding:10px 12px;margin-top:6px;">'
@@ -9364,6 +9651,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'followup-report') { app.innerHTML = renderFollowUpReportView(); return; }
   if (VIEW === 'planned-surgeries') { app.innerHTML = renderPlannedSurgeriesView(); return; }
   if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
+  if (VIEW === 'fu-cleanup') { app.innerHTML = renderFuCleanupView(); return; }
   if (VIEW === 'marketing-contacts') { app.innerHTML = renderMarketingContactsView(); return; }
   if (VIEW === 'broadcast-queue') { app.innerHTML = renderBroadcastQueueView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
@@ -9715,6 +10003,219 @@ function exportResearchCasesCsv() {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10000);
   toast('Research cases exported \u2014 ' + flagged.length + ' cases');
+}
+
+/* ================= Master patient database -> real .xlsx (no library) =================
+   Hand-built Office Open XML workbook: coloured header, frozen header + name columns,
+   filters, overdue rows tinted, status cells colour-coded, real Excel dates.
+   Sheets: Patients (one row per patient), Follow-up visits, Investigations, Injections. */
+function xlsxEsc(v) {
+  return String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F￾￿]/g, '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function xlsxColName(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+function xlsxDateSerial(ds) {
+  if (!ds || !/^\d{4}-\d{2}-\d{2}/.test(ds)) return null;
+  const y = +ds.slice(0, 4), m = +ds.slice(5, 7), d = +ds.slice(8, 10);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86400000) + 25569;
+}
+function xlsxCrc32(bytes) {
+  if (!xlsxCrc32.t) { xlsxCrc32.t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); xlsxCrc32.t[n] = c >>> 0; } }
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) crc = xlsxCrc32.t[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function xlsxZip(files) { // files: [{name, data:string}] -> Uint8Array (stored, no compression)
+  const enc = new TextEncoder();
+  const parts = [], central = [];
+  let offset = 0;
+  const u16 = n => [n & 255, (n >>> 8) & 255], u32 = n => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+  files.forEach(f => {
+    const name = enc.encode(f.name), data = enc.encode(f.data), crc = xlsxCrc32(data);
+    const local = new Uint8Array([0x50,0x4b,0x03,0x04, ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0)]);
+    parts.push(local, name, data);
+    central.push({ name, crc, size: data.length, offset });
+    offset += local.length + name.length + data.length;
+  });
+  let cdSize = 0;
+  central.forEach(c => {
+    const h = new Uint8Array([0x50,0x4b,0x01,0x02, ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(c.crc), ...u32(c.size), ...u32(c.size), ...u16(c.name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(c.offset)]);
+    parts.push(h, c.name); cdSize += h.length + c.name.length;
+  });
+  parts.push(new Uint8Array([0x50,0x4b,0x05,0x06, ...u16(0), ...u16(0), ...u16(central.length), ...u16(central.length), ...u32(cdSize), ...u32(offset), ...u16(0)]));
+  let total = 0; parts.forEach(p => total += p.length);
+  const out = new Uint8Array(total); let pos = 0;
+  parts.forEach(p => { out.set(p, pos); pos += p.length; });
+  return out;
+}
+function xlsxBuildWorkbook(sheets) {
+  /* sheets: [{name, cols:[{h, w}], rows:[[cell,...]], freezeCols}] ; cell = {v, k:'s'|'n'|'d', s:{fill,bold,color,wrap,center}} or primitive */
+  const fonts = ['<font><sz val="10"/><name val="Calibri"/></font>'];
+  const fills = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>'];
+  const xfs = ['<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>'];
+  const reg = { font: { '': 0 }, fill: {}, xf: {} };
+  function fontId(bold, color, sz) {
+    const key = (bold ? 'b' : '') + '|' + (color || '') + '|' + (sz || 10);
+    if (reg.font[key] != null) return reg.font[key];
+    fonts.push('<font>' + (bold ? '<b/>' : '') + '<sz val="' + (sz || 10) + '"/>' + (color ? '<color rgb="FF' + color + '"/>' : '') + '<name val="Calibri"/></font>');
+    return (reg.font[key] = fonts.length - 1);
+  }
+  function fillId(rgb) {
+    if (!rgb) return 0;
+    if (reg.fill[rgb] != null) return reg.fill[rgb];
+    fills.push('<fill><patternFill patternType="solid"><fgColor rgb="FF' + rgb + '"/><bgColor indexed="64"/></patternFill></fill>');
+    return (reg.fill[rgb] = fills.length - 1);
+  }
+  function xf(st, kind) {
+    st = st || {};
+    const key = JSON.stringify([st.fill || '', !!st.bold, st.color || '', !!st.wrap, !!st.center, st.sz || 0, kind === 'd' ? 1 : 0]);
+    if (reg.xf[key] != null) return reg.xf[key];
+    xfs.push('<xf numFmtId="' + (kind === 'd' ? 164 : 0) + '" fontId="' + fontId(st.bold, st.color, st.sz) + '" fillId="' + fillId(st.fill) + '" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"' + (st.center ? ' horizontal="center"' : '') + (st.wrap ? ' wrapText="1"' : '') + '/></xf>');
+    return (reg.xf[key] = xfs.length - 1);
+  }
+  const sheetXml = sheets.map(sh => {
+    const nCols = sh.cols.length;
+    let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">';
+    x += '<sheetViews><sheetView workbookViewId="0" showGridLines="0"><pane xSplit="' + (sh.freezeCols || 0) + '" ySplit="1" topLeftCell="' + xlsxColName(sh.freezeCols || 0) + '2" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>';
+    x += '<sheetFormatPr defaultRowHeight="15"/>';
+    x += '<cols>' + sh.cols.map((c, i) => '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + c.w + '" customWidth="1"/>').join('') + '</cols>';
+    x += '<sheetData>';
+    const hs = { fill: '1E293B', bold: true, color: 'FFFFFF', center: true, wrap: true, sz: 10 };
+    x += '<row r="1" ht="32" customHeight="1">' + sh.cols.map((c, i) => '<c r="' + xlsxColName(i) + '1" s="' + xf(hs) + '" t="inlineStr"><is><t>' + xlsxEsc(c.h) + '</t></is></c>').join('') + '</row>';
+    sh.rows.forEach((row, ri) => {
+      const r = ri + 2;
+      x += '<row r="' + r + '">';
+      row.forEach((cell, ci) => {
+        if (cell == null || typeof cell !== 'object') cell = { v: cell, k: typeof cell === 'number' ? 'n' : 's' };
+        const ref = xlsxColName(ci) + r;
+        const v = cell.v;
+        if (v === '' || v == null) { x += '<c r="' + ref + '" s="' + xf(cell.s, cell.k) + '"/>'; return; }
+        if (cell.k === 'n' || cell.k === 'd') x += '<c r="' + ref + '" s="' + xf(cell.s, cell.k) + '"><v>' + v + '</v></c>';
+        else x += '<c r="' + ref + '" s="' + xf(cell.s, 's') + '" t="inlineStr"><is><t xml:space="preserve">' + xlsxEsc(v) + '</t></is></c>';
+      });
+      x += '</row>';
+    });
+    x += '</sheetData>';
+    x += '<autoFilter ref="A1:' + xlsxColName(nCols - 1) + (sh.rows.length + 1) + '"/>';
+    x += '<pageMargins left="0.4" right="0.4" top="0.5" bottom="0.5" header="0.3" footer="0.3"/><pageSetup orientation="landscape" fitToHeight="0"/></worksheet>';
+    return x;
+  });
+  const styles = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+    + '<numFmts count="1"><numFmt numFmtId="164" formatCode="dd\\-mmm\\-yyyy"/></numFmts>'
+    + '<fonts count="' + fonts.length + '">' + fonts.join('') + '</fonts>'
+    + '<fills count="' + fills.length + '">' + fills.join('') + '</fills>'
+    + '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD9DEE5"/></left><right style="thin"><color rgb="FFD9DEE5"/></right><top style="thin"><color rgb="FFD9DEE5"/></top><bottom style="thin"><color rgb="FFD9DEE5"/></bottom><diagonal/></border></borders>'
+    + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+    + '<cellXfs count="' + xfs.length + '">' + xfs.join('') + '</cellXfs>'
+    + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  const files = [
+    { name: '[Content_Types].xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' + sheets.map((s, i) => '<Override PartName="/xl/worksheets/sheet' + (i + 1) + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>').join('') + '</Types>' },
+    { name: '_rels/.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + sheets.map((s, i) => '<sheet name="' + xlsxEsc(s.name) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join('') + '</sheets></workbook>' },
+    { name: 'xl/_rels/workbook.xml.rels', data: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + sheets.map((s, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join('') + '<Relationship Id="rId' + (sheets.length + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>' },
+    { name: 'xl/styles.xml', data: styles }
+  ];
+  sheetXml.forEach((x, i) => files.push({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', data: x }));
+  return xlsxZip(files);
+}
+
+function masterDueInfo(p) {
+  // returns {label, kind, daysOver}
+  if (p.status === 'Completed') return { label: 'Completed', kind: 'done', daysOver: 0 };
+  if (p.status === 'Lost to follow-up') return { label: 'Lost to follow-up', kind: 'lost', daysOver: 0 };
+  if (!p.nextFollowUpDate) return { label: 'No follow-up set', kind: 'none', daysOver: 0 };
+  const today = todayStr();
+  if (p.nextFollowUpDate === today) return { label: 'Due today', kind: 'today', daysOver: 0 };
+  if (p.nextFollowUpDate > today) {
+    const n = Math.round((new Date(p.nextFollowUpDate) - new Date(today)) / 86400000);
+    return { label: 'Upcoming (in ' + n + ' d)', kind: 'upcoming', daysOver: 0 };
+  }
+  const d = overdueDays(p.nextFollowUpDate);
+  return d >= FU_COLD_DAYS ? { label: 'Cold - overdue ' + d + ' d', kind: 'cold', daysOver: d } : { label: 'Overdue ' + d + ' d', kind: 'overdue', daysOver: d };
+}
+async function exportMasterXlsx() {
+  toast('Building Excel...');
+  const list = PATIENTS.slice().sort((a, b) => (b.surgeryDate || '').localeCompare(a.surgeryDate || '') || String(a.patientCode || '').localeCompare(String(b.patientCode || '')));
+  const KIND_STYLE = {
+    overdue:  { fill: 'FECACA', color: '991B1B', bold: true }, cold: { fill: '9CA3AF', color: 'FFFFFF', bold: true },
+    today:    { fill: 'FDE68A', color: '92400E', bold: true }, upcoming: { fill: 'BBF7D0', color: '166534' },
+    done:     { fill: 'BFDBFE', color: '1E40AF' },            lost: { fill: '374151', color: 'FFFFFF', bold: true },
+    none:     { fill: 'F1F5F9', color: '64748B' }
+  };
+  const ROW_TINT = { overdue: 'FEF2F2', cold: 'F3F4F6', today: 'FFFBEB' };
+  const cols = [
+    ['Patient ID', 11], ['Name', 28], ['Age', 9], ['Sex', 6], ['Place / Residence', 18], ['Phone (WhatsApp)', 15],
+    ['Case Type', 10], ['Case Status', 17], ['Diagnosis', 34], ['Chief Complaints', 34], ['Region', 16], ['Side', 8],
+    ['Procedure', 32], ['Surgery Type', 12], ['Hospital / Where done', 22], ['Anaesthesia', 12], ['Visit / Surgery Date', 13], ['Tracked Condition', 13],
+    ['No. of Injections', 10], ['Injections (details)', 36], ['No. of Investigations', 12], ['Investigations (details)', 40],
+    ['Follow-ups Done', 10], ['Last Follow-up', 13], ['Next Follow-up Due', 13], ['Follow-up Status', 20], ['Days Overdue', 9],
+    ['Reminders Sent', 10], ['Reminders No Response', 11], ['Payment', 12], ['Cash Amount', 11], ['Insurance', 14],
+    ['Comorbidities', 22], ['Tags', 20], ['Clinical Notes', 44]
+  ];
+  const dateCell = (ds, s) => { const n = xlsxDateSerial(ds); return n == null ? { v: '', k: 's', s: s } : { v: n, k: 'd', s: s }; };
+  const rows = list.map((p, i) => {
+    const due = masterDueInfo(p);
+    const base = { fill: ROW_TINT[due.kind] || (i % 2 ? 'F8FAFC' : null) };
+    const wrap = Object.assign({}, base, { wrap: true });
+    const ctr = Object.assign({}, base, { center: true });
+    const invs = (p.investigations || []), injs = (p.injections || []);
+    const invText = invs.map(v => (v.label || 'Investigation') + (v.value ? ' (' + v.value + (v.unit ? ' ' + v.unit : '') + ')' : '') + (v.date ? ' [' + fmtDateShort(v.date) + ']' : '')).join('\n');
+    const injText = injs.map(v => (v.label || 'Injection') + (v.date ? ' [' + fmtDateShort(v.date) + ']' : '')).join('\n');
+    const rs = reminderStats(p);
+    const lastFu = getLastFollowUpDate(p);
+    const isS = p.caseType === 'surgical';
+    return [
+      { v: p.patientCode || '', k: 's', s: base }, { v: p.name || '', k: 's', s: Object.assign({}, base, { bold: true }) },
+      { v: formatAge(p) === '—' ? '' : formatAge(p), k: 's', s: ctr }, { v: p.sex || '', k: 's', s: ctr },
+      { v: p.place || '', k: 's', s: base }, { v: p.whatsapp || '', k: 's', s: base },
+      { v: isS ? 'Surgical' : 'OPD', k: 's', s: Object.assign({}, ctr, isS ? { fill: 'DBEAFE', color: '1E3A8A', bold: true } : {}) },
+      { v: p.status || 'Active', k: 's', s: ctr },
+      { v: p.diagnosis || '', k: 's', s: wrap }, { v: p.chiefComplaints || '', k: 's', s: wrap },
+      { v: (p.regions || []).join(', '), k: 's', s: base }, { v: p.side && p.side !== 'N/A' ? p.side : '', k: 's', s: ctr },
+      { v: p.procedure || '', k: 's', s: wrap }, { v: isS ? (p.surgeryType || '') : '', k: 's', s: base },
+      { v: p.hospital || '', k: 's', s: base }, { v: p.anaesthesiaType || '', k: 's', s: base },
+      dateCell(p.surgeryDate, ctr), { v: p.condition ? String(p.condition).toUpperCase() : '', k: 's', s: ctr },
+      { v: injs.length, k: 'n', s: ctr }, { v: injText, k: 's', s: wrap },
+      { v: invs.length, k: 'n', s: ctr }, { v: invText, k: 's', s: wrap },
+      { v: (p.followUps || []).length, k: 'n', s: ctr }, dateCell(lastFu, ctr), dateCell(p.nextFollowUpDate, ctr),
+      { v: due.label, k: 's', s: Object.assign({ center: true }, KIND_STYLE[due.kind]) },
+      { v: due.daysOver || '', k: due.daysOver ? 'n' : 's', s: Object.assign({}, ctr, due.daysOver ? { bold: true, color: '991B1B' } : {}) },
+      { v: rs.total || '', k: rs.total ? 'n' : 's', s: ctr }, { v: rs.noResp || '', k: rs.noResp ? 'n' : 's', s: ctr },
+      { v: p.paymentMethod || '', k: 's', s: base }, { v: p.cashAmount ? Number(p.cashAmount) || p.cashAmount : '', k: (p.cashAmount && !isNaN(Number(p.cashAmount))) ? 'n' : 's', s: base },
+      { v: p.insuranceType || '', k: 's', s: base },
+      { v: (p.comorbidities || []).join(', '), k: 's', s: wrap }, { v: (p.tags || []).join(', '), k: 's', s: wrap },
+      { v: p.notes || '', k: 's', s: wrap }
+    ];
+  });
+  const sheets = [{ name: 'Patients', cols: cols.map(c => ({ h: c[0], w: c[1] })), rows: rows, freezeCols: 2 }];
+
+  const sub = (name, headers, widths, build) => {
+    const r = [];
+    list.forEach(p => { build(p).forEach(cells => r.push(cells)); });
+    return { name: name, cols: headers.map((h, i) => ({ h: h, w: widths[i] })), rows: r, freezeCols: 2 };
+  };
+  const pid = p => [{ v: p.patientCode || '', k: 's' }, { v: p.name || '', k: 's', s: { bold: true } }];
+  sheets.push(sub('Follow-up visits', ['Patient ID', 'Name', 'Visit', 'Date', 'Wound', 'Union', 'Recovery', 'ROM', 'Photos', 'Notes'], [11, 24, 16, 13, 18, 16, 16, 16, 8, 50],
+    p => (p.followUps || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date || '')).map(f => [].concat(pid(p), [
+      { v: f.label || '', k: 's' }, dateCell(f.date), { v: f.woundStatus && f.woundStatus !== 'N/A' ? f.woundStatus : '', k: 's' },
+      { v: f.unionStatus && f.unionStatus !== 'Not assessed' ? f.unionStatus : '', k: 's' }, { v: f.recoveryStatus || '', k: 's' },
+      { v: typeof f.rom === 'object' && f.rom ? Object.keys(f.rom).map(k => k + ': ' + f.rom[k]).join(', ') : (f.rom || ''), k: 's' },
+      { v: f.imageCount || '', k: f.imageCount ? 'n' : 's', s: { center: true } }, { v: f.notes || '', k: 's', s: { wrap: true } }]))));
+  sheets.push(sub('Investigations', ['Patient ID', 'Name', 'Investigation', 'Parameter', 'Value', 'Unit', 'Date', 'Photos', 'Notes'], [11, 24, 28, 18, 14, 10, 13, 8, 50],
+    p => (p.investigations || []).map(v => [].concat(pid(p), [
+      { v: v.label || '', k: 's' }, { v: v.paramName || '', k: 's' }, { v: v.value || '', k: 's' }, { v: v.unit || '', k: 's' }, dateCell(v.date),
+      { v: v.imageCount || '', k: v.imageCount ? 'n' : 's', s: { center: true } }, { v: v.notes || '', k: 's', s: { wrap: true } }]))));
+  sheets.push(sub('Injections', ['Patient ID', 'Name', 'Injection', 'Date', 'Notes'], [11, 24, 40, 13, 50],
+    p => (p.injections || []).map(v => [].concat(pid(p), [{ v: v.label || '', k: 's' }, dateCell(v.date), { v: v.notes || '', k: 's', s: { wrap: true } }]))));
+
+  const bytes = xlsxBuildWorkbook(sheets);
+  const blob = new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'OrthoVault-master-database-' + todayStr() + '.xlsx';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  toast('Master Excel ready - ' + list.length + ' patients');
 }
 
 function exportCaseLogCsv() {
@@ -10214,7 +10715,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-diag-referrals'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-diag-referrals'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -10263,7 +10764,7 @@ function updateMasterVoiceUI() {
     // Hide entirely on screens that have their own fixed bottom action bar, or where a
     // generic floating trigger would visually clash with the screen's own content/buttons
     // (menus, AI sub-pages that ARE the AI feature already, forms with Save/Cancel bars, etc).
-    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report', 'photo-gallery'];
+    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'fu-cleanup', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report', 'photo-gallery'];
     // Search must stay available to every tier, not just AI tier \u2014 only the "Ask AI" menu
     // option inside is gated below, the button itself always shows (like the old search fab did).
     const shouldShow = !APP_LOCKED && !hideOnViews.includes(VIEW);
@@ -11712,6 +12213,7 @@ document.addEventListener('click', async (e) => {
     p.ageDays = AP_TEMP.ageDays;
     p.sex = AP_TEMP.sex;
     p.occupation = AP_TEMP.occupation;
+    p.place = (AP_TEMP.place || '').trim();
     p.diagnosis = AP_TEMP.diagnosis;
     p.chiefComplaints = AP_TEMP.caseType === 'opd' ? AP_TEMP.chiefComplaints : '';
     p.symptomDuration = AP_TEMP.symptomDuration;
@@ -11787,6 +12289,16 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
+  if (action === 'undo-last-reminder') {
+    const p = getPatient(el.dataset.id);
+    if (p && undoLastReminder(p)) {
+      await dbPutPatient(p);
+      await refreshPatients();
+      toast('Last reminder removed');
+      render();
+    }
+    return;
+  }
   if (action === 'log-reminder-sent') {
     const p = getPatient(el.dataset.id);
     if (p) {
@@ -11836,6 +12348,70 @@ document.addEventListener('click', async (e) => {
     toast(list.length + ' follow-up(s) moved to ' + fmtDate(newDate));
     render();
     return;
+  }
+  if (action === 'attn-toggle-section') { const k = el.dataset.value; ATTN_OPEN[k] = !ATTN_OPEN[k]; render(); return; }
+  if (action === 'attn-section-all') { ATTN_SHOWALL[el.dataset.value] = true; render(); return; }
+  if (action === 'attn-mark-completed') {
+    const p = getPatient(el.dataset.id);
+    if (!p) return;
+    p.status = 'Completed'; p.nextFollowUpDate = ''; p.followUpSnoozeCount = 0;
+    resolveReminders(p, 'void'); p.followUpConfirmedAt = null;
+    await dbPutPatient(p); await refreshPatients();
+    haptic(15); toast(p.name + ' marked completed'); render(); return;
+  }
+  if (action === 'fu-cleanup-start') { fuCuStart(); return; }
+  if (action === 'close-fu-cleanup') { CU_QUEUE = []; CU_INDEX = 0; VIEW = 'calendar'; render(); return; }
+  if (action === 'fu-cu-skip') { CU_STATS.skip++; CU_INDEX++; render(); return; }
+  if (action === 'fu-cu-remind') {
+    const p = getPatient(el.dataset.id);
+    if (p) {
+      const okSend = await reminderGate(e, p, el.href);
+      if (!okSend) return;
+      logReminder(p, 'whatsapp'); await dbPutPatient(p); await refreshPatients();
+      CU_STATS.remind++;
+    }
+    CU_INDEX++; render(); return;
+  }
+  if (action === 'fu-cu-called') {
+    const p = getPatient(el.dataset.id);
+    if (p) { logReminder(p, 'call'); await dbPutPatient(p); await refreshPatients(); CU_STATS.called++; toast('Call logged'); }
+    CU_INDEX++; render(); return;
+  }
+  if (action === 'fu-cu-date') {
+    const p = getPatient(el.dataset.id);
+    if (!p) return;
+    let ds;
+    if (el.dataset.days === 'custom') {
+      const inp = document.getElementById('cu-date');
+      ds = inp ? inp.value : '';
+      if (!ds || ds <= todayStr()) { toast('Pick a future date'); return; }
+    } else {
+      const d = new Date(); d.setDate(d.getDate() + parseInt(el.dataset.days, 10));
+      ds = d.toISOString().slice(0, 10);
+    }
+    p.nextFollowUpDate = ds; p.lastReminderSentAt = null; p.followUpConfirmedAt = null;
+    resolveReminders(p, 'void');
+    await dbPutPatient(p); await refreshPatients();
+    CU_STATS.date++; toast('Next follow-up: ' + fmtDateShort(ds));
+    CU_INDEX++; render(); return;
+  }
+  if (action === 'fu-cu-completed') {
+    const p = getPatient(el.dataset.id);
+    if (p) {
+      p.status = 'Completed'; p.nextFollowUpDate = ''; p.followUpSnoozeCount = 0;
+      resolveReminders(p, 'void'); p.followUpConfirmedAt = null;
+      await dbPutPatient(p); await refreshPatients(); CU_STATS.done++;
+    }
+    CU_INDEX++; render(); return;
+  }
+  if (action === 'fu-cu-lost') {
+    const p = getPatient(el.dataset.id);
+    if (p) {
+      p.status = 'Lost to follow-up'; p.followUpSnoozeCount = 0;
+      resolveReminders(p, 'no-response');
+      await dbPutPatient(p); await refreshPatients(); CU_STATS.lost++;
+    }
+    CU_INDEX++; render(); return;
   }
   if (action === 'attn-log-call') {
     const p = getPatient(el.dataset.id);
@@ -11913,6 +12489,7 @@ document.addEventListener('click', async (e) => {
     AP_TEMP.ageDays = src.ageDays;
     AP_TEMP.sex = src.sex;
     AP_TEMP.occupation = src.occupation||'';
+    AP_TEMP.place = src.place||'';
     AP_TEMP.diagnosis = src.diagnosis;
     AP_TEMP.caseType = src.caseType;
     AP_TEMP.condition = src.condition;
@@ -12424,6 +13001,11 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-duplicate-finder') { VIEW = 'more'; render(); return; }
   if (action === 'dup-set-primary') { DUP_MERGE_PRIMARY[el.dataset.group] = el.dataset.id; await render(); return; }
   if (action === 'dup-merge-group') { await mergeDuplicateGroup(parseInt(el.dataset.group, 10)); return; }
+  if (action === 'export-master-xlsx') {
+    if (!isProOrAbove()) { toast('Master database export is a Pro feature. Upgrade to enable.'); return; }
+    await exportMasterXlsx();
+    return;
+  }
   if (action === 'export-case-log') { 
     if (!isProOrAbove()) { toast('Export Case Log is a Pro feature. Upgrade to enable.'); return; }
     exportCaseLogCsv(); 
@@ -12603,10 +13185,11 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'start-reminder-queue') {
     const s = computeDashboardStats();
-    const filteredItems = ATTN_FILTER === 'reminded' ? s.important.filter(item => (item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt))
-      : ATTN_FILTER === 'pending' ? s.important.filter(item => !(item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt))
+    const af = (CAL_SUBVIEW === 'overdue') ? null : ATTN_FILTER;
+    const filteredItems = af === 'reminded' ? s.important.filter(item => (item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt))
+      : af === 'pending' ? s.important.filter(item => !(item.patient.lastReminderSentAt || item.patient.lastAutoReminderSentAt))
       : s.important;
-    RQ_QUEUE = filteredItems.filter(item => item.type === 'Follow-up' && item.patient.whatsapp).map(item => item.patient.id);
+    RQ_QUEUE = filteredItems.filter(item => item.type === 'Follow-up' && item.patient.whatsapp && (!item.isOverdue || fuClassify(item).bucket === 'remind')).map(item => item.patient.id);
     RQ_INDEX = 0; RQ_SENT_COUNT = 0;
     if (!RQ_QUEUE.length) { toast('No patients with a saved WhatsApp number.'); return; }
     VIEW = 'reminder-queue'; render(); return;
@@ -12846,6 +13429,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'diag-toggle-monthly') { DIAG_SHOW_MONTHLY = !DIAG_SHOW_MONTHLY; render(); return; }
+  if (action === 'diag-export-csv' && el.dataset.value) { exportDiagReferralsCsv(el.dataset.value); return; }
   if (action === 'diag-print-statement') { DIAG_STATEMENT_MONTH = el.dataset.value; VIEW = 'diag-statement'; render(); return; }
   if (action === 'close-diag-statement') { VIEW = 'diag-referrals'; DIAG_STATEMENT_MONTH = null; render(); return; }
   if (action === 'open-followup-report') { VIEW = 'followup-report'; render(); return; }
@@ -13390,7 +13974,7 @@ document.addEventListener('click', async (e) => {
     const copy = {
       id: uid(), patientCode: nextPatientCode(),
       name: src.name, age: src.age, ageMonths: src.ageMonths, ageDays: src.ageDays, sex: src.sex,
-      occupation: src.occupation, whatsapp: src.whatsapp, heightCm: src.heightCm, weightKg: src.weightKg,
+      occupation: src.occupation, place: src.place || '', whatsapp: src.whatsapp, heightCm: src.heightCm, weightKg: src.weightKg,
       comorbidities: (src.comorbidities||[]).slice(),
       diagnosis: src.diagnosis, chiefComplaints: src.chiefComplaints, condition: src.condition,
       caseType: src.caseType, surgeryType: src.surgeryType, laterality: src.laterality,
@@ -13538,8 +14122,20 @@ function readProfileFromDom() {
     }
     return;
   }
+  if (action === 'onboarding-next') {
+    if (ONB_STEP === 1) {
+      const nm = (document.getElementById('pr-doctorName') || {}).value || '';
+      if (!nm.trim()) { toast('Please enter your name'); return; }
+    }
+    onbStash();
+    ONB_STEP = Math.min(3, ONB_STEP + 1);
+    window.scrollTo(0, 0); render(); return;
+  }
+  if (action === 'onboarding-back') { onbStash(); ONB_STEP = Math.max(1, ONB_STEP - 1); window.scrollTo(0, 0); render(); return; }
+  if (action === 'onboarding-goto-signin') { onbStash(); ONB_STEP = 3; window.scrollTo(0, 0); render(); return; }
   if (action === 'onboarding-continue' || action === 'onboarding-skip') {
-    if (action === 'onboarding-continue') saveProfile(readProfileFromDom(), true);
+    if (action === 'onboarding-continue') onbStash();
+    ONB_STEP = 1;
     try { localStorage.setItem(ONBOARDING_DONE_KEY, '1'); } catch(e) {}
     VIEW = 'list';
     await refreshPatients(); await refreshClinicalBank(); loadReminders(); loadFilterState(); loadTabState(); render();
@@ -13750,7 +14346,10 @@ document.addEventListener('change', async (e) => {
     syncApTempFromDom();
     const parsed = parseAgeText(t.value);
     AP_TEMP.age = parsed.age; AP_TEMP.ageMonths = parsed.ageMonths; AP_TEMP.ageDays = parsed.ageDays;
-    render();
+    // Do NOT full-render here: this fires on blur, and replacing the DOM mid-tap swallowed the first tap on Save.
+    const fa = formatAge(AP_TEMP);
+    if (fa !== '\u2014' && t.value !== fa) t.value = fa;
+    updateApReadiness();
     return;
   }
   if (t.id === 'age-text') {
@@ -14245,7 +14844,7 @@ document.addEventListener('blur', async (e) => {
     const capitalized = autoCapitalizeWords(e.target.value);
     if (capitalized !== e.target.value) { e.target.value = capitalized; if (e.target.id === 'ap-diagnosis') AP_TEMP.diagnosis = capitalized; if (e.target.id === 'ap-name') AP_TEMP.name = capitalized; }
   }
-  if (e.target.id === 'search-input') { SEARCH = e.target.value; render(); }
+  if (e.target.id === 'search-input' && SEARCH !== e.target.value) { clearTimeout(SEARCH_DEBOUNCE_TIMER); SEARCH = e.target.value; render(); } // skip when unchanged: a re-render here swallowed the first tap on a result
   if (['ap-diagnosis','ov-diagnosis','ap-complaints','ov-complaints','ap-procedure','header-procedure-input','quick-fu-purpose'].includes(e.target.id)) {
     const id = e.target.id;
     setTimeout(() => hideAutocomplete(id), 200);
