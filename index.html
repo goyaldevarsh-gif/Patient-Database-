@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261013.11">
+<meta name="app-build" content="20261014.3">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -483,7 +483,14 @@
   [data-theme="dark"] .btn-primary { background:var(--accent) !important; border-color:var(--accent) !important; color:#0f172a; box-shadow:none; }
   [data-theme="dark"] .btn-primary .ic { stroke:#0f172a; }
   [data-theme="dark"] [style*="c7d2fe"] { background:rgba(129,140,248,0.1) !important; border-color:#4338ca !important; }
-  [data-theme="dark"] [style*="25D366"] { background:#128c3e !important; border-color:#128c3e !important; }
+  [data-theme="dark"] [style*="linear-gradient(135deg, var(--accent), var(--accent-dark))"] { background:linear-gradient(135deg,#4338ca,#3730a3) !important; }
+  [data-theme="dark"] .speak-btn.speaking, [data-theme="dark"] .compare-pick-badge, [data-theme="dark"] .cal-dot, [data-theme="dark"] .usearch-fab, [data-theme="dark"] .bottom-nav-add-circle, [data-theme="dark"] [style*="background:var(--accent);color:#fff"], [data-theme="dark"] [style*="background:var(--accent); color:#fff"] { color:#0f172a !important; }
+  button[style*="background:none"] { color:var(--ink); }
+  [style*="background:#25D366"] { background:#128c3e !important; border-color:#128c3e !important; }
+  /* Dark mode: inline hard-coded dark-on-light text colours -> theme tokens so nothing turns unreadable */
+  [data-theme="dark"] [style*="color:#4338ca"], [data-theme="dark"] [style*="color:#3730a3"], [data-theme="dark"] [style*="color:#5b21b6"], [data-theme="dark"] [style*="color:#6b21a8"], [data-theme="dark"] [style*="color:#7e22ce"] { color:var(--accent-dark) !important; }
+  [data-theme="dark"] [style*="color:#b45309"], [data-theme="dark"] [style*="color:#92400e"], [data-theme="dark"] [style*="color:#7c4a03"], [data-theme="dark"] [style*="color:#78350f"] { color:var(--amber) !important; }
+  [data-theme="dark"] [style*="color:#7f1d1d"], [data-theme="dark"] [style*="color:#991b1b"], [data-theme="dark"] [style*="color:#dc2626"], [data-theme="dark"] [style*="color:#b91c1c"] { color:var(--red) !important; }
   [data-theme="dark"] .scorer-group { background:rgba(30,41,59,0.7); }
   [data-theme="dark"] .help-box { background:#1e2452; border-color:#3730a3; color:#c7d2fe; }
   [data-theme="dark"] .thumb-wrap { background:var(--bg-soft); }
@@ -1243,14 +1250,228 @@ function fmtDate(d) { if (!d) return '\u2014'; const dt = new Date(d); if (isNaN
 function fmtDateShort(d) { if (!d) return '\u2014'; const dt = new Date(d); if (isNaN(dt)) return '\u2014'; return dt.toLocaleDateString('en-IN',{day:'2-digit',month:'short'}); }
 
 /* ============ Relative follow-up date picker (Number + Days/Weeks/Months → auto-locked date) ============ */
+function localYmd(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function parseYmd(str) {
+  if (!str || !/^\d{4}-\d{2}-\d{2}/.test(str)) return null;
+  const d = new Date(parseInt(str.slice(0,4),10), parseInt(str.slice(5,7),10)-1, parseInt(str.slice(8,10),10), 12, 0, 0);
+  return isNaN(d) ? null : d;
+}
+function todayStr() { return localYmd(new Date()); }
+
+/* ================= Follow-up scheduler (auto-suggested dates, editable in Settings) ================= */
+const FU_SCHED_KEY = 'orthovault-fu-schedule-v1';
+const FU_SCHED_ASKED_KEY = 'orthovault-fu-sunday-asked-v1';
+const FU_SCHED_DEFAULT = {
+  patterns: { standard: '2w, 4w, 8w, 3m, 6m, 1y', short: '2w, 6w, 3m' },
+  surgeryMap: { 'Hand & Wrist': 'short', 'Other': 'short' },
+  opd: { trauma: '1w, 2w, 4w, 6w, 3m, 6m', ctev: '1w', frozenback: '2w', ra: '6w', osteoporosis: '3m', other: '2w' },
+  offDay: '0'
+};
+const FU_OPD_LABELS = { trauma: 'Trauma OPD (sequence)', ctev: 'CTEV (gap)', frozenback: 'Frozen shoulder / back pain (gap)', ra: 'RA (gap)', osteoporosis: 'Osteoporosis (gap)', other: 'All other OPD (gap)' };
+const FU_DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+function loadFuSchedule() {
+  let st = {};
+  try { st = JSON.parse(localStorage.getItem(FU_SCHED_KEY) || '{}') || {}; } catch (e) { st = {}; }
+  return {
+    patterns: Object.assign({}, FU_SCHED_DEFAULT.patterns, st.patterns || {}),
+    surgeryMap: Object.assign({}, FU_SCHED_DEFAULT.surgeryMap, st.surgeryMap || {}),
+    opd: Object.assign({}, FU_SCHED_DEFAULT.opd, st.opd || {}),
+    offDay: (st.offDay !== undefined && st.offDay !== null) ? String(st.offDay) : FU_SCHED_DEFAULT.offDay
+  };
+}
+function saveFuSchedule(cfg) { try { localStorage.setItem(FU_SCHED_KEY, JSON.stringify(cfg)); } catch (e) {} }
+function parseFuSteps(text) {
+  const out = [];
+  String(text || '').split(/[,;\n]+/).forEach(tok => {
+    const m = /^\s*(\d{1,3})\s*(days?|d|weeks?|wks?|w|months?|mo|m|years?|yrs?|y)\s*$/i.exec(tok);
+    if (!m) return;
+    const n = parseInt(m[1], 10); if (!n) return;
+    out.push({ n: n, u: m[2][0].toLowerCase() });
+  });
+  return out;
+}
+function fuStepAdd(base, st) {
+  const d = new Date(base.getTime());
+  if (st.u === 'd') d.setDate(d.getDate() + st.n);
+  else if (st.u === 'w') d.setDate(d.getDate() + 7 * st.n);
+  else if (st.u === 'm') d.setMonth(d.getMonth() + st.n);
+  else d.setFullYear(d.getFullYear() + st.n);
+  return d;
+}
+function fuStepLabel(st) { return st.n + ' ' + ({d:'day',w:'week',m:'month',y:'year'}[st.u]) + (st.n > 1 ? 's' : ''); }
+function fuIsOffDay(dateStr) {
+  const cfg = loadFuSchedule();
+  if (cfg.offDay === 'none' || cfg.offDay === '') return false;
+  const d = parseYmd(dateStr);
+  return !!d && d.getDay() === Number(cfg.offDay);
+}
+function fuOffDayName() { const cfg = loadFuSchedule(); return cfg.offDay === 'none' ? '' : (FU_DAY_NAMES[Number(cfg.offDay)] || 'Sunday'); }
+function fuShiftOff(dateStr) {
+  if (!fuIsOffDay(dateStr)) return { date: dateStr, shifted: false };
+  const d = parseYmd(dateStr); d.setDate(d.getDate() + 1);
+  return { date: localYmd(d), shifted: true };
+}
+function fuIsTraumaOpd(p) {
+  if (!p) return false;
+  if (p.traumaCase === 'trauma') return true;
+  if (p.traumaCase === 'non') return false;
+  return p.condition === 'trauma' || autoDetectCondition((p.diagnosis || '') + ' ' + (p.chiefComplaints || '')) === 'trauma';
+}
+function fuOpdKey(p) {
+  const c = p.condition;
+  if (c === 'ctev' || c === 'ra' || c === 'osteoporosis') return c;
+  const t = ((p.diagnosis || '') + ' ' + (p.chiefComplaints || '')).toLowerCase();
+  if (/\bctev\b|club\s?foot/.test(t)) return 'ctev';
+  if (/rheumatoid/.test(t)) return 'ra';
+  if (/osteoporosis|osteopenia/.test(t)) return 'osteoporosis';
+  if (/frozen shoulder|adhesive capsulitis|back\s?pain|lumbar|\bldp\b|disc prolapse|\bpivd\b|sciatica/.test(t)) return 'frozenback';
+  return 'other';
+}
+/* Returns { date, label, source, shifted, none } or null. none=true means every milestone has passed. */
+function suggestFollowUp(p) {
+  if (!p) return null;
+  const cfg = loadFuSchedule();
+  const today = todayStr();
+  let steps, base, source, anchored = true;
+  if (p.caseType === 'surgical') {
+    const key = cfg.surgeryMap[p.surgeryType] || 'standard';
+    steps = parseFuSteps(cfg.patterns[key]);
+    if (!steps.length) steps = parseFuSteps(FU_SCHED_DEFAULT.patterns.standard);
+    base = parseYmd(p.surgeryDate) || parseYmd(today);
+    source = (p.surgeryType || 'Surgical') + ' schedule';
+  } else if (fuIsTraumaOpd(p)) {
+    steps = parseFuSteps(cfg.opd.trauma);
+    if (!steps.length) steps = parseFuSteps(FU_SCHED_DEFAULT.opd.trauma);
+    base = parseYmd(p.surgeryDate) || (p.createdAt ? parseYmd(localYmd(new Date(p.createdAt))) : null) || parseYmd(today);
+    source = 'Trauma OPD schedule';
+  } else {
+    const key = fuOpdKey(p);
+    let gap = parseFuSteps(cfg.opd[key])[0] || parseFuSteps(FU_SCHED_DEFAULT.opd[key])[0] || { n: 2, u: 'w' };
+    const raw = localYmd(fuStepAdd(parseYmd(today), gap));
+    const sh = fuShiftOff(raw);
+    return { date: sh.date, shifted: sh.shifted, none: false, label: fuStepLabel(gap), source: (FU_OPD_LABELS[key] || 'OPD').replace(/ \((gap|sequence)\)/, '') + ': ' + fuStepLabel(gap) };
+  }
+  const capDate = (p.condition === 'ctev' || p.condition === 'ra' || p.condition === 'osteoporosis') ? '' : localYmd(fuStepAdd(base, { n: FU_MAX_MONTHS, u: 'm' }));
+  for (let i = 0; i < steps.length; i++) {
+    const raw = localYmd(fuStepAdd(base, steps[i]));
+    if (capDate && raw > capDate) break;
+    if (raw > today) {
+      const sh = fuShiftOff(raw);
+      return { date: sh.date, shifted: sh.shifted, none: false, idx: i, total: steps.length, label: fuStepLabel(steps[i]),
+        source: source + ': ' + fuStepLabel(steps[i]) + ' after ' + (p.caseType === 'surgical' ? 'surgery' : 'first visit') };
+    }
+  }
+  return { date: '', shifted: false, none: true, label: '', source: source + ' complete' };
+}
+function fuSuggestNote(s) {
+  if (!s) return '';
+  if (s.none) return 'Auto: schedule complete — no more milestones';
+  return 'Auto: ' + s.source + (s.shifted ? ' · ' + fuOffDayName() + ' moved to next day' : '');
+}
+
+/* ============ Follow-up system v2: auto-Lost, 12-month cap, lost reasons ============ */
+const AUTOLOST_MIN_GAP = 7, FU_MAX_MONTHS = 12;
+const AUTOLOST_SOFT_KEY = 'orthovault-autolost-soft', AUTOLOST_HARD_KEY = 'orthovault-autolost-hard';
+function lsInt(k, def) { try { const v = localStorage.getItem(k); if (v === null) return def; const n = parseInt(v, 10); return isNaN(n) ? def : n; } catch (e) { return def; } }
+function getAutoLostSoft() { return lsInt(AUTOLOST_SOFT_KEY, 45); }   // days overdue (after a reminder); 0 = off
+function getAutoLostHard() { return lsInt(AUTOLOST_HARD_KEY, 90); }   // days overdue, reminder or not; 0 = off
+const AUTOLOST_ASKED_KEY = 'orthovault-autolost-asked-v1';
+const LOST_REASONS = ['Feeling better', 'Too far', 'Cost', 'Went elsewhere', 'Not reachable', 'Other'];
+function autoLostCheck(p) {
+  if (!p || !p.nextFollowUpDate || (p.noAutoLost && (p.noAutoLost === true || p.noAutoLost === p.nextFollowUpDate))) return null;
+  if (p.status && p.status !== 'Active' && p.status !== 'Active follow-up') return null;
+  if (p.surgeryStatus === 'awaiting') return null;
+  const d = overdueDays(p.nextFollowUpDate);
+  const soft = getAutoLostSoft(), hard = getAutoLostHard();
+  const streak = reminderStreak(p), since = daysSinceLastReminder(p);
+  if ((hard > 0 && d >= hard) || (soft > 0 && d >= soft && streak >= 1 && since !== null && since >= AUTOLOST_MIN_GAP)) return { days: d, reminders: streak };
+  return null;
+}
+function autoLostCandidates() { return PATIENTS.filter(p => autoLostCheck(p)); }
+function autoLostReasonText(c) {
+  return c.reminders ? ('No response after ' + c.reminders + ' reminder' + (c.reminders > 1 ? 's' : '')) : ('No visit - ' + c.days + ' days overdue');
+}
+async function autoLostApply(list) {
+  let n = 0;
+  for (const p of list) {
+    const c = autoLostCheck(p); if (!c) continue;
+    p.autoLost = { at: Date.now(), prevDate: p.nextFollowUpDate, reminders: c.reminders, daysOver: c.days };
+    p.lostReason = autoLostReasonText(c);
+    p.status = 'Lost to follow-up'; p.followUpSnoozeCount = 0;
+    resolveReminders(p, 'no-response');
+    try { await dbPutPatient(p); n++; } catch (e) {}
+  }
+  if (n) await refreshPatients();
+  return n;
+}
+async function autoLostUndo(p) {
+  if (!p) return;
+  p.status = 'Active';
+  if (p.autoLost && p.autoLost.prevDate) p.nextFollowUpDate = p.autoLost.prevDate;
+  p.noAutoLost = p.nextFollowUpDate;
+  delete p.autoLost; delete p.lostReason;
+  await dbPutPatient(p); await refreshPatients();
+}
+function autoLostRecent() {
+  const wk = Date.now() - 7 * 86400000;
+  return PATIENTS.filter(p => p.status === 'Lost to follow-up' && p.autoLost && p.autoLost.at >= wk);
+}
+function autoLostNoteHtml(p) {
+  if (p.status !== 'Lost to follow-up') return '';
+  if (!p.autoLost && !p.lostReason) return '';
+  const auto = !!p.autoLost;
+  return '<div style="background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:12px;">'
+    + '<div style="font-weight:800;color:var(--ink);">' + (auto ? 'Lost (auto, ' + esc(fmtDateShort(localYmd(new Date(p.autoLost.at)))) + ')' : 'Lost to follow-up') + '</div>'
+    + (p.lostReason ? '<div style="color:var(--muted);margin-top:2px;">Reason: ' + esc(p.lostReason) + '</div>' : '')
+    + '<div style="color:var(--muted);margin-top:2px;">Adding a follow-up visit reopens this patient.</div>'
+    + (auto ? '<button type="button" class="chip" style="margin-top:6px;" data-action="autolost-undo" data-id="' + p.id + '">Undo - keep Active</button>' : '')
+    + '</div>';
+}
+function askLostReason() {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'confirm-dialog-overlay';
+    ov.innerHTML = '<div class="confirm-dialog"><div class="confirm-dialog-title">Why did they not return?</div>'
+      + '<div class="confirm-dialog-message" style="display:flex;flex-wrap:wrap;gap:6px;">'
+      + LOST_REASONS.map(r => '<button type="button" class="chip" data-r="' + r + '">' + r + '</button>').join('') + '</div>'
+      + '<div class="confirm-dialog-actions"><button class="confirm-btn-cancel" type="button" data-r="">Skip</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', ev => {
+      const b = ev.target.closest('button[data-r]'); if (!b) return;
+      ov.remove(); resolve(b.dataset.r || '');
+    });
+  });
+}
+function lostReasonSummary() {
+  const m = {};
+  PATIENTS.filter(p => p.status === 'Lost to follow-up' && p.lostReason).forEach(p => {
+    const k = /^No response|^No visit/.test(p.lostReason) ? 'No response' : p.lostReason; m[k] = (m[k] || 0) + 1;
+  });
+  return Object.entries(m).sort((a, b) => b[1] - a[1]);
+}
+function fuTodaysRemindIds() {
+  const today = todayStr(), tm = localYmd(new Date(Date.now() + 86400000));
+  const reminded = p => (p.reminderLog || []).some(r => r.outcome === 'pending' && r.forDate === p.nextFollowUpDate);
+  const ids = [];
+  PATIENTS.forEach(p => {
+    if (!p.whatsapp || (p.status && p.status !== 'Active' && p.status !== 'Active follow-up')) return;
+    const d = p.nextFollowUpDate; if (!d) return;
+    if (d === tm || d === today) { if (!reminded(p)) ids.push(p.id); }
+    else if (d < today && fuClassify({ patient: p, date: d }).bucket === 'remind') ids.push(p.id);
+  });
+  return ids;
+}
+function suggestNextFollowUpDate(patient) { const r = suggestFollowUp(patient); return (r && r.date) || ''; }
+
+/* ============ Relative follow-up date picker (Number + Days/Weeks/Months, or pick a date) ============ */
 function computeRelativeFollowupDate(num, unit) {
   const n = parseInt(num, 10);
   if (!n || n < 1) return '';
-  const d = new Date();
+  const d = new Date(); d.setHours(12, 0, 0, 0);
   if (unit === 'weeks') d.setDate(d.getDate() + n * 7);
   else if (unit === 'months') d.setMonth(d.getMonth() + n);
   else d.setDate(d.getDate() + n); // days
-  return d.toISOString().slice(0,10);
+  return localYmd(d);
 }
 function relfuPreviewText(dateStr) {
   if (!dateStr) return '';
@@ -1258,21 +1479,81 @@ function relfuPreviewText(dateStr) {
   if (isNaN(d)) return '';
   return '\ud83d\udd12 ' + fmtDate(dateStr) + ' (' + d.toLocaleDateString('en-IN',{weekday:'short'}) + ')';
 }
-function relativeFollowupPickerHtml(idPrefix, currentDate, autoMode) {
+
+function relfuPreviewHtml(idPrefix, dateStr, note) {
+  let html = esc(relfuPreviewText(dateStr));
+  if (dateStr && fuIsOffDay(dateStr)) {
+    html += '<div style="color:#b45309;font-weight:700;font-size:11.5px;margin-top:4px;">⚠ ' + fuOffDayName() + ' — clinic closed. <button type="button" class="chip" style="margin-left:4px;" data-action="relfu-move-off" data-target="' + idPrefix + '">Move to next day</button></div>';
+  }
+  if (note) html += '<div style="font-size:10.5px;font-weight:600;color:var(--muted);margin-top:3px;">' + esc(note) + '</div>';
+  return html;
+}
+function relativeFollowupPickerHtml(idPrefix, currentDate, autoMode, note) {
   const autoAttr = autoMode ? ' data-relfu-mode="auto"' : '';
   return '<div class="row gap2" style="align-items:flex-end;">'
-    + '<div style="flex:1;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">In</label>'
+    + '<div style="flex:0.8;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">In</label>'
     + '<input class="input" type="number" min="1" max="365" inputmode="numeric" placeholder="" id="'+idPrefix+'-num" data-relfu="num" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
     + '</div>'
-    + '<div style="flex:1.3;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Unit</label>'
+    + '<div style="flex:1.1;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Unit</label>'
     + '<select class="select" id="'+idPrefix+'-unit" data-relfu="unit" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
     + '<option value="days">Days</option><option value="weeks" selected>Weeks</option><option value="months">Months</option>'
     + '</select></div>'
+    + '<div style="flex:1.5;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Or pick date</label>'
+    + '<input class="input" type="date" id="'+idPrefix+'-cal" data-relfu="cal" data-relfu-target="'+idPrefix+'" value="'+esc(currentDate||'')+'"'+autoAttr+'>'
     + '</div>'
-    + '<div id="'+idPrefix+'-preview" style="font-size:12px;font-weight:800;color:var(--accent);margin-top:6px;min-height:16px;">'+relfuPreviewText(currentDate)+'</div>'
+    + '</div>'
+    + '<div id="'+idPrefix+'-preview" style="font-size:12px;font-weight:800;color:var(--accent);margin-top:6px;min-height:16px;">'+relfuPreviewHtml(idPrefix, currentDate, note)+'</div>'
     + '<input type="hidden" id="'+idPrefix+'" value="'+esc(currentDate||'')+'">';
 }
-function todayStr() { return new Date().toISOString().slice(0,10); }
+function relfuApply(target, date, note, manual) {
+  const hidden = document.getElementById(target); if (hidden) hidden.value = date || '';
+  const cal = document.getElementById(target + '-cal'); if (cal) cal.value = date || '';
+  if (!manual) { const n = document.getElementById(target + '-num'); if (n) n.value = ''; }
+  const prev = document.getElementById(target + '-preview'); if (prev) prev.innerHTML = relfuPreviewHtml(target, date, note || '');
+  if (manual && target === 'ap-next-fu-date' && typeof AP_TEMP !== 'undefined' && AP_TEMP) { AP_TEMP.fuManual = true; AP_TEMP.fuNote = ''; }
+}
+async function relfuHandle(el, isChange) {
+  const target = el.dataset.relfuTarget; if (!target) return;
+  let date = '', note = '';
+  if (el.dataset.relfu === 'cal') {
+    date = el.value || '';
+    const n = document.getElementById(target + '-num'); if (n) n.value = '';
+  } else {
+    const numEl = document.getElementById(target + '-num');
+    const unitEl = document.getElementById(target + '-unit');
+    date = computeRelativeFollowupDate(numEl ? numEl.value : '', unitEl ? unitEl.value : 'weeks');
+    if (date) { const sh = fuShiftOff(date); if (sh.shifted) { note = fuOffDayName() + ' → moved to ' + fmtDate(sh.date); date = sh.date; } }
+  }
+  relfuApply(target, date, note, true);
+  if (isChange && el.dataset.relfuMode === 'auto' && date) {
+    await patchField('nextFollowUpDate', date);
+    toast('✓ Follow-up set for ' + fmtDate(date));
+    await render();
+  }
+}
+function apRefreshAutoFu() {
+  if (typeof VIEW === 'undefined' || VIEW !== 'add' || !AP_TEMP || AP_TEMP.fuManual) return;
+  syncApTempFromDom();
+  const sg = suggestFollowUp(AP_TEMP);
+  AP_TEMP.nextFollowUpDate = (sg && sg.date) || '';
+  AP_TEMP.fuNote = sg ? fuSuggestNote(sg) : '';
+  relfuApply('ap-next-fu-date', AP_TEMP.nextFollowUpDate, AP_TEMP.fuNote, false);
+  if (AP_TEMP.caseType === 'opd' && !AP_TEMP.traumaCase) {
+    const disp = fuIsTraumaOpd(AP_TEMP) ? 'trauma' : 'non';
+    document.querySelectorAll('[data-action="ap-set-trauma"]').forEach(b => b.classList.toggle('active', b.dataset.value === disp));
+  }
+}
+function fuOffDayPatients() {
+  const today = todayStr();
+  return PATIENTS.filter(p => p.status === 'Active' && p.nextFollowUpDate && p.nextFollowUpDate >= today && fuIsOffDay(p.nextFollowUpDate));
+}
+async function fuMoveOffDayPatients() {
+  const list = fuOffDayPatients();
+  for (const p of list) { p.nextFollowUpDate = fuShiftOff(p.nextFollowUpDate).date; await dbPutPatient(p); }
+  await refreshPatients();
+  return list.length;
+}
+
 
 const SURGERY_TYPE_GROUPS = [
   { label:'Core', items:[['Trauma','Trauma'],['Arthroplasty','Arthroplasty'],['Arthroscopy','Arthroscopy / Sports'],['Spine','Spine']] },
@@ -2522,6 +2803,24 @@ async function renderNotificationsView() {
   return html;
 }
 const CHANGELOG = [
+  { version:'1.4.2', date:'2026-10-14', features: [
+      'Patients who ignore reminders now move to Lost to follow-up automatically (45+ days overdue after a reminder, or 90+ days with none) - with a clear tag, a home-screen note and one-tap Undo',
+      'Adding a follow-up visit reopens a Lost patient instantly - nothing is ever deleted',
+      'Auto schedules stop at 12 months (chronic conditions like RA, osteoporosis and CTEV keep going) and offer to mark the case Completed',
+      'Today\u2019s reminders - one queue with everyone to remind: tomorrow, today and the overdue',
+      'Mark Lost now asks why (too far, cost, went elsewhere...) and the Follow-up Report summarises the reasons'
+  ] },
+  { version:'1.4.1', date:'2026-10-14', features: [
+      'Auto follow-up dates — the next follow-up is suggested for you: surgical cases by surgery type from the surgery date (2w, 4w, 8w, 3m, 6m, 1y), OPD trauma on its own 1w → 6m sequence, and other OPD cases by condition',
+      'Pick a follow-up date from the calendar, or type weeks/months — both stay in sync everywhere (Add Case, follow-up visit, change date)',
+      'Sunday is skipped — suggested dates that land on your clinic off-day move to the next day; pick a Sunday by hand and you just get a warning',
+      'Trauma / Non-trauma switch on OPD cases (auto-picked from the diagnosis, one tap to change)',
+      'Follow-up Schedules in More → Practice — edit every schedule, choose which surgeries use which, and set your off-day',
+      'After the last scheduled follow-up, the visit form offers to mark the case Completed',
+    ], improvements: [
+      'The first tap on Save after typing age no longer gets lost',
+      'Dates are now always your local date, even late at night',
+    ] },
   { version:'1.4.0', date:'2026-10-13', features: [
       'Overdue follow-ups sorted into buckets \u2014 Remind now, Call or decide, Waiting for reply, and Cold (4+ weeks) \u2014 with a note on whether the patient never came back or came and then stopped',
       'Clean up overdue, one by one \u2014 a card for each overdue patient with Remind, Called, new date, Completed, Lost and Skip',
@@ -2681,7 +2980,7 @@ function newPatientShape() {
     caseType:'surgical', condition:'', laterality:'bilateral',
     surgeryType:'Trauma', procedure:'', hospital:'', anaesthesiaType:'',
     side:'N/A', surgeryDate: todayStr(), status:'Active', notes:'', whatsapp:'',
-    lastReminderSentAt: null, reminderLog: [], followUpSnoozeCount: 0, researchFlag: false, researchNote: '',
+    lastReminderSentAt: null, reminderLog: [], followUpSnoozeCount: 0, researchFlag: false, researchNote: '', traumaCase: '',
     nextFollowUpDate:'',
     preOpImageCount:0, followUps:[], investigations:[], prescriptions:[], injections:[],
     ctev: null, ra: null, osteo: null,
@@ -2887,7 +3186,7 @@ function followUpContextLine(p) {
   const clinical = isSurgical ? (p.procedure || displayDiagnosis(p.diagnosis) || '') : (displayDiagnosis(p.diagnosis || p.chiefComplaints) || '');
   const lastFu = getLastFollowUpDate(p);
   const lastSeen = lastFu ? ('Last seen ' + fmtDateShort(lastFu)) : (p.surgeryDate ? (isSurgical ? 'Operated ' : 'Seen ') + fmtDateShort(p.surgeryDate) : 'No visits logged yet');
-  return (clinical ? esc(clinical) : '') + (clinical ? ' \u00b7 ' : '') + lastSeen;
+  return (clinical ? esc(clinical) : '') + (clinical ? ' \u00b7 ' : '') + lastSeen + (p.status === 'Lost to follow-up' && p.autoLost ? ' \u00b7 Lost (auto)' : '') + (p.status === 'Lost to follow-up' && p.lostReason ? ' \u00b7 ' + esc(p.lostReason) : '');
 }
 function overdueDays(dateStr) { if (!dateStr) return 0; const d = new Date(dateStr); if (isNaN(d)) return 0; const diff = Math.round((new Date(todayStr()) - d) / 86400000); return diff > 0 ? diff : 0; }
 function daysAgoLabel(dateStr) {
@@ -2965,6 +3264,7 @@ function renderFollowUpReportView() {
     + '<div class="field-label" style="margin-bottom:8px;">Visits logged, last 6 months</div>'
     + chart
     + '<p style="font-size:10.5px;color:var(--muted);text-align:center;margin-bottom:24px;">Compliance % = Returned \u00f7 (Returned + Lost). Pending cases aren\u2019t counted yet \u2014 outcome not known.</p>'
+    + (lostReasonSummary().length ? '<div class="card" style="margin-bottom:14px;font-size:12px;"><div class="field-label" style="margin-bottom:6px;">Why patients were lost</div>' + lostReasonSummary().map(([k,v]) => '<div class="row between" style="padding:2px 0;"><span>'+esc(k)+'</span><b>'+v+'</b></div>').join('') + '</div>' : '')
     + renderFollowUpStatusBrowser()
     + '</div></div>';
 }
@@ -4873,6 +5173,7 @@ function moreBodyHtml() {
     { group:'backup', title:'Recently Deleted', sub:'Restore a case deleted by mistake', html: moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted') },
     { group:'practice', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
     { group:'practice', title:'Follow-up Report', sub:'Compliance rate and monthly visit trends', html: moreRowHtml('calendar', 'Follow-up Report', 'See how many patients actually return, and your monthly follow-up trend', 'open-followup-report') },
+    { group:'practice', title:'Follow-up Schedules', sub:'Auto follow-up dates, off-day, trauma/OPD gaps', html: moreRowHtml('calendar', 'Follow-up Schedules', 'Auto-suggested follow-up dates by surgery type, plus your off-day rule', 'open-fu-schedule') },
     { group:'practice', title:'Marketing Contacts', sub:'Auto-synced patient contacts for broadcasts', html: moreRowHtml('users', 'Marketing Contacts', 'Every patient contact, auto-collected \u2014 broadcast reels/updates to all at once', 'open-mc') },
     { group:'practice', title:'Scheme Code Finder', sub:'RGHS / MAA Yojana package codes & rates', html: moreRowHtml('clipboard', 'Scheme Code Finder', 'Look up RGHS / MAA Yojana package codes & rates', 'open-scheme-finder') },
     { group:'data', title:'Photo Gallery', sub:'Browse all patient photos in one grid', html: moreRowHtml('camera', 'Photo Gallery', 'Instagram-style grid of every patient\u2019s photos \u2014 filter by category, region, time or patient', 'open-photo-gallery') },
@@ -5229,6 +5530,7 @@ const ABOUT_SECTIONS = [
   { key:'practice-tools', title:'Practice Tools (More \u2192 Practice)', icon:'clipboard', items:[
     ['Diagnostic Referrals', 'Track MRI/CT/USG referrals and your cut. Add a centre once (Ananta and Emkay have ready rate lists \u2014 one tap), then Add Entry: patient, investigation, with/without contrast, discount code (A0\u2013A5) and the app works out the patient discount and your cut from the centre\u2019s pool %. Active vs Paid history, pending-cut total, monthly breakdown with a printable statement, and a Watchlist tab for patients to call back after a scan.'],
     ['Month-end Excel for referrals', 'In the monthly breakdown tap the download icon on any month (or "Download all months") \u2014 you get an Excel/CSV with date, patient, centre, investigation, rate, code, discount, your cut, paid status, plus totals and a centre-wise summary.'],
+    ['Follow-up Schedules', 'The app suggests each next follow-up date for you. Surgical cases follow Standard (2w, 4w, 8w, 3m, 6m, 1y) or Short (2w, 6w, 3m) counted from the surgery date; OPD trauma follows 1w, 2w, 4w, 6w, 3m, 6m from the first visit; other OPD cases use a single gap by condition. Dates that fall on your clinic off-day (Sunday by default) move to the next day. You can change any date by typing weeks/months or picking it from the calendar, and edit every schedule here.'],
     ['Follow-up Report', 'Your compliance rate (returned vs lost), monthly visit chart, and a browser for patients by status \u2014 Lost, Completed, Pending, MRI/CT Watch.'],
     ['Marketing Contacts', 'Every patient contact is collected automatically. Broadcast a message to all one by one, save everyone to your phone contacts, or export CSV.'],
     ['Scheme Code Finder', 'Search RGHS or MAA Yojana package codes and rates by procedure name. Also available inside a patient\u2019s Overview so you can attach a matched package directly to that case (shows up in Print Case Summary too). Free local search, no AI cost.'],
@@ -5424,6 +5726,32 @@ function renderSettingsView() {
     + '<div class="bottom-bar"><button class="btn btn-primary btn-block" data-action="save-settings">Save profile</button></div>'
     + '</div>';
 }
+function renderFuScheduleView() {
+  const cfg = loadFuSchedule();
+  const prev = t => { const st = parseFuSteps(t); return st.length ? st.map(fuStepLabel).join(' → ') : 'Invalid — use e.g. 2w, 6w, 3m, 1y'; };
+  const patRow = (key, label) => '<div style="margin-bottom:10px;"><label class="field-label">'+label+'</label><input class="input" id="fs-pat-'+key+'" value="'+esc(cfg.patterns[key])+'" autocomplete="off"><div id="fsprev-fs-pat-'+key+'" style="font-size:11px;color:var(--muted);margin-top:3px;">'+esc(prev(cfg.patterns[key]))+'</div></div>';
+  const opdRow = key => '<div style="margin-bottom:10px;"><label class="field-label">'+esc(FU_OPD_LABELS[key])+'</label><input class="input" id="fs-opd-'+key+'" value="'+esc(cfg.opd[key])+'" autocomplete="off"><div id="fsprev-fs-opd-'+key+'" style="font-size:11px;color:var(--muted);margin-top:3px;">'+esc(prev(cfg.opd[key]))+'</div></div>';
+  const mapRows = SURGERY_TYPES.map((t, i) => '<div class="row between" style="margin-bottom:8px;gap:10px;"><span style="font-size:12.5px;font-weight:600;flex:1;">'+esc(t)+'</span><select class="select" id="fs-map-'+i+'" data-type="'+esc(t)+'" style="flex:none;width:130px;"><option value="standard"'+((cfg.surgeryMap[t]||'standard')==='standard'?' selected':'')+'>Standard</option><option value="short"'+(cfg.surgeryMap[t]==='short'?' selected':'')+'>Short</option></select></div>').join('');
+  const offOpts = ['none'].concat([0,1,2,3,4,5,6]).map(v => '<option value="'+v+'"'+(String(v)===cfg.offDay?' selected':'')+'>'+(v==='none'?'No off-day':FU_DAY_NAMES[v])+'</option>').join('');
+  const nOff = fuOffDayPatients().length;
+  return '<div style="padding-bottom:90px;">'
+    + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3"><button class="icon-btn" data-action="close-fu-schedule">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Follow-up Schedules</h2></div></div>'
+    + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
+    + '<div style="font-size:12px;color:var(--muted);">The app suggests the next follow-up date from these. You can always change the date by hand (weeks/months or the calendar). Write steps like <b>2w, 6w, 3m, 1y</b> (d = days, w = weeks, m = months, y = years).</div>'
+    + '<div class="card"><label class="field-label">Clinic off-day</label><select class="select" id="fs-offday">'+offOpts+'</select><div style="font-size:11px;color:var(--muted);margin-top:4px;">Suggested dates that land on this day move to the next day.</div>'
+    + (nOff ? '<button type="button" class="btn btn-sm btn-block" style="margin-top:10px;" data-action="fs-move-offdays">'+nOff+' upcoming follow-up'+(nOff>1?'s':'')+' fall on '+esc(fuOffDayName())+' — move to next day</button>' : '')
+    + '</div>'
+    + '<div class="card"><div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:8px;">SURGICAL SCHEDULES (counted from surgery date)</div>'
+    + patRow('standard','Standard') + patRow('short','Short') + '</div>'
+    + '<div class="card"><div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:8px;">WHICH SURGERY USES WHICH</div>'+mapRows+'</div>'
+    + '<div class="card"><div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:8px;">OPD (trauma counts from first visit; others use one gap after each visit)</div>'
+    + ['trauma','ctev','frozenback','ra','osteoporosis','other'].map(opdRow).join('') + '</div>'
+    + '</div>'
+    + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
+    + '<button class="btn" style="flex:1;" data-action="fs-reset">Reset to defaults</button>'
+    + '<button class="btn btn-primary" style="flex:2;" data-action="fs-save">Save schedules</button>'
+    + '</div></div>';
+}
 function renderAppSettingsView() {
   return '<div style="padding-bottom:20px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
@@ -5444,7 +5772,15 @@ function renderAppSettingsView() {
     + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">The app asks for confirmation before another WhatsApp once this many reminders go unanswered.</p>'
     + '<div class="row between" style="margin-top:12px;"><span style="font-size:13px;font-weight:600;">Gap between reminders</span><div class="seg" style="width:auto;">'
     + [[5,'5d'],[7,'7d'],[10,'10d'],[14,'14d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getReminderGap()===v?' active':'')+'" data-action="set-reminder-gap" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
-    + '</div></div></div></div>'
+    + '</div></div>'
+    + '<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;"><label class="field-label">Auto-move to Lost</label>'
+    + '<div class="row between"><span style="font-size:13px;font-weight:600;">After a reminder, overdue</span><div class="seg" style="width:auto;">'
+    + [[30,'30d'],[45,'45d'],[60,'60d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getAutoLostSoft()===v?' active':'')+'" data-action="set-autolost-soft" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
+    + '</div></div>'
+    + '<div class="row between" style="margin-top:12px;"><span style="font-size:13px;font-weight:600;">Even without reminder</span><div class="seg" style="width:auto;">'
+    + [[60,'60d'],[90,'90d'],[120,'120d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getAutoLostHard()===v?' active':'')+'" data-action="set-autolost-hard" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
+    + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Lost patients keep all data - adding a visit reopens them, and every auto move has an Undo.</p></div>'
+    + '</div></div>'
     + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
     + '</div>'
     + notifCardHtml()
@@ -5832,33 +6168,6 @@ function suggestVisitLabel(patient) {
   return '3 Months';
 }
 
-function suggestNextFollowUpDate(patient) {
-  const diagnosis = displayDiagnosis(patient.diagnosis || patient.chiefComplaints || '');
-  const isSurgical = patient.caseType === 'surgical';
-  const isTrauma = isTraumaLike(patient);
-  const pod = isSurgical ? calcPOD(patient, todayStr()) : null;
-  
-  let days = 7;
-  if (isSurgical && isTrauma) {
-    if (pod === null || pod <= 3) days = 3;
-    else if (pod <= 7) days = 7;
-    else if (pod <= 42) days = 14;
-    else days = 30;
-  } else if (isSurgical) {
-    if (pod === null || pod <= 1) days = 3;
-    else if (pod <= 7) days = 7;
-    else days = 14;
-  } else {
-    if (diagnosis.toLowerCase().includes('ctev')) days = 7;
-    else if (diagnosis.toLowerCase().includes('arthritis') || diagnosis.toLowerCase().includes('ra')) days = 14;
-    else if (diagnosis.toLowerCase().includes('dexa') || diagnosis.toLowerCase().includes('osteoporosis')) days = 30;
-    else days = 14;
-  }
-  
-  const next = new Date(todayStr());
-  next.setDate(next.getDate() + days);
-  return next.toISOString().split('T')[0];
-}
 
 function daysBetween(d1, d2) {
   if (!d1 || !d2) return 0;
@@ -6042,7 +6351,7 @@ function renderDashboardSection() {
   const dueRemindersCount = (REMINDERS && REMINDERS.length) ? REMINDERS.filter(r => !r.done && r.dueDate && r.dueDate <= todayStr()).length : 0;
 
   const overdueCount = s.important.filter(i => i.type === 'Follow-up' && i.isOverdue).length;
-  const coldOverdueCount = s.important.filter(i => i.type === 'Follow-up' && i.isOverdue && overdueDays(i.date) >= FU_COLD_DAYS).length;
+  const coldOverdueCount = s.important.filter(i => i.type === 'Follow-up' && i.isOverdue && fuClassify(i).bucket === 'cold').length;
   const todayFollowUpCount = s.important.filter(i => i.type === 'Follow-up' && !i.isOverdue).length;
   const tomorrowCount = s.dueTomorrowList.length;
 
@@ -6119,6 +6428,14 @@ function renderDashboardSection() {
           + '</button>'
         + '</div>';
     }
+    const todaysN = fuTodaysRemindIds().length;
+    if (todaysN) {
+      html += '<button type="button" class="btn btn-block" style="margin:-8px 0 14px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-todays-reminders">'+ic('message')+' Today\u2019s reminders \u2014 '+todaysN+'</button>';
+    }
+    const alN = autoLostRecent().length;
+    if (alN) {
+      html += '<button type="button" data-action="dash-autolost-view" class="card" style="width:100%;text-align:left;padding:9px 12px;margin:-6px 0 14px;font-size:12px;font-weight:700;color:#1f2937;">'+alN+' patient'+(alN>1?'s':'')+' moved to Lost this week \u00b7 <span style="color:var(--accent-dark);">review / undo</span></button>';
+    }
   }
 
   const complianceObj = PATIENTS.length ? computeFollowUpCompliance() : { compliancePct: null };
@@ -6181,7 +6498,7 @@ function fuClassify(item) {
   const lim = getReminderLimit(), gap = getReminderGap();
   const streak = reminderStreak(p), since = daysSinceLastReminder(p);
   let bucket;
-  if (days >= FU_COLD_DAYS) bucket = 'cold';
+  if (days >= FU_COLD_DAYS && !(streak === 0 && getAutoLostSoft() > 0 && days < getAutoLostSoft())) bucket = 'cold';
   else if (lim > 0 && streak >= lim) bucket = 'decide';
   else if (gap > 0 && since !== null && since < gap && reminderStats(p).pending > 0) bucket = 'waiting';
   else bucket = 'remind';
@@ -6876,7 +7193,7 @@ function initApTemp() {
   // only in JS memory where a backgrounded/reloaded tab (e.g. after using the camera)
   // would lose them for good. See handlePhotoInputChange / handleCategorizedPhotoChange.
   AP_TEMP = { id: uid(), name:'', age:'', ageMonths:'', ageDays:'', sex:'M', occupation:'', place:'', diagnosis:'', chiefComplaints:'', symptomDuration:'', regions:[], caseType:'surgical', condition:'', laterality:'bilateral',
-    surgeryType:'Trauma', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'' };
+    surgeryType:'Trauma', procedure:'', hospital:'', anaesthesiaType:'', side:'Left', surgeryDate: todayStr(), nextFollowUpDate: '', whatsapp:'', notes:'', paymentMethod:'', insuranceType:'', cashAmount:'', traumaCase:'', fuManual:false, fuNote:'' };
   AP_OPEN_SECTION = AP_TEMP.caseType === 'surgical' ? 4 : 2;
   AP_DIAG_CONFIRMED = false;
   AP_INVESTIGATIONS = [];
@@ -7044,6 +7361,12 @@ function loadLastPatientTemplate() {
 }
 function renderAddView() {
   const isSurgical = AP_TEMP.caseType === 'surgical';
+  if (!AP_TEMP.fuManual) {
+    const _sg = suggestFollowUp(AP_TEMP);
+    AP_TEMP.nextFollowUpDate = (_sg && _sg.date) || '';
+    AP_TEMP.fuNote = _sg ? fuSuggestNote(_sg) : '';
+  }
+  const _trDisp = AP_TEMP.traumaCase || (fuIsTraumaOpd(AP_TEMP) ? 'trauma' : 'non');
   const tab2Label = isSurgical ? 'Diagnosis' : 'Complaints & Diagnosis';
   const tab3Label = isSurgical ? 'Surgery Details' : 'Special Tracking';
 
@@ -7203,6 +7526,10 @@ function renderAddView() {
     + '</div></div>'
     + '<div style="flex:none;width:150px;"><label class="field-label">'+(isSurgical?'Surgery date':'Visit date')+'</label><input class="input" type="date" id="ap-date" max="'+todayStr()+'" value="'+esc(AP_TEMP.surgeryDate)+'"></div>'
     + '</div>'
+    + (!isSurgical ? '<div style="margin-bottom:12px;"><label class="field-label">Injury type</label><div class="seg">'
+      + '<button class="seg-btn'+(_trDisp==='trauma'?' active':'')+'" data-action="ap-set-trauma" data-value="trauma">Trauma</button>'
+      + '<button class="seg-btn'+(_trDisp==='non'?' active':'')+'" data-action="ap-set-trauma" data-value="non">Non-trauma</button>'
+      + '</div><div style="font-size:10.5px;color:var(--muted);margin-top:4px;">'+(AP_TEMP.traumaCase ? 'Trauma OPD follows the 1w, 2w, 4w, 6w... schedule' : 'Auto-picked from diagnosis \u2014 tap to change')+'</div></div>' : '')
 
     + pinnedDetailsHtml
     + '<div id="ap-readiness-indicator" style="display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:'+(apReady?'var(--emerald)':'var(--muted)')+';margin:-2px 0 12px;padding-left:2px;">'
@@ -7212,7 +7539,7 @@ function renderAddView() {
     + aiAssistantPill
     + '<div class="card" style="padding:13px 14px 16px;margin-top:10px;">'
     + '<label class="field-label">Next follow-up date (optional)</label>'
-    + relativeFollowupPickerHtml('ap-next-fu-date', AP_TEMP.nextFollowUpDate, false)
+    + relativeFollowupPickerHtml('ap-next-fu-date', AP_TEMP.nextFollowUpDate, false, AP_TEMP.fuNote)
     + '</div>'
     + '</div>'
     + '<div class="bottom-bar" style="position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;">'
@@ -7316,6 +7643,13 @@ function placeDatalistHtml() {
   const opts = Object.keys(seen).sort((a, b) => seen[b] - seen[a]).slice(0, 300);
   return '<datalist id="place-list">' + opts.map(v => '<option value="' + esc(v) + '"></option>').join('') + '</datalist>';
 }
+function fuTraumaToggleHtml(p) {
+  const cur = p.traumaCase || (fuIsTraumaOpd(p) ? 'trauma' : 'non');
+  return '<div><label class="field-label">Injury type (decides the follow-up schedule)</label><div class="seg">'
+    + '<button class="seg-btn'+(cur==='trauma'?' active':'')+'" data-action="ov-set-trauma" data-value="trauma">Trauma</button>'
+    + '<button class="seg-btn'+(cur==='non'?' active':'')+'" data-action="ov-set-trauma" data-value="non">Non-trauma</button>'
+    + '</div></div>';
+}
 function renderOverviewTab(p) {
   const overdue = isOverdue(p.nextFollowUpDate);
   const isSurgical = p.caseType === 'surgical';
@@ -7326,6 +7660,7 @@ function renderOverviewTab(p) {
     + '<div><label class="field-label">Occupation (optional)</label><input class="input" data-field="occupation" placeholder="" value="'+esc(p.occupation||'')+'"></div>'
     + '<div><div class="row between" style="margin-bottom:4px;"><label class="field-label" style="margin-bottom:0;">Clinical notes</label><div class="row gap1">'+micButtonHtml('ov-notes')+'<button type="button" class="icon-btn" style="width:26px;height:26px;" data-action="open-reading-mode" data-id="'+p.id+'" title="Reading Mode">'+ic('book')+'</button></div></div>'
     + '<textarea class="textarea" id="ov-notes" rows="5" maxlength="5000" data-field="notes" placeholder="">'+esc(p.notes)+'</textarea></div>'
+    + (!isSurgical ? fuTraumaToggleHtml(p) : '')
     + (p.condition ? '<div class="row between" style="align-items:center;"><span style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></span><button type="button" class="chip" style="font-size:10px;padding:3px 8px;" data-action="ov-show-tracking-pick">Change</button></div>'
         + (OV_SHOW_TRACKING_PICK ? '<select class="select" id="ov-tracking-select" style="margin-top:6px;"><option value="">\u2014 None (remove tracking) \u2014</option><option value="ctev"'+(p.condition==='ctev'?' selected':'')+'>CTEV</option><option value="ra"'+(p.condition==='ra'?' selected':'')+'>RA</option><option value="osteoporosis"'+(p.condition==='osteoporosis'?' selected':'')+'>Osteoporosis</option><option value="trauma"'+(p.condition==='trauma'?' selected':'')+'>Trauma</option></select>' : '')
         : (!isSurgical ? (OV_SHOW_TRACKING_PICK
@@ -7360,6 +7695,7 @@ function renderOverviewTab(p) {
     + ((p.comorbidities||[]).length ? '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:5px;">Co-morbidities</div><div style="display:flex;flex-wrap:wrap;gap:6px;">'+p.comorbidities.map(c=>'<span class="badge badge-indigo" style="font-weight:600;">+ '+esc(c)+'</span>').join('')+'</div></div>' : '')
     + '<div><div style="font-size:10.5px;color:var(--muted);margin-bottom:2px;">Clinical Notes</div><div style="font-size:12.5px;color:#334155;white-space:pre-wrap;">'+(p.notes ? esc(p.notes) : '<span style="color:var(--muted);">No notes yet.</span>')+'</div></div>'
     + (!p.chiefComplaints && !(p.comorbidities||[]).length && !p.notes ? '<p style="font-size:12px;color:var(--muted);margin:0;">Nothing added yet.</p>' : '')
+    + (!isSurgical ? fuTraumaToggleHtml(p) : '')
     + (p.condition ? '<div class="row between" style="align-items:center;"><span style="font-size:12px;"><span style="color:var(--muted);">Special tracking:</span> <b>'+esc(p.condition.toUpperCase())+'</b></span><button type="button" class="chip" style="font-size:10px;padding:3px 8px;" data-action="ov-show-tracking-pick">Change</button></div>'
         + (OV_SHOW_TRACKING_PICK ? '<select class="select" id="ov-tracking-select" style="margin-top:6px;"><option value="">\u2014 None (remove tracking) \u2014</option><option value="ctev"'+(p.condition==='ctev'?' selected':'')+'>CTEV</option><option value="ra"'+(p.condition==='ra'?' selected':'')+'>RA</option><option value="osteoporosis"'+(p.condition==='osteoporosis'?' selected':'')+'>Osteoporosis</option><option value="trauma"'+(p.condition==='trauma'?' selected':'')+'>Trauma</option></select>' : '')
         : (!isSurgical ? (OV_SHOW_TRACKING_PICK
@@ -7380,6 +7716,7 @@ function renderOverviewTab(p) {
   const usefulRead = reminderMiniCardHtml(p);
 
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
+    + autoLostNoteHtml(p)
     + (p.condition === 'ra' && p.ra && p.ra.cspineFlag ? '<div class="cspine-alert">'+ic('alert')+' C-spine flagged \u2014 inform anaesthesia before any surgery (intubation/positioning precautions).</div>' : '')
     + (INITIAL_VISIT_SUMMARY_CACHE.length ? '<div style="font-size:12.5px;font-weight:800;color:var(--accent-dark);background:rgba(67,56,202,0.06);border-radius:10px;padding:9px 12px;">'+ic('check')+' At first visit: '+INITIAL_VISIT_SUMMARY_CACHE.join(', ')+'</div>' : '')
     + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">'
@@ -7698,7 +8035,9 @@ async function renderImagesRecordsTab(p) {
 function renderSmartFollowupFormLayer1(p) {
   const pod = p.caseType === 'surgical' && p.surgeryDate ? calcPOD(p, todayStr()) : null;
   const suggested = suggestVisitLabel(p);
-  const suggestedNextDate = suggestNextFollowUpDate(p);
+  const fuSugg = suggestFollowUp(p);
+  const suggestedNextDate = (fuSugg && fuSugg.date) || '';
+  const fuAllDone = !!(fuSugg && fuSugg.none);
   
   return '<div style="margin-bottom:16px;">'
     + '<label class="field-label">When was this visit?</label>'
@@ -7723,13 +8062,14 @@ function renderSmartFollowupFormLayer1(p) {
     + '</div>'
     + '<div style="margin-bottom:16px;">'
     + '<label class="field-label">Next follow-up?</label>'
-    + '<div id="fu-next-followup-wrap">'
-    + relativeFollowupPickerHtml('fu-next-followup', suggestedNextDate||'', false)
-    + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">'+ic('sparkle')+' Auto-suggested \u2014 enter a number and unit to change it</p>'
+    + '<div id="fu-next-followup-wrap"'+(fuAllDone?' style="opacity:0.35;pointer-events:none;"':'')+'>'
+    + relativeFollowupPickerHtml('fu-next-followup', suggestedNextDate||'', false, fuSugg ? fuSuggestNote(fuSugg) : '')
+    + '<p style="font-size:10.5px;color:var(--muted);margin:4px 0 0;">'+ic('sparkle')+' Change it: type weeks/months, or pick a date from the calendar</p>'
     + '</div>'
     + '<label class="row gap2" style="align-items:center;margin-top:10px;cursor:pointer;">'
-    + '<input type="checkbox" id="fu-no-followup-needed" onchange="var w=document.getElementById(\'fu-next-followup-wrap\'); w.style.opacity=this.checked?0.35:1; w.style.pointerEvents=this.checked?\'none\':\'auto\';" style="width:16px;height:16px;flex:none;">'
+    + '<input type="checkbox" id="fu-no-followup-needed"'+(fuAllDone?' checked':'')+' onchange="var w=document.getElementById(\'fu-next-followup-wrap\'); w.style.opacity=this.checked?0.35:1; w.style.pointerEvents=this.checked?\'none\':\'auto\';" style="width:16px;height:16px;flex:none;">'
     + '<span style="font-size:12px;font-weight:600;">No further follow-up needed (case complete)</span>'
+    + (fuAllDone ? '<div style="font-size:11px;color:var(--muted);margin-top:4px;">All scheduled milestones are done \u2014 marking this case Completed. Untick to keep following up.</div>' : '')
     + '</label>'
     + '</div>';
 }
@@ -9652,6 +9992,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'planned-surgeries') { app.innerHTML = renderPlannedSurgeriesView(); return; }
   if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
   if (VIEW === 'fu-cleanup') { app.innerHTML = renderFuCleanupView(); return; }
+  if (VIEW === 'fu-schedule') { app.innerHTML = renderFuScheduleView(); return; }
   if (VIEW === 'marketing-contacts') { app.innerHTML = renderMarketingContactsView(); return; }
   if (VIEW === 'broadcast-queue') { app.innerHTML = renderBroadcastQueueView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
@@ -10391,6 +10732,7 @@ async function exportBackup(auto) {
     zip.file('cases.json', JSON.stringify(allPatients, null, 2));
     zip.file('reminders.json', JSON.stringify(REMINDERS, null, 2));
     zip.file('profile.json', JSON.stringify(loadProfile(), null, 2));
+    try { zip.file('fu-schedule.json', JSON.stringify(loadFuSchedule(), null, 2)); } catch (e) {}
     for (const p of allPatients) {
       const images = await dbGetImagesByPatient(p.id);
       for (const im of images) {
@@ -10470,6 +10812,8 @@ async function importBackup(file) {
       } catch(e) {}
     }
 
+    const fuSchedEntry = zip.file('fu-schedule.json');
+    if (fuSchedEntry) { try { saveFuSchedule(JSON.parse(await fuSchedEntry.async('string'))); } catch (e) {} }
     const profileEntry = zip.file('profile.json');
     if (profileEntry) {
       try { saveProfile(JSON.parse(await profileEntry.async('string')), true); } catch(e) {}
@@ -10715,7 +11059,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-diag-referrals'];
+const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-fu-schedule','close-diag-referrals'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -10764,7 +11108,7 @@ function updateMasterVoiceUI() {
     // Hide entirely on screens that have their own fixed bottom action bar, or where a
     // generic floating trigger would visually clash with the screen's own content/buttons
     // (menus, AI sub-pages that ARE the AI feature already, forms with Save/Cancel bars, etc).
-    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'fu-cleanup', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report', 'photo-gallery'];
+    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'fu-cleanup', 'fu-schedule', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report', 'photo-gallery'];
     // Search must stay available to every tier, not just AI tier \u2014 only the "Ask AI" menu
     // option inside is gated below, the button itself always shows (like the old search fab did).
     const shouldShow = !APP_LOCKED && !hideOnViews.includes(VIEW);
@@ -11063,7 +11407,7 @@ async function signOutAndWipe() {
   } catch (e) { console.error('wipe: IndexedDB clear failed', e); toast('Could not clear all data'); }
   // localStorage: wipe everything except harmless device preferences
   try {
-    const keep = [THEME_KEY, FONT_SIZE_KEY, ACCENT_KEY, ONBOARDING_DONE_KEY, REMINDER_LIMIT_KEY, REMINDER_GAP_KEY];
+    const keep = [THEME_KEY, FONT_SIZE_KEY, ACCENT_KEY, ONBOARDING_DONE_KEY, REMINDER_LIMIT_KEY, REMINDER_GAP_KEY, AUTOLOST_SOFT_KEY, AUTOLOST_HARD_KEY, FU_SCHED_KEY, FU_SCHED_ASKED_KEY, AUTOLOST_ASKED_KEY];
     const saved = {};
     keep.forEach(k => { const v = localStorage.getItem(k); if (v !== null) saved[k] = v; });
     localStorage.clear();
@@ -11938,6 +12282,17 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') { AP_TEMP.condition = ''; AP_OPEN_SECTION = 4; } else { AP_OPEN_SECTION = 2; } render(); return; }
+  if (action === 'ap-set-trauma') { syncApTempFromDom(); AP_TEMP.traumaCase = el.dataset.value; render(); return; }
+  if (action === 'relfu-move-off') {
+    const tg = el.dataset.target; const hv = document.getElementById(tg);
+    if (hv && hv.value) { const sh = fuShiftOff(hv.value); relfuApply(tg, sh.date, 'Moved to ' + fmtDate(sh.date), true); }
+    return;
+  }
+  if (action === 'ov-set-trauma') {
+    const pt = getPatient(SELECTED_ID);
+    if (pt) { pt.traumaCase = el.dataset.value; await savePatient(pt); await renderTabBody(getPatient(SELECTED_ID)); toast(el.dataset.value === 'trauma' ? 'Marked Trauma \u2014 follow-up suggestions use the trauma schedule' : 'Marked Non-trauma'); }
+    return;
+  }
   if (action === 'ap-set-sex') { syncApTempFromDom(); AP_TEMP.sex = el.dataset.value; render(); return; }
   if (action === 'ap-set-payment') { syncApTempFromDom(); AP_TEMP.paymentMethod = el.dataset.value; render(); return; }
   if (action === 'ap-toggle-section') {
@@ -12233,6 +12588,7 @@ document.addEventListener('click', async (e) => {
     p.whatsapp = AP_TEMP.whatsapp;
     p.notes = AP_TEMP.notes;
     p.nextFollowUpDate = AP_TEMP.nextFollowUpDate;
+    p.traumaCase = AP_TEMP.caseType === 'opd' ? (AP_TEMP.traumaCase || (fuIsTraumaOpd(AP_TEMP) ? 'trauma' : 'non')) : '';
     p.preOpImageCount = AP_INVESTIGATIONS.length;
     recordTextUsed(DIAGNOSIS_LIB_KEY, p.diagnosis);
     if (p.chiefComplaints) recordTextUsed(CHIEF_COMPLAINT_LIB_KEY, p.chiefComplaints);
@@ -12424,6 +12780,8 @@ document.addEventListener('click', async (e) => {
     render();
     return;
   }
+  if (action === 'set-autolost-soft') { try { localStorage.setItem(AUTOLOST_SOFT_KEY, String(parseInt(el.dataset.value, 10))); } catch (e) {} render(); return; }
+  if (action === 'set-autolost-hard') { try { localStorage.setItem(AUTOLOST_HARD_KEY, String(parseInt(el.dataset.value, 10))); } catch (e) {} render(); return; }
   if (action === 'set-reminder-gap') { setReminderGap(parseInt(el.dataset.value, 10)); render(); return; }
   if (action === 'set-reminder-limit') { setReminderLimit(parseInt(el.dataset.value, 10)); render(); return; }
   if (action === 'attn-snooze-followup') {
@@ -12451,6 +12809,9 @@ document.addEventListener('click', async (e) => {
       destructive: true
     });
     if (!confirmed) return;
+    const lostWhy = await askLostReason();
+    if (lostWhy) p.lostReason = lostWhy; else delete p.lostReason;
+    delete p.autoLost;
     p.status = 'Lost to follow-up';
     p.followUpSnoozeCount = 0;
     resolveReminders(p, 'no-response');
@@ -12606,6 +12967,7 @@ document.addEventListener('click', async (e) => {
       p.status = 'Completed';
     } else if (p.status === 'Lost to follow-up' || p.status === 'Completed') {
       p.status = 'Active';
+      delete p.autoLost; delete p.lostReason;
     }
     const nextFuEl = document.getElementById('fu-next-followup');
     let nextFuDefaulted = false;
@@ -12620,7 +12982,7 @@ document.addEventListener('click', async (e) => {
       const fallbackDays = p.caseType === 'surgical' ? 7 : 5;
       const base = new Date(date || todayStr());
       base.setDate(base.getDate() + fallbackDays);
-      p.nextFollowUpDate = base.toISOString().split('T')[0];
+      p.nextFollowUpDate = fuShiftOff(localYmd(base)).date;
       nextFuDefaulted = true;
     }
     p.followUpSnoozeCount = 0; p.lastReminderSentAt = null;
@@ -13128,6 +13490,39 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); updateStorageIndicator(); return; }
   if (action === 'close-settings') { VIEW = 'more'; render(); return; }
+  if (action === 'open-fu-schedule') { VIEW = 'fu-schedule'; render(); return; }
+  if (action === 'close-fu-schedule') { VIEW = 'more'; render(); return; }
+  if (action === 'fs-save') {
+    const cfg = loadFuSchedule();
+    const readPat = (id, label) => { const el = document.getElementById(id); const v = el ? el.value : ''; if (!parseFuSteps(v).length) { toast(label + ': invalid \u2014 use e.g. 2w, 6w, 3m, 1y'); if (el) el.focus(); return null; } return v.trim(); };
+    const std = readPat('fs-pat-standard', 'Standard'); if (std === null) return;
+    const sh = readPat('fs-pat-short', 'Short'); if (sh === null) return;
+    const opd = {};
+    for (const k of ['trauma','ctev','frozenback','ra','osteoporosis','other']) { const v = readPat('fs-opd-' + k, FU_OPD_LABELS[k]); if (v === null) return; opd[k] = v; }
+    const map = {};
+    document.querySelectorAll('[id^="fs-map-"]').forEach(sel => { if (sel.value === 'short') map[sel.dataset.type] = 'short'; else map[sel.dataset.type] = 'standard'; });
+    const off = document.getElementById('fs-offday');
+    saveFuSchedule({ patterns: { standard: std, short: sh }, surgeryMap: map, opd: opd, offDay: off ? off.value : '0' });
+    toast('Follow-up schedules saved');
+    await render();
+    return;
+  }
+  if (action === 'fs-reset') {
+    if (!confirm('Reset all follow-up schedules to the defaults?')) return;
+    try { localStorage.removeItem(FU_SCHED_KEY); } catch (e) {}
+    toast('Schedules reset to defaults');
+    await render();
+    return;
+  }
+  if (action === 'fs-move-offdays') {
+    const n = fuOffDayPatients().length;
+    if (!n) { await render(); return; }
+    if (!confirm('Move ' + n + ' upcoming follow-up(s) from ' + fuOffDayName() + ' to the next day?')) return;
+    const moved = await fuMoveOffDayPatients();
+    toast(moved + ' follow-up' + (moved > 1 ? 's' : '') + ' moved');
+    await render();
+    return;
+  }
   if (action === 'close-app-settings') { VIEW = 'more'; render(); return; }
   if (action === 'logout') { await signOutAndWipe(); return; }
   if (action === 'close-cloud-sync') { VIEW = 'more'; render(); return; }
@@ -13202,6 +13597,15 @@ document.addEventListener('click', async (e) => {
       logReminder(p, 'whatsapp'); dbPutPatient(p).then(refreshPatients);
     }
     RQ_SENT_COUNT++; RQ_INDEX++; render(); return;
+  }
+  if (action === 'autolost-undo') {
+    await autoLostUndo(getPatient(el.dataset.id)); toast('Back to Active'); render(); return;
+  }
+  if (action === 'dash-autolost-view') { FUR_STATUS_TAB = 'lost'; VIEW = 'followup-report'; render(); return; }
+  if (action === 'start-todays-reminders') {
+    RQ_QUEUE = fuTodaysRemindIds(); RQ_INDEX = 0; RQ_SENT_COUNT = 0;
+    if (!RQ_QUEUE.length) { toast('No reminders pending right now.'); return; }
+    VIEW = 'reminder-queue'; render(); return;
   }
   if (action === 'rq-skip') { RQ_INDEX++; render(); return; }
   if (action === 'close-reminder-queue') { RQ_QUEUE = []; RQ_INDEX = 0; VIEW = 'list'; render(); return; }
@@ -14299,6 +14703,7 @@ async function render_only_current_view() {
 
 document.addEventListener('change', async (e) => {
   const t = e.target;
+  if (t && (t.id === 'ap-date' || t.id === 'ap-type' || t.id === 'ap-diagnosis' || t.id === 'ap-complaints')) { try { apRefreshAutoFu(); } catch (err) {} }
 
   if (t.id === 'gallery-category') { GALLERY_CATEGORY = t.value; render(); return; }
   if (t.id === 'gallery-region') { GALLERY_REGION = t.value; render(); return; }
@@ -14325,22 +14730,7 @@ document.addEventListener('change', async (e) => {
     return;
   }
 
-  if (t.dataset && t.dataset.relfu) {
-    const target = t.dataset.relfuTarget;
-    const numEl = document.getElementById(target+'-num');
-    const unitEl = document.getElementById(target+'-unit');
-    const date = computeRelativeFollowupDate(numEl ? numEl.value : '', unitEl ? unitEl.value : 'weeks');
-    const hidden = document.getElementById(target);
-    if (hidden) hidden.value = date;
-    const prev = document.getElementById(target+'-preview');
-    if (prev) prev.textContent = relfuPreviewText(date);
-    if (t.dataset.relfuMode === 'auto' && date) {
-      await patchField('nextFollowUpDate', date);
-      toast('\u2713 Follow-up set for ' + fmtDate(date));
-      await render();
-    }
-    return;
-  }
+  if (t.dataset && t.dataset.relfu) { await relfuHandle(t, true); return; }
 
   if (t.id === 'ap-age-text') {
     syncApTempFromDom();
@@ -14533,6 +14923,11 @@ document.addEventListener('change', async (e) => {
     return;
   }
   if (t.dataset && t.dataset.field) {
+    if (t.dataset.field === 'status') {
+      const sp = getPatient(SELECTED_ID);
+      if (sp && t.value === 'Active') { sp.noAutoLost = sp.nextFollowUpDate || true; delete sp.autoLost; delete sp.lostReason; }
+      else if (sp && t.value !== 'Active') { delete sp.autoLost; delete sp.lostReason; }
+    }
     if (t.dataset.field === 'status' && t.value === 'Lost to follow-up') {
       const p = getPatient(SELECTED_ID);
       const confirmed = await showConfirmDialog({
@@ -14758,14 +15153,10 @@ document.addEventListener('input', (e) => {
       }
     }, 300);
   }
-  if (e.target.dataset && e.target.dataset.relfu === 'num') {
-    const target = e.target.dataset.relfuTarget;
-    const unitEl = document.getElementById(target+'-unit');
-    const date = computeRelativeFollowupDate(e.target.value, unitEl ? unitEl.value : 'weeks');
-    const hidden = document.getElementById(target);
-    if (hidden) hidden.value = date;
-    const prev = document.getElementById(target+'-preview');
-    if (prev) prev.textContent = relfuPreviewText(date);
+  if (e.target.dataset && (e.target.dataset.relfu === 'num' || e.target.dataset.relfu === 'cal')) { relfuHandle(e.target, false); }
+  if (e.target.id && /^fs-(pat|opd)-/.test(e.target.id)) {
+    const pv = document.getElementById('fsprev-' + e.target.id);
+    if (pv) { const stp = parseFuSteps(e.target.value); pv.textContent = stp.length ? stp.map(fuStepLabel).join(' \u2192 ') : 'Invalid \u2014 use e.g. 2w, 6w, 3m, 1y'; }
   }
   if (e.target.id === 'ai-referral-specialist') { AI_REFERRAL_SPECIALIST = e.target.value; }
   if (e.target.id === 'ai-referral-reason') { AI_REFERRAL_REASON = e.target.value; }
@@ -14840,6 +15231,7 @@ document.addEventListener('touchstart', (e) => {
   if (e.target.closest && e.target.closest('[data-action="quick-fill-text"]')) { e.preventDefault(); }
 }, { passive: false });
 document.addEventListener('blur', async (e) => {
+  if (e.target && (e.target.id === 'ap-diagnosis' || e.target.id === 'ap-complaints' || e.target.id === 'ap-procedure')) { try { apRefreshAutoFu(); } catch (err) {} }
   if (['ap-name','ap-diagnosis','patient-name-input','header-diagnosis-input'].includes(e.target.id) && e.target.value) {
     const capitalized = autoCapitalizeWords(e.target.value);
     if (capitalized !== e.target.value) { e.target.value = capitalized; if (e.target.id === 'ap-diagnosis') AP_TEMP.diagnosis = capitalized; if (e.target.id === 'ap-name') AP_TEMP.name = capitalized; }
@@ -15091,6 +15483,41 @@ function renderSplashScreen() {
     const justConnectedDrive = await handleOAuthCallback();
     if (justConnectedDrive) { VIEW = 'drive-backup'; }
     await render();
+    // One-time: offer to move existing upcoming follow-ups that fall on the clinic off-day
+    setTimeout(async () => {
+      try {
+        if (localStorage.getItem(FU_SCHED_ASKED_KEY)) return;
+        if (APP_LOCKED || VIEW === 'onboarding') return;
+        const n = fuOffDayPatients().length;
+        localStorage.setItem(FU_SCHED_ASKED_KEY, '1');
+        if (n && confirm(n + ' upcoming follow-up(s) fall on ' + fuOffDayName() + ' (clinic closed). Move them to the next day?')) {
+          const moved = await fuMoveOffDayPatients();
+          toast(moved + ' follow-up' + (moved > 1 ? 's' : '') + ' moved');
+          await render();
+        }
+      } catch (e) {}
+    }, 2500);
+    // Follow-up v2: auto-move long-silent patients to Lost (one-time ask, then automatic with Undo).
+    // Runs only while the home list is showing so it never interrupts a form; retries every minute.
+    let autoLostBusy = false;
+    const autoLostTick = async () => {
+      if (autoLostBusy) return;
+      autoLostBusy = true;
+      try {
+        if (APP_LOCKED || VIEW !== 'list' || document.querySelector('.confirm-dialog-overlay')) return;
+        const list = autoLostCandidates();
+        if (!list.length) { localStorage.setItem(AUTOLOST_ASKED_KEY, '1'); return; }
+        if (!localStorage.getItem(AUTOLOST_ASKED_KEY)) {
+          localStorage.setItem(AUTOLOST_ASKED_KEY, '1');
+          const ok = await showConfirmDialog({ title: 'Tidy up old follow-ups?', message: list.length + ' patient' + (list.length > 1 ? 's' : '') + ' did not return after reminders (or are 90+ days overdue). Mark as Lost to follow-up? You can undo any of them; adding a visit reopens the file.', confirmText: 'Mark Lost', cancelText: 'Not now' });
+          if (!ok) { for (const p of list) { p.noAutoLost = p.nextFollowUpDate; await dbPutPatient(p); } await refreshPatients(); return; }
+        }
+        const n = await autoLostApply(list);
+        if (n) { toast(n + ' patient' + (n > 1 ? 's' : '') + ' moved to Lost'); if (VIEW === 'list') await render(); }
+      } catch (e) {} finally { autoLostBusy = false; }
+    };
+    setTimeout(autoLostTick, 4000);
+    setInterval(autoLostTick, 60000);
     // Safety mechanism: Force bottom nav to be visible after initial render completes
     setTimeout(() => {
       const wrap = document.getElementById('bottom-nav-wrap');
