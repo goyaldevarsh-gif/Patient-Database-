@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261024.2">
+<meta name="app-build" content="20261024.3">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -1173,7 +1173,12 @@ async function applyRemoteImageChanges(snapshot, uid) {
       SYNC_APPLYING_REMOTE = true;
       try { await dbAddImage(Object.assign({}, meta, { id: change.doc.id, blob: blob })); changed = true; }
       finally { SYNC_APPLYING_REMOTE = false; }
-    } catch (err) { console.error('Image download failed for', change.doc.id, err); toast('Photo download failed: ' + (err && err.message ? err.message : 'unknown error')); }
+    } catch (err) {
+      // File missing in cloud storage (never uploaded / deleted): nothing to download, stay quiet. Retried on next open.
+      if (err && err.code === 'storage/object-not-found') { console.warn('Cloud photo missing, skipped:', change.doc.id); continue; }
+      console.error('Image download failed for', change.doc.id, err);
+      if (!window.__imgDlToastShown) { window.__imgDlToastShown = true; toast('Some photos could not be downloaded \u2014 will retry next time'); }
+    }
   }
   if (changed && VIEW === 'list') render();
 }
