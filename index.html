@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261014.3">
+<meta name="app-build" content="20261024.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -1398,7 +1398,7 @@ async function autoLostApply(list) {
     p.autoLost = { at: Date.now(), prevDate: p.nextFollowUpDate, reminders: c.reminders, daysOver: c.days };
     p.lostReason = autoLostReasonText(c);
     p.status = 'Lost to follow-up'; p.followUpSnoozeCount = 0;
-    resolveReminders(p, 'no-response');
+    resolveReminders(p, 'no-response'); ensureOutcomeCall(p);
     try { await dbPutPatient(p); n++; } catch (e) {}
   }
   if (n) await refreshPatients();
@@ -1409,7 +1409,7 @@ async function autoLostUndo(p) {
   p.status = 'Active';
   if (p.autoLost && p.autoLost.prevDate) p.nextFollowUpDate = p.autoLost.prevDate;
   p.noAutoLost = p.nextFollowUpDate;
-  delete p.autoLost; delete p.lostReason;
+  delete p.autoLost; delete p.lostReason; delete p.outcomeCall;
   await dbPutPatient(p); await refreshPatients();
 }
 function autoLostRecent() {
@@ -1460,6 +1460,100 @@ function fuTodaysRemindIds() {
     else if (d < today && fuClassify({ patient: p, date: d }).bucket === 'remind') ids.push(p.id);
   });
   return ids;
+}
+
+/* ============ Outcome calls: a final "how are you now?" call for patients who stopped coming ============ */
+const OUTCOMES = ['Doing well', 'Some pain', 'Same', 'Worse / complication', 'Went elsewhere', 'Not reachable'];
+function outcomeCallActive(p) {
+  return !!(p && p.outcomeCall && p.outcomeCall.date && p.status !== 'Completed' && (p.status === 'Lost to follow-up' || !p.nextFollowUpDate));
+}
+function outcomeCallList() { return PATIENTS.filter(outcomeCallActive).sort((a, b) => a.outcomeCall.date.localeCompare(b.outcomeCall.date)); }
+function outcomeCallsDue() { const t = todayStr(); return outcomeCallList().filter(p => p.outcomeCall.date <= t); }
+function outcomeDateIn(months) { return fuShiftOff(localYmd(fuStepAdd(parseYmd(todayStr()), { n: months, u: 'm' }))).date; }
+function outcomeCallSet(p, date, auto) {
+  p.outcomeCall = { date: date, setAt: Date.now(), auto: !!auto };
+  if (!auto) {
+    if (p.nextFollowUpDate) p.outcomeCall.prevDate = p.nextFollowUpDate;
+    p.nextFollowUpDate = ''; p.followUpSnoozeCount = 0; resolveReminders(p, 'void');
+  }
+}
+function ensureOutcomeCall(p) { if (!p.outcome && !p.outcomeCall) outcomeCallSet(p, outcomeDateIn(3), true); }
+async function outcomeRecord(p, idx) {
+  const r = OUTCOMES[idx]; if (!p || !r) return;
+  p.outcome = { result: r, at: Date.now() };
+  delete p.outcomeCall;
+  if (r === 'Not reachable') { p.status = 'Lost to follow-up'; p.lostReason = 'Not reachable'; }
+  else { p.status = 'Completed'; p.nextFollowUpDate = ''; delete p.autoLost; if (r === 'Went elsewhere') p.lostReason = r; }
+  resolveReminders(p, 'void');
+  await dbPutPatient(p); await refreshPatients();
+}
+function outcomeChipsHtml(id) {
+  return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">' + OUTCOMES.map((o, i) => '<button type="button" class="chip" style="font-size:11px;padding:5px 9px;" data-action="outcome-record" data-id="' + id + '" data-value="' + i + '">' + esc(o) + '</button>').join('') + '</div>';
+}
+function askOutcomeCallDate() {
+  return new Promise(resolve => {
+    const ov = document.createElement('div');
+    ov.className = 'confirm-dialog-overlay';
+    ov.innerHTML = '<div class="confirm-dialog"><div class="confirm-dialog-title">Outcome call in...</div>'
+      + '<div class="confirm-dialog-message"><div style="display:flex;gap:8px;margin-bottom:10px;"><button type="button" class="chip" style="flex:1;" data-m="3">3 months</button><button type="button" class="chip" style="flex:1;" data-m="6">6 months</button></div>'
+      + '<input class="input" type="date" id="oc-custom" min="' + todayStr() + '"></div>'
+      + '<div class="confirm-dialog-actions"><button class="confirm-btn-cancel" type="button" data-x="1">Cancel</button><button class="confirm-btn-primary" type="button" data-set="1">Set date</button></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', ev => {
+      const b = ev.target.closest('button'); if (!b) return;
+      if (b.dataset.m) { ov.remove(); resolve(outcomeDateIn(parseInt(b.dataset.m, 10))); }
+      else if (b.dataset.set) { const v = (document.getElementById('oc-custom') || {}).value; if (!v) { toast('Pick a date or tap 3 / 6 months'); return; } ov.remove(); resolve(v); }
+      else if (b.dataset.x) { ov.remove(); resolve(''); }
+    });
+  });
+}
+function outcomeWaLink(p) {
+  if (!p.whatsapp) return '';
+  const msg = 'Namaste ' + (p.name || '') + ', clinic se message. Ilaaj ke baad ab aap kaisa feel kar rahe hain? Kripya reply karein: 1 Bilkul theek, 2 Behtar par thoda dard, 3 Same, 4 Pehle se worse.';
+  return 'https://wa.me/' + toWaNumber(p.whatsapp) + '?text=' + encodeURIComponent(msg);
+}
+function outcomeRowHtml(p) {
+  const oc = p.outcomeCall, due = oc.date <= todayStr();
+  return '<div class="card" style="padding:10px 12px;margin-bottom:10px;">'
+    + '<div class="row between" style="align-items:flex-start;gap:8px;">'
+    + '<span data-action="open-patient" data-id="' + p.id + '" style="cursor:pointer;flex:1;min-width:0;"><span style="display:block;font-weight:800;font-size:13.5px;">' + escName(p.name) + '</span>'
+    + '<span style="display:block;font-size:11px;color:var(--muted);margin-top:1px;">' + followUpContextLine(p) + '</span>'
+    + '<span style="display:block;font-size:11px;font-weight:700;margin-top:2px;color:' + (due ? 'var(--red)' : 'var(--muted)') + ';">Outcome call ' + (due ? 'due ' : 'on ') + esc(fmtDateShort(oc.date)) + (oc.auto ? ' · auto' : '') + '</span></span>'
+    + (p.whatsapp ? '<a href="tel:+' + esc(toWaNumber(p.whatsapp)) + '" class="icon-btn" title="Call">' + ic('phone') + '</a><a href="' + esc(outcomeWaLink(p)) + '" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;" title="WhatsApp">' + ic('whatsapp') + '</a>' : '')
+    + '</div>' + outcomeChipsHtml(p.id)
+    + '<div class="row" style="gap:6px;margin-top:8px;"><button type="button" class="chip" style="font-size:10.5px;color:var(--muted);" data-action="outcome-call-pick" data-id="' + p.id + '">Change date</button><button type="button" class="chip" style="font-size:10.5px;color:var(--muted);" data-action="outcome-call-cancel" data-id="' + p.id + '">Cancel call</button></div></div>';
+}
+function renderOutcomeCallsView() {
+  const all = outcomeCallList(), t = todayStr();
+  const due = all.filter(p => p.outcomeCall.date <= t), later = all.filter(p => p.outcomeCall.date > t);
+  return '<div style="padding-bottom:40px;"><div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3"><button class="icon-btn" data-action="close-outcome-calls">' + ic('back') + '</button><h2 style="font-size:16px;font-weight:800;margin:0;">Outcome calls</h2></div></div>'
+    + '<div class="px" style="padding-top:12px;">'
+    + '<p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">One last call to learn how patients who stopped coming are doing. Tap what they say. Reached = Completed, not reachable = Lost.</p>'
+    + (due.length ? '<div class="field-label" style="margin-bottom:8px;">Due now (' + due.length + ')</div>' + due.map(outcomeRowHtml).join('') : '<p style="font-size:12.5px;color:var(--muted);text-align:center;padding:18px 0;">No outcome calls due.</p>')
+    + (later.length ? '<div class="field-label" style="margin:14px 0 8px;">Scheduled (' + later.length + ')</div>' + later.map(outcomeRowHtml).join('') : '')
+    + '</div></div>';
+}
+function outcomeCardHtml(p) {
+  const active = outcomeCallActive(p);
+  const lostish = p.status === 'Lost to follow-up' || (p.nextFollowUpDate && isOverdue(p.nextFollowUpDate));
+  if (!active && !p.outcome && !lostish) return '';
+  let h = '<div style="background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:12px;">';
+  if (p.outcome) h += '<div style="font-weight:800;">Outcome: ' + esc(p.outcome.result) + ' <span style="font-weight:500;color:var(--muted);">· ' + esc(fmtDateShort(localYmd(new Date(p.outcome.at)))) + '</span></div>';
+  if (active) h += '<div style="font-weight:800;' + (p.outcome ? 'margin-top:4px;' : '') + '">Outcome call ' + (p.outcomeCall.date <= todayStr() ? 'due ' : 'on ') + esc(fmtDateShort(p.outcomeCall.date)) + '</div>';
+  if (active || p.outcome) h += '<div style="color:var(--muted);margin-top:2px;">' + (p.outcome ? 'Change outcome:' : 'After the call, tap what the patient says:') + '</div>' + outcomeChipsHtml(p.id);
+  h += '<div class="row" style="gap:6px;margin-top:8px;">'
+    + (active ? '<button type="button" class="chip" style="font-size:10.5px;color:var(--muted);" data-action="outcome-call-pick" data-id="' + p.id + '">Change date</button><button type="button" class="chip" style="font-size:10.5px;color:var(--muted);" data-action="outcome-call-cancel" data-id="' + p.id + '">Cancel call</button>'
+      : (!p.outcome ? '<button type="button" class="chip" style="font-size:10.5px;" data-action="outcome-call-pick" data-id="' + p.id + '">Outcome call later</button>' : '')) + '</div></div>';
+  return h;
+}
+function outcomeSummaryHtml() {
+  const m = {}; let n = 0;
+  PATIENTS.forEach(p => { if (p.outcome) { m[p.outcome.result] = (m[p.outcome.result] || 0) + 1; n++; } });
+  const sched = outcomeCallList().length, due = outcomeCallsDue().length;
+  if (!n && !sched) return '';
+  return '<div class="card" style="margin-bottom:14px;font-size:12px;"><div class="field-label" style="margin-bottom:6px;">Outcome calls</div>'
+    + Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v]) => '<div class="row between" style="padding:2px 0;"><span>' + esc(k) + '</span><b>' + v + '</b></div>').join('')
+    + (sched ? '<button type="button" class="chip" style="margin-top:8px;" data-action="open-outcome-calls">' + sched + ' scheduled' + (due ? ' · ' + due + ' due' : '') + ' ›</button>' : '') + '</div>';
 }
 function suggestNextFollowUpDate(patient) { const r = suggestFollowUp(patient); return (r && r.date) || ''; }
 
@@ -2698,6 +2792,21 @@ let DIAG_COMPLETING_ID = null;
 let DIAG_COMPLETE_INVESTIGATION = '';
 let DIAG_COMPLETE_CONTRAST = 'without';
 let DIAG_COMPLETE_CODE = '';
+let DIAG_COMPLETE_CUT = '';
+let DIAG_REF_CUT_DRAFT = '';
+function diagCutInputHtml(id, value, autoAmt) {
+  return '<label class="field-label">Your cut \u20b9 <span style="font-weight:500;color:var(--muted);">(optional \u2014 type to override auto)</span></label>'
+    + '<input class="input" type="number" inputmode="numeric" min="0" id="'+id+'" placeholder="Auto: \u20b9'+Number(autoAmt||0).toLocaleString('en-IN')+'" value="'+esc(value||'')+'" style="margin-bottom:10px;">';
+}
+function diagApplyCut(target, rate, autoPct, autoAmt, rawVal) {
+  const v = rawVal === '' || rawVal == null ? NaN : Number(rawVal);
+  if (!isNaN(v) && v >= 0) {
+    target.doctorCutAmount = Math.round(v); target.cutManual = true;
+    target.doctorCutPercent = rate > 0 ? Math.round(v / rate * 1000) / 10 : 0;
+  } else {
+    target.doctorCutAmount = autoAmt; target.doctorCutPercent = autoPct; target.cutManual = false;
+  }
+}
 let DIAG_REF_PATIENT_DRAFT = '';
 let DIAG_REF_REPORTID_DRAFT = '';
 let DIAG_REF_DATE_DRAFT = '';
@@ -2803,6 +2912,12 @@ async function renderNotificationsView() {
   return html;
 }
 const CHANGELOG = [
+  { version:'1.4.3', date:'2026-10-24', features: [
+      'Outcome calls - for patients who stopped coming, schedule one final call (3 months, 6 months or any date) to learn how they are doing; tap what they say and the outcome is saved (Doing well, Some pain, Same, Worse, Went elsewhere, Not reachable)',
+      'Patients who go Lost get an outcome call set automatically 3 months later - change or cancel it any time',
+      'Outcomes show in the Follow-up Report and in the master Excel export, for your own study',
+      'Diagnostic Referrals - type your own cut amount when the auto calculation is not what you got'
+  ] },
   { version:'1.4.2', date:'2026-10-14', features: [
       'Patients who ignore reminders now move to Lost to follow-up automatically (45+ days overdue after a reminder, or 90+ days with none) - with a clear tag, a home-screen note and one-tap Undo',
       'Adding a follow-up visit reopens a Lost patient instantly - nothing is ever deleted',
@@ -3208,11 +3323,11 @@ function computeFollowUpCompliance() {
   // Only counts patients who were ever "in a follow-up cycle" \u2014 has a follow-up date
   // set (now or previously), has at least one logged follow-up visit, or was marked
   // lost. A single-visit OPD case with no follow-up plan at all doesn't belong here.
-  const tracked = PATIENTS.filter(p => p.nextFollowUpDate || (p.followUps && p.followUps.length) || p.status === 'Lost to follow-up');
+  const tracked = PATIENTS.filter(p => p.nextFollowUpDate || (p.followUps && p.followUps.length) || p.status === 'Lost to follow-up' || p.outcome || outcomeCallActive(p));
   let returned = 0, lost = 0, pending = 0;
   tracked.forEach(p => {
     if (p.followUps && p.followUps.length) returned++;
-    else if (p.status === 'Lost to follow-up') lost++;
+    else if (p.status === 'Lost to follow-up' || p.outcome || outcomeCallActive(p)) lost++;
     else pending++;
   });
   const complianceBase = returned + lost; // pending excluded \u2014 outcome not known yet
@@ -3264,6 +3379,7 @@ function renderFollowUpReportView() {
     + '<div class="field-label" style="margin-bottom:8px;">Visits logged, last 6 months</div>'
     + chart
     + '<p style="font-size:10.5px;color:var(--muted);text-align:center;margin-bottom:24px;">Compliance % = Returned \u00f7 (Returned + Lost). Pending cases aren\u2019t counted yet \u2014 outcome not known.</p>'
+    + outcomeSummaryHtml()
     + (lostReasonSummary().length ? '<div class="card" style="margin-bottom:14px;font-size:12px;"><div class="field-label" style="margin-bottom:6px;">Why patients were lost</div>' + lostReasonSummary().map(([k,v]) => '<div class="row between" style="padding:2px 0;"><span>'+esc(k)+'</span><b>'+v+'</b></div>').join('') + '</div>' : '')
     + renderFollowUpStatusBrowser()
     + '</div></div>';
@@ -4584,6 +4700,7 @@ function diagAddReferralFormHtml() {
             + '<div style="border-top:1px dashed rgba(5,150,105,0.3);margin:6px 0;"></div>'
             + '<div class="row between" style="font-size:13.5px;font-weight:800;color:var(--emerald);"><span>Your cut ('+doctorCutPercent+'%)</span><span>\u20b9'+doctorCutAmount.toLocaleString('en-IN')+'</span></div>'
             + '</div>'
+            + diagCutInputHtml('diag-ref-cut', DIAG_REF_CUT_DRAFT, doctorCutAmount)
           ) : '<p style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Pick a segment code to see your cut.</p>')
       ))
     + '<div class="row gap2" style="margin-bottom:10px;">'
@@ -4725,7 +4842,7 @@ function diagCompleteEntryFormHtml(r) {
     + '<div class="seg" style="margin-bottom:8px;flex-wrap:wrap;">'
     + DIAG_SEGMENT_CODES.map(c => '<button type="button" class="seg-btn'+(DIAG_COMPLETE_CODE===c.code?' active':'')+'" data-action="diag-complete-set-code" data-value="'+c.code+'">'+c.code+' ('+c.discountPercent+'%)</button>').join('')
     + '</div>'
-    + (DIAG_COMPLETE_CODE ? '<div style="font-size:13px;font-weight:800;color:var(--emerald);margin-bottom:8px;">Your cut: \u20b9'+doctorCutAmount.toLocaleString('en-IN')+'</div>' : '')
+    + (DIAG_COMPLETE_CODE ? '<div style="font-size:13px;font-weight:800;color:var(--emerald);margin-bottom:8px;">Your cut: \u20b9'+doctorCutAmount.toLocaleString('en-IN')+'</div>' + diagCutInputHtml('diag-complete-cut', DIAG_COMPLETE_CUT, doctorCutAmount) : '')
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-complete">Cancel</button><button class="btn btn-sm btn-primary" style="flex:1;" data-action="diag-save-complete" data-id="'+r.id+'">'+ic('check')+' Save</button></div>'
     + '</div>';
 }
@@ -4736,6 +4853,8 @@ function diagStashReferralDrafts() {
   if (patientEl) DIAG_REF_PATIENT_DRAFT = patientEl.value;
   if (dateEl) DIAG_REF_DATE_DRAFT = dateEl.value;
   if (reportIdEl) DIAG_REF_REPORTID_DRAFT = reportIdEl.value;
+  const cutEl = document.getElementById('diag-ref-cut');
+  if (cutEl) DIAG_REF_CUT_DRAFT = cutEl.value;
 }
 function renderDiagReferralsView() {
   const view = DIAG_VIEW_MODE || 'active';
@@ -4797,7 +4916,7 @@ function renderDiagReferralsView() {
               + '<div style="font-size:13px;font-weight:700;">'+esc(r.patientName)+'</div>'
               + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.investigation||'')+(r.contrastType?' ('+(r.contrastType==='with'?'With':'Without')+' contrast)':'')+' \u00b7 '+esc(centre?centre.name:'\u2014')+'</div>'
               + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">Report: '+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.segmentCode?' \u00b7 '+esc(r.segmentCode):'')+'</div>'
-              + (r.segmentCode ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Your cut: \u20b9'+Number(r.doctorCutAmount||0).toLocaleString('en-IN')+'</div>' : '')
+              + (r.segmentCode ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Your cut: \u20b9'+Number(r.doctorCutAmount||0).toLocaleString('en-IN')+(r.cutManual?' <span style="font-size:10px;font-weight:700;color:var(--muted);">(manual)</span>':'')+'</div>' : '')
               + '</div>'
               + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-edit-referral" data-id="'+r.id+'" title="Edit entry">'+ic('pencil')+'</button>'
               + (view === 'active'
@@ -6432,6 +6551,10 @@ function renderDashboardSection() {
     if (todaysN) {
       html += '<button type="button" class="btn btn-block" style="margin:-8px 0 14px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-todays-reminders">'+ic('message')+' Today\u2019s reminders \u2014 '+todaysN+'</button>';
     }
+    const ocN = outcomeCallsDue().length;
+    if (ocN) {
+      html += '<button type="button" class="btn btn-block" style="margin:-8px 0 14px;" data-action="open-outcome-calls">'+ic('phone')+' Outcome calls due \u2014 '+ocN+'</button>';
+    }
     const alN = autoLostRecent().length;
     if (alN) {
       html += '<button type="button" data-action="dash-autolost-view" class="card" style="width:100%;text-align:left;padding:9px 12px;margin:-6px 0 14px;font-size:12px;font-weight:700;color:#1f2937;">'+alN+' patient'+(alN>1?'s':'')+' moved to Lost this week \u00b7 <span style="color:var(--accent-dark);">review / undo</span></button>';
@@ -6652,6 +6775,7 @@ function attnRowHtml(item) {
               + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="attn-log-call" data-id="'+item.patient.id+'">'+ic('phone')+' Called</button>'
               + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;'+(snoozeCount>0?'color:#b45309;border-color:var(--amber-border,#fde68a);background:var(--amber-bg,#fffbeb);':'')+'" data-action="attn-snooze-followup" data-id="'+item.patient.id+'" title="'+(snoozeCount>0?'Already snoozed '+snoozeCount+' time'+(snoozeCount>1?'s':''):'')+'">'+ic('clock')+' '+(snoozeCount>0?'Snooze again':'Snooze 7d')+'</button>'
               + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--emerald);border-color:var(--emerald-border);" data-action="attn-mark-completed" data-id="'+item.patient.id+'">'+ic('check')+' Completed</button>'
+              + '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;" data-action="outcome-call-pick" data-id="'+item.patient.id+'">'+ic('phone')+' Outcome call</button>'
               + (lostArmed
                   ? '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--red);border-color:var(--red-border);background:var(--red-bg);" data-action="attn-mark-lost" data-id="'+item.patient.id+'">'+ic('check')+' Confirm?</button>'
                   : '<button type="button" class="chip" style="font-size:10.5px;padding:4px 9px;color:var(--muted);" data-action="arm-delete" data-arm="attn-mark-lost:'+item.patient.id+'">Lost to follow-up</button>')
@@ -7717,6 +7841,7 @@ function renderOverviewTab(p) {
 
   return '<div class="px" style="display:flex;flex-direction:column;gap:10px;padding-top:14px;padding-bottom:20px;">'
     + autoLostNoteHtml(p)
+    + outcomeCardHtml(p)
     + (p.condition === 'ra' && p.ra && p.ra.cspineFlag ? '<div class="cspine-alert">'+ic('alert')+' C-spine flagged \u2014 inform anaesthesia before any surgery (intubation/positioning precautions).</div>' : '')
     + (INITIAL_VISIT_SUMMARY_CACHE.length ? '<div style="font-size:12.5px;font-weight:800;color:var(--accent-dark);background:rgba(67,56,202,0.06);border-radius:10px;padding:9px 12px;">'+ic('check')+' At first visit: '+INITIAL_VISIT_SUMMARY_CACHE.join(', ')+'</div>' : '')
     + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">'
@@ -9993,6 +10118,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
   if (VIEW === 'fu-cleanup') { app.innerHTML = renderFuCleanupView(); return; }
   if (VIEW === 'fu-schedule') { app.innerHTML = renderFuScheduleView(); return; }
+  if (VIEW === 'outcome-calls') { app.innerHTML = renderOutcomeCallsView(); return; }
   if (VIEW === 'marketing-contacts') { app.innerHTML = renderMarketingContactsView(); return; }
   if (VIEW === 'broadcast-queue') { app.innerHTML = renderBroadcastQueueView(); return; }
   if (VIEW === 'onboarding') { app.innerHTML = renderOnboardingView(); return; }
@@ -10490,7 +10616,7 @@ async function exportMasterXlsx() {
     ['Procedure', 32], ['Surgery Type', 12], ['Hospital / Where done', 22], ['Anaesthesia', 12], ['Visit / Surgery Date', 13], ['Tracked Condition', 13],
     ['No. of Injections', 10], ['Injections (details)', 36], ['No. of Investigations', 12], ['Investigations (details)', 40],
     ['Follow-ups Done', 10], ['Last Follow-up', 13], ['Next Follow-up Due', 13], ['Follow-up Status', 20], ['Days Overdue', 9],
-    ['Reminders Sent', 10], ['Reminders No Response', 11], ['Payment', 12], ['Cash Amount', 11], ['Insurance', 14],
+    ['Reminders Sent', 10], ['Reminders No Response', 11], ['Outcome', 18], ['Outcome Date', 13], ['Payment', 12], ['Cash Amount', 11], ['Insurance', 14],
     ['Comorbidities', 22], ['Tags', 20], ['Clinical Notes', 44]
   ];
   const dateCell = (ds, s) => { const n = xlsxDateSerial(ds); return n == null ? { v: '', k: 's', s: s } : { v: n, k: 'd', s: s }; };
@@ -10522,6 +10648,7 @@ async function exportMasterXlsx() {
       { v: due.label, k: 's', s: Object.assign({ center: true }, KIND_STYLE[due.kind]) },
       { v: due.daysOver || '', k: due.daysOver ? 'n' : 's', s: Object.assign({}, ctr, due.daysOver ? { bold: true, color: '991B1B' } : {}) },
       { v: rs.total || '', k: rs.total ? 'n' : 's', s: ctr }, { v: rs.noResp || '', k: rs.noResp ? 'n' : 's', s: ctr },
+      { v: p.outcome ? p.outcome.result : '', k: 's', s: ctr }, dateCell(p.outcome ? localYmd(new Date(p.outcome.at)) : '', ctr),
       { v: p.paymentMethod || '', k: 's', s: base }, { v: p.cashAmount ? Number(p.cashAmount) || p.cashAmount : '', k: (p.cashAmount && !isNaN(Number(p.cashAmount))) ? 'n' : 's', s: base },
       { v: p.insuranceType || '', k: 's', s: base },
       { v: (p.comorbidities || []).join(', '), k: 's', s: wrap }, { v: (p.tags || []).join(', '), k: 's', s: wrap },
@@ -11059,7 +11186,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-fu-schedule','close-diag-referrals'];
+const SWIPE_BACK_ACTIONS = ['close-outcome-calls','cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-fu-schedule','close-diag-referrals'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -11108,7 +11235,7 @@ function updateMasterVoiceUI() {
     // Hide entirely on screens that have their own fixed bottom action bar, or where a
     // generic floating trigger would visually clash with the screen's own content/buttons
     // (menus, AI sub-pages that ARE the AI feature already, forms with Save/Cancel bars, etc).
-    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'fu-cleanup', 'fu-schedule', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report', 'photo-gallery'];
+    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'fu-cleanup', 'fu-schedule', 'outcome-calls', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report', 'photo-gallery'];
     // Search must stay available to every tier, not just AI tier \u2014 only the "Ask AI" menu
     // option inside is gated below, the button itself always shows (like the old search fab did).
     const shouldShow = !APP_LOCKED && !hideOnViews.includes(VIEW);
@@ -12764,7 +12891,7 @@ document.addEventListener('click', async (e) => {
     const p = getPatient(el.dataset.id);
     if (p) {
       p.status = 'Lost to follow-up'; p.followUpSnoozeCount = 0;
-      resolveReminders(p, 'no-response');
+      resolveReminders(p, 'no-response'); ensureOutcomeCall(p);
       await dbPutPatient(p); await refreshPatients(); CU_STATS.lost++;
     }
     CU_INDEX++; render(); return;
@@ -12814,7 +12941,7 @@ document.addEventListener('click', async (e) => {
     delete p.autoLost;
     p.status = 'Lost to follow-up';
     p.followUpSnoozeCount = 0;
-    resolveReminders(p, 'no-response');
+    resolveReminders(p, 'no-response'); ensureOutcomeCall(p);
     await dbPutPatient(p);
     await refreshPatients();
     ARMED_DELETE = null;
@@ -12962,6 +13089,7 @@ document.addEventListener('click', async (e) => {
     const prevReminderLog = JSON.stringify(p.reminderLog || []);
     p.followUps = p.followUps || [];
     p.followUps.push(fu);
+    delete p.outcomeCall;
     const noFollowUpNeeded = document.getElementById('fu-no-followup-needed');
     if (noFollowUpNeeded && noFollowUpNeeded.checked) {
       p.status = 'Completed';
@@ -13491,6 +13619,28 @@ document.addEventListener('click', async (e) => {
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); updateStorageIndicator(); return; }
   if (action === 'close-settings') { VIEW = 'more'; render(); return; }
   if (action === 'open-fu-schedule') { VIEW = 'fu-schedule'; render(); return; }
+  if (action === 'open-outcome-calls') { VIEW = 'outcome-calls'; render(); return; }
+  if (action === 'close-outcome-calls') { VIEW = 'list'; render(); return; }
+  if (action === 'outcome-call-pick') {
+    const p = getPatient(el.dataset.id); if (!p) return;
+    const d = await askOutcomeCallDate(); if (!d) return;
+    const had = outcomeCallActive(p);
+    if (had) p.outcomeCall.date = d; else outcomeCallSet(p, d, false);
+    p.outcomeCall.auto = false;
+    await dbPutPatient(p); await refreshPatients();
+    toast('Outcome call set for ' + fmtDateShort(d)); render(); return;
+  }
+  if (action === 'outcome-call-cancel') {
+    const p = getPatient(el.dataset.id); if (!p) return;
+    if (p.status !== 'Lost to follow-up' && p.outcomeCall && p.outcomeCall.prevDate && !p.nextFollowUpDate) p.nextFollowUpDate = p.outcomeCall.prevDate;
+    delete p.outcomeCall;
+    await dbPutPatient(p); await refreshPatients(); toast('Outcome call cancelled'); render(); return;
+  }
+  if (action === 'outcome-record') {
+    const p = getPatient(el.dataset.id); if (!p) return;
+    await outcomeRecord(p, parseInt(el.dataset.value, 10));
+    toast('Outcome saved: ' + p.outcome.result); render(); return;
+  }
   if (action === 'close-fu-schedule') { VIEW = 'more'; render(); return; }
   if (action === 'fs-save') {
     const cfg = loadFuSchedule();
@@ -13690,7 +13840,7 @@ document.addEventListener('click', async (e) => {
     DIAG_ADD_REFERRAL_INVESTIGATION = firstInv ? firstInv.name : '';
     DIAG_ADD_REFERRAL_CONTRAST = 'without';
     DIAG_ADD_REFERRAL_CODE = '';
-    DIAG_REF_PATIENT_DRAFT = ''; DIAG_REF_DATE_DRAFT = ''; DIAG_REF_REPORTID_DRAFT = '';
+    DIAG_REF_PATIENT_DRAFT = ''; DIAG_REF_DATE_DRAFT = ''; DIAG_REF_REPORTID_DRAFT = ''; DIAG_REF_CUT_DRAFT = '';
     render(); return;
   }
   if (action === 'diag-edit-referral') {
@@ -13704,6 +13854,7 @@ document.addEventListener('click', async (e) => {
     DIAG_REF_PATIENT_DRAFT = r.patientName || '';
     DIAG_REF_DATE_DRAFT = r.reportDate || todayStr();
     DIAG_REF_REPORTID_DRAFT = r.reportId || '';
+    DIAG_REF_CUT_DRAFT = r.cutManual ? String(r.doctorCutAmount) : '';
     render(); return;
   }
   if (action === 'diag-cancel-add-referral') { DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDITING_REFERRAL_ID = null; render(); return; }
@@ -13743,6 +13894,8 @@ document.addEventListener('click', async (e) => {
       reportDate: dateEl ? dateEl.value : todayStr(),
       reportId: reportIdEl ? reportIdEl.value.trim() : '',
     };
+    const cutRawEl = document.getElementById('diag-ref-cut');
+    diagApplyCut(computed, rate, doctorCutPercent, computed.doctorCutAmount, cutRawEl ? cutRawEl.value : DIAG_REF_CUT_DRAFT);
     if (DIAG_EDITING_REFERRAL_ID) {
       const existing = DIAG_REFERRALS.find(x => x.id === DIAG_EDITING_REFERRAL_ID);
       if (existing) Object.assign(existing, computed);
@@ -13856,12 +14009,12 @@ document.addEventListener('click', async (e) => {
     DIAG_COMPLETING_ID = el.dataset.id;
     DIAG_COMPLETE_INVESTIGATION = firstInv ? firstInv.name : '';
     DIAG_COMPLETE_CONTRAST = 'without';
-    DIAG_COMPLETE_CODE = '';
+    DIAG_COMPLETE_CODE = ''; DIAG_COMPLETE_CUT = '';
     render(); return;
   }
   if (action === 'diag-cancel-complete') { DIAG_COMPLETING_ID = null; render(); return; }
-  if (action === 'diag-complete-set-contrast') { DIAG_COMPLETE_CONTRAST = el.dataset.value; render(); return; }
-  if (action === 'diag-complete-set-code') { DIAG_COMPLETE_CODE = el.dataset.value; render(); return; }
+  if (action === 'diag-complete-set-contrast') { { const ce = document.getElementById('diag-complete-cut'); if (ce) DIAG_COMPLETE_CUT = ce.value; } DIAG_COMPLETE_CONTRAST = el.dataset.value; render(); return; }
+  if (action === 'diag-complete-set-code') { { const ce = document.getElementById('diag-complete-cut'); if (ce) DIAG_COMPLETE_CUT = ce.value; } DIAG_COMPLETE_CODE = el.dataset.value; render(); return; }
   if (action === 'diag-save-complete') {
     const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
     if (!r) { DIAG_COMPLETING_ID = null; render(); return; }
@@ -13884,6 +14037,8 @@ document.addEventListener('click', async (e) => {
     r.doctorCutPercent = doctorCutPercent;
     r.patientDiscountAmount = Math.round(rate * patientDiscountPercent / 100);
     r.doctorCutAmount = Math.round(rate * doctorCutPercent / 100);
+    const ccEl = document.getElementById('diag-complete-cut');
+    diagApplyCut(r, rate, doctorCutPercent, r.doctorCutAmount, ccEl ? ccEl.value : DIAG_COMPLETE_CUT);
     saveDiagReferrals(DIAG_REFERRALS);
     DIAG_COMPLETING_ID = null;
     toast('Entry updated');
@@ -14925,6 +15080,7 @@ document.addEventListener('change', async (e) => {
   if (t.dataset && t.dataset.field) {
     if (t.dataset.field === 'status') {
       const sp = getPatient(SELECTED_ID);
+      if (sp && t.value !== 'Lost to follow-up') delete sp.outcomeCall;
       if (sp && t.value === 'Active') { sp.noAutoLost = sp.nextFollowUpDate || true; delete sp.autoLost; delete sp.lostReason; }
       else if (sp && t.value !== 'Active') { delete sp.autoLost; delete sp.lostReason; }
     }
