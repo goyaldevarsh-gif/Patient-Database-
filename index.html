@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261024.3">
+<meta name="app-build" content="20261024.4">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e293b">
@@ -1560,6 +1560,87 @@ function outcomeSummaryHtml() {
     + Object.entries(m).sort((a, b) => b[1] - a[1]).map(([k, v]) => '<div class="row between" style="padding:2px 0;"><span>' + esc(k) + '</span><b>' + v + '</b></div>').join('')
     + (sched ? '<button type="button" class="chip" style="margin-top:8px;" data-action="open-outcome-calls">' + sched + ' scheduled' + (due ? ' · ' + due + ' due' : '') + ' ›</button>' : '') + '</div>';
 }
+
+/* ============ Today screen: one place for the day's follow-up work ============ */
+function dailyGroups() {
+  const today = todayStr(), tm = localYmd(new Date(Date.now() + 86400000));
+  const reminded = p => (p.reminderLog || []).some(r => r.outcome === 'pending' && r.forDate === p.nextFollowUpDate);
+  const g = { remind: [], call: [], waiting: [] };
+  PATIENTS.forEach(p => {
+    if (p.status && p.status !== 'Active' && p.status !== 'Active follow-up') return;
+    const d = p.nextFollowUpDate; if (!d) return;
+    if (d === today || d === tm) { if (!reminded(p)) (p.whatsapp ? g.remind : g.call).push(p); return; }
+    if (d > today) return;
+    const b = fuClassify({ patient: p, date: d }).bucket;
+    if (b === 'remind') (p.whatsapp ? g.remind : g.call).push(p);
+    else if (b === 'waiting') g.waiting.push(p);
+    else g.call.push(p);
+  });
+  const byDate = (a, b) => a.nextFollowUpDate.localeCompare(b.nextFollowUpDate);
+  g.remind.sort(byDate); g.call.sort(byDate);
+  return g;
+}
+function dailyCount() { const g = dailyGroups(); return g.remind.length + g.call.length + outcomeCallsDue().length; }
+function dailyRowHtml(p, kind) {
+  const d = p.nextFollowUpDate, today = todayStr(), tm = localYmd(new Date(Date.now() + 86400000));
+  const od = overdueDays(d);
+  const when = d === today ? 'Due today' : d === tm ? 'Due tomorrow' : (od + ' day' + (od > 1 ? 's' : '') + ' overdue');
+  const rs = reminderStats(p), ds = daysSinceLastReminder(p);
+  const rem = rs.total ? (' · reminded ' + (ds === null ? '' : (ds === 0 ? 'today' : ds + 'd ago')) + (rs.total > 1 ? ' (' + rs.total + '×)' : '')) : '';
+  const wa = (kind === 'remind') ? followUpReminderLink(p) : null;
+  const main = wa
+    ? '<a href="' + esc(wa) + '" target="_blank" rel="noopener" class="chip" style="text-decoration:none;background:#25D366;border-color:#25D366;color:#fff;font-size:11.5px;padding:6px 12px;" data-action="log-reminder-sent" data-id="' + p.id + '">' + ic('message') + ' Remind</a>'
+    : (p.whatsapp ? '<a href="tel:+' + esc(toWaNumber(p.whatsapp)) + '" class="chip" style="text-decoration:none;font-size:11.5px;padding:6px 12px;" data-action="attn-log-call" data-id="' + p.id + '">' + ic('phone') + ' Call</a>'
+      : '<button type="button" class="chip" style="font-size:11.5px;padding:6px 12px;" data-action="open-patient" data-id="' + p.id + '">Open file</button>');
+  return '<div style="padding:9px 14px;border-bottom:1px solid var(--border);">'
+    + '<div class="row between" style="align-items:center;gap:8px;">'
+    + '<span data-action="open-patient" data-id="' + p.id + '" style="cursor:pointer;flex:1;min-width:0;"><span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(p.name) + '</span>'
+    + '<span style="display:block;font-size:11px;font-weight:600;color:' + (d < today ? 'var(--red)' : '#b45309') + ';">' + esc(when + rem) + '</span>'
+    + '<span style="display:block;font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + followUpContextLine(p) + '</span></span>'
+    + main
+    + '<button type="button" class="chip" style="font-size:11.5px;padding:6px 10px;" data-action="daily-done-menu" data-id="' + p.id + '">Done ▾</button>'
+    + '</div></div>';
+}
+function dailySectionHtml(key, title, hint, color, list, kind) {
+  if (!list.length) return '';
+  const lim = ATTN_SHOWALL[key] ? list.length : 12;
+  return '<div style="margin-top:14px;"><div style="font-size:13px;font-weight:800;color:' + color + ';">' + title + ' <span class="badge badge-muted" style="font-size:10px;">' + list.length + '</span></div>'
+    + '<div style="font-size:10.5px;color:var(--muted);margin:1px 0 6px;">' + hint + '</div>'
+    + (key === 'd_remind' && list.some(p => p.whatsapp) ? '<button type="button" class="btn btn-block" style="margin-bottom:8px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-todays-reminders">' + ic('message') + ' Send all reminders, one by one — ' + list.length + '</button>' : '')
+    + '<div class="card" style="padding:2px 0;border-left:3px solid ' + color + ';">' + list.slice(0, lim).map(p => dailyRowHtml(p, kind)).join('')
+    + (list.length > lim ? '<div style="padding:8px 14px;"><button class="chip" data-action="attn-section-all" data-value="' + key + '">Show all ' + list.length + '</button></div>' : '') + '</div></div>';
+}
+function renderDailyView() {
+  const g = dailyGroups(), oc = outcomeCallsDue();
+  const s = computeDashboardStats();
+  const labs = s.important.filter(i => i.type !== 'Follow-up');
+  const total = g.remind.length + g.call.length + oc.length + labs.length;
+  return '<div style="padding-bottom:60px;"><div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3"><button class="icon-btn" data-action="close-daily">' + ic('back') + '</button><h2 style="font-size:16px;font-weight:800;margin:0;">Today</h2></div></div>'
+    + '<div class="px" style="padding-top:6px;">'
+    + (total ? '' : '<div style="padding:50px 10px;text-align:center;"><div style="font-size:38px;margin-bottom:8px;">✅</div><div style="font-weight:800;font-size:15px;">All clear</div><div style="font-size:12px;color:var(--muted);margin-top:4px;">Nothing to remind or call right now.</div></div>')
+    + dailySectionHtml('d_remind', 'Remind', 'Due tomorrow, today or just overdue — send a WhatsApp', 'var(--red)', g.remind, 'remind')
+    + dailySectionHtml('d_call', 'Call', 'No reply to reminders, long overdue, or no WhatsApp number', '#b45309', g.call, 'call')
+    + (oc.length ? '<div style="margin-top:14px;"><div style="font-size:13px;font-weight:800;color:var(--accent-dark);">Outcome calls <span class="badge badge-muted" style="font-size:10px;">' + oc.length + '</span></div><div style="font-size:10.5px;color:var(--muted);margin:1px 0 6px;">Ask how they are doing, then tap the answer</div>' + oc.map(outcomeRowHtml).join('') + '</div>' : '')
+    + (labs.length ? '<div style="margin-top:14px;"><div style="font-size:13px;font-weight:800;color:#b45309;">RA labs / DEXA <span class="badge badge-muted" style="font-size:10px;">' + labs.length + '</span></div><div class="card" style="padding:2px 0;margin-top:6px;">' + labs.map(attnRowHtml).join('') + '</div></div>' : '')
+    + (g.waiting.length ? '<p style="font-size:11.5px;color:var(--muted);margin:16px 0 0;">' + g.waiting.length + ' patient' + (g.waiting.length > 1 ? 's' : '') + ' reminded recently — waiting for their reply, nothing to do yet.</p>' : '')
+    + '<div class="row" style="gap:8px;margin-top:18px;flex-wrap:wrap;"><button type="button" class="chip" data-action="dash-goto-overdue">All overdue</button><button type="button" class="chip" data-action="dash-goto-tomorrow">Tomorrow</button><button type="button" class="chip" data-action="open-outcome-calls">Outcome calls</button></div>'
+    + '</div></div>';
+}
+function openDoneMenu(id) {
+  const p = getPatient(id); if (!p) return;
+  const ov = document.createElement('div');
+  ov.className = 'confirm-dialog-overlay';
+  const item = (a, label, extra) => '<button type="button" class="btn btn-block" style="margin-bottom:8px;text-align:left;' + (extra || '') + '" data-action="' + a + '" data-id="' + id + '">' + label + '</button>';
+  ov.innerHTML = '<div class="confirm-dialog"><div class="confirm-dialog-title">' + esc(p.name) + '</div><div class="confirm-dialog-message">'
+    + item('open-patient', 'Patient came — open file to log visit')
+    + item('attn-snooze-followup', 'Push date 7 days later')
+    + item('attn-mark-completed', 'No more follow-up needed (Completed)')
+    + item('outcome-call-pick', 'Outcome call later (3 / 6 months)')
+    + item('attn-mark-lost', 'Lost to follow-up', 'color:var(--red);')
+    + '</div><div class="confirm-dialog-actions"><button class="confirm-btn-cancel" type="button">Close</button></div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', ev => { if (ev.target === ov || ev.target.closest('button')) ov.remove(); });
+}
 function suggestNextFollowUpDate(patient) { const r = suggestFollowUp(patient); return (r && r.date) || ''; }
 
 /* ============ Relative follow-up date picker (Number + Days/Weeks/Months, or pick a date) ============ */
@@ -2917,6 +2998,13 @@ async function renderNotificationsView() {
   return html;
 }
 const CHANGELOG = [
+  { version:'1.4.4', date:'2026-10-24', features: [
+      'New Today screen - one list for the day\u2019s follow-up work: who to remind, who to call, and outcome calls due. Open it from the home screen',
+      'Each patient row has just two buttons: Remind (or Call) and Done, which holds everything else - visit, push date, completed, outcome call, lost',
+      'After you send a WhatsApp reminder and come back, the app asks "Message sent?" so a failed send never counts as a reminder',
+      'Reminder limit, gap and auto-Lost settings moved into an Advanced section',
+      'Simpler names - "Reminded recently" and "Long overdue" instead of Waiting and Cold'
+  ] },
   { version:'1.4.3', date:'2026-10-24', features: [
       'Outcome calls - for patients who stopped coming, schedule one final call (3 months, 6 months or any date) to learn how they are doing; tap what they say and the outcome is saved (Doing well, Some pain, Same, Worse, Went elsewhere, Not reachable)',
       'Patients who go Lost get an outcome call set automatically 3 months later - change or cancel it any time',
@@ -5891,7 +5979,7 @@ function renderAppSettingsView() {
     + '<div class="card"><label class="field-label">Text Size</label><div class="row between"><span style="font-size:13px;font-weight:600;">App-wide size</span><div class="seg" style="width:auto;">'
     + [['small','Small'],['medium','Medium'],['large','Large']].map(([v,l])=>'<button class="seg-btn'+(loadFontSize()===v?' active':'')+'" data-action="set-font-size" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div>'
-    + '<div class="card"><label class="field-label">Reminder limit</label><div class="row between"><span style="font-size:13px;font-weight:600;">Max unanswered reminders</span><div class="seg" style="width:auto;">'
+    + '<details class="card"><summary style="cursor:pointer;font-weight:800;font-size:13px;">Advanced follow-up settings <span style="color:var(--muted);font-weight:500;">(reminders, auto-Lost)</span></summary><div style="margin-top:12px;"><label class="field-label">Reminder limit</label><div class="row between"><span style="font-size:13px;font-weight:600;">Max unanswered reminders</span><div class="seg" style="width:auto;">'
     + [[1,'1'],[2,'2'],[3,'3'],[0,'No limit']].map(([v,l])=>'<button class="seg-btn'+(getReminderLimit()===v?' active':'')+'" data-action="set-reminder-limit" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">The app asks for confirmation before another WhatsApp once this many reminders go unanswered.</p>'
     + '<div class="row between" style="margin-top:12px;"><span style="font-size:13px;font-weight:600;">Gap between reminders</span><div class="seg" style="width:auto;">'
@@ -5904,7 +5992,7 @@ function renderAppSettingsView() {
     + '<div class="row between" style="margin-top:12px;"><span style="font-size:13px;font-weight:600;">Even without reminder</span><div class="seg" style="width:auto;">'
     + [[60,'60d'],[90,'90d'],[120,'120d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getAutoLostHard()===v?' active':'')+'" data-action="set-autolost-hard" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
     + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Lost patients keep all data - adding a visit reopens them, and every auto move has an Undo.</p></div>'
-    + '</div></div>'
+    + '</div></details></div>'
     + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
     + '</div>'
     + notifCardHtml()
@@ -6552,13 +6640,9 @@ function renderDashboardSection() {
           + '</button>'
         + '</div>';
     }
-    const todaysN = fuTodaysRemindIds().length;
-    if (todaysN) {
-      html += '<button type="button" class="btn btn-block" style="margin:-8px 0 14px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-todays-reminders">'+ic('message')+' Today\u2019s reminders \u2014 '+todaysN+'</button>';
-    }
-    const ocN = outcomeCallsDue().length;
-    if (ocN) {
-      html += '<button type="button" class="btn btn-block" style="margin:-8px 0 14px;" data-action="open-outcome-calls">'+ic('phone')+' Outcome calls due \u2014 '+ocN+'</button>';
+    const dgN = dailyCount();
+    if (dgN) {
+      html += '<button type="button" class="btn btn-primary btn-block" style="margin:-8px 0 14px;" data-action="open-daily">'+ic('check')+' Today\u2019s follow-up work \u2014 '+dgN+'</button>';
     }
     const alN = autoLostRecent().length;
     if (alN) {
@@ -6636,8 +6720,8 @@ function fuClassify(item) {
 const FU_BUCKET_META = {
   remind:  { title: 'Remind now', hint: 'Overdue under 4 weeks, no recent reminder', color: 'var(--red)' },
   decide:  { title: 'Call or decide', hint: 'Reminders sent, no response', color: '#b45309' },
-  waiting: { title: 'Waiting for reply', hint: 'Reminded recently - nothing to do yet', color: 'var(--muted)' },
-  cold:    { title: 'Cold (4+ weeks overdue)', hint: 'Details stay saved - add a follow-up visit when they return', color: 'var(--muted)' },
+  waiting: { title: 'Reminded recently', hint: 'Waiting for their reply - nothing to do yet', color: 'var(--muted)' },
+  cold:    { title: 'Long overdue (4+ weeks)', hint: 'Set an outcome call or mark Lost - details stay saved, a new visit reopens the file', color: 'var(--muted)' },
   labs:    { title: 'RA labs / DEXA overdue', hint: '', color: '#b45309' }
 };
 function attnSectionHtml(key, list) {
@@ -6669,8 +6753,8 @@ function renderOverdueBuckets(items) {
     h += '<div class="card" style="margin-bottom:10px;padding:12px 14px;">'
       + '<div style="font-size:13px;font-weight:800;margin-bottom:6px;">' + fu.length + ' overdue follow-up' + (fu.length > 1 ? 's' : '') + '</div>'
       + '<div style="font-size:11.5px;color:var(--muted);line-height:1.6;">'
-      + '<b style="color:var(--red);">' + g.remind.length + '</b> remind now · <b style="color:#b45309;">' + g.decide.length + '</b> call/decide · <b>' + g.waiting.length + '</b> waiting · <b>' + g.cold.length + '</b> cold</div>'
-      + '<button type="button" class="btn btn-primary btn-block" style="margin-top:10px;" data-action="fu-cleanup-start">' + ic('check') + ' Clean up overdue, one by one</button>'
+      + '<b style="color:var(--red);">' + g.remind.length + '</b> remind now · <b style="color:#b45309;">' + g.decide.length + '</b> call · <b>' + g.waiting.length + '</b> reminded recently · <b>' + g.cold.length + '</b> long overdue</div>'
+      + '<button type="button" class="btn btn-primary btn-block" style="margin-top:10px;" data-action="open-daily">' + ic('check') + ' Open Today\u2019s list</button>'
       + (remindWa ? '<button type="button" class="btn btn-block" style="margin-top:8px;background:#25D366;border-color:#25D366;color:#fff;" data-action="start-reminder-queue">' + ic('message') + ' Send reminders — ' + remindWa + ' waiting</button>' : '')
       + '</div>';
   }
@@ -10123,6 +10207,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
   if (VIEW === 'fu-cleanup') { app.innerHTML = renderFuCleanupView(); return; }
   if (VIEW === 'fu-schedule') { app.innerHTML = renderFuScheduleView(); return; }
+  if (VIEW === 'daily') { app.innerHTML = renderDailyView(); return; }
   if (VIEW === 'outcome-calls') { app.innerHTML = renderOutcomeCallsView(); return; }
   if (VIEW === 'marketing-contacts') { app.innerHTML = renderMarketingContactsView(); return; }
   if (VIEW === 'broadcast-queue') { app.innerHTML = renderBroadcastQueueView(); return; }
@@ -11191,7 +11276,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['close-outcome-calls','cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-fu-schedule','close-diag-referrals'];
+const SWIPE_BACK_ACTIONS = ['close-daily','close-outcome-calls','cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-fu-schedule','close-diag-referrals'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -11240,7 +11325,7 @@ function updateMasterVoiceUI() {
     // Hide entirely on screens that have their own fixed bottom action bar, or where a
     // generic floating trigger would visually clash with the screen's own content/buttons
     // (menus, AI sub-pages that ARE the AI feature already, forms with Save/Cancel bars, etc).
-    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'fu-cleanup', 'fu-schedule', 'outcome-calls', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report', 'photo-gallery'];
+    const hideOnViews = ['add', 'settings', 'app-settings', 'cloud-sync', 'about', 'more', 'ai-query', 'ai-digest', 'ai-assistant', 'ai-hub', 'compare-picker', 'compare-view', 'print', 'calendar', 'recently-deleted', 'unfiled-photos', 'onboarding', 'duplicate-finder', 'confirm-delete-patient', 'drive-backup', 'drive-restore-list', 'planned-surgeries', 'reminders-tab', 'notifications', 'whats-new', 'upgrade', 'scheme-finder', 'patient-ai-tools', 'reminder-queue', 'fu-cleanup', 'fu-schedule', 'outcome-calls', 'daily', 'print-summary', 'print-referral', 'export-summary', 'academic-vault', 'clinical-bank', 'clinical-bank-detail', 'content-ideas', 'research-cases', 'privacy-policy', 'terms', 'diag-referrals', 'diag-statement', 'followup-report', 'photo-gallery'];
     // Search must stay available to every tier, not just AI tier \u2014 only the "Ask AI" menu
     // option inside is gated below, the button itself always shows (like the old search fab did).
     const shouldShow = !APP_LOCKED && !hideOnViews.includes(VIEW);
@@ -12794,6 +12879,7 @@ document.addEventListener('click', async (e) => {
       LP_MENU_PATIENT_ID = null;
       if (!okSend) { render(); return; }
       logReminder(p, 'whatsapp');
+      window.__remChk = { id: p.id, ts: p.reminderLog[p.reminderLog.length - 1].ts, at: Date.now() };
       haptic(15);
       toast('✓ Follow-up reminder sent to ' + p.name);
       await dbPutPatient(p);
@@ -13624,6 +13710,9 @@ document.addEventListener('click', async (e) => {
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); updateStorageIndicator(); return; }
   if (action === 'close-settings') { VIEW = 'more'; render(); return; }
   if (action === 'open-fu-schedule') { VIEW = 'fu-schedule'; render(); return; }
+  if (action === 'open-daily') { VIEW = 'daily'; render(); return; }
+  if (action === 'close-daily') { VIEW = 'list'; render(); return; }
+  if (action === 'daily-done-menu') { openDoneMenu(el.dataset.id); return; }
   if (action === 'open-outcome-calls') { VIEW = 'outcome-calls'; render(); return; }
   if (action === 'close-outcome-calls') { VIEW = 'list'; render(); return; }
   if (action === 'outcome-call-pick') {
@@ -15678,6 +15767,19 @@ function renderSplashScreen() {
       } catch (e) {} finally { autoLostBusy = false; }
     };
     setTimeout(autoLostTick, 4000);
+    // After a single WhatsApp tap: when the user comes back, confirm the message really went
+    document.addEventListener('visibilitychange', async () => {
+      try {
+        if (document.visibilityState !== 'visible' || !window.__remChk) return;
+        const c = window.__remChk; window.__remChk = null;
+        if (Date.now() - c.at > 20 * 60000 || Date.now() - c.at < 3000) return;
+        const p = getPatient(c.id); if (!p) return;
+        const last = (p.reminderLog || [])[(p.reminderLog || []).length - 1];
+        if (!last || last.ts !== c.ts || last.outcome !== 'pending') return;
+        const sent = await showConfirmDialog({ title: 'Message sent?', message: 'Did the WhatsApp reminder to <b>' + esc(p.name) + '</b> actually go?', confirmText: 'Yes, sent', cancelText: 'Not sent' });
+        if (!sent) { undoLastReminder(p); await dbPutPatient(p); await refreshPatients(); toast('Reminder entry removed'); render(); }
+      } catch (e) {}
+    });
     setInterval(autoLostTick, 60000);
     // Safety mechanism: Force bottom nav to be visible after initial render completes
     setTimeout(() => {
