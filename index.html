@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261105.10">
+<meta name="app-build" content="20261105.11">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -922,7 +922,7 @@
 
 .fu-seg{display:flex;flex-wrap:nowrap;gap:2px;}
 .fu-tab{flex:1 1 0;min-width:0;padding:7px 2px !important;font-size:11.5px !important;display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.15;white-space:nowrap;}
-.fu-n{font-style:normal;font-size:10px;font-weight:800;opacity:.75;}
+.fu-tn{font-style:normal;font-size:10px;font-weight:800;}
 
 .more-prof{display:flex;align-items:center;gap:13px;width:100%;padding:14px 16px;background:var(--surface,#fff);border:1px solid var(--border);border-radius:18px;text-align:left;font:inherit;box-shadow:var(--sh);}
 .more-prof-av{flex:none;width:46px;height:46px;border-radius:50%;background:var(--accent-bg);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;}
@@ -967,7 +967,21 @@
 .hdr-date{display:inline-block;padding:8px 0;}
 .hdr-name [data-action="edit-patient-name"]{padding:8px;margin:-8px;}
 #app [data-action="onboarding-skip"],#app [data-action="more-search-clear"],#app [data-action="mic-toggle"],#app [data-action="toggle-legend"]{min-width:36px;min-height:36px;}
-.fu-n{opacity:1 !important;color:inherit !important;}
+.fu-tn{color:inherit;}
+
+.view-fwd{animation:view-in-fwd 260ms cubic-bezier(.22,.8,.3,1);}
+.view-back{animation:view-in-back 260ms cubic-bezier(.22,.8,.3,1);}
+@keyframes view-in-fwd{from{opacity:0;transform:translateX(18px);}to{opacity:1;transform:none;}}
+@keyframes view-in-back{from{opacity:0;transform:translateX(-18px);}to{opacity:1;transform:none;}}
+.splash-anim{position:relative;overflow:hidden;background:radial-gradient(circle at 50% 42%,#14405A 0%,#0B1723 70%) !important;}
+.splash-glow{position:absolute;width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(45,212,191,.35),rgba(45,212,191,0) 65%);animation:splash-pulse 2.2s ease-in-out infinite;}
+.splash-logo{position:relative;width:260px;max-width:78vw;border-radius:30px;box-shadow:0 16px 40px rgba(0,0,0,.45);animation:splash-pop 700ms cubic-bezier(.2,.9,.3,1.2) both;}
+.splash-bar{position:relative;width:110px;height:3px;border-radius:3px;background:rgba(255,255,255,.14);margin-top:34px;overflow:hidden;animation:splash-fade 600ms ease 500ms both;}
+.splash-bar span{display:block;height:100%;width:40%;border-radius:3px;background:#2DD4BF;animation:splash-load 1.1s ease-in-out infinite;}
+@keyframes splash-pop{from{opacity:0;transform:scale(.82) translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes splash-pulse{0%,100%{transform:scale(.9);opacity:.7;}50%{transform:scale(1.08);opacity:1;}}
+@keyframes splash-fade{from{opacity:0;}to{opacity:1;}}
+@keyframes splash-load{0%{transform:translateX(-110%);}100%{transform:translateX(260%);}}
 </style>
 </head>
 <body>
@@ -2607,6 +2621,26 @@ function setupSwipeNavigation(container, onSwipeLeft, onSwipeRight) {
 }
 
 // Skeleton loader HTML
+function skeletonViewHtml() {
+  return '<div style="padding:18px 16px;">'
+    + '<div class="skeleton-header" style="width:38%;height:22px;margin-bottom:18px;"></div>'
+    + skeletonCardHtml(4) + '</div>';
+}
+function runCountUps(root) {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  root.querySelectorAll('[data-countup]').forEach(el => {
+    const target = parseInt(el.textContent, 10);
+    if (!isFinite(target) || target < 1 || target > 99999) return;
+    const dur = 650, t0 = performance.now();
+    el.textContent = '0';
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / dur);
+      el.textContent = String(Math.round(target * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) requestAnimationFrame(step); else el.textContent = String(target);
+    };
+    requestAnimationFrame(step);
+  });
+}
 function skeletonCardHtml(count = 3) {
   return Array(count).fill(0).map(() => 
     '<div class="skeleton-card">' +
@@ -3193,6 +3227,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.5.0', date:'2026-11-05', features: [
+      'Polish: animated splash screen, smooth slide transitions between screens, loading placeholders on slower screens, and numbers on Home that count up',
       'Home now opens with Patients / Surgical / Follow-ups-due tiles and dark region cards (tap one to see those cases); patient screen has an avatar, normal-case name, tap-to-call number, Next Follow-up at the top of Overview and tabs that fit the screen; names are no longer forced into capitals; backup reminder is calmer (after 7 days)',
       'Cleaner screens everywhere: patient menu (\u22ee) now holds Print, Download, Bookmark and Delete; the Overview shows a small Visits card; the AI button is smaller and out of the way; Follow-ups tabs fit on one screen; More has a profile card; Patients list has a quick call button; home greets you by name; new Plus Jakarta Sans font',
       'Prescriptions and the RA / Osteoporosis tracking tabs are switched off for now to keep the app simple - nothing was deleted and saved data stays safe',
@@ -6805,9 +6840,9 @@ function renderDashboardSection() {
   // ---- 1. ADD NEW (top priority \u2014 the most common thing to do on opening the app) ----
   const _surg = PATIENTS.filter(p => p.caseType === 'surgical').length;
   html += '<div class="stat3">'
-    + '<div class="stat3-i"><span>'+ic('users')+'</span><b>'+PATIENTS.length+'</b><small>Patients</small></div>'
-    + '<div class="stat3-i"><span>'+ic('scalpel')+'</span><b>'+_surg+'</b><small>Surgical</small></div>'
-    + '<button type="button" class="stat3-i" data-action="dash-goto-overdue"><span>'+ic('calendar')+'</span><b>'+(overdueCount+todayFollowUpCount)+'</b><small>Follow-ups due</small></button>'
+    + '<div class="stat3-i"><span>'+ic('users')+'</span><b data-countup>'+PATIENTS.length+'</b><small>Patients</small></div>'
+    + '<div class="stat3-i"><span>'+ic('scalpel')+'</span><b data-countup>'+_surg+'</b><small>Surgical</small></div>'
+    + '<button type="button" class="stat3-i" data-action="dash-goto-overdue"><span>'+ic('calendar')+'</span><b data-countup>'+(overdueCount+todayFollowUpCount)+'</b><small>Follow-ups due</small></button>'
     + '</div>';
   html += '<div class="home-h">Create new</div>'
     + '<div class="home-create">'
@@ -6849,16 +6884,16 @@ function renderDashboardSection() {
       const _ov = overdueCount+watchOverdueCount, _td = todayFollowUpCount+watchTodayCount, _tm = tomorrowCount+watchTomorrowCount;
       html += '<div class="home-stats" style="margin-bottom:12px;">'
         + '<button type="button" data-action="dash-goto-overdue" class="fu-tile'+(_ov?' is-red':'')+'">'
-          + '<span class="fu-n">'+_ov+'</span><span class="fu-l">Overdue</span>'
+          + '<span class="fu-n" data-countup>'+_ov+'</span><span class="fu-l">Overdue</span>'
           + (watchOverdueCount ? '<span class="fu-x">incl. '+watchOverdueCount+' watchlist</span>' : '')
           + (coldOverdueCount ? '<span class="fu-x">'+coldOverdueCount+' cold (4w+)</span>' : '')
           + '</button>'
         + '<button type="button" data-action="dash-goto-today" class="fu-tile'+(_td?' is-amber':'')+'">'
-          + '<span class="fu-n">'+_td+'</span><span class="fu-l">Today</span>'
+          + '<span class="fu-n" data-countup>'+_td+'</span><span class="fu-l">Today</span>'
           + (watchTodayCount ? '<span class="fu-x">incl. '+watchTodayCount+' watchlist</span>' : '')
           + '</button>'
         + '<button type="button" data-action="dash-goto-tomorrow" class="fu-tile'+(_tm?' is-teal':'')+'">'
-          + '<span class="fu-n">'+_tm+'</span><span class="fu-l">Tomorrow</span>'
+          + '<span class="fu-n" data-countup>'+_tm+'</span><span class="fu-l">Tomorrow</span>'
           + (watchTomorrowCount ? '<span class="fu-x">incl. '+watchTomorrowCount+' watchlist</span>' : '')
           + '</button>'
         + '</div>';
@@ -6900,7 +6935,7 @@ function renderDashboardSection() {
   if (_regs.length) {
     const _ric = { 'Upper Limb':'users','Hand':'users','Lower Limb':'users','Spine':'users','Pelvis & Acetabulum':'users','Foot & Ankle':'users','Arthroplasty':'scalpel','Sports Medicine':'trending','Trauma':'alert','Other Specialty':'clipboard' };
     html += '<div class="home-h">Regions &amp; specialties</div><div class="reg-grid">'
-      + _regs.map(([r,n],i) => '<button type="button" class="reg-card reg-'+(i%3)+'" data-action="home-region" data-value="'+esc(r.key)+'"><b>'+n+'</b><span>'+esc(r.key)+'</span><small>case'+(n>1?'s':'')+'</small></button>').join('')
+      + _regs.map(([r,n],i) => '<button type="button" class="reg-card reg-'+(i%3)+'" data-action="home-region" data-value="'+esc(r.key)+'"><b data-countup>'+n+'</b><span>'+esc(r.key)+'</span><small>case'+(n>1?'s':'')+'</small></button>').join('')
       + '</div>';
   }
   html += '<div class="home-h">Manage &amp; track</div>'
@@ -10353,11 +10388,11 @@ function renderCalendarView() {
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row between" style="margin-bottom:10px;"><div class="row gap3"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Follow-ups</h2></div><button class="btn btn-sm btn-primary" data-action="add-menu-pick-patient" data-value="followup">'+ic('plus')+' Add</button></div>'
     + '<div class="seg fu-seg">'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='overdue'?' active':'')+'" data-action="cal-set-subview" data-value="overdue">Overdue'+(overdueCount?'<i class="fu-n">'+(overdueCount)+'</i>':'')+'</button>'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='today'?' active':'')+'" data-action="cal-set-subview" data-value="today">Today'+(todayCount?'<i class="fu-n">'+(todayCount)+'</i>':'')+'</button>'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='tomorrow'?' active':'')+'" data-action="cal-set-subview" data-value="tomorrow">Tomorrow'+(s.dueTomorrowList.length?'<i class="fu-n">'+(s.dueTomorrowList.length)+'</i>':'')+'</button>'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming'+(0?'<i class="fu-n">'+(0)+'</i>':'')+'</button>'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar'+(0?'<i class="fu-n">'+(0)+'</i>':'')+'</button>'
+    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='overdue'?' active':'')+'" data-action="cal-set-subview" data-value="overdue">Overdue'+(overdueCount?'<i class="fu-tn">'+(overdueCount)+'</i>':'')+'</button>'
+    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='today'?' active':'')+'" data-action="cal-set-subview" data-value="today">Today'+(todayCount?'<i class="fu-tn">'+(todayCount)+'</i>':'')+'</button>'
+    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='tomorrow'?' active':'')+'" data-action="cal-set-subview" data-value="tomorrow">Tomorrow'+(s.dueTomorrowList.length?'<i class="fu-tn">'+(s.dueTomorrowList.length)+'</i>':'')+'</button>'
+    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming'+(0?'<i class="fu-tn">'+(0)+'</i>':'')+'</button>'
+    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar'+(0?'<i class="fu-tn">'+(0)+'</i>':'')+'</button>'
     + '</div>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
@@ -10390,14 +10425,18 @@ async function render() {
   }
   if (LAST_RENDERED_VIEW === 'add' && VIEW !== 'add') { try { clearApDraft(); } catch (e) {} }
   LAST_RENDERED_VIEW = VIEW; LAST_RENDERED_KEY = viewKey;
-  app.classList.remove('view-transition');
-  if (viewChanged) { void app.offsetWidth; app.classList.add('view-transition'); }
+  app.classList.remove('view-transition','view-fwd','view-back');
+  if (viewChanged) { void app.offsetWidth; app.classList.add(VIEW === 'list' ? 'view-back' : 'view-fwd'); }
+  const _skelTimer = (viewChanged && !['list','patients','detail','add'].includes(VIEW)) ? setTimeout(() => { try { app.innerHTML = skeletonViewHtml(); } catch (e) {} }, 160) : null;
   try {
     await renderCurrentView(app);
+    if (_skelTimer) clearTimeout(_skelTimer);
+    if (viewChanged) { try { runCountUps(app); } catch (e) {} }
     if (PENDING_SCROLL_RESTORE != null) { const _y = PENDING_SCROLL_RESTORE; PENDING_SCROLL_RESTORE = null; requestAnimationFrame(() => window.scrollTo(0, _y)); }
     if (LP_MENU_PATIENT_ID) app.insertAdjacentHTML('beforeend', renderLpContextMenu());
     if (READING_MODE_PATIENT_ID) app.insertAdjacentHTML('beforeend', renderReadingModeModal());
   } catch (err) {
+    if (_skelTimer) clearTimeout(_skelTimer);
     console.error('render() failed for VIEW=' + VIEW, err);
     // Don't let a broken view (bad data, edge case, etc.) leave the app in a half-rendered
     // state forever \u2014 fall back to the list view rather than requiring a manual restart.
@@ -15921,8 +15960,10 @@ function onAuthError(err) {
 /* ================= Init ================= */
 
 function renderSplashScreen() {
-  return '<div id="splash-screen" class="lock-screen" style="transition:opacity 420ms ease;">'
-    + '<img src="icons/logo-full.png" style="width:300px;max-width:88vw;border-radius:30px;box-shadow:0 16px 40px rgba(0,0,0,0.45);">'
+  return '<div id="splash-screen" class="lock-screen splash-anim" style="transition:opacity 420ms ease;">'
+    + '<div class="splash-glow"></div>'
+    + '<img class="splash-logo" src="icons/logo-full.png" alt="OrthoVault">'
+    + '<div class="splash-bar"><span></span></div>'
     + '</div>';
 }
 
@@ -15942,7 +15983,7 @@ function renderSplashScreen() {
     }
   } catch(e) {}
 
-  const minSplashMs = 2400;
+  const minSplashMs = 2000;
   const remaining = minSplashMs - (Date.now() - splashStart);
   if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
   const splashEl = document.getElementById('splash-screen');
