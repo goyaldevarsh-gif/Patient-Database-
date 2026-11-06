@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261105.11">
+<meta name="app-build" content="20261106.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -982,6 +982,10 @@
 @keyframes splash-pulse{0%,100%{transform:scale(.9);opacity:.7;}50%{transform:scale(1.08);opacity:1;}}
 @keyframes splash-fade{from{opacity:0;}to{opacity:1;}}
 @keyframes splash-load{0%{transform:translateX(-110%);}100%{transform:translateX(260%);}}
+
+.set-sec{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:10px 2px -4px;}
+.set-sec span{text-transform:none;letter-spacing:0;font-weight:500;opacity:.9;}
+.set-grp{display:flex;flex-direction:column;gap:12px;padding:16px;}
 </style>
 </head>
 <body>
@@ -3227,6 +3231,8 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.5.0', date:'2026-11-05', features: [
+      'Help is shorter and up to date (Quick tour + 7 collapsible topics); About shows the version and build number; AI tools moved into the patient \u22ee menu',
+      'Settings reorganised into clear sections: Doctor, Clinic and WhatsApp footer in the profile; Appearance, Reminders, Backup & storage, Patient ID, Maintenance, AI usage and About in App Settings',
       'Polish: animated splash screen, smooth slide transitions between screens, loading placeholders on slower screens, and numbers on Home that count up',
       'Home now opens with Patients / Surgical / Follow-ups-due tiles and dark region cards (tap one to see those cases); patient screen has an avatar, normal-case name, tap-to-call number, Next Follow-up at the top of Overview and tabs that fit the screen; names are no longer forced into capitals; backup reminder is calmer (after 7 days)',
       'Cleaner screens everywhere: patient menu (\u22ee) now holds Print, Download, Bookmark and Delete; the Overview shows a small Visits card; the AI button is smaller and out of the way; Follow-ups tabs fit on one screen; More has a profile card; Patients list has a quick call button; home greets you by name; new Plus Jakarta Sans font',
@@ -5951,7 +5957,7 @@ async function renderRecentlyDeletedView() {
 
 /* ================= About & Help Guide ================= */
 let ABOUT_EXPANDED = new Set(['getting-started']);
-const ABOUT_SECTIONS = [
+const ABOUT_SECTIONS_OLD = [
   { key:'getting-started', title:'Getting Started', icon:'clipboard', items:[
     ['Bottom navigation', 'Patients, Followups, + (Add), Reminders, More \u2014 always at the bottom. The purple + circle opens a quick menu: New OPD Case, New Surgical Case, Add Follow-up, Add Reminder, Add Investigation.'],
     ['Adding a case', 'Tap the + button \u2192 New OPD/Surgical Case. Choose OPD or Surgical, then work through the 4 colour-highlighted sections (Patient Details, Complaints & Diagnosis, Investigations, Special Tracking/Surgery Details) and save. In Patient Details, fill Place / Residence (village, town or city) \u2014 it autocompletes from places you have used before, so spellings stay consistent.'],
@@ -6056,6 +6062,44 @@ const ABOUT_SECTIONS = [
     ['Let Auto-detect do the typing', 'Fill in Diagnosis/Procedure first, then tap Auto-detect for Region \u2014 it\u2019s usually right, and you only need to adjust occasionally.'],
   ]},
 ];
+
+const ABOUT_SECTIONS = (function () {
+  const old = k => ABOUT_SECTIONS_OLD.find(x => x.key === k);
+  const aiSec = old('ai');
+  const aiFixed = aiSec ? { key:aiSec.key, title:aiSec.title, icon:aiSec.icon, items: aiSec.items.map(it => {
+    if (it[0] === 'Patient AI Tools') return ['Patient AI Tools', 'Open a patient, tap the ⋮ menu at the top right and choose AI tools — Summarize this patient and a Referral letter.'];
+    if (/^Master AI button/.test(it[0])) return ['Master AI button (floating, bottom-right)', it[1]];
+    return it;
+  }) } : null;
+  const org = old('organized');
+  const keepOrg = org ? org.items.filter(it => /^(Overdue is sorted|Clean up overdue|Completed|Reminder limits|If WhatsApp|Tags|Region filter)/.test(it[0])) : [];
+  const cust = old('customize');
+  const custItems = cust ? cust.items.map(it => it[0] === 'Doctor / Clinic Profile' ? [it[0], 'More → Doctor / Clinic Profile — name, qualifications, clinic address and phone, used in WhatsApp messages and printed summaries. Sign in/out lives under Backup & Account, not here.'] : it) : [];
+  const tips = old('tips');
+  return [
+    { key:'getting-started', title:'Getting Started', icon:'clipboard', items:[
+      ['Home', 'Home shows your follow-up numbers, the Create new buttons (OPD or Surgical case), your regions, and tiles for Patients, Reminders and More.'],
+      ['Adding a case', 'Tap Add New OPD Case or Add New Surgical Case, fill Patient Details, Complaints & Diagnosis and the rest, then save. The diagnosis switches on the right special tracking by itself.'],
+      ['Finding a patient', 'Use the search bar on Home, or open Patients for the full list with Sort, Filter and region chips. Tap a card to open the record, tap the call button to phone them.'],
+      ['Editing later', 'Overview is a read-only summary. Tap the pencil at the top to edit any field.']
+    ]},
+    { key:'patient-screen', title:'Patient Screen', icon:'file', items:[
+      ['Overview', 'Next follow-up at the top, then Visits, clinical details and contact options.'],
+      ['Follow-Up', 'Log each visit with notes, wound/union status and photos. Quick chips set the next follow-up date (+3 Days to +1 Month, or custom).'],
+      ['Records', 'X-rays, clinical and wound photos, labs and injections, grouped by type. Tap + Add to pick a category and go straight to the camera or file picker.'],
+      ['Timeline', 'The whole case in date order. Tap any entry to jump to it.'],
+      ['⋮ menu', 'Print summary, Download all, Bookmark for research and Delete case. With AI on, AI tools is here too.']
+    ]},
+    { key:'organized', title:'Follow-ups & Reminders', icon:'calendar', items:[
+      ['Follow-ups screen', 'Overdue, Today, Tomorrow, Upcoming and Calendar views. Tomorrow lets you message patients a day ahead. Open it from the Follow-ups tiles on Home.']
+    ].concat(keepOrg) },
+    old('data'),
+    old('practice-tools'),
+    { key:'customize', title:cust ? cust.title : 'Customization', icon:cust ? cust.icon : 'sliders', items:custItems },
+    aiFixed,
+    tips
+  ].filter(Boolean);
+})();
 function renderAboutView() {
   return '<div style="padding-bottom:40px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
@@ -6067,6 +6111,7 @@ function renderAboutView() {
     + '<p style="font-size:11px;color:var(--muted);font-weight:600;margin:2px 0 10px;">Built for Orthopaedic Surgeons</p>'
     + '<p style="font-size:12.5px;color:var(--muted);line-height:1.5;max-width:340px;margin:0 auto;">A personal, private patient record-keeping app for orthopaedic practice — OPD and surgical cases, photos and follow-ups, all in one place. Works fully offline, and can privately sync across your own devices when you sign in.</p>'
     + '</div>'
+    + '<div class="card" style="background:var(--accent-bg);border-color:var(--accent-border);margin-bottom:14px;"><b style="font-size:13.5px;color:var(--ink);">Quick tour</b><div style="font-size:12.5px;color:var(--ink);line-height:1.5;margin-top:4px;">Home has your numbers and the Create new buttons. Inside a patient: <b>Overview \u00b7 Follow-Up \u00b7 Records \u00b7 Timeline</b>, and \u22ee for print, download and delete. More \u2192 Backup for your data.</div></div>'
     + ABOUT_SECTIONS.map(sec => {
         const open = ABOUT_EXPANDED.has(sec.key);
         return '<div class="card" style="margin-bottom:10px;">'
@@ -6083,7 +6128,8 @@ function renderAboutView() {
     + '<button class="btn btn-outline btn-block" data-action="open-privacy-policy">'+ic('shield')+' Privacy Policy</button>'
     + '<button class="btn btn-outline btn-block" data-action="open-terms">'+ic('file')+' Terms of Service</button>'
     + '</div>'
-    + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:20px 0 4px;">© '+new Date().getFullYear()+' Dr. Devarsh Goyal — OrthoVault, all rights reserved</p>'
+    + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;margin:20px 0 0;">Version '+((CHANGELOG[0]||{}).version||'')+' \u00b7 Build '+(((document.querySelector('meta[name="app-build"]')||{}).content)||'')+'</p>'
+    + '<p style="text-align:center;font-size:10px;color:var(--muted);margin:4px 0 4px;">© '+new Date().getFullYear()+' Dr. Devarsh Goyal — OrthoVault, all rights reserved</p>'
     + '</div></div>';
 }
 
@@ -6162,16 +6208,18 @@ function renderSettingsView() {
     + '</div></div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
     + '<p style="text-align:center;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:0.02em;margin:0 0 -4px;">OrthoVault \u2014 Built for Orthopaedic Surgeons</p>'
-    + '<p style="font-size:12px;color:var(--muted);margin:0;">These details print on the prescription letterhead. Fill them in once, edit anytime.</p>'
+    + '<p style="font-size:12px;color:var(--muted);margin:0;">Fill these in once, edit anytime.</p>'
+    + '<div class="set-sec" style="margin-top:2px;">Doctor</div><div class="card set-grp">'
     + '<div><label class="field-label">Doctor name (as it should print)</label><input class="input" id="pr-doctorName" value="'+esc(pr.doctorName)+'" placeholder=""></div>'
     + '<div><label class="field-label">Specialty (for WhatsApp)</label><input class="input" id="pr-specialty" value="'+esc(pr.specialty||'Orthopaedic Surgeon')+'" placeholder=""></div>'
     + '<div><label class="field-label">Qualifications (for letterhead)</label><input class="input" id="pr-qualifications" value="'+esc(pr.qualifications)+'" placeholder=""></div>'
     + '<div><label class="field-label">Email (optional)</label><input class="input" type="email" id="pr-email" value="'+esc(pr.email||'')+'"></div>'
     + '<div><label class="field-label">Medical registration number</label><input class="input" id="pr-regNumber" value="'+esc(pr.regNumber)+'" placeholder=""></div>'
+    + '</div><div class="set-sec">Clinic</div><div class="card set-grp">'
     + '<div><label class="field-label">Clinic name</label><input class="input" id="pr-clinicName" value="'+esc(pr.clinicName)+'" placeholder=""></div>'
     + '<div><label class="field-label">Clinic address</label><textarea class="textarea" rows="2" id="pr-clinicAddress" placeholder="">'+esc(pr.clinicAddress)+'</textarea></div>'
     + '<div><label class="field-label">Clinic phone</label><input class="input" id="pr-clinicPhone" value="'+esc(pr.clinicPhone)+'" placeholder=""></div>'
-    + '<div style="margin-top:20px;"><label class="field-label" style="font-weight:800;font-size:13px;">📍 WhatsApp Clinic Footer</label>'
+    + '</div><div class="set-sec">WhatsApp clinic footer</div><div style="margin-top:0;">'
     + '<p style="font-size:11px;color:var(--muted);margin:4px 0 12px;">Add 1-3 clinics. These auto-appear at the bottom of all WhatsApp messages.</p>'
     + (pr.clinicAddresses && pr.clinicAddresses.length ? pr.clinicAddresses.map((clinic, idx) => '<div class="card" style="padding:12px;background:rgba(13,148,136,0.03);border-color:#B5E3DD;margin-bottom:10px;">'
         + '<div class="row between" style="align-items:center;margin-bottom:8px;">'
@@ -6221,14 +6269,18 @@ function renderAppSettingsView() {
     + '<h2 style="font-size:16px;font-weight:800;margin:0;">App Settings</h2>'
     + '</div></div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
-    + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;">PREFERENCES</div>'
+    + '<div class="set-sec">Appearance</div>'
     + '<div class="card"><label class="field-label">Display</label><div class="row between"><span style="font-size:13px;font-weight:600;">Appearance</span><div class="seg" style="width:auto;">'
     + [['auto','Auto'],['light','Light'],['dark','Dark']].map(([v,l])=>'<button class="seg-btn'+(loadTheme()===v?' active':'')+'" data-action="set-theme" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div>'
     + (loadTheme()==='auto' ? '<p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Light 6 AM\u20137 PM, Dark otherwise \u2014 switches automatically.</p>' : '')
+    + '</div>'
     + '<div class="card"><label class="field-label">Text Size</label><div class="row between"><span style="font-size:13px;font-weight:600;">App-wide size</span><div class="seg" style="width:auto;">'
     + [['small','Small'],['medium','Medium'],['large','Large']].map(([v,l])=>'<button class="seg-btn'+(loadFontSize()===v?' active':'')+'" data-action="set-font-size" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div>'
+    + '</div>'
+    + '<div class="set-sec">Reminders &amp; follow-ups</div>'
+    + notifCardHtml()
     + '<details class="card"><summary style="cursor:pointer;font-weight:800;font-size:13px;">Advanced follow-up settings <span style="color:var(--muted);font-weight:500;">(reminders, auto-Lost)</span></summary><div style="margin-top:12px;"><label class="field-label">Reminder limit</label><div class="row between"><span style="font-size:13px;font-weight:600;">Max unanswered reminders</span><div class="seg" style="width:auto;">'
     + [[1,'1'],[2,'2'],[3,'3'],[0,'No limit']].map(([v,l])=>'<button class="seg-btn'+(getReminderLimit()===v?' active':'')+'" data-action="set-reminder-limit" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">The app asks for confirmation before another WhatsApp once this many reminders go unanswered.</p>'
@@ -6242,14 +6294,20 @@ function renderAppSettingsView() {
     + '<div class="row between" style="margin-top:12px;"><span style="font-size:13px;font-weight:600;">Even without reminder</span><div class="seg" style="width:auto;">'
     + [[60,'60d'],[90,'90d'],[120,'120d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getAutoLostHard()===v?' active':'')+'" data-action="set-autolost-hard" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
     + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Lost patients keep all data - adding a visit reopens them, and every auto move has an Undo.</p></div>'
-    + '</div></details></div>'
+    + '</div></details>'
+    + '<div class="set-sec">Backup &amp; storage</div>'
+    + moreRowHtml('shield', 'Backup & Cloud Sync', 'Auto backup, cloud sync status', 'open-cloud-sync')
     + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
-    + '</div>'
-    + notifCardHtml()
-    + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">MAINTENANCE (one-time fixes)</div>'
+    + '<div class="set-sec">Patient ID</div>'
+    + '<div class="card" style="border-color:var(--amber-border);background:var(--amber-bg);padding:10px 14px;">'
+    + '<div class="row between"><span style="font-size:12px;font-weight:700;color:#7c4a03;">Next Patient ID: <b class="mono">'+peekNextPatientCode()+'</b></span>'
+    + (ARMED_DELETE === 'reset-patient-counter:x'
+        ? '<button class="btn btn-sm btn-danger-confirm" data-action="reset-patient-counter" data-confirm="1">'+ic('check')+' Confirm reset</button>'
+        : '<button class="btn btn-sm" data-action="arm-delete" data-arm="reset-patient-counter:x">Reset</button>')
+    + '</div></div>'
+    + '<div class="set-sec">Maintenance <span>one-time fixes</span></div>'
     + moreRowHtml('clock', 'Fix Follow-up Week Labels', 'Recalculates "2 Weeks / 6 Weeks" labels from surgery/visit date instead of the previous visit', 'fix-followup-labels')
     + moreRowHtml('pencil', 'Fix Name/Diagnosis Capitalization', 'Capitalizes existing patient names and diagnoses typed in lowercase', 'fix-capitalization')
-    + moreRowHtml('shield', 'Backup & Cloud Sync', 'Auto backup, cloud sync status', 'open-cloud-sync')
     + (isAiTier() ? (
         '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">AI USAGE</div>'
         + '<div class="card">'
@@ -6267,16 +6325,8 @@ function renderAppSettingsView() {
         + '<p style="font-size:10.5px;color:var(--muted);margin:10px 0 0;">Used for AI clinical assistant, suggestions, and analysis.</p>'
         + '</div>'
       ) : '')
-    + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-top:4px;">ABOUT</div>'
+    + '<div class="set-sec">About</div>'
     + moreRowHtml('info', 'About OrthoVault', 'What this app does and how to use it', 'open-about')
-    + '</div>'
-    + '<div class="px">'
-    + '<div class="card" style="border-color:var(--amber-border);background:var(--amber-bg);padding:10px 14px;">'
-    + '<div class="row between"><span style="font-size:12px;font-weight:700;color:#7c4a03;">Next Patient ID: <b class="mono">'+peekNextPatientCode()+'</b></span>'
-    + (ARMED_DELETE === 'reset-patient-counter:x'
-        ? '<button class="btn btn-sm btn-danger-confirm" data-action="reset-patient-counter" data-confirm="1">'+ic('check')+' Confirm reset</button>'
-        : '<button class="btn btn-sm" data-action="arm-delete" data-arm="reset-patient-counter:x">Reset</button>')
-    + '</div></div>'
     + '</div>'
     + '</div>';
 }
@@ -10109,7 +10159,7 @@ function renderDetailShell(p) {
     + '<button class="icon-btn" data-action="toggle-patient-menu" title="More">'+ic('dots')+'</button>'
     + '</div></div></div>'
     + '<div id="patient-menu-wrap" class="pm-wrap" hidden><div class="pm-back" data-action="toggle-patient-menu"></div><div class="pm-menu">'
-      + (isAiTier() ? '<button type="button" class="pm-item" data-action="ai-summarize-patient"><span>'+ic('sparkle')+'</span>AI summary</button>' : '')
+      + (isAiTier() ? '<button type="button" class="pm-item" data-action="open-patient-ai-tools"><span>'+ic('sparkle')+'</span>AI tools</button>' : '')
       + '<button type="button" class="pm-item" data-action="open-export-summary"><span>'+ic('printer')+'</span>Print summary</button>'
       + '<button type="button" class="pm-item" data-action="download-case-zip" data-id="'+p.id+'"><span>'+ic('download')+'</span>Download all</button>'
       + '<button type="button" class="pm-item" data-action="toggle-research-flag" data-id="'+p.id+'"><span>'+ic('bookmark')+'</span>'+(p.researchFlag?'Remove from research':'Bookmark for research')+'</button>'
