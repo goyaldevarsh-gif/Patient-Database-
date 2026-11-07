@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261107.4">
+<meta name="app-build" content="20261107.6">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -6550,8 +6550,17 @@ function renderAppSettingsView() {
     + [[60,'60d'],[90,'90d'],[120,'120d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getAutoLostHard()===v?' active':'')+'" data-action="set-autolost-hard" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
     + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Lost patients keep all data - adding a visit reopens them, and every auto move has an Undo.</p></div>'
     + '</div></details>'
+    + '<div class="set-sec">App updates</div>'
+    + '<div class="card"><div class="row between" style="align-items:center;"><div><div style="font-size:13px;font-weight:700;">Version '+esc((CHANGELOG[0]||{}).version||'')+'</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">Build '+esc((document.querySelector('meta[name="app-build"]')||{}).content||'')+'</div></div>'
+    + '<button type="button" class="btn btn-sm" data-action="check-update" id="check-update-btn">Check for updates</button></div>'
+    + '<div id="update-result" style="font-size:12px;color:var(--muted);margin-top:8px;min-height:16px;"></div></div>'
+    + '<div class="set-sec">Security</div>'
+    + securityCardHtml()
     + '<div class="set-sec">Backup &amp; storage</div>'
     + moreRowHtml('shield', 'Backup & Cloud Sync', 'Auto backup, cloud sync status', 'open-cloud-sync')
+    + '<div class="card"><div class="row between" style="align-items:center;margin-bottom:6px;"><label class="field-label" style="margin:0;display:inline-flex;align-items:center;gap:6px;">'+ic('shield')+' Storage protection</label><span class="badge badge-slate" id="persist-badge">Checking\u2026</span></div>'
+    + '<p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.5;">Asks the phone not to clear OrthoVault\u2019s data when it runs low on space. Keep taking regular backups either way.</p>'
+    + '<button type="button" class="btn btn-sm btn-block" id="persist-btn" data-action="protect-storage" style="display:none;">Protect storage</button></div>'
     + '<p id="storage-indicator" style="font-size:11px;color:var(--muted);margin:12px 0 0;">Checking storage usage\u2026</p>'
     + '<div class="set-sec">Patient ID</div>'
     + '<div class="card" style="border-color:var(--amber-border);background:var(--amber-bg);padding:10px 14px;">'
@@ -10770,7 +10779,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'content-ideas') { app.innerHTML = renderContentIdeasTab(); return; }
   if (VIEW === 'academic-vault') { app.innerHTML = renderAcademicVaultTab(); return; }
   if (VIEW === 'settings') { app.innerHTML = renderSettingsView(); return; }
-  if (VIEW === 'app-settings') { app.innerHTML = renderAppSettingsView(); return; }
+  if (VIEW === 'app-settings') { app.innerHTML = renderAppSettingsView(); setTimeout(updateStorageIndicator, 0); return; }
   if (VIEW === 'cloud-sync') { app.innerHTML = await renderCloudSyncView(); return; }
   if (VIEW === 'drive-backup') { app.innerHTML = await renderGoogleDriveConnectView(); return; }
   if (VIEW === 'drive-restore-list') { app.innerHTML = await renderDriveRestoreListView(); return; }
@@ -12000,6 +12009,8 @@ document.addEventListener('touchend', (e) => {
   let lastExitPress = 0;
   function closeTopOverlay() {
     try {
+      if (document.getElementById('pk-code-ov')) return true;
+      if (document.getElementById('pk-ov') || document.getElementById('pk-rec-ov')) { if (window.__pkCancel) window.__pkCancel(); return true; }
       if (document.querySelector('.modal-overlay') && typeof closeImageViewer === 'function') { closeImageViewer(); return true; }
       if (MASTER_VOICE_STATE !== 'idle') { const b = document.querySelector('[data-action="master-voice-cancel"],[data-action="master-voice-edit-cancel"]'); if (b) { b.click(); return true; } }
       if (READING_MODE_PATIENT_ID) { const b = document.querySelector('[data-action="close-reading-mode"]'); if (b) { b.click(); return true; } }
@@ -12100,6 +12111,25 @@ function ovBanner(id, html, buttons, autoHideMs) {
       ]);
     }
   }
+  /* Manual "Check for updates" (Settings). Ignores the 3-minute throttle. Returns {state, build}. */
+  window.__ovCheckUpdate = async function () {
+    if (!navigator.onLine) return { state: 'offline', build: myBuild };
+    const rb = await remoteBuild();
+    if (!rb) return { state: 'error', build: myBuild };
+    if (rb === myBuild) return { state: 'latest', build: myBuild };
+    if (!shown) {
+      shown = true;
+      ovBanner('ov-update-banner', 'New update available', [
+        { label: 'Later', fn: () => { shown = false; lastCheck = Date.now() + 20 * 60 * 1000; } },
+        { label: 'Refresh', primary: true, fn: async () => {
+            try { if (VIEW === 'add') saveApDraft(); } catch (e) {}
+            try { await fetch(pageUrl, { cache: 'reload' }); } catch (e) {}
+            location.reload();
+        } }
+      ]);
+    }
+    return { state: 'available', build: myBuild, remote: rb };
+  };
   setTimeout(check, 20000);
   setInterval(check, 20 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
@@ -12173,6 +12203,19 @@ window.addEventListener('pagehide', saveApDraft);
 })();
 
 // ---- Sign out = full local wipe (shared-device privacy). Data comes back via cloud sync / backup restore. ----
+function authShowError(err, prefix) {
+  const c = err && err.code ? String(err.code) : '';
+  const map = {
+    'auth/wrong-password': 'Incorrect email or password.', 'auth/invalid-credential': 'Incorrect email or password.', 'auth/invalid-login-credentials': 'Incorrect email or password.',
+    'auth/user-not-found': 'No account found for this email. Tap Create Account.', 'auth/email-already-in-use': 'This email already has an account. Tap Sign In.',
+    'auth/weak-password': 'Password needs at least 6 characters.', 'auth/invalid-email': 'That email address does not look right.',
+    'auth/network-request-failed': 'No internet connection. Try again when you are online.', 'auth/too-many-requests': 'Too many tries. Wait a few minutes and try again.'
+  };
+  const msg = map[c] || (prefix + ': ' + (err && err.message ? err.message : 'unknown error'));
+  const box = document.getElementById('auth-err');
+  if (box) box.textContent = msg;
+  toast(msg);
+}
 async function signOutAndWipe() {
   const n = (typeof PATIENTS !== 'undefined' && PATIENTS) ? PATIENTS.length : 0;
   let lastBk = 0;
@@ -12332,6 +12375,11 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+  if (action === 'toggle-auth-pw') {
+    const pw = document.getElementById('auth-password');
+    if (pw) { const show = pw.type === 'password'; pw.type = show ? 'text' : 'password'; el.textContent = show ? 'Hide' : 'Show'; }
+    return;
+  }
   if (action === 'email-sign-up') {
     const email = (document.getElementById('auth-email')||{}).value || '';
     const password = (document.getElementById('auth-password')||{}).value || '';
@@ -12341,7 +12389,7 @@ document.addEventListener('click', async (e) => {
       toast('Account created \u2014 signed in');
       // Don't render here; onAuthChanged will handle it after loadSubscriptionPlan completes
     } catch (err) {
-      toast('Could not create account: ' + (err && err.message ? err.message : 'unknown error'));
+      authShowError(err, 'Could not create account');
     }
     return;
   }
@@ -12354,7 +12402,7 @@ document.addEventListener('click', async (e) => {
       toast('Signed in');
       // Don't render here; onAuthChanged will handle it after loadSubscriptionPlan completes
     } catch (err) {
-      toast('Sign-in failed: ' + (err && err.message ? err.message : 'unknown error'));
+      authShowError(err, 'Sign-in failed');
     }
     return;
   }
@@ -14250,16 +14298,19 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'lock-digit') {
     if (APP_LOCKED) {
+      if (Date.now() < LOCK_UNTIL) { document.getElementById('app').innerHTML = renderLockScreen(); return; }
       LOCK_PIN_INPUT += el.dataset.value;
       LOCK_ERROR = false;
       const appDiv = document.getElementById('app');
       if (LOCK_PIN_INPUT.length === PIN_LENGTH) {
         const ok = await verifyPin(LOCK_PIN_INPUT);
         if (ok) {
-          APP_LOCKED = false; LOCK_PIN_INPUT = '';
+          APP_LOCKED = false; LOCK_PIN_INPUT = ''; LOCK_FAILS = 0;
           await refreshPatients(); render();
         } else {
           LOCK_ERROR = true;
+          LOCK_FAILS++;
+          if (LOCK_FAILS >= 5) { LOCK_FAILS = 0; LOCK_UNTIL = Date.now() + 30000; setTimeout(() => { if (APP_LOCKED) document.getElementById('app').innerHTML = renderLockScreen(); }, 30200); }
           appDiv.innerHTML = renderLockScreen();
           setTimeout(() => { LOCK_PIN_INPUT = ''; LOCK_ERROR = false; if (APP_LOCKED) document.getElementById('app').innerHTML = renderLockScreen(); }, 500);
         }
@@ -14276,7 +14327,35 @@ document.addEventListener('click', async (e) => {
     }
     return;
   }
+  if (action === 'check-update') {
+    const out = document.getElementById('update-result'), btn = document.getElementById('check-update-btn');
+    if (!window.__ovCheckUpdate) { if (out) out.textContent = 'Updates are checked in the installed app, not in this preview.'; return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Checking\u2026'; }
+    const r = await window.__ovCheckUpdate();
+    if (btn) { btn.disabled = false; btn.textContent = 'Check for updates'; }
+    if (out) out.innerHTML = r.state === 'latest' ? '<span style="color:var(--emerald);font-weight:700;">\u2713 You are on the latest version</span>'
+      : r.state === 'available' ? '<b style="color:var(--amber);">Update available.</b> Tap Refresh in the banner at the top.'
+      : r.state === 'offline' ? 'You are offline. Try again when you have internet.' : 'Could not check right now. Try again in a moment.';
+    return;
+  }
+  if (action === 'protect-storage') {
+    let ok = false;
+    try { ok = !!(navigator.storage && navigator.storage.persist && await navigator.storage.persist()); } catch (e) {}
+    toast(ok ? 'Storage protected' : 'The phone declined. Keep taking regular backups.');
+    updatePersistStatus();
+    return;
+  }
+  if (action === 'lock-forgot') {
+    const ok = await lockFlowRecover();
+    if (ok) { APP_LOCKED = false; LOCK_PIN_INPUT = ''; LOCK_ERROR = false; LOCK_FAILS = 0; LOCK_UNTIL = 0; await refreshPatients(); render(); }
+    return;
+  }
+  if (action === 'lock-turn-on') { await lockFlowTurnOn(); render(); return; }
+  if (action === 'lock-change-pin') { await lockFlowChangePin(); render(); return; }
+  if (action === 'lock-new-code') { await lockFlowNewCode(); render(); return; }
+  if (action === 'lock-turn-off') { await lockFlowTurnOff(); render(); return; }
   if (action === 'lock-emergency-disable') {
+    if (!(await showConfirmDialog({ title: 'Remove App Lock?', message: 'Anyone holding this phone will be able to open OrthoVault. Your patient data is not deleted.', confirmText: 'Remove lock', cancelText: 'Cancel', destructive: true }))) return;
     clearPin();
     APP_LOCKED = false;
     LOCK_PIN_INPUT = ''; LOCK_ERROR = false;
@@ -16203,7 +16282,19 @@ const ACCENT_THEMES = {
 };
 const ACCENT_KEY = 'orthovault-accent-v2';
 function loadAccentTheme() { try { return localStorage.getItem(ACCENT_KEY) || 'teal'; } catch(e) { return 'teal'; } }
+async function updatePersistStatus() {
+  const badge = document.getElementById('persist-badge'), btn = document.getElementById('persist-btn');
+  if (!badge) return;
+  if (!(navigator.storage && navigator.storage.persisted)) { badge.textContent = 'Not supported'; return; }
+  try {
+    const ok = await navigator.storage.persisted();
+    badge.textContent = ok ? 'Protected' : 'Not protected';
+    badge.className = 'badge ' + (ok ? 'badge-emerald' : 'badge-amber');
+    if (btn) btn.style.display = ok ? 'none' : '';
+  } catch (e) { badge.textContent = 'Unknown'; }
+}
 async function updateStorageIndicator() {
+  updatePersistStatus();
   const el = document.getElementById('storage-indicator');
   if (!el) return;
   if (!navigator.storage || !navigator.storage.estimate) { el.textContent = ''; return; }
@@ -16237,29 +16328,197 @@ async function hashPin(pin) {
   const buf = await crypto.subtle.digest('SHA-256', enc);
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
-function isLockEnabled() { try { return !!localStorage.getItem(APP_LOCK_HASH_KEY); } catch(e) { return false; } }
+const APP_LOCK_V2_KEY = 'surgical-case-log-lock-v2';
+let LOCK_FAILS = 0, LOCK_UNTIL = 0;
+function lockV2() { try { return JSON.parse(localStorage.getItem(APP_LOCK_V2_KEY) || 'null'); } catch (e) { return null; } }
+function isLockEnabled() { try { return !!(localStorage.getItem(APP_LOCK_HASH_KEY) || localStorage.getItem(APP_LOCK_V2_KEY)); } catch(e) { return false; } }
+function lockRandHex(n) { const a = new Uint8Array(n); (window.crypto && crypto.getRandomValues) ? crypto.getRandomValues(a) : a.forEach((_, i) => { a[i] = Math.floor(Math.random() * 256); }); return Array.from(a).map(b => b.toString(16).padStart(2, '0')).join(''); }
+/* PBKDF2 (120k rounds, salted). Falls back to a plain salted hash only where crypto.subtle is missing. */
+async function lockHash(secret, salt) {
+  try {
+    if (window.crypto && crypto.subtle) {
+      const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(String(secret)), 'PBKDF2', false, ['deriveBits']);
+      const b = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt: new TextEncoder().encode(salt), iterations: 120000, hash: 'SHA-256' }, k, 256);
+      return Array.from(new Uint8Array(b)).map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (e) {}
+  let h = 5381; const t = salt + secret; for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; return 'x' + h;
+}
+function lockGenCode() {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const r = new Uint8Array(8);
+  (window.crypto && crypto.getRandomValues) ? crypto.getRandomValues(r) : r.forEach((_, i) => { r[i] = Math.floor(Math.random() * 256); });
+  let c = ''; for (let i = 0; i < 8; i++) c += A[r[i] % A.length]; return c.slice(0, 4) + '-' + c.slice(4);
+}
+function lockNormCode(c) { return String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+/* Saves PIN + a fresh recovery code (v2). Returns the code (shown once). Never touches patient data, sync or Firebase. */
+async function lockSave(pin, keepCodeFrom) {
+  const salt = lockRandHex(12);
+  const rec = { v: 2, salt: salt, hash: await lockHash(pin, salt) };
+  let code = null;
+  if (keepCodeFrom && keepCodeFrom.rsalt) { rec.rsalt = keepCodeFrom.rsalt; rec.rhash = keepCodeFrom.rhash; }
+  else { code = lockGenCode(); rec.rsalt = lockRandHex(12); rec.rhash = await lockHash(lockNormCode(code), rec.rsalt); }
+  localStorage.setItem(APP_LOCK_V2_KEY, JSON.stringify(rec));
+  localStorage.removeItem(APP_LOCK_HASH_KEY);
+  return code;
+}
+async function lockNewRecoveryCode() {
+  const v2 = lockV2(); if (!v2) return null;
+  const code = lockGenCode(); v2.rsalt = lockRandHex(12); v2.rhash = await lockHash(lockNormCode(code), v2.rsalt);
+  localStorage.setItem(APP_LOCK_V2_KEY, JSON.stringify(v2)); return code;
+}
+async function lockVerifyRecovery(code) {
+  const v2 = lockV2(); if (!v2 || !v2.rsalt) return false;
+  return (await lockHash(lockNormCode(code), v2.rsalt)) === v2.rhash;
+}
+/* Full-screen keypad overlay. Resolves with the 6 digits, or null if cancelled. */
+function askPin(title, sub) {
+  return new Promise(resolve => {
+    let val = '';
+    const ov = document.createElement('div'); ov.id = 'pk-ov'; ov.className = 'lock-screen';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:400;overflow:auto;';
+    const done = v => { try { ov.remove(); } catch (e) {} window.__pkCancel = null; resolve(v); };
+    window.__pkCancel = () => done(null);
+    function draw() {
+      const dots = Array.from({ length: PIN_LENGTH }, (_, i) => '<span class="lock-dot' + (i < val.length ? ' filled' : '') + '"></span>').join('');
+      ov.innerHTML = '<p style="font-size:16px;font-weight:800;margin:0 0 6px;">' + esc(title) + '</p>'
+        + '<p style="font-size:12px;color:#9BAFC0;margin:0 0 22px;text-align:center;max-width:260px;">' + esc(sub || '') + '</p>'
+        + '<div class="lock-dots">' + dots + '</div><div class="lock-keypad">'
+        + [1,2,3,4,5,6,7,8,9].map(n => '<button type="button" class="lock-key" data-pk="' + n + '">' + n + '</button>').join('')
+        + '<span></span><button type="button" class="lock-key" data-pk="0">0</button><button type="button" class="lock-key" data-pk="b" aria-label="Delete">' + ic('back') + '</button></div>'
+        + '<button type="button" class="btn btn-sm" style="margin-top:18px;background:none;border:none;color:#9BAFC0;text-decoration:underline;" data-pk="x">Cancel</button>';
+    }
+    ov.addEventListener('click', e => {
+      const b = e.target.closest('[data-pk]'); if (!b) return;
+      e.stopPropagation();
+      const k = b.dataset.pk;
+      if (k === 'x') { done(null); return; }
+      if (k === 'b') val = val.slice(0, -1); else if (val.length < PIN_LENGTH) val += k;
+      if (val.length === PIN_LENGTH) { done(val); return; }
+      draw();
+    });
+    document.body.appendChild(ov); draw();
+  });
+}
+/* Shows the recovery code once; the person must tick "I saved it" before it can be closed. */
+function showRecoveryCodeSheet(code, title) {
+  return new Promise(resolve => {
+    const ov = document.createElement('div'); ov.id = 'pk-code-ov'; ov.className = 'lock-screen';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:400;overflow:auto;text-align:center;';
+    ov.innerHTML = '<p style="font-size:17px;font-weight:800;margin:0 0 8px;">' + esc(title || 'Your recovery code') + '</p>'
+      + '<p style="font-size:12.5px;color:#9BAFC0;margin:0 0 18px;max-width:290px;line-height:1.5;">If you forget your PIN, this code lets you set a new one. It is shown only once. Save it somewhere safe, like a screenshot or a note.</p>'
+      + '<div style="font-family:var(--mono,monospace);font-size:30px;font-weight:800;letter-spacing:.12em;background:#142536;border:1px solid #294052;border-radius:16px;padding:16px 22px;margin-bottom:12px;">' + esc(code) + '</div>'
+      + '<button type="button" class="btn btn-sm" id="pk-copy" style="margin-bottom:18px;">Copy code</button>'
+      + '<label style="display:flex;align-items:center;gap:10px;font-size:13px;margin-bottom:16px;"><input type="checkbox" id="pk-ack" style="width:20px;height:20px;"> I have saved this code</label>'
+      + '<button type="button" class="btn btn-primary" id="pk-done" style="min-width:220px;min-height:48px;opacity:.45;" disabled>Done</button>';
+    document.body.appendChild(ov);
+    window.__pkCancel = () => {};
+    const ack = ov.querySelector('#pk-ack'), dn = ov.querySelector('#pk-done');
+    ack.addEventListener('change', () => { dn.disabled = !ack.checked; dn.style.opacity = ack.checked ? '1' : '.45'; });
+    ov.querySelector('#pk-copy').addEventListener('click', () => { try { navigator.clipboard.writeText(code).then(() => toast('Code copied')); } catch (e) { toast('Copy not available - note it down'); } });
+    dn.addEventListener('click', () => { ov.remove(); window.__pkCancel = null; resolve(); });
+  });
+}
+/* Asks for a new PIN twice. Returns the PIN or null. */
+async function askNewPin(title) {
+  for (let tries = 0; tries < 3; tries++) {
+    const a = await askPin(title || 'Choose a 6-digit PIN', 'You will enter it each time the app opens.'); if (!a) return null;
+    const b = await askPin('Confirm your PIN', 'Enter the same 6 digits again.'); if (!b) return null;
+    if (a === b) return a;
+    toast('The two PINs did not match - try again');
+  }
+  return null;
+}
+async function lockFlowTurnOn() {
+  const pin = await askNewPin(); if (!pin) return;
+  const code = await lockSave(pin, null);
+  await showRecoveryCodeSheet(code, 'Save your recovery code');
+  toast('App lock is on');
+}
+async function lockFlowChangePin() {
+  const cur = await askPin('Enter current PIN', ''); if (!cur) return;
+  if (!(await verifyPin(cur))) { toast('Wrong PIN'); return; }
+  const pin = await askNewPin('Choose a new PIN'); if (!pin) return;
+  const v2 = lockV2();
+  if (v2) { await lockSave(pin, v2); toast('PIN changed'); }
+  else { const code = await lockSave(pin, null); await showRecoveryCodeSheet(code, 'Save your recovery code'); toast('PIN changed'); }
+}
+async function lockFlowNewCode() {
+  const cur = await askPin('Enter current PIN', 'A new code replaces the old one.'); if (!cur) return;
+  if (!(await verifyPin(cur))) { toast('Wrong PIN'); return; }
+  if (!lockV2()) { const code = await lockSave(cur, null); await showRecoveryCodeSheet(code, 'Save your recovery code'); return; }
+  const code = await lockNewRecoveryCode(); await showRecoveryCodeSheet(code, 'Your new recovery code');
+}
+async function lockFlowTurnOff() {
+  const cur = await askPin('Enter PIN to turn off', ''); if (!cur) return;
+  if (!(await verifyPin(cur))) { toast('Wrong PIN'); return; }
+  clearPin(); toast('App lock is off');
+}
+/* Lock screen: forgot PIN -> recovery code -> new PIN. Patient data is never touched. */
+async function lockFlowRecover() {
+  const ov = document.createElement('div'); ov.id = 'pk-rec-ov'; ov.className = 'lock-screen';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:410;overflow:auto;text-align:center;';
+  const code = await new Promise(resolve => {
+    ov.innerHTML = '<p style="font-size:17px;font-weight:800;margin:0 0 8px;">Reset your PIN</p>'
+      + '<p style="font-size:12.5px;color:#9BAFC0;margin:0 0 16px;max-width:280px;">Enter the recovery code you saved when you turned on App Lock.</p>'
+      + '<input id="pk-rc" class="input" placeholder="XXXX-XXXX" autocapitalize="characters" autocomplete="off" style="max-width:240px;text-align:center;letter-spacing:.1em;font-size:18px;text-transform:uppercase;">'
+      + '<div id="pk-rc-err" style="font-size:12px;color:#f87171;min-height:18px;margin:8px 0;"></div>'
+      + '<div class="row gap2"><button type="button" class="btn btn-sm" id="pk-rc-x">Cancel</button><button type="button" class="btn btn-primary btn-sm" id="pk-rc-ok">Continue</button></div>';
+    document.body.appendChild(ov);
+    window.__pkCancel = () => { ov.remove(); window.__pkCancel = null; resolve(null); };
+    ov.querySelector('#pk-rc-x').addEventListener('click', () => window.__pkCancel());
+    ov.querySelector('#pk-rc-ok').addEventListener('click', async () => {
+      const v = ov.querySelector('#pk-rc').value;
+      if (await lockVerifyRecovery(v)) { ov.remove(); window.__pkCancel = null; resolve(v); }
+      else ov.querySelector('#pk-rc-err').textContent = 'That code is not right. Check it and try again.';
+    });
+  });
+  if (!code) return false;
+  const pin = await askNewPin('Choose a new PIN'); if (!pin) return false;
+  const v2 = lockV2(); await lockSave(pin, v2);
+  toast('PIN reset');
+  return true;
+}
+function securityCardHtml() {
+  const on = isLockEnabled(), v2 = !!lockV2();
+  return '<div class="card">'
+    + '<div class="row between" style="align-items:center;margin-bottom:6px;"><label class="field-label" style="margin:0;display:inline-flex;align-items:center;gap:6px;">' + ic('shield') + ' App lock</label>'
+    + '<span class="badge ' + (on ? 'badge-emerald' : 'badge-slate') + '">' + (on ? 'On' : 'Off') + '</span></div>'
+    + '<p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.5;">' + (on
+        ? 'OrthoVault asks for your 6-digit PIN every time it opens.' + (v2 ? '' : ' This older lock has no recovery code yet - add one below so a forgotten PIN never locks you out.')
+        : 'Ask for a 6-digit PIN every time the app opens. Useful if the phone is shared or gets lost.') + '</p>'
+    + (on
+        ? '<div class="row gap2" style="flex-wrap:wrap;"><button type="button" class="btn btn-sm" style="flex:1;" data-action="lock-change-pin">Change PIN</button>'
+          + '<button type="button" class="btn btn-sm" style="flex:1;" data-action="lock-new-code">' + (v2 ? 'New recovery code' : 'Add recovery code') + '</button></div>'
+          + '<button type="button" class="btn btn-sm btn-block" style="margin-top:8px;" data-action="lock-turn-off">Turn off App lock</button>'
+        : '<button type="button" class="btn btn-primary btn-sm btn-block" data-action="lock-turn-on">Turn on App lock</button>')
+    + '<p style="font-size:10.5px;color:var(--muted);margin:10px 0 0;">Stored only on this phone. It does not change, move or encrypt your patient data, and it never touches cloud sync or your account.</p>'
+    + '</div>';
+}
+
 async function verifyPin(pin) {
   try {
+    const v2 = lockV2();
+    if (v2) return (await lockHash(pin, v2.salt)) === v2.hash;
     const stored = localStorage.getItem(APP_LOCK_HASH_KEY);
     if (!stored) return true;
     return (await hashPin(pin)) === stored;
   } catch(e) { return false; }
 }
-function clearPin() { try { localStorage.removeItem(APP_LOCK_HASH_KEY); } catch(e) {} }
+function clearPin() { try { localStorage.removeItem(APP_LOCK_HASH_KEY); localStorage.removeItem(APP_LOCK_V2_KEY); } catch(e) {} }
 
 function renderLockScreen() {
   const dots = Array.from({length:PIN_LENGTH}, (_,i) => '<span class="lock-dot'+(i<LOCK_PIN_INPUT.length?' filled':'')+'"></span>').join('');
   const ownerProfile = loadProfile();
   return '<div class="lock-screen">'
     + '<img src="icons/logo-full.png" style="width:150px;height:150px;border-radius:32px;box-shadow:0 8px 24px rgba(0,0,0,0.35);margin-bottom:6px;">'
-    + '<p style="font-size:12px;color:var(--muted);margin:0 0 4px;">'+(LOCK_ERROR?'Wrong PIN, try again.':'Enter PIN')+'</p>'
+    + '<p style="font-size:12px;color:var(--muted);margin:0 0 4px;">'+(Date.now()<LOCK_UNTIL?'Too many wrong tries. Wait '+Math.ceil((LOCK_UNTIL-Date.now())/1000)+'s.':(LOCK_ERROR?'Wrong PIN, try again.':'Enter PIN'))+'</p>'
     + (ownerProfile.doctorName ? '<p style="font-size:10px;color:var(--muted);margin:0 0 14px;">Personal clinical tool of '+esc(ownerProfile.doctorName)+'</p>' : '<div style="margin-bottom:16px;"></div>')
     + '<div class="lock-dots" style="'+(LOCK_ERROR?'animation:lock-shake 0.4s;':'')+'">'+dots+'</div>'
     + '<div class="lock-keypad">'
     + [1,2,3,4,5,6,7,8,9].map(n=>'<button class="lock-key" data-action="lock-digit" data-value="'+n+'">'+n+'</button>').join('')
     + '<span></span><button class="lock-key" data-action="lock-digit" data-value="0">0</button><button class="lock-key" data-action="lock-backspace">'+ic('back')+'</button>'
     + '</div>'
-    + '<button class="btn btn-sm" style="margin-top:16px;background:none;border:none;color:var(--muted);text-decoration:underline;" data-action="lock-emergency-disable">Forgot PIN? Tap to remove App Lock</button>'
+    + '<button class="btn btn-sm" style="margin-top:16px;background:none;border:none;color:var(--muted);text-decoration:underline;" data-action="'+(lockV2()?'lock-forgot':'lock-emergency-disable')+'">'+(lockV2()?'Forgot PIN? Use recovery code':'Forgot PIN? Remove App Lock')+'</button>'
     + '</div>';
 }
 
@@ -16267,16 +16526,25 @@ function renderLockScreen() {
 function syncCardHtml() {
   const user = CURRENT_USER;
   if (user) {
-    return '<div class="card">'
-      + '<label class="field-label">Cloud Sync Account</label>'
-      + '<div style="margin:6px 0 10px;"><div style="font-size:13px;font-weight:700;">Signed in</div><div style="font-size:11px;color:var(--muted);">'+esc(user.email||'')+'</div><div style="font-size:11px;color:var(--emerald,#16a34a);margin-top:2px;">\u25cf Syncing patients and photos automatically</div></div>'
+    const initial = esc((user.email || '?').charAt(0).toUpperCase());
+    return '<div class="set-sec" style="margin-top:4px;">Account</div>'
+      + '<div class="card"><div class="row gap3" style="align-items:center;">'
+      + '<div style="flex:none;width:44px;height:44px;border-radius:50%;background:var(--accent-bg);color:var(--accent-dark);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;">'+initial+'</div>'
+      + '<div style="min-width:0;flex:1;"><div style="font-size:13.5px;font-weight:800;overflow:hidden;text-overflow:ellipsis;">'+esc(user.email||'')+'</div>'
+      + '<div style="font-size:11.5px;color:var(--emerald,#16a34a);margin-top:2px;">● Syncing patients and photos automatically</div></div></div></div>'
+      + '<div class="set-sec">Sync tools</div>'
+      + '<div class="card">'
       + '<button class="btn btn-primary btn-sm btn-block" data-action="backup-to-cloud">Force Full Backup to Cloud</button>'
-      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">Not usually needed \u2014 changes sync automatically now. Use this only if you want to manually re-push everything.</p>'
+      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">Not usually needed — changes sync automatically now. Use this only if you want to manually re-push everything.</p>'
       + (ARMED_DELETE === 'restore-from-cloud:x'
           ? '<button class="btn btn-sm btn-danger-confirm btn-block" data-action="restore-from-cloud" data-confirm="1">'+ic('check')+' Yes, restore from cloud</button>'
           : '<button class="btn btn-sm btn-block" data-action="arm-delete" data-arm="restore-from-cloud:x">Force Full Restore from Cloud</button>')
-      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 10px;">Not usually needed \u2014 signing in already pulls everything down automatically. If this device has newer local changes for a patient, the cloud copy will overwrite them.</p>'
+      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0;">Not usually needed — signing in already pulls everything down automatically. If this device has newer local changes for a patient, the cloud copy will overwrite them.</p>'
+      + '</div>'
+      + '<div class="set-sec">Session</div>'
+      + '<div class="card">'
       + '<button class="btn btn-sm btn-block" data-action="account-sign-out">Sign out</button>'
+      + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0;">Signing out clears the data on this phone. You can restore it from cloud sync or a backup after signing in again.</p>'
       + (user.uid === MY_UID
           ? '<div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);">'
             + '<label class="field-label">'+ic('shield')+' AI Features <span style="color:var(--muted);font-weight:500;">(only visible to you)</span></label>'
@@ -16291,9 +16559,11 @@ function syncCardHtml() {
     + '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Set this up once to prepare for multi-device sync. Sync isn\u2019t active yet \u2014 your data stays local for now.</p>'
     + '<div style="display:flex;flex-direction:column;gap:8px;">'
     + '<input class="input" id="auth-email" type="email" placeholder="" autocomplete="username">'
-    + '<input class="input" id="auth-password" type="password" placeholder="" autocomplete="current-password">'
+    + '<div style="position:relative;"><input class="input" id="auth-password" type="password" placeholder="" autocomplete="current-password" style="padding-right:64px;">'
+    + '<button type="button" data-action="toggle-auth-pw" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--accent-dark);font-weight:700;font-size:12px;padding:8px;">Show</button></div>'
     + '</div>'
-    + '<div class="row gap2" style="margin-top:10px;">'
+    + '<div id="auth-err" role="alert" style="font-size:12px;color:var(--red);min-height:16px;margin-top:8px;"></div>'
+    + '<div class="row gap2" style="margin-top:6px;">'
     + '<button class="btn btn-sm" style="flex:1;" data-action="email-sign-up">Create Account</button>'
     + '<button class="btn btn-primary btn-sm" style="flex:1;" data-action="email-sign-in">Sign In</button>'
     + '</div>'
