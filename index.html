@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261107.3">
+<meta name="app-build" content="20261107.4">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -1040,6 +1040,14 @@
 .dg-entry{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-top:8px;background:var(--surface)}
 .dg-entry.is-paid{opacity:.72;background:var(--bg-soft)}
 .dg-entry.is-inc{border-color:var(--amber-border);background:var(--amber-bg)}
+.dg-staff{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:10px}
+.dg-staff-t{font-size:16px;font-weight:800;color:var(--ink)}
+.dg-staff-r{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;padding:7px 0;border-top:1px solid var(--border);margin-top:6px}
+.dg-staff-r:first-of-type{margin-top:10px}
+.dg-staff-r.s{font-size:12px;color:var(--muted)}
+.dg-staff-r b.w{color:var(--amber)}
+.dg-staff-r.net{font-weight:700}
+.dg-staff-btn{margin-top:8px;min-height:44px;background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent-dark);font-weight:800}
 </style>
 </head>
 <body>
@@ -3258,12 +3266,13 @@ function diagMonthLabel(m, short) {
 }
 const DIAG_MOD_COLORS = { CT: '#3B82F6', MRI: '#0D9488', Other: '#F59E0B' };
 function diagSumList(list) {
-  const t = { n: 0, gross: 0, staff: 0, net: 0, got: 0, left: 0, incomplete: 0 };
+  const t = { n: 0, gross: 0, staff: 0, net: 0, got: 0, left: 0, incomplete: 0, staffDue: 0, staffPaid: 0, staffLater: 0 };
   list.forEach(r => {
     if (!r.segmentCode) { t.incomplete++; return; }
     const g = Number(r.doctorCutAmount) || 0, st = Number(r.staffAmount) || 0;
     t.n++; t.gross += g; t.staff += st; t.net += g - st;
     if (r.status === 'paid') t.got += g; else t.left += g;
+    if (st > 0) { if (r.staffPaidAt) t.staffPaid += st; else if (r.status === 'paid') t.staffDue += st; else t.staffLater += st; }
   });
   return t;
 }
@@ -3282,7 +3291,7 @@ function diagEntryCardHtml(r) {
     + '<div style="font-size:13px;font-weight:700;">'+esc(r.patientName)+'</div>'
     + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.investigation||'')+(r.contrastType?' ('+(r.contrastType==='with'?'With':'Without')+' contrast)':'')+' \u00b7 '+esc(centre?centre.name:'\u2014')+'</div>'
     + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.segmentCode?' \u00b7 '+esc(r.segmentCode):'')+'</div>'
-    + (r.segmentCode ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Cut '+diagRs(r.doctorCutAmount)+(st?' <span style="font-weight:600;color:var(--muted);">\u00b7 staff '+diagRs(st)+' \u00b7 net '+diagRs((Number(r.doctorCutAmount)||0)-st)+'</span>':'')+(r.cutManual?' <span style="font-size:10px;font-weight:700;color:var(--muted);">(manual)</span>':'')+'</div>' : '')
+    + (r.segmentCode ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Cut '+diagRs(r.doctorCutAmount)+(st?' <span style="font-weight:600;color:var(--muted);">\u00b7 staff '+diagRs(st)+(r.staffPaidAt?' \u2713':'')+' \u00b7 net '+diagRs((Number(r.doctorCutAmount)||0)-st)+'</span>':'')+(r.cutManual?' <span style="font-size:10px;font-weight:700;color:var(--muted);">(manual)</span>':'')+'</div>' : '')
     + (paid && r.paidAt ? '<div style="font-size:10.5px;color:var(--muted);margin-top:2px;">Received: '+new Date(r.paidAt).toLocaleDateString('en-IN',{day:'numeric',month:'short'})+'</div>' : '')
     + '</div>'
     + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-edit-referral" data-id="'+r.id+'" title="Edit entry">'+ic('pencil')+'</button>'
@@ -3293,6 +3302,19 @@ function diagEntryCardHtml(r) {
     + (needsCompletion ? (DIAG_COMPLETING_ID === r.id
         ? diagCompleteEntryFormHtml(r)
         : '<button type="button" class="btn btn-sm btn-block" style="margin-top:8px;background:var(--surface);" data-action="diag-open-complete" data-id="'+r.id+'">'+ic('alert')+' Add rate details to calculate your cut</button>') : '')
+    + '</div>';
+}
+function diagStaffCardHtml(ms, month) {
+  const allPaid = ms.staffDue === 0 && ms.staffPaid > 0;
+  return '<div class="dg-staff">'
+    + '<div class="row between" style="align-items:baseline;"><div class="dg-h" style="margin:0;">Staff share</div><div class="dg-staff-t">'+diagRs(ms.staff)+'</div></div>'
+    + '<div class="dg-staff-r"><span>To pay now</span><b class="'+(ms.staffDue>0?'w':'')+'">'+diagRs(ms.staffDue)+'</b></div>'
+    + (ms.staffLater ? '<div class="dg-staff-r s"><span>Later, when pending is received</span><span>'+diagRs(ms.staffLater)+'</span></div>' : '')
+    + (ms.staffPaid ? '<div class="dg-staff-r s"><span>Already paid</span><span>'+diagRs(ms.staffPaid)+'</span></div>' : '')
+    + '<div class="dg-staff-r net"><span>Your net</span><b>'+diagRs(ms.net)+'</b></div>'
+    + (ms.staffDue > 0
+        ? '<button type="button" class="btn btn-sm btn-block dg-staff-btn" data-action="diag-staff-pay" data-month="'+month+'">'+ic('check')+' Mark staff paid · '+diagRs(ms.staffDue)+'</button>'
+        : (allPaid ? '<div class="dg-cleared" style="margin-top:8px;">'+ic('check')+(ms.staffLater ? ' Paid up to now' : ' Staff paid')+' <button type="button" class="dg-undo" data-action="diag-staff-unpay" data-month="'+month+'">Undo</button></div>' : ''))
     + '</div>';
 }
 function diagDashboardHtml() {
@@ -3340,7 +3362,7 @@ function diagDashboardHtml() {
     + '<div><small>Received</small><b class="g">'+diagRs(ms.got)+'</b></div>'
     + '<div><small>Pending</small><b class="'+(ms.left>0?'w':'g')+'">'+diagRs(ms.left)+'</b></div>'
     + '</div>'
-    + (ms.staff ? '<div class="dg-note">Staff share '+diagRs(ms.staff)+' · Your net '+diagRs(ms.net)+'</div>' : '')
+    + (ms.staff ? diagStaffCardHtml(ms, cur) : '')
     + (ms.incomplete ? '<div class="dg-warn">'+ms.incomplete+' entr'+(ms.incomplete>1?'ies':'y')+' without rate details are not counted</div>' : '');
 
   // the one chart: each centre as a bar, split by CT / MRI
@@ -3364,7 +3386,6 @@ function diagDashboardHtml() {
       + diagProgressHtml(sum.got, sum.gross)
       + '<div class="dg-gb"><span>Received <b class="g">'+diagRs(sum.got)+'</b></span><span>Pending <b class="'+(sum.left>0?'w':'g')+'">'+diagRs(sum.left)+'</b></span></div>'
       + rows
-      + (sum.staff ? '<div class="dg-note" style="margin-top:8px;">Staff '+diagRs(sum.staff)+' · Your net '+diagRs(sum.net)+'</div>' : '')
       + (sum.incomplete ? '<div class="dg-warn">'+sum.incomplete+' without rate details</div>' : '')
       + (action ? '<div style="margin-top:10px;">'+action+'</div>' : '')
       + '<button type="button" class="dg-more" data-action="diag-toggle-entries" data-key="'+key+'">'+(open?'Hide entries':'Show entries ('+b.entries.length+')')+'</button>'
@@ -14585,6 +14606,30 @@ document.addEventListener('click', async (e) => {
   if (action === 'diag-unmark-paid') {
     const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
     if (r) { r.status = 'active'; delete r.paidAt; delete r.paidBatch; saveDiagReferrals(DIAG_REFERRALS); toast('Moved back to pending'); }
+    render();
+    return;
+  }
+  if (action === 'diag-staff-pay') {
+    const mo = el.dataset.month, batch = 'staff|' + mo + '|' + Date.now();
+    let n = 0, amt = 0;
+    DIAG_REFERRALS.forEach(r => {
+      if (diagMonthOf(r) !== mo || !r.segmentCode || r.status !== 'paid' || r.staffPaidAt || !(Number(r.staffAmount) > 0)) return;
+      r.staffPaidAt = Date.now(); r.staffBatch = batch; n++; amt += Number(r.staffAmount) || 0;
+    });
+    saveDiagReferrals(DIAG_REFERRALS);
+    toast(n ? ('Staff paid ' + diagRs(amt)) : 'Nothing due');
+    render();
+    return;
+  }
+  if (action === 'diag-staff-unpay') {
+    const mo = el.dataset.month;
+    let n = 0;
+    DIAG_REFERRALS.forEach(r => {
+      if (diagMonthOf(r) !== mo || !r.staffBatch) return;
+      delete r.staffPaidAt; delete r.staffBatch; n++;
+    });
+    saveDiagReferrals(DIAG_REFERRALS);
+    toast(n + ' entries moved back to staff due');
     render();
     return;
   }
