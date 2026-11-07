@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261106.3">
+<meta name="app-build" content="20261107.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -986,6 +986,78 @@
 .set-sec{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:10px 2px -4px;}
 .set-sec span{text-transform:none;letter-spacing:0;font-weight:500;opacity:.9;}
 .set-grp{display:flex;flex-direction:column;gap:12px;padding:16px;}
+
+/* ===== Diagnostic referrals dashboard ===== */
+.dg-wrap{margin-bottom:14px}
+.dg-hero{background:linear-gradient(135deg,#0F2942,#0F766E);color:#fff;border-radius:18px;padding:16px;margin-bottom:12px}
+.dg-hero-l{font-size:11px;font-weight:700;opacity:.8;letter-spacing:.04em;text-transform:uppercase}
+.dg-hero-n{font-size:30px;font-weight:800;margin:2px 0 8px}
+.dg-hero .dg-prog{background:rgba(255,255,255,.2)}
+.dg-hero .dg-prog i{background:#5EEAD4}
+.dg-hero-r{display:flex;justify-content:space-between;font-size:12px;margin-top:8px;opacity:.95}
+.dg-hero-s{font-size:11.5px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.2);opacity:.9}
+.dg-prog{height:8px;border-radius:99px;background:var(--bg-soft);overflow:hidden}
+.dg-prog i{display:block;height:100%;border-radius:99px;background:var(--emerald)}
+.dg-chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+.dg-chips::-webkit-scrollbar{display:none}
+.dg-chip{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:700;font-family:inherit}
+.dg-chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+[data-theme="dark"] .dg-chip.on{color:#0B1723}
+.dg-chip em{font-style:normal;font-size:11px;color:var(--emerald);font-weight:800}
+.dg-chip.on em{color:inherit}
+.dg-dot{width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block}
+.dg-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px 14px;margin-bottom:12px;box-shadow:var(--sh)}
+.dg-h{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px}
+.dg-trend{display:flex;align-items:flex-end;gap:8px;height:96px}
+.dg-tcol{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;background:none;border:none;padding:0;font-family:inherit;color:var(--muted);font-size:10px;font-weight:700}
+.dg-tcol.on{color:var(--accent-dark)}
+.dg-tbar{width:100%;max-height:calc(100% - 16px);background:rgba(245,158,11,.45);border-radius:6px 6px 2px 2px;position:relative;overflow:hidden;min-height:4px;flex:none}
+.dg-tcol.on .dg-tbar{outline:2px solid var(--accent);outline-offset:1px}
+.dg-t-got{position:absolute;left:0;right:0;bottom:0;background:var(--emerald)}
+.dg-legend{display:flex;gap:14px;font-size:10.5px;color:var(--muted);margin-top:8px}
+.dg-legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}
+.dg-mtitle{font-size:17px;font-weight:800;color:var(--ink);margin:4px 2px 10px}
+.dg-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
+.dg-tile{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 8px;text-align:center}
+.dg-tile small{display:block;font-size:10.5px;color:var(--muted);font-weight:700;margin-bottom:2px}
+.dg-tile b{font-size:15px;font-weight:800;color:var(--ink)}
+.dg-tile.ok b{color:var(--emerald)}
+.dg-tile.warn{background:var(--amber-bg);border-color:var(--amber-border)}
+.dg-tile.warn b{color:var(--amber)}
+.dg-staffline{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);background:var(--bg-soft);border-radius:10px;padding:8px 12px;margin-bottom:10px}
+.dg-staffline b{color:var(--ink)}
+.dg-incline{font-size:11.5px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:10px;padding:7px 10px;margin:6px 0}
+.dg-donut{display:flex;align-items:center;gap:14px}
+.dg-dl{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+.dg-dl div{display:flex;align-items:center;gap:8px;font-size:12.5px}
+.dg-dl i{width:10px;height:10px;border-radius:3px;flex:none}
+.dg-dl span{flex:1;font-weight:700}
+.dg-dl b{font-weight:800}
+.dg-dl em{font-style:normal;color:var(--muted);font-size:11px;width:34px;text-align:right}
+.dg-cb{margin-bottom:10px}
+.dg-cbl{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px}
+.dg-cbt{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--bg-soft)}
+.dg-cbt i{display:block;height:100%}
+.dg-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:var(--sh)}
+.dg-cn{font-size:14.5px;font-weight:800;color:var(--ink)}
+.dg-ct{font-size:16px;font-weight:800;color:var(--ink)}
+.dg-card .dg-prog{margin:8px 0 6px}
+.dg-gb{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:8px}
+.dg-gb b.g{color:var(--emerald)}
+.dg-gb b.w{color:var(--amber)}
+.dg-mrow{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border);font-size:13px}
+.dg-mrow i{width:9px;height:9px;border-radius:3px;flex:none}
+.dg-ml{flex:1;font-weight:700}
+.dg-ml small{font-weight:500;color:var(--muted);margin-left:4px}
+.dg-mv{font-weight:800;text-align:right}
+.dg-mv small{display:block;font-weight:500;color:var(--muted);font-size:10.5px}
+.dg-clear{min-height:46px;font-size:14px}
+.dg-cleared{display:flex;align-items:center;justify-content:center;gap:6px;background:var(--emerald-bg);color:var(--emerald);border:1px solid var(--emerald-border);border-radius:12px;padding:11px;font-weight:800;font-size:13.5px}
+.dg-undo{margin-left:8px;border:none;background:none;color:var(--emerald);text-decoration:underline;font-weight:700;font-size:12px;font-family:inherit}
+.dg-more{display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--accent-dark);font-weight:700;font-size:12.5px;padding:6px;font-family:inherit}
+.dg-entry{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-top:8px;background:var(--surface)}
+.dg-entry.is-paid{opacity:.72;background:var(--bg-soft)}
+.dg-entry.is-inc{border-color:var(--amber-border);background:var(--amber-bg)}
 </style>
 </head>
 <body>
@@ -3112,6 +3184,259 @@ let DIAG_COMPLETE_CONTRAST = 'without';
 let DIAG_COMPLETE_CODE = '';
 let DIAG_COMPLETE_CUT = '';
 let DIAG_REF_CUT_DRAFT = '';
+
+/* ---- Diagnostic referrals: per-modality pool %, staff share, month-wise dashboard ---- */
+function diagModalityOf(centre, invName, stored) {
+  if (stored) return stored;
+  const inv = centre ? (centre.investigations || []).find(i => i.name === invName) : null;
+  const t = inv && inv.type ? String(inv.type).toUpperCase() : '';
+  if (t === 'MRI' || t === 'CT') return t;
+  const n = String(invName || '').toUpperCase();
+  if (/^MRI\b/.test(n)) return 'MRI';
+  if (/^(CT|HRCT)\b/.test(n)) return 'CT';
+  return 'Other';
+}
+function diagPoolFor(centre, modality) {
+  const by = centre && centre.poolByType;
+  if (by && by[modality] != null && by[modality] !== '' && !isNaN(Number(by[modality]))) return Number(by[modality]);
+  return Number((centre && centre.maxPoolPercent) || 40);
+}
+function diagStaffPctFor(centre, modality) {
+  const by = centre && centre.staffByType;
+  return by && by[modality] != null ? (Number(by[modality]) || 0) : 0;
+}
+function diagCalc(centre, invName, rate, discPct) {
+  const modality = diagModalityOf(centre, invName, '');
+  const pool = diagPoolFor(centre, modality);
+  const cutPct = Math.max(0, pool - (Number(discPct) || 0));
+  const staffBase = diagStaffPctFor(centre, modality);
+  const cutAmt = Math.round(rate * cutPct / 100);
+  // staff gets staffBase/pool of whatever the centre pays (so a patient discount reduces both of you in the same ratio)
+  const staffAmt = pool > 0 ? Math.round(cutAmt * staffBase / pool) : 0;
+  const staffPct = pool > 0 ? Math.round(cutPct * staffBase / pool * 10) / 10 : 0;
+  return { modality: modality, pool: pool, cutPct: cutPct, cutAmt: cutAmt, staffBase: staffBase, staffPct: staffPct, staffAmt: staffAmt };
+}
+function diagStaffRowHtml(dc, rate) {
+  if (!dc || !dc.staffPct) return '';
+  const net = dc.cutAmt - dc.staffAmt;
+  return '<div class="row between" style="font-size:12px;color:var(--muted);"><span>Staff share ('+dc.staffPct+'% of rate)</span><span>-\u20b9'+dc.staffAmt.toLocaleString('en-IN')+'</span></div>'
+    + '<div class="row between" style="font-size:12.5px;font-weight:800;"><span>Your net</span><span>\u20b9'+net.toLocaleString('en-IN')+'</span></div>';
+}
+/* One-time: Emkay = MRI 45% / CT 40% pool, 5% of MRI goes to staff. Only unpaid, auto-calculated entries are recomputed. */
+function diagMigrateCentres() {
+  let changed = false, fixed = 0, refsChanged = false;
+  DIAG_CENTRES.forEach(c => {
+    if (c.cutRulesV1 && !c.cutRulesV2) {
+      c.cutRulesV2 = true; changed = true;
+      if (c.staffByType && (c.staffByType.MRI || c.staffByType.CT)) {
+        DIAG_REFERRALS.forEach(r => {
+          if (r.centreId !== c.id || r.status === 'paid' || !r.segmentCode || !r.rate) return;
+          if (r.cutManual) {
+            const mod = diagModalityOf(c, r.investigation, r.modality), pool = diagPoolFor(c, mod), sb = diagStaffPctFor(c, mod);
+            r.staffAmount = pool > 0 ? Math.round((Number(r.doctorCutAmount) || 0) * sb / pool) : 0;
+          } else {
+            const dc = diagCalc(c, r.investigation, Number(r.rate) || 0, Number(r.patientDiscountPercent) || 0);
+            r.doctorCutPercent = dc.cutPct; r.doctorCutAmount = dc.cutAmt; r.staffPercent = dc.staffPct; r.staffAmount = dc.staffAmt; r.modality = dc.modality;
+          }
+          refsChanged = true;
+        });
+      }
+    }
+    if (c.cutRulesV1) return;
+    c.cutRulesV1 = true; c.cutRulesV2 = true; changed = true;
+    if (/emkay/i.test(c.name || '')) {
+      c.poolByType = { MRI: 45, CT: 40 };
+      c.staffByType = { MRI: 5 };
+      DIAG_REFERRALS.forEach(r => {
+        if (r.centreId !== c.id) return;
+        const mod = diagModalityOf(c, r.investigation, '');
+        if (!r.modality) { r.modality = mod; refsChanged = true; }
+        if (r.status === 'paid' || r.cutManual || !r.segmentCode || !r.rate) return;
+        const dc = diagCalc(c, r.investigation, Number(r.rate) || 0, Number(r.patientDiscountPercent) || 0);
+        r.doctorCutPercent = dc.cutPct; r.doctorCutAmount = dc.cutAmt;
+        r.staffPercent = dc.staffPct; r.staffAmount = dc.staffAmt;
+        fixed++; refsChanged = true;
+      });
+    }
+  });
+  if (changed) saveDiagCentres(DIAG_CENTRES);
+  if (refsChanged) saveDiagReferrals(DIAG_REFERRALS);
+  if (fixed) setTimeout(function () { toast('Emkay: MRI 45% / CT 40% + staff 5% lag gaya \u2014 ' + fixed + ' pending entries update hui'); }, 400);
+}
+let DIAG_MONTH = null;
+let DIAG_EXPAND = {};
+function diagRs(n) { return '\u20b9' + Math.round(Number(n) || 0).toLocaleString('en-IN'); }
+function diagMonthOf(r) {
+  if (r.reportDate) return String(r.reportDate).slice(0, 7);
+  const d = new Date(r.createdAt || Date.now());
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+function diagMonthLabel(m, short) {
+  return new Date(m + '-01T00:00:00').toLocaleDateString('en-IN', short ? { month: 'short', year: '2-digit' } : { month: 'long', year: 'numeric' });
+}
+const DIAG_MOD_COLORS = { CT: '#3B82F6', MRI: '#0D9488', Other: '#F59E0B' };
+function diagSumList(list) {
+  const t = { n: 0, gross: 0, staff: 0, net: 0, got: 0, left: 0, incomplete: 0 };
+  list.forEach(r => {
+    if (!r.segmentCode) { t.incomplete++; return; }
+    const g = Number(r.doctorCutAmount) || 0, st = Number(r.staffAmount) || 0;
+    t.n++; t.gross += g; t.staff += st; t.net += g - st;
+    if (r.status === 'paid') t.got += g; else t.left += g;
+  });
+  return t;
+}
+function diagProgressHtml(got, total) {
+  const pct = total > 0 ? Math.min(100, Math.round(got / total * 100)) : 0;
+  return '<div class="dg-prog"><i style="width:'+pct+'%"></i></div>';
+}
+function diagDonutHtml(parts, centreText) {
+  const total = parts.reduce((a, b) => a + b.v, 0);
+  if (!total) return '';
+  const R = 42, C = 2 * Math.PI * R;
+  let off = 0;
+  const arcs = parts.filter(p => p.v > 0).map(p => {
+    const len = p.v / total * C;
+    const a = '<circle cx="60" cy="60" r="'+R+'" fill="none" stroke="'+p.c+'" stroke-width="16" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+'" transform="rotate(-90 60 60)"/>';
+    off += len; return a;
+  }).join('');
+  return '<svg viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Modality split"><circle cx="60" cy="60" r="'+R+'" fill="none" stroke="var(--bg-soft)" stroke-width="16"/>'+arcs
+    + '<text x="60" y="57" text-anchor="middle" font-size="9" fill="var(--muted)" font-weight="700">TOTAL</text><text x="60" y="73" text-anchor="middle" font-size="13" font-weight="800" fill="var(--ink)">'+centreText+'</text></svg>';
+}
+function diagEntryCardHtml(r) {
+  const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
+  const paid = r.status === 'paid';
+  const needsCompletion = !r.segmentCode;
+  const st = Number(r.staffAmount) || 0;
+  return '<div class="dg-entry'+(paid?' is-paid':'')+(needsCompletion?' is-inc':'')+'">'
+    + '<div class="row between" style="align-items:flex-start;gap:6px;">'
+    + '<div style="min-width:0;flex:1;">'
+    + '<div style="font-size:13px;font-weight:700;">'+esc(r.patientName)+'</div>'
+    + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.investigation||'')+(r.contrastType?' ('+(r.contrastType==='with'?'With':'Without')+' contrast)':'')+' \u00b7 '+esc(centre?centre.name:'\u2014')+'</div>'
+    + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.segmentCode?' \u00b7 '+esc(r.segmentCode):'')+'</div>'
+    + (r.segmentCode ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Cut '+diagRs(r.doctorCutAmount)+(st?' <span style="font-weight:600;color:var(--muted);">\u00b7 staff '+diagRs(st)+' \u00b7 net '+diagRs((Number(r.doctorCutAmount)||0)-st)+'</span>':'')+(r.cutManual?' <span style="font-size:10px;font-weight:700;color:var(--muted);">(manual)</span>':'')+'</div>' : '')
+    + (paid && r.paidAt ? '<div style="font-size:10.5px;color:var(--muted);margin-top:2px;">Mila: '+new Date(r.paidAt).toLocaleDateString('en-IN',{day:'numeric',month:'short'})+'</div>' : '')
+    + '</div>'
+    + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-edit-referral" data-id="'+r.id+'" title="Edit entry">'+ic('pencil')+'</button>'
+    + (needsCompletion ? '' : (paid
+        ? '<button type="button" class="badge badge-emerald" style="flex:none;cursor:pointer;" data-action="diag-unmark-paid" data-id="'+r.id+'" title="Undo">'+ic('check')+' Mila</button>'
+        : '<button type="button" class="badge badge-slate" style="flex:none;cursor:pointer;" data-action="diag-mark-paid" data-id="'+r.id+'">Mila?</button>'))
+    + '</div>'
+    + (needsCompletion ? (DIAG_COMPLETING_ID === r.id
+        ? diagCompleteEntryFormHtml(r)
+        : '<button type="button" class="btn btn-sm btn-block" style="margin-top:8px;background:var(--surface);" data-action="diag-open-complete" data-id="'+r.id+'">'+ic('alert')+' Add rate details to calculate your cut</button>') : '')
+    + '</div>';
+}
+function diagDashboardHtml() {
+  if (!DIAG_REFERRALS.length) return '';
+  const monthsSet = {};
+  DIAG_REFERRALS.forEach(r => { monthsSet[diagMonthOf(r)] = 1; });
+  const months = Object.keys(monthsSet).sort().reverse();
+  if (!DIAG_MONTH || !monthsSet[DIAG_MONTH]) DIAG_MONTH = months[0];
+  const mStats = {};
+  months.forEach(m => { mStats[m] = diagSumList(DIAG_REFERRALS.filter(r => diagMonthOf(r) === m)); });
+  const all = diagSumList(DIAG_REFERRALS);
+  const cur = DIAG_MONTH;
+  const monthList = DIAG_REFERRALS.filter(r => diagMonthOf(r) === cur);
+  const ms = mStats[cur];
+
+  // hero: everything across all months
+  const hero = '<div class="dg-hero">'
+    + '<div class="dg-hero-l">Total baaki (sab months)</div>'
+    + '<div class="dg-hero-n">'+diagRs(all.left)+'</div>'
+    + diagProgressHtml(all.got, all.gross)
+    + '<div class="dg-hero-r"><span>Mila <b>'+diagRs(all.got)+'</b></span><span>Total <b>'+diagRs(all.gross)+'</b></span></div>'
+    + (all.staff ? '<div class="dg-hero-s">Staff ko dena '+diagRs(all.staff)+' \u00b7 Tera net '+diagRs(all.net)+'</div>' : '')
+    + '</div>';
+
+  // month chips
+  const chips = '<div class="dg-chips">' + months.map(m => {
+    const st = mStats[m];
+    return '<button type="button" class="dg-chip'+(m===cur?' on':'')+'" data-action="diag-pick-month" data-value="'+m+'">'+diagMonthLabel(m,true)+(st.left>0?'<i class="dg-dot"></i>':'<em>\u2713</em>')+'</button>';
+  }).join('') + '</div>';
+
+  // last-6-month trend (Mila vs Baaki), tap to open month
+  const tm = months.slice(0, 6).reverse();
+  const maxT = Math.max.apply(null, tm.map(m => mStats[m].gross).concat([1]));
+  const trend = '<div class="dg-trend">' + tm.map(m => {
+    const st = mStats[m], h = Math.max(4, Math.round(st.gross / maxT * 100));
+    const gotH = st.gross ? Math.round(st.got / st.gross * 100) : 0;
+    return '<button type="button" class="dg-tcol'+(m===cur?' on':'')+'" data-action="diag-pick-month" data-value="'+m+'"><div class="dg-tbar" style="height:'+h+'%"><i class="dg-t-got" style="height:'+gotH+'%"></i></div><span>'+diagMonthLabel(m,true).split(' ')[0]+'</span></button>';
+  }).join('') + '</div><div class="dg-legend"><span><i style="background:var(--emerald)"></i>Mila</span><span><i style="background:rgba(245,158,11,.6)"></i>Baaki</span></div>';
+
+  // month tiles
+  const tiles = '<div class="dg-tiles">'
+    + '<div class="dg-tile"><small>Total cut</small><b>'+diagRs(ms.gross)+'</b></div>'
+    + '<div class="dg-tile ok"><small>Mila</small><b>'+diagRs(ms.got)+'</b></div>'
+    + '<div class="dg-tile'+(ms.left>0?' warn':' ok')+'"><small>Baaki</small><b>'+diagRs(ms.left)+'</b></div>'
+    + '</div>'
+    + (ms.staff ? '<div class="dg-staffline"><span>Staff ko dena <b>'+diagRs(ms.staff)+'</b></span><span>Tera net <b>'+diagRs(ms.net)+'</b></span></div>' : '')
+    + (ms.incomplete ? '<div class="dg-incline">'+ms.incomplete+' entr'+(ms.incomplete>1?'ies':'y')+' mein rate details baaki hain \u2014 total mein nahi judi</div>' : '');
+
+  // modality donut for the month
+  const modTot = { CT: 0, MRI: 0, Other: 0 };
+  const byCentre = {};
+  monthList.forEach(r => {
+    if (!r.segmentCode) return;
+    const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
+    const mod = diagModalityOf(centre, r.investigation, r.modality);
+    const g = Number(r.doctorCutAmount) || 0;
+    modTot[mod] = (modTot[mod] || 0) + g;
+    const key = r.centreId || 'none';
+    const b = byCentre[key] || (byCentre[key] = { name: centre ? centre.name : '(deleted centre)', mods: {}, entries: [] });
+    const m = b.mods[mod] || (b.mods[mod] = { n: 0, gross: 0, staff: 0, got: 0 });
+    m.n++; m.gross += g; m.staff += Number(r.staffAmount) || 0; if (r.status === 'paid') m.got += g;
+  });
+  monthList.forEach(r => {
+    const key = r.centreId || 'none';
+    const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
+    const b = byCentre[key] || (byCentre[key] = { name: centre ? centre.name : '(deleted centre)', mods: {}, entries: [] });
+    b.entries.push(r);
+  });
+  const modKeys = ['CT', 'MRI', 'Other'].filter(k => modTot[k] > 0);
+  const donut = modKeys.length ? ('<div class="dg-panel"><div class="dg-h">Modality-wise ('+diagMonthLabel(cur)+')</div><div class="dg-donut">'
+    + diagDonutHtml(modKeys.map(k => ({ v: modTot[k], c: DIAG_MOD_COLORS[k] })), diagRs(ms.gross))
+    + '<div class="dg-dl">' + modKeys.map(k => '<div><i style="background:'+DIAG_MOD_COLORS[k]+'"></i><span>'+k+'</span><b>'+diagRs(modTot[k])+'</b><em>'+(ms.gross?Math.round(modTot[k]/ms.gross*100):0)+'%</em></div>').join('') + '</div></div></div>') : '';
+
+  // centre comparison bars
+  const centreKeys = Object.keys(byCentre).sort((a, b) => byCentre[a].name.localeCompare(byCentre[b].name));
+  const ctot = k => Object.keys(byCentre[k].mods).reduce((a, m) => a + byCentre[k].mods[m].gross, 0);
+  const maxC = Math.max.apply(null, centreKeys.map(ctot).concat([1]));
+  const cbars = centreKeys.length > 1 ? ('<div class="dg-panel"><div class="dg-h">Centre-wise</div>' + centreKeys.map(k => {
+    const b = byCentre[k], tt = ctot(k);
+    return '<div class="dg-cb"><div class="dg-cbl"><span>'+esc(b.name)+'</span><b>'+diagRs(tt)+'</b></div><div class="dg-cbt" style="width:'+Math.max(4,Math.round(tt/maxC*100))+'%">'
+      + ['CT','MRI','Other'].filter(m => b.mods[m] && b.mods[m].gross > 0).map(m => '<i style="flex:'+b.mods[m].gross+';background:'+DIAG_MOD_COLORS[m]+'" title="'+m+'"></i>').join('') + '</div></div>';
+  }).join('') + '</div>') : '';
+
+  // per-centre settlement cards
+  const cards = centreKeys.map(k => {
+    const b = byCentre[k];
+    const sum = diagSumList(b.entries);
+    const key = cur + '|' + k;
+    const open = !!DIAG_EXPAND[key];
+    const hasBatch = b.entries.some(r => r.paidBatch);
+    const rows = ['CT','MRI','Other'].filter(m => b.mods[m]).map(m => {
+      const x = b.mods[m];
+      return '<div class="dg-mrow"><i style="background:'+DIAG_MOD_COLORS[m]+'"></i><span class="dg-ml">'+m+' <small>'+x.n+' entr'+(x.n>1?'ies':'y')+'</small></span><span class="dg-mv">'+diagRs(x.gross)+(x.staff?'<small>staff '+diagRs(x.staff)+'</small>':'')+'</span></div>';
+    }).join('');
+    const action = sum.left > 0
+      ? '<button type="button" class="btn btn-sm btn-primary btn-block dg-clear" data-action="diag-clear-block" data-centre="'+k+'" data-month="'+cur+'">'+ic('check')+' Poora hisaab clear \u2014 '+diagRs(sum.left)+'</button>'
+      : (sum.n ? '<div class="dg-cleared">'+ic('check')+' Poora clear'+(hasBatch ? ' <button type="button" class="dg-undo" data-action="diag-unclear-block" data-centre="'+k+'" data-month="'+cur+'">Undo</button>' : '')+'</div>' : '');
+    return '<div class="dg-card">'
+      + '<div class="row between" style="align-items:baseline;"><div class="dg-cn">'+esc(b.name)+'</div><div class="dg-ct">'+diagRs(sum.gross)+'</div></div>'
+      + diagProgressHtml(sum.got, sum.gross)
+      + '<div class="dg-gb"><span>Mila <b class="g">'+diagRs(sum.got)+'</b></span><span>Baaki <b class="'+(sum.left>0?'w':'g')+'">'+diagRs(sum.left)+'</b></span></div>'
+      + rows
+      + (sum.staff ? '<div class="dg-staffline" style="margin:8px 0 0;"><span>Staff <b>'+diagRs(sum.staff)+'</b></span><span>Tera net <b>'+diagRs(sum.net)+'</b></span></div>' : '')
+      + (sum.incomplete ? '<div class="dg-incline">'+sum.incomplete+' entry mein rate details baaki</div>' : '')
+      + '<div style="margin-top:10px;">'+action+'</div>'
+      + '<button type="button" class="dg-more" data-action="diag-toggle-entries" data-key="'+key+'">'+(open?'Entries chhupao':'Entries dekho ('+b.entries.length+')')+'</button>'
+      + (open ? '<div style="margin-top:6px;">' + b.entries.slice().sort((x, y) => (y.reportDate||'').localeCompare(x.reportDate||'')).map(diagEntryCardHtml).join('') + '</div>' : '')
+      + '</div>';
+  }).join('');
+
+  return '<div class="dg-wrap">' + hero + chips + '<div class="dg-panel dg-panel-t"><div class="dg-h">Pichhle 6 mahine \u2014 Mila vs Baaki</div>' + trend + '</div>'
+    + '<div class="dg-mtitle">'+diagMonthLabel(cur)+'</div>' + tiles + donut + cbars + cards + '</div>';
+}
 function diagCutInputHtml(id, value, autoAmt) {
   return '<label class="field-label">Your cut \u20b9 <span style="font-weight:500;color:var(--muted);">(optional \u2014 type to override auto)</span></label>'
     + '<input class="input" type="number" inputmode="numeric" min="0" id="'+id+'" placeholder="Auto: \u20b9'+Number(autoAmt||0).toLocaleString('en-IN')+'" value="'+esc(value||'')+'" style="margin-bottom:10px;">';
@@ -4997,6 +5322,8 @@ function diagAddCentreFormHtml() {
   return '<div class="card" style="background:rgba(13,148,136,0.04);border-color:#B5E3DD;margin-bottom:12px;">'
     + '<label class="field-label">Centre name</label><input class="input" id="diag-centre-name" placeholder="" value="'+esc(editing?editing.name:'')+'" style="margin-bottom:10px;">'
     + '<label class="field-label">Max pool % (your ceiling before any discount)</label><input class="input" type="number" id="diag-centre-pool" placeholder="" value="'+esc(editing?editing.maxPoolPercent:'40')+'" style="margin-bottom:10px;">'
+    + '<div class="row gap2" style="margin-bottom:10px;"><div style="flex:1;"><label class="field-label">MRI pool %</label><input class="input" type="number" id="diag-centre-pool-mri" placeholder="same" value="'+esc(editing&&editing.poolByType&&editing.poolByType.MRI!=null?editing.poolByType.MRI:'')+'"></div><div style="flex:1;"><label class="field-label">CT pool %</label><input class="input" type="number" id="diag-centre-pool-ct" placeholder="same" value="'+esc(editing&&editing.poolByType&&editing.poolByType.CT!=null?editing.poolByType.CT:'')+'"></div></div>'
+    + '<div class="row gap2" style="margin-bottom:10px;"><div style="flex:1;"><label class="field-label">Staff % on MRI</label><input class="input" type="number" id="diag-centre-staff-mri" placeholder="0" value="'+esc(editing&&editing.staffByType&&editing.staffByType.MRI?editing.staffByType.MRI:'')+'"></div><div style="flex:1;"><label class="field-label">Staff % on CT</label><input class="input" type="number" id="diag-centre-staff-ct" placeholder="0" value="'+esc(editing&&editing.staffByType&&editing.staffByType.CT?editing.staffByType.CT:'')+'"></div></div>'
     + (!editing ? '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-load-starter" data-key="ananta">'+ic('download')+' Load Ananta\u2019s standard MRI/CT rate list</button><button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-load-starter" data-key="emkay">'+ic('download')+' Load Emkay\u2019s standard MRI/CT rate list</button>' : '<p style="font-size:10.5px;color:var(--muted);margin:0 0 10px;">'+(editing.investigations||[]).length+' investigation(s) saved. Add more from the main screen after saving.</p>')
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-centre">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-centre">'+ic('check')+' Save centre</button></div>'
     + '</div>';
@@ -5010,7 +5337,7 @@ function diagAddReferralFormHtml() {
   const pool = centre ? Number(centre.maxPoolPercent || 40) : 40;
   const code = DIAG_SEGMENT_CODES.find(c => c.code === DIAG_ADD_REFERRAL_CODE);
   const patientDiscountPercent = code ? code.discountPercent : 0;
-  const doctorCutPercent = Math.max(0, pool - patientDiscountPercent);
+  const _dc = diagCalc(centre, selectedInv ? selectedInv.name : '', rate, patientDiscountPercent); const doctorCutPercent = _dc.cutPct;
   const patientDiscountAmount = Math.round(rate * patientDiscountPercent / 100);
   const doctorCutAmount = Math.round(rate * doctorCutPercent / 100);
   const patientPays = rate - patientDiscountAmount;
@@ -5038,6 +5365,7 @@ function diagAddReferralFormHtml() {
             + '<div class="row between" style="font-size:12px;color:var(--muted);"><span>Patient pays</span><span>\u20b9'+patientPays.toLocaleString('en-IN')+'</span></div>'
             + '<div style="border-top:1px dashed rgba(5,150,105,0.3);margin:6px 0;"></div>'
             + '<div class="row between" style="font-size:13.5px;font-weight:800;color:var(--emerald);"><span>Your cut ('+doctorCutPercent+'%)</span><span>\u20b9'+doctorCutAmount.toLocaleString('en-IN')+'</span></div>'
+            + diagStaffRowHtml(_dc, rate)
             + '</div>'
             + diagCutInputHtml('diag-ref-cut', DIAG_REF_CUT_DRAFT, doctorCutAmount)
           ) : '<p style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Pick a segment code to see your cut.</p>')
@@ -5057,10 +5385,10 @@ function exportDiagReferralsCsv(month) {
   const list = DIAG_REFERRALS.filter(r => all ? true : ((r.reportDate || '').slice(0,7) === month))
     .sort((a,b) => (a.reportDate||'').localeCompare(b.reportDate||'') || (a.createdAt||0) - (b.createdAt||0));
   if (!list.length) { toast('No entries for this month'); return; }
-  const headers = ['Date','Patient','Diagnostic Centre','Investigation','Contrast','Report ID','Rate (Rs)','Discount Code','Patient Discount %','Patient Discount (Rs)','Pool %','My Cut %','My Cut (Rs)','Status','Paid On'];
+  const headers = ['Date','Patient','Diagnostic Centre','Investigation','Contrast','Report ID','Rate (Rs)','Discount Code','Patient Discount %','Patient Discount (Rs)','Pool %','My Cut %','My Cut (Rs)','Status','Paid On','Modality','Staff (Rs)','Net (Rs)'];
   const rows = [headers.map(csvCell).join(',')];
   const byCentre = {};
-  let totRate = 0, totDisc = 0, totCut = 0;
+  let totRate = 0, totDisc = 0, totCut = 0, totStaff = 0;
   list.forEach(r => {
     const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
     const cname = centre ? centre.name : '(deleted centre)';
@@ -5073,14 +5401,15 @@ function exportDiagReferralsCsv(month) {
       rate, r.segmentCode || '', r.patientDiscountPercent == null ? '' : r.patientDiscountPercent, disc,
       pool, r.doctorCutPercent == null ? '' : r.doctorCutPercent, cut,
       r.status === 'paid' ? 'Paid' : (complete ? 'Pending' : 'Incomplete'),
-      r.paidAt ? new Date(r.paidAt).toISOString().slice(0,10) : ''
+      r.paidAt ? new Date(r.paidAt).toISOString().slice(0,10) : '',
+      diagModalityOf(centre, r.investigation, r.modality), Number(r.staffAmount) || 0, cut - (Number(r.staffAmount) || 0)
     ].map(csvCell).join(','));
-    totRate += rate; totDisc += disc; totCut += cut;
+    totRate += rate; totDisc += disc; totCut += cut; totStaff += Number(r.staffAmount) || 0;
     const b = byCentre[cname] || (byCentre[cname] = { n: 0, rate: 0, disc: 0, cut: 0 });
     b.n++; b.rate += rate; b.disc += disc; b.cut += cut;
   });
   rows.push('');
-  rows.push(['TOTAL','','','','','', totRate,'','', totDisc,'','', totCut,'',''].map(csvCell).join(','));
+  rows.push(['TOTAL','','','','','', totRate,'','', totDisc,'','', totCut,'','','', totStaff, totCut - totStaff].map(csvCell).join(','));
   rows.push('');
   rows.push(['Centre-wise summary','Entries','','','','','Total Rate (Rs)','','','Total Discount (Rs)','','','My Cut (Rs)','',''].map(csvCell).join(','));
   Object.keys(byCentre).forEach(k => {
@@ -5167,7 +5496,7 @@ function diagCompleteEntryFormHtml(r) {
   const pool = centre ? Number(centre.maxPoolPercent || 40) : 40;
   const code = DIAG_SEGMENT_CODES.find(c => c.code === DIAG_COMPLETE_CODE);
   const patientDiscountPercent = code ? code.discountPercent : 0;
-  const doctorCutPercent = Math.max(0, pool - patientDiscountPercent);
+  const _dc = diagCalc(centre, selectedInv ? selectedInv.name : '', rate, patientDiscountPercent); const doctorCutPercent = _dc.cutPct;
   const doctorCutAmount = Math.round(rate * doctorCutPercent / 100);
   if (!investigations.length) return '<p style="font-size:11.5px;color:var(--muted);padding:8px 12px;">This centre has no rate list \u2014 edit it first to add investigations.</p>';
   return '<div style="background:rgba(13,148,136,0.05);border-radius:10px;padding:10px 12px;margin-top:2px;">'
@@ -5181,7 +5510,7 @@ function diagCompleteEntryFormHtml(r) {
     + '<div class="seg" style="margin-bottom:8px;flex-wrap:wrap;">'
     + DIAG_SEGMENT_CODES.map(c => '<button type="button" class="seg-btn'+(DIAG_COMPLETE_CODE===c.code?' active':'')+'" data-action="diag-complete-set-code" data-value="'+c.code+'">'+c.code+' ('+c.discountPercent+'%)</button>').join('')
     + '</div>'
-    + (DIAG_COMPLETE_CODE ? '<div style="font-size:13px;font-weight:800;color:var(--emerald);margin-bottom:8px;">Your cut: \u20b9'+doctorCutAmount.toLocaleString('en-IN')+'</div>' + diagCutInputHtml('diag-complete-cut', DIAG_COMPLETE_CUT, doctorCutAmount) : '')
+    + (DIAG_COMPLETE_CODE ? '<div style="font-size:13px;font-weight:800;color:var(--emerald);margin-bottom:8px;">Your cut: \u20b9'+doctorCutAmount.toLocaleString('en-IN')+'</div>' + diagStaffRowHtml(_dc, rate) + diagCutInputHtml('diag-complete-cut', DIAG_COMPLETE_CUT, doctorCutAmount) : '')
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-complete">Cancel</button><button class="btn btn-sm btn-primary" style="flex:1;" data-action="diag-save-complete" data-id="'+r.id+'">'+ic('check')+' Save</button></div>'
     + '</div>';
 }
@@ -5196,6 +5525,7 @@ function diagStashReferralDrafts() {
   if (cutEl) DIAG_REF_CUT_DRAFT = cutEl.value;
 }
 function renderDiagReferralsView() {
+  try { diagMigrateCentres(); } catch (e) { console.error('diagMigrate', e); }
   const view = DIAG_VIEW_MODE || 'active';
   let entries = DIAG_REFERRALS.filter(r => (view === 'paid' ? r.status === 'paid' : r.status !== 'paid'));
   if (DIAG_FILTER_CENTRE) entries = entries.filter(r => r.centreId === DIAG_FILTER_CENTRE);
@@ -5220,14 +5550,12 @@ function renderDiagReferralsView() {
         + '<button class="btn btn-sm" style="flex:1;" data-action="diag-open-add-centre">'+ic('plus')+' Add Centre</button>'
         + '<button class="btn btn-sm btn-primary" style="flex:1;" data-action="diag-open-add-referral">'+ic('plus')+' Add Entry</button>'
         + '</div>'
-        + (activeCount ? ('<div class="card" style="background:var(--emerald-bg);border-color:var(--emerald-border);padding:10px 14px;margin-bottom:10px;text-align:center;"><div style="font-size:10.5px;color:var(--muted);">Pending cut (active entries)</div><div style="font-size:19px;font-weight:800;color:var(--emerald);">\u20b9'+totalCutActive.toLocaleString('en-IN')+'</div></div>') : '')
-        + '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-toggle-monthly">'+ic('calendar')+' '+(DIAG_SHOW_MONTHLY?'Hide':'Show')+' monthly cut breakdown</button>'
-        + (DIAG_SHOW_MONTHLY ? diagMonthlyBreakdownHtml() : '')
+        + diagDashboardHtml()
         + Object.keys(DIAG_STARTERS).filter(k => !DIAG_CENTRES.some(c => (c.name||'').toLowerCase().indexOf(k) !== -1)).map(k => '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;border-color:#B5E3DD;color:#0D9488;" data-action="diag-quick-add-starter" data-key="'+k+'">'+ic('plus')+' Add '+DIAG_STARTERS[k].label+' (rate list ready)</button>').join('')
         + '<button type="button" class="btn btn-sm btn-block" style="margin-bottom:10px;" data-action="diag-toggle-centres-list">'+ic('shield')+' '+(DIAG_SHOW_CENTRES?'Hide':'Manage')+' centres ('+DIAG_CENTRES.length+')</button>'
         + (DIAG_SHOW_CENTRES ? (DIAG_CENTRES.length ? DIAG_CENTRES.map(c => (
             '<div class="card" style="margin-bottom:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;">'
-            + '<div><div style="font-size:13px;font-weight:700;">'+esc(c.name)+'</div><div style="font-size:11px;color:var(--muted);">'+(c.investigations||[]).length+' investigation(s) \u00b7 Pool '+(c.maxPoolPercent||40)+'%</div></div>'
+            + '<div><div style="font-size:13px;font-weight:700;">'+esc(c.name)+'</div><div style="font-size:11px;color:var(--muted);">'+(c.investigations||[]).length+' investigation(s) \u00b7 Pool '+(c.maxPoolPercent||40)+'%'+(c.poolByType&&(c.poolByType.MRI!=null||c.poolByType.CT!=null)?' (MRI '+diagPoolFor(c,'MRI')+' / CT '+diagPoolFor(c,'CT')+')':'')+(c.staffByType&&(c.staffByType.MRI||c.staffByType.CT)?' \u00b7 Staff '+(c.staffByType.MRI?'MRI '+c.staffByType.MRI+'% ':'')+(c.staffByType.CT?'CT '+c.staffByType.CT+'%':'')+'':'')+'</div></div>'
             + '<div class="row gap1">'
             + '<button type="button" class="icon-btn" style="width:28px;height:28px;" data-action="diag-edit-centre" data-id="'+c.id+'" title="Edit">'+ic('pencil')+'</button>'
             + (ARMED_DELETE === 'diag-centre:'+c.id
@@ -5235,39 +5563,8 @@ function renderDiagReferralsView() {
                 : '<button type="button" class="icon-btn" style="width:28px;height:28px;color:var(--red);" data-action="arm-delete" data-arm="diag-centre:'+c.id+'" title="Remove">'+ic('trash')+'</button>')
             + '</div></div>'
           )).join('') : '<p style="font-size:12px;color:var(--muted);text-align:center;margin:8px 0;">No centres yet.</p>') : '')
-        + (activeCount ? '<button class="btn btn-sm btn-block" style="margin-bottom:14px;" data-action="diag-export-csv">'+ic('download')+' Export Excel (this list)</button>' : '<div style="margin-bottom:14px;"></div>')
+        + (DIAG_REFERRALS.length ? '<button class="btn btn-sm btn-block" style="margin-bottom:14px;" data-action="diag-export-csv" data-value="all">'+ic('download')+' Export Excel (sab months)</button>' : '<div style="margin-bottom:14px;"></div>')
         + (!DIAG_CENTRES.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:20px;">Add your first diagnostic centre to get started.</p>' : '')
-        + '<div class="seg" style="margin-bottom:10px;">'
-        + '<button class="seg-btn'+(view==='active'?' active':'')+'" data-action="diag-set-view" data-value="active">Active ('+activeCount+')</button>'
-        + '<button class="seg-btn'+(view==='paid'?' active':'')+'" data-action="diag-set-view" data-value="paid">Paid / History</button>'
-        + '</div>'
-        + (DIAG_CENTRES.length > 1 ? ('<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">'
-            + '<button type="button" class="tag-chip'+(!DIAG_FILTER_CENTRE?' active':'')+'" data-action="diag-filter-centre" data-value="">All centres</button>'
-            + DIAG_CENTRES.map(c => '<button type="button" class="tag-chip'+(DIAG_FILTER_CENTRE===c.id?' active':'')+'" data-action="diag-filter-centre" data-value="'+c.id+'">'+esc(c.name)+'</button>').join('')
-            + '</div>') : '')
-        + (!sorted.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:16px;">'+(view==='paid'?'No paid entries yet.':'No active entries.')+'</p>' : '')
-        + sorted.map(r => {
-            const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
-            const needsCompletion = view === 'active' && !r.segmentCode;
-            return '<div class="card" style="margin-bottom:8px;padding:10px 12px;'+(needsCompletion?'border-color:#fde68a;background:#fffbeb;':'')+'">'
-              + '<div class="row between" style="align-items:flex-start;">'
-              + '<div style="min-width:0;flex:1;">'
-              + '<div style="font-size:13px;font-weight:700;">'+esc(r.patientName)+'</div>'
-              + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.investigation||'')+(r.contrastType?' ('+(r.contrastType==='with'?'With':'Without')+' contrast)':'')+' \u00b7 '+esc(centre?centre.name:'\u2014')+'</div>'
-              + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">Report: '+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.segmentCode?' \u00b7 '+esc(r.segmentCode):'')+'</div>'
-              + (r.segmentCode ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Your cut: \u20b9'+Number(r.doctorCutAmount||0).toLocaleString('en-IN')+(r.cutManual?' <span style="font-size:10px;font-weight:700;color:var(--muted);">(manual)</span>':'')+'</div>' : '')
-              + '</div>'
-              + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-edit-referral" data-id="'+r.id+'" title="Edit entry">'+ic('pencil')+'</button>'
-              + (view === 'active'
-                  ? '<button type="button" class="badge badge-slate" style="flex:none;cursor:pointer;" data-action="diag-mark-paid" data-id="'+r.id+'">Mark Paid</button>'
-                  + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-delete-referral" data-id="'+r.id+'" title="Delete">'+ic('trash')+'</button>'
-                  : '<button type="button" class="badge badge-emerald" style="flex:none;cursor:pointer;" data-action="diag-unmark-paid" data-id="'+r.id+'" title="Move back to Active">'+ic('check')+' Paid \u00b7 Undo</button>')
-              + '</div>'
-              + (needsCompletion ? (DIAG_COMPLETING_ID === r.id
-                  ? diagCompleteEntryFormHtml(r)
-                  : '<button type="button" class="btn btn-sm btn-block" style="margin-top:8px;background:#fff;" data-action="diag-open-complete" data-id="'+r.id+'">'+ic('alert')+' Add rate details to calculate your cut</button>') : '')
-              + '</div>';
-          }).join('')
       ))
     ))
     + '</div></div>';
@@ -14206,7 +14503,7 @@ document.addEventListener('click', async (e) => {
     const st = DIAG_STARTERS[el.dataset.key];
     if (!st) return;
     if (DIAG_CENTRES.some(c => (c.name||'').toLowerCase().indexOf(el.dataset.key) !== -1)) { toast(st.label + ' already added'); return; }
-    DIAG_CENTRES.push({ id: uid(), name: st.label, maxPoolPercent: 40, investigations: st.list().map(i => ({...i})) });
+    DIAG_CENTRES.push({ id: uid(), name: st.label, maxPoolPercent: 40, poolByType: el.dataset.key === 'emkay' ? { MRI: 45, CT: 40 } : {}, staffByType: el.dataset.key === 'emkay' ? { MRI: 5 } : {}, cutRulesV1: true, cutRulesV2: true, investigations: st.list().map(i => ({...i})) });
     saveDiagCentres(DIAG_CENTRES);
     toast(st.label + ' added with ' + st.list().length + ' tests');
     render();
@@ -14215,6 +14512,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'diag-toggle-centres-list') { DIAG_SHOW_CENTRES = !DIAG_SHOW_CENTRES; render(); return; }
   if (action === 'diag-delete-centre') {
     const orphanedCount = DIAG_REFERRALS.filter(r => r.centreId === el.dataset.id).length;
+    if (orphanedCount) { ARMED_DELETE = null; toast('Is centre ki ' + orphanedCount + ' entries hain \u2014 hisaab ke liye delete nahi ho sakta'); render(); return; }
     DIAG_CENTRES = DIAG_CENTRES.filter(c => c.id !== el.dataset.id);
     saveDiagCentres(DIAG_CENTRES);
     ARMED_DELETE = null;
@@ -14240,12 +14538,19 @@ document.addEventListener('click', async (e) => {
     const name = nameEl ? nameEl.value.trim() : '';
     if (!name) { toast('Centre name is required'); return; }
     const maxPoolPercent = poolEl ? Number(poolEl.value) || 40 : 40;
+    const numOrNull = id => { const e = document.getElementById(id); if (!e || e.value === '') return null; const n = Number(e.value); return isNaN(n) || n < 0 ? null : n; };
+    const poolByType = {}, staffByType = {};
+    const pm = numOrNull('diag-centre-pool-mri'), pc = numOrNull('diag-centre-pool-ct'), sm = numOrNull('diag-centre-staff-mri'), sc = numOrNull('diag-centre-staff-ct');
+    if (pm != null) poolByType.MRI = pm; if (pc != null) poolByType.CT = pc;
+    if (sm) staffByType.MRI = sm; if (sc) staffByType.CT = sc;
     if (DIAG_EDIT_CENTRE_ID) {
       const c = DIAG_CENTRES.find(x => x.id === DIAG_EDIT_CENTRE_ID);
-      if (c) { c.name = name; c.maxPoolPercent = maxPoolPercent; }
+      if (c) { c.name = name; c.maxPoolPercent = maxPoolPercent; c.poolByType = poolByType; c.staffByType = staffByType; c.cutRulesV1 = true; c.cutRulesV2 = true; }
     } else {
-      const investigations = DIAG_LOAD_ANANTA_ON_SAVE && DIAG_STARTERS[DIAG_LOAD_ANANTA_ON_SAVE] ? DIAG_STARTERS[DIAG_LOAD_ANANTA_ON_SAVE].list().map(i => ({...i})) : [];
-      DIAG_CENTRES.push({ id: uid(), name, maxPoolPercent, investigations });
+      const stKey = DIAG_LOAD_ANANTA_ON_SAVE && DIAG_STARTERS[DIAG_LOAD_ANANTA_ON_SAVE] ? DIAG_LOAD_ANANTA_ON_SAVE : '';
+      const investigations = stKey ? DIAG_STARTERS[stKey].list().map(i => ({...i})) : [];
+      const rules = stKey === 'emkay' && !Object.keys(poolByType).length && !Object.keys(staffByType).length ? { pool: { MRI: 45, CT: 40 }, staff: { MRI: 5 } } : { pool: poolByType, staff: staffByType };
+      DIAG_CENTRES.push({ id: uid(), name, maxPoolPercent, poolByType: rules.pool, staffByType: rules.staff, cutRulesV1: true, cutRulesV2: true, investigations });
     }
     DIAG_LOAD_ANANTA_ON_SAVE = '';
     saveDiagCentres(DIAG_CENTRES);
@@ -14299,7 +14604,7 @@ document.addEventListener('click', async (e) => {
     const pool = Number(centre.maxPoolPercent || 40);
     const rate = DIAG_ADD_REFERRAL_CONTRAST === 'with' ? inv.withContrast : inv.withoutContrast;
     const patientDiscountPercent = code.discountPercent;
-    const doctorCutPercent = Math.max(0, pool - patientDiscountPercent);
+    const _dc = diagCalc(centre, inv.name, rate, patientDiscountPercent); const doctorCutPercent = _dc.cutPct;
     const dateEl = document.getElementById('diag-ref-date');
     const reportIdEl = document.getElementById('diag-ref-reportid');
     const computed = {
@@ -14311,6 +14616,7 @@ document.addEventListener('click', async (e) => {
       segmentCode: code.code,
       patientDiscountPercent,
       doctorCutPercent,
+      modality: _dc.modality, staffPercent: _dc.staffPct, staffAmount: _dc.staffAmt,
       patientDiscountAmount: Math.round(rate * patientDiscountPercent / 100),
       doctorCutAmount: Math.round(rate * doctorCutPercent / 100),
       reportDate: dateEl ? dateEl.value : todayStr(),
@@ -14318,6 +14624,7 @@ document.addEventListener('click', async (e) => {
     };
     const cutRawEl = document.getElementById('diag-ref-cut');
     diagApplyCut(computed, rate, doctorCutPercent, computed.doctorCutAmount, cutRawEl ? cutRawEl.value : DIAG_REF_CUT_DRAFT);
+    if (computed.cutManual && _dc.pool > 0) { computed.staffAmount = Math.round(computed.doctorCutAmount * _dc.staffBase / _dc.pool); computed.staffPercent = rate > 0 ? Math.round(computed.staffAmount / rate * 1000) / 10 : 0; }
     if (DIAG_EDITING_REFERRAL_ID) {
       const existing = DIAG_REFERRALS.find(x => x.id === DIAG_EDITING_REFERRAL_ID);
       if (existing) Object.assign(existing, computed);
@@ -14334,13 +14641,39 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'diag-mark-paid') {
     const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
-    if (r) { r.status = 'paid'; r.paidAt = Date.now(); saveDiagReferrals(DIAG_REFERRALS); toast('Marked paid \u2014 moved to history'); }
+    if (r) { r.status = 'paid'; r.paidAt = Date.now(); saveDiagReferrals(DIAG_REFERRALS); toast('Mila \u2713'); }
     render();
     return;
   }
   if (action === 'diag-unmark-paid') {
     const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
-    if (r) { r.status = 'active'; delete r.paidAt; saveDiagReferrals(DIAG_REFERRALS); toast('Moved back to Active'); }
+    if (r) { r.status = 'active'; delete r.paidAt; delete r.paidBatch; saveDiagReferrals(DIAG_REFERRALS); toast('Wapas baaki mein'); }
+    render();
+    return;
+  }
+  if (action === 'diag-pick-month') { DIAG_MONTH = el.dataset.value; render(); return; }
+  if (action === 'diag-toggle-entries') { DIAG_EXPAND[el.dataset.key] = !DIAG_EXPAND[el.dataset.key]; render(); return; }
+  if (action === 'diag-clear-block') {
+    const cid = el.dataset.centre, mo = el.dataset.month, batch = cid + '|' + mo + '|' + Date.now();
+    let n = 0, amt = 0;
+    DIAG_REFERRALS.forEach(r => {
+      if ((r.centreId || 'none') !== cid || diagMonthOf(r) !== mo || !r.segmentCode || r.status === 'paid') return;
+      r.status = 'paid'; r.paidAt = Date.now(); r.paidBatch = batch; n++; amt += Number(r.doctorCutAmount) || 0;
+    });
+    saveDiagReferrals(DIAG_REFERRALS);
+    toast(n ? ('Clear \u2713 \u2014 ' + diagRs(amt) + ' (' + n + ' entries)') : 'Kuch baaki nahi tha');
+    render();
+    return;
+  }
+  if (action === 'diag-unclear-block') {
+    const cid = el.dataset.centre, mo = el.dataset.month;
+    let n = 0;
+    DIAG_REFERRALS.forEach(r => {
+      if ((r.centreId || 'none') !== cid || diagMonthOf(r) !== mo || !r.paidBatch) return;
+      r.status = 'active'; delete r.paidAt; delete r.paidBatch; n++;
+    });
+    saveDiagReferrals(DIAG_REFERRALS);
+    toast(n + ' entries wapas baaki mein');
     render();
     return;
   }
@@ -14450,17 +14783,19 @@ document.addEventListener('click', async (e) => {
     const pool = Number((centre && centre.maxPoolPercent) || 40);
     const rate = DIAG_COMPLETE_CONTRAST === 'with' ? inv.withContrast : inv.withoutContrast;
     const patientDiscountPercent = code.discountPercent;
-    const doctorCutPercent = Math.max(0, pool - patientDiscountPercent);
+    const _dc = diagCalc(centre, inv.name, rate, patientDiscountPercent); const doctorCutPercent = _dc.cutPct;
     r.investigation = inv.name;
     r.contrastType = DIAG_COMPLETE_CONTRAST;
     r.rate = rate;
     r.segmentCode = code.code;
     r.patientDiscountPercent = patientDiscountPercent;
     r.doctorCutPercent = doctorCutPercent;
+    r.modality = _dc.modality; r.staffPercent = _dc.staffPct; r.staffAmount = _dc.staffAmt;
     r.patientDiscountAmount = Math.round(rate * patientDiscountPercent / 100);
     r.doctorCutAmount = Math.round(rate * doctorCutPercent / 100);
     const ccEl = document.getElementById('diag-complete-cut');
     diagApplyCut(r, rate, doctorCutPercent, r.doctorCutAmount, ccEl ? ccEl.value : DIAG_COMPLETE_CUT);
+    if (r.cutManual && _dc.pool > 0) { r.staffAmount = Math.round(r.doctorCutAmount * _dc.staffBase / _dc.pool); r.staffPercent = rate > 0 ? Math.round(r.staffAmount / rate * 1000) / 10 : 0; }
     saveDiagReferrals(DIAG_REFERRALS);
     DIAG_COMPLETING_ID = null;
     toast('Entry updated');
