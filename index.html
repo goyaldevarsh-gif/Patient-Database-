@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261107.2">
+<meta name="app-build" content="20261107.3">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -991,14 +991,13 @@
 .dg-wrap{margin-bottom:14px}
 .dg-hero{background:linear-gradient(135deg,#0F2942,#0F766E);color:#fff;border-radius:18px;padding:16px;margin-bottom:12px}
 .dg-hero-l{font-size:11px;font-weight:700;opacity:.8;letter-spacing:.04em;text-transform:uppercase}
-.dg-hero-n{font-size:30px;font-weight:800;margin:2px 0 8px}
+.dg-hero-n{font-size:30px;font-weight:800;margin:2px 0 10px}
 .dg-hero .dg-prog{background:rgba(255,255,255,.2)}
 .dg-hero .dg-prog i{background:#5EEAD4}
-.dg-hero-r{display:flex;justify-content:space-between;font-size:12px;margin-top:8px;opacity:.95}
-.dg-hero-s{font-size:11.5px;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.2);opacity:.9}
+.dg-hero-r{display:flex;justify-content:space-between;font-size:12px;margin-top:8px;opacity:.9}
 .dg-prog{height:8px;border-radius:99px;background:var(--bg-soft);overflow:hidden}
 .dg-prog i{display:block;height:100%;border-radius:99px;background:var(--emerald)}
-.dg-chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
+.dg-chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:none}
 .dg-chips::-webkit-scrollbar{display:none}
 .dg-chip{flex:none;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);color:var(--ink);border-radius:999px;padding:8px 14px;font-size:12.5px;font-weight:700;font-family:inherit}
 .dg-chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -1006,39 +1005,24 @@
 .dg-chip em{font-style:normal;font-size:11px;color:var(--emerald);font-weight:800}
 .dg-chip.on em{color:inherit}
 .dg-dot{width:7px;height:7px;border-radius:50%;background:#f59e0b;display:inline-block}
-.dg-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px 14px;margin-bottom:12px;box-shadow:var(--sh)}
-.dg-h{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px}
-.dg-trend{display:flex;align-items:flex-end;gap:8px;height:96px}
-.dg-tcol{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;background:none;border:none;padding:0;font-family:inherit;color:var(--muted);font-size:10px;font-weight:700}
-.dg-tcol.on{color:var(--accent-dark)}
-.dg-tbar{width:100%;max-height:calc(100% - 16px);background:rgba(245,158,11,.45);border-radius:6px 6px 2px 2px;position:relative;overflow:hidden;min-height:4px;flex:none}
-.dg-tcol.on .dg-tbar{outline:2px solid var(--accent);outline-offset:1px}
-.dg-t-got{position:absolute;left:0;right:0;bottom:0;background:var(--emerald)}
-.dg-legend{display:flex;gap:14px;font-size:10.5px;color:var(--muted);margin-top:8px}
-.dg-legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}
-.dg-mtitle{font-size:17px;font-weight:800;color:var(--ink);margin:4px 2px 10px}
-.dg-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px}
-.dg-tile{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:10px 8px;text-align:center}
-.dg-tile small{display:block;font-size:10.5px;color:var(--muted);font-weight:700;margin-bottom:2px}
-.dg-tile b{font-size:15px;font-weight:800;color:var(--ink)}
-.dg-tile.ok b{color:var(--emerald)}
-.dg-tile.warn{background:var(--amber-bg);border-color:var(--amber-border)}
-.dg-tile.warn b{color:var(--amber)}
-.dg-staffline{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);background:var(--bg-soft);border-radius:10px;padding:8px 12px;margin-bottom:10px}
-.dg-staffline b{color:var(--ink)}
-.dg-incline{font-size:11.5px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:10px;padding:7px 10px;margin:6px 0}
-.dg-donut{display:flex;align-items:center;gap:14px}
-.dg-dl{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
-.dg-dl div{display:flex;align-items:center;gap:8px;font-size:12.5px}
-.dg-dl i{width:10px;height:10px;border-radius:3px;flex:none}
-.dg-dl span{flex:1;font-weight:700}
-.dg-dl b{font-weight:800}
-.dg-dl em{font-style:normal;color:var(--muted);font-size:11px;width:34px;text-align:right}
-.dg-cb{margin-bottom:10px}
-.dg-cbl{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px}
-.dg-cbt{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--bg-soft)}
+.dg-sum{display:grid;grid-template-columns:repeat(3,1fr);background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:10px}
+.dg-sum div{padding:12px 6px;text-align:center}
+.dg-sum div+div{border-left:1px solid var(--border)}
+.dg-sum small{display:block;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:2px}
+.dg-sum b{font-size:16px;font-weight:800;color:var(--ink)}
+.dg-sum b.g{color:var(--emerald)}
+.dg-sum b.w{color:var(--amber)}
+.dg-note{font-size:12px;color:var(--muted);margin:0 2px 10px}
+.dg-warn{font-size:11.5px;color:var(--amber);background:var(--amber-bg);border:1px solid var(--amber-border);border-radius:10px;padding:7px 10px;margin:6px 0 10px}
+.dg-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px}
+.dg-h{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:12px}
+.dg-cb{margin-bottom:12px}
+.dg-cbl{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
+.dg-cbt{display:flex;height:14px;border-radius:99px;overflow:hidden;background:var(--bg-soft)}
 .dg-cbt i{display:block;height:100%}
-.dg-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:var(--sh)}
+.dg-legend{display:flex;gap:14px;font-size:11.5px;color:var(--muted);margin-top:2px}
+.dg-legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px}
+.dg-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px;margin-bottom:12px}
 .dg-cn{font-size:14.5px;font-weight:800;color:var(--ink)}
 .dg-ct{font-size:16px;font-weight:800;color:var(--ink)}
 .dg-card .dg-prog{margin:8px 0 6px}
@@ -1047,14 +1031,12 @@
 .dg-gb b.w{color:var(--amber)}
 .dg-mrow{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border);font-size:13px}
 .dg-mrow i{width:9px;height:9px;border-radius:3px;flex:none}
-.dg-ml{flex:1;font-weight:700}
-.dg-ml small{font-weight:500;color:var(--muted);margin-left:4px}
-.dg-mv{font-weight:800;text-align:right}
-.dg-mv small{display:block;font-weight:500;color:var(--muted);font-size:10.5px}
+.dg-mrow span{flex:1;font-weight:700}
+.dg-mrow small{font-weight:500;color:var(--muted)}
 .dg-clear{min-height:46px;font-size:14px}
 .dg-cleared{display:flex;align-items:center;justify-content:center;gap:6px;background:var(--emerald-bg);color:var(--emerald);border:1px solid var(--emerald-border);border-radius:12px;padding:11px;font-weight:800;font-size:13.5px}
 .dg-undo{margin-left:8px;border:none;background:none;color:var(--emerald);text-decoration:underline;font-weight:700;font-size:12px;font-family:inherit}
-.dg-more{display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--accent-dark);font-weight:700;font-size:12.5px;padding:6px;font-family:inherit}
+.dg-more{display:block;width:100%;margin-top:6px;background:none;border:none;color:var(--accent-dark);font-weight:700;font-size:12.5px;padding:6px;font-family:inherit}
 .dg-entry{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-top:8px;background:var(--surface)}
 .dg-entry.is-paid{opacity:.72;background:var(--bg-soft)}
 .dg-entry.is-inc{border-color:var(--amber-border);background:var(--amber-bg)}
@@ -3261,7 +3243,7 @@ function diagMigrateCentres() {
   });
   if (changed) saveDiagCentres(DIAG_CENTRES);
   if (refsChanged) saveDiagReferrals(DIAG_REFERRALS);
-  if (fixed) setTimeout(function () { toast('Emkay: MRI 45% / CT 40% + staff 5% lag gaya \u2014 ' + fixed + ' pending entries update hui'); }, 400);
+  if (fixed) setTimeout(function () { toast('Emkay rates applied (MRI 45%, CT 40%, staff share). ' + fixed + ' pending entries updated'); }, 400);
 }
 let DIAG_MONTH = null;
 let DIAG_EXPAND = {};
@@ -3289,19 +3271,6 @@ function diagProgressHtml(got, total) {
   const pct = total > 0 ? Math.min(100, Math.round(got / total * 100)) : 0;
   return '<div class="dg-prog"><i style="width:'+pct+'%"></i></div>';
 }
-function diagDonutHtml(parts, centreText) {
-  const total = parts.reduce((a, b) => a + b.v, 0);
-  if (!total) return '';
-  const R = 42, C = 2 * Math.PI * R;
-  let off = 0;
-  const arcs = parts.filter(p => p.v > 0).map(p => {
-    const len = p.v / total * C;
-    const a = '<circle cx="60" cy="60" r="'+R+'" fill="none" stroke="'+p.c+'" stroke-width="16" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+'" transform="rotate(-90 60 60)"/>';
-    off += len; return a;
-  }).join('');
-  return '<svg viewBox="0 0 120 120" width="118" height="118" role="img" aria-label="Modality split"><circle cx="60" cy="60" r="'+R+'" fill="none" stroke="var(--bg-soft)" stroke-width="16"/>'+arcs
-    + '<text x="60" y="57" text-anchor="middle" font-size="9" fill="var(--muted)" font-weight="700">TOTAL</text><text x="60" y="73" text-anchor="middle" font-size="13" font-weight="800" fill="var(--ink)">'+centreText+'</text></svg>';
-}
 function diagEntryCardHtml(r) {
   const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
   const paid = r.status === 'paid';
@@ -3314,12 +3283,12 @@ function diagEntryCardHtml(r) {
     + '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">'+esc(r.investigation||'')+(r.contrastType?' ('+(r.contrastType==='with'?'With':'Without')+' contrast)':'')+' \u00b7 '+esc(centre?centre.name:'\u2014')+'</div>'
     + '<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+fmtDateShort(r.reportDate)+(r.reportId?' \u00b7 ID '+esc(r.reportId):'')+(r.segmentCode?' \u00b7 '+esc(r.segmentCode):'')+'</div>'
     + (r.segmentCode ? '<div style="font-size:12px;font-weight:800;color:var(--emerald);margin-top:3px;">Cut '+diagRs(r.doctorCutAmount)+(st?' <span style="font-weight:600;color:var(--muted);">\u00b7 staff '+diagRs(st)+' \u00b7 net '+diagRs((Number(r.doctorCutAmount)||0)-st)+'</span>':'')+(r.cutManual?' <span style="font-size:10px;font-weight:700;color:var(--muted);">(manual)</span>':'')+'</div>' : '')
-    + (paid && r.paidAt ? '<div style="font-size:10.5px;color:var(--muted);margin-top:2px;">Mila: '+new Date(r.paidAt).toLocaleDateString('en-IN',{day:'numeric',month:'short'})+'</div>' : '')
+    + (paid && r.paidAt ? '<div style="font-size:10.5px;color:var(--muted);margin-top:2px;">Received: '+new Date(r.paidAt).toLocaleDateString('en-IN',{day:'numeric',month:'short'})+'</div>' : '')
     + '</div>'
     + '<button type="button" class="icon-btn" style="flex:none;width:28px;height:28px;" data-action="diag-edit-referral" data-id="'+r.id+'" title="Edit entry">'+ic('pencil')+'</button>'
     + (needsCompletion ? '' : (paid
-        ? '<button type="button" class="badge badge-emerald" style="flex:none;cursor:pointer;" data-action="diag-unmark-paid" data-id="'+r.id+'" title="Undo">'+ic('check')+' Mila</button>'
-        : '<button type="button" class="badge badge-slate" style="flex:none;cursor:pointer;" data-action="diag-mark-paid" data-id="'+r.id+'">Mila?</button>'))
+        ? '<button type="button" class="badge badge-emerald" style="flex:none;cursor:pointer;" data-action="diag-unmark-paid" data-id="'+r.id+'" title="Undo">'+ic('check')+' Received</button>'
+        : '<button type="button" class="badge badge-slate" style="flex:none;cursor:pointer;" data-action="diag-mark-paid" data-id="'+r.id+'">Mark received</button>'))
     + '</div>'
     + (needsCompletion ? (DIAG_COMPLETING_ID === r.id
         ? diagCompleteEntryFormHtml(r)
@@ -3332,110 +3301,78 @@ function diagDashboardHtml() {
   DIAG_REFERRALS.forEach(r => { monthsSet[diagMonthOf(r)] = 1; });
   const months = Object.keys(monthsSet).sort().reverse();
   if (!DIAG_MONTH || !monthsSet[DIAG_MONTH]) DIAG_MONTH = months[0];
-  const mStats = {};
-  months.forEach(m => { mStats[m] = diagSumList(DIAG_REFERRALS.filter(r => diagMonthOf(r) === m)); });
-  const all = diagSumList(DIAG_REFERRALS);
   const cur = DIAG_MONTH;
+  const all = diagSumList(DIAG_REFERRALS);
   const monthList = DIAG_REFERRALS.filter(r => diagMonthOf(r) === cur);
-  const ms = mStats[cur];
+  const ms = diagSumList(monthList);
 
-  // hero: everything across all months
-  const hero = '<div class="dg-hero">'
-    + '<div class="dg-hero-l">Total baaki (sab months)</div>'
-    + '<div class="dg-hero-n">'+diagRs(all.left)+'</div>'
-    + diagProgressHtml(all.got, all.gross)
-    + '<div class="dg-hero-r"><span>Mila <b>'+diagRs(all.got)+'</b></span><span>Total <b>'+diagRs(all.gross)+'</b></span></div>'
-    + (all.staff ? '<div class="dg-hero-s">Staff ko dena '+diagRs(all.staff)+' \u00b7 Tera net '+diagRs(all.net)+'</div>' : '')
-    + '</div>';
-
-  // month chips
-  const chips = '<div class="dg-chips">' + months.map(m => {
-    const st = mStats[m];
-    return '<button type="button" class="dg-chip'+(m===cur?' on':'')+'" data-action="diag-pick-month" data-value="'+m+'">'+diagMonthLabel(m,true)+(st.left>0?'<i class="dg-dot"></i>':'<em>\u2713</em>')+'</button>';
-  }).join('') + '</div>';
-
-  // last-6-month trend (Mila vs Baaki), tap to open month
-  const tm = months.slice(0, 6).reverse();
-  const maxT = Math.max.apply(null, tm.map(m => mStats[m].gross).concat([1]));
-  const trend = '<div class="dg-trend">' + tm.map(m => {
-    const st = mStats[m], h = Math.max(4, Math.round(st.gross / maxT * 100));
-    const gotH = st.gross ? Math.round(st.got / st.gross * 100) : 0;
-    return '<button type="button" class="dg-tcol'+(m===cur?' on':'')+'" data-action="diag-pick-month" data-value="'+m+'"><div class="dg-tbar" style="height:'+h+'%"><i class="dg-t-got" style="height:'+gotH+'%"></i></div><span>'+diagMonthLabel(m,true).split(' ')[0]+'</span></button>';
-  }).join('') + '</div><div class="dg-legend"><span><i style="background:var(--emerald)"></i>Mila</span><span><i style="background:rgba(245,158,11,.6)"></i>Baaki</span></div>';
-
-  // month tiles
-  const tiles = '<div class="dg-tiles">'
-    + '<div class="dg-tile"><small>Total cut</small><b>'+diagRs(ms.gross)+'</b></div>'
-    + '<div class="dg-tile ok"><small>Mila</small><b>'+diagRs(ms.got)+'</b></div>'
-    + '<div class="dg-tile'+(ms.left>0?' warn':' ok')+'"><small>Baaki</small><b>'+diagRs(ms.left)+'</b></div>'
-    + '</div>'
-    + (ms.staff ? '<div class="dg-staffline"><span>Staff ko dena <b>'+diagRs(ms.staff)+'</b></span><span>Tera net <b>'+diagRs(ms.net)+'</b></span></div>' : '')
-    + (ms.incomplete ? '<div class="dg-incline">'+ms.incomplete+' entr'+(ms.incomplete>1?'ies':'y')+' mein rate details baaki hain \u2014 total mein nahi judi</div>' : '');
-
-  // modality donut for the month
-  const modTot = { CT: 0, MRI: 0, Other: 0 };
+  // group this month by centre, then by scan type
   const byCentre = {};
   monthList.forEach(r => {
-    if (!r.segmentCode) return;
     const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
-    const mod = diagModalityOf(centre, r.investigation, r.modality);
-    const g = Number(r.doctorCutAmount) || 0;
-    modTot[mod] = (modTot[mod] || 0) + g;
     const key = r.centreId || 'none';
-    const b = byCentre[key] || (byCentre[key] = { name: centre ? centre.name : '(deleted centre)', mods: {}, entries: [] });
-    const m = b.mods[mod] || (b.mods[mod] = { n: 0, gross: 0, staff: 0, got: 0 });
-    m.n++; m.gross += g; m.staff += Number(r.staffAmount) || 0; if (r.status === 'paid') m.got += g;
-  });
-  monthList.forEach(r => {
-    const key = r.centreId || 'none';
-    const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
     const b = byCentre[key] || (byCentre[key] = { name: centre ? centre.name : '(deleted centre)', mods: {}, entries: [] });
     b.entries.push(r);
+    if (!r.segmentCode) return;
+    const mod = diagModalityOf(centre, r.investigation, r.modality);
+    const m = b.mods[mod] || (b.mods[mod] = { n: 0, gross: 0, staff: 0 });
+    m.n++; m.gross += Number(r.doctorCutAmount) || 0; m.staff += Number(r.staffAmount) || 0;
   });
-  const modKeys = ['CT', 'MRI', 'Other'].filter(k => modTot[k] > 0);
-  const donut = modKeys.length ? ('<div class="dg-panel"><div class="dg-h">Modality-wise ('+diagMonthLabel(cur)+')</div><div class="dg-donut">'
-    + diagDonutHtml(modKeys.map(k => ({ v: modTot[k], c: DIAG_MOD_COLORS[k] })), diagRs(ms.gross))
-    + '<div class="dg-dl">' + modKeys.map(k => '<div><i style="background:'+DIAG_MOD_COLORS[k]+'"></i><span>'+k+'</span><b>'+diagRs(modTot[k])+'</b><em>'+(ms.gross?Math.round(modTot[k]/ms.gross*100):0)+'%</em></div>').join('') + '</div></div></div>') : '';
+  const keys = Object.keys(byCentre).sort((x, y) => byCentre[x].name.localeCompare(byCentre[y].name));
+  const mods = ['CT', 'MRI', 'Other'];
+  const centreTotal = k => mods.reduce((a, m) => a + (byCentre[k].mods[m] ? byCentre[k].mods[m].gross : 0), 0);
+  const maxC = Math.max.apply(null, keys.map(centreTotal).concat([1]));
 
-  // centre comparison bars
-  const centreKeys = Object.keys(byCentre).sort((a, b) => byCentre[a].name.localeCompare(byCentre[b].name));
-  const ctot = k => Object.keys(byCentre[k].mods).reduce((a, m) => a + byCentre[k].mods[m].gross, 0);
-  const maxC = Math.max.apply(null, centreKeys.map(ctot).concat([1]));
-  const cbars = centreKeys.length > 1 ? ('<div class="dg-panel"><div class="dg-h">Centre-wise</div>' + centreKeys.map(k => {
-    const b = byCentre[k], tt = ctot(k);
-    return '<div class="dg-cb"><div class="dg-cbl"><span>'+esc(b.name)+'</span><b>'+diagRs(tt)+'</b></div><div class="dg-cbt" style="width:'+Math.max(4,Math.round(tt/maxC*100))+'%">'
-      + ['CT','MRI','Other'].filter(m => b.mods[m] && b.mods[m].gross > 0).map(m => '<i style="flex:'+b.mods[m].gross+';background:'+DIAG_MOD_COLORS[m]+'" title="'+m+'"></i>').join('') + '</div></div>';
-  }).join('') + '</div>') : '';
+  const hero = '<div class="dg-hero">'
+    + '<div class="dg-hero-l">Total pending, all months</div>'
+    + '<div class="dg-hero-n">'+diagRs(all.left)+'</div>'
+    + diagProgressHtml(all.got, all.gross)
+    + '<div class="dg-hero-r"><span>Received '+diagRs(all.got)+'</span><span>of '+diagRs(all.gross)+'</span></div>'
+    + '</div>';
 
-  // per-centre settlement cards
-  const cards = centreKeys.map(k => {
-    const b = byCentre[k];
-    const sum = diagSumList(b.entries);
-    const key = cur + '|' + k;
-    const open = !!DIAG_EXPAND[key];
+  const chips = '<div class="dg-chips">' + months.map(m => {
+    const st = diagSumList(DIAG_REFERRALS.filter(r => diagMonthOf(r) === m));
+    return '<button type="button" class="dg-chip'+(m===cur?' on':'')+'" data-action="diag-pick-month" data-value="'+m+'">'+diagMonthLabel(m,true)+(st.left>0?'<i class="dg-dot"></i>':'<em>✓</em>')+'</button>';
+  }).join('') + '</div>';
+
+  const summary = '<div class="dg-sum">'
+    + '<div><small>Total</small><b>'+diagRs(ms.gross)+'</b></div>'
+    + '<div><small>Received</small><b class="g">'+diagRs(ms.got)+'</b></div>'
+    + '<div><small>Pending</small><b class="'+(ms.left>0?'w':'g')+'">'+diagRs(ms.left)+'</b></div>'
+    + '</div>'
+    + (ms.staff ? '<div class="dg-note">Staff share '+diagRs(ms.staff)+' · Your net '+diagRs(ms.net)+'</div>' : '')
+    + (ms.incomplete ? '<div class="dg-warn">'+ms.incomplete+' entr'+(ms.incomplete>1?'ies':'y')+' without rate details are not counted</div>' : '');
+
+  // the one chart: each centre as a bar, split by CT / MRI
+  const chart = keys.some(k => centreTotal(k) > 0) ? ('<div class="dg-panel"><div class="dg-h">By centre and scan type</div>'
+    + keys.map(k => {
+        const tt = centreTotal(k);
+        return '<div class="dg-cb"><div class="dg-cbl"><span>'+esc(byCentre[k].name)+'</span><b>'+diagRs(tt)+'</b></div><div class="dg-cbt" style="width:'+Math.max(6,Math.round(tt/maxC*100))+'%">'
+          + mods.filter(m => byCentre[k].mods[m] && byCentre[k].mods[m].gross > 0).map(m => '<i style="flex:'+byCentre[k].mods[m].gross+';background:'+DIAG_MOD_COLORS[m]+'"></i>').join('') + '</div></div>';
+      }).join('')
+    + '<div class="dg-legend">' + mods.filter(m => keys.some(k => byCentre[k].mods[m])).map(m => '<span><i style="background:'+DIAG_MOD_COLORS[m]+'"></i>'+m+'</span>').join('') + '</div></div>') : '';
+
+  const cards = keys.map(k => {
+    const b = byCentre[k], sum = diagSumList(b.entries), key = cur + '|' + k, open = !!DIAG_EXPAND[key];
     const hasBatch = b.entries.some(r => r.paidBatch);
-    const rows = ['CT','MRI','Other'].filter(m => b.mods[m]).map(m => {
-      const x = b.mods[m];
-      return '<div class="dg-mrow"><i style="background:'+DIAG_MOD_COLORS[m]+'"></i><span class="dg-ml">'+m+' <small>'+x.n+' entr'+(x.n>1?'ies':'y')+'</small></span><span class="dg-mv">'+diagRs(x.gross)+(x.staff?'<small>staff '+diagRs(x.staff)+'</small>':'')+'</span></div>';
-    }).join('');
+    const rows = mods.filter(m => b.mods[m]).map(m => '<div class="dg-mrow"><i style="background:'+DIAG_MOD_COLORS[m]+'"></i><span>'+m+' <small>×'+b.mods[m].n+'</small></span><b>'+diagRs(b.mods[m].gross)+'</b></div>').join('');
     const action = sum.left > 0
-      ? '<button type="button" class="btn btn-sm btn-primary btn-block dg-clear" data-action="diag-clear-block" data-centre="'+k+'" data-month="'+cur+'">'+ic('check')+' Poora hisaab clear \u2014 '+diagRs(sum.left)+'</button>'
-      : (sum.n ? '<div class="dg-cleared">'+ic('check')+' Poora clear'+(hasBatch ? ' <button type="button" class="dg-undo" data-action="diag-unclear-block" data-centre="'+k+'" data-month="'+cur+'">Undo</button>' : '')+'</div>' : '');
+      ? '<button type="button" class="btn btn-sm btn-primary btn-block dg-clear" data-action="diag-clear-block" data-centre="'+k+'" data-month="'+cur+'">'+ic('check')+' Mark all received · '+diagRs(sum.left)+'</button>'
+      : (sum.n ? '<div class="dg-cleared">'+ic('check')+' Settled'+(hasBatch ? ' <button type="button" class="dg-undo" data-action="diag-unclear-block" data-centre="'+k+'" data-month="'+cur+'">Undo</button>' : '')+'</div>' : '');
     return '<div class="dg-card">'
       + '<div class="row between" style="align-items:baseline;"><div class="dg-cn">'+esc(b.name)+'</div><div class="dg-ct">'+diagRs(sum.gross)+'</div></div>'
       + diagProgressHtml(sum.got, sum.gross)
-      + '<div class="dg-gb"><span>Mila <b class="g">'+diagRs(sum.got)+'</b></span><span>Baaki <b class="'+(sum.left>0?'w':'g')+'">'+diagRs(sum.left)+'</b></span></div>'
+      + '<div class="dg-gb"><span>Received <b class="g">'+diagRs(sum.got)+'</b></span><span>Pending <b class="'+(sum.left>0?'w':'g')+'">'+diagRs(sum.left)+'</b></span></div>'
       + rows
-      + (sum.staff ? '<div class="dg-staffline" style="margin:8px 0 0;"><span>Staff <b>'+diagRs(sum.staff)+'</b></span><span>Tera net <b>'+diagRs(sum.net)+'</b></span></div>' : '')
-      + (sum.incomplete ? '<div class="dg-incline">'+sum.incomplete+' entry mein rate details baaki</div>' : '')
-      + '<div style="margin-top:10px;">'+action+'</div>'
-      + '<button type="button" class="dg-more" data-action="diag-toggle-entries" data-key="'+key+'">'+(open?'Entries chhupao':'Entries dekho ('+b.entries.length+')')+'</button>'
-      + (open ? '<div style="margin-top:6px;">' + b.entries.slice().sort((x, y) => (y.reportDate||'').localeCompare(x.reportDate||'')).map(diagEntryCardHtml).join('') + '</div>' : '')
+      + (sum.staff ? '<div class="dg-note" style="margin-top:8px;">Staff '+diagRs(sum.staff)+' · Your net '+diagRs(sum.net)+'</div>' : '')
+      + (sum.incomplete ? '<div class="dg-warn">'+sum.incomplete+' without rate details</div>' : '')
+      + (action ? '<div style="margin-top:10px;">'+action+'</div>' : '')
+      + '<button type="button" class="dg-more" data-action="diag-toggle-entries" data-key="'+key+'">'+(open?'Hide entries':'Show entries ('+b.entries.length+')')+'</button>'
+      + (open ? '<div>' + b.entries.slice().sort((x, y) => (y.reportDate||'').localeCompare(x.reportDate||'')).map(diagEntryCardHtml).join('') + '</div>' : '')
       + '</div>';
   }).join('');
 
-  return '<div class="dg-wrap">' + hero + chips + '<div class="dg-panel dg-panel-t"><div class="dg-h">Pichhle 6 mahine \u2014 Mila vs Baaki</div>' + trend + '</div>'
-    + '<div class="dg-mtitle">'+diagMonthLabel(cur)+'</div>' + tiles + donut + cbars + cards + '</div>';
+  return '<div class="dg-wrap">' + hero + chips + summary + chart + cards + '</div>';
 }
 function diagCutInputHtml(id, value, autoAmt) {
   return '<label class="field-label">Your cut \u20b9 <span style="font-weight:500;color:var(--muted);">(optional \u2014 type to override auto)</span></label>'
@@ -5563,7 +5500,7 @@ function renderDiagReferralsView() {
                 : '<button type="button" class="icon-btn" style="width:28px;height:28px;color:var(--red);" data-action="arm-delete" data-arm="diag-centre:'+c.id+'" title="Remove">'+ic('trash')+'</button>')
             + '</div></div>'
           )).join('') : '<p style="font-size:12px;color:var(--muted);text-align:center;margin:8px 0;">No centres yet.</p>') : '')
-        + (DIAG_REFERRALS.length ? '<button class="btn btn-sm btn-block" style="margin-bottom:14px;" data-action="diag-export-csv" data-value="all">'+ic('download')+' Export Excel (sab months)</button>' : '<div style="margin-bottom:14px;"></div>')
+        + (DIAG_REFERRALS.length ? '<button class="btn btn-sm btn-block" style="margin-bottom:14px;" data-action="diag-export-csv" data-value="all">'+ic('download')+' Export Excel (all months)</button>' : '<div style="margin-bottom:14px;"></div>')
         + (!DIAG_CENTRES.length ? '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:20px;">Add your first diagnostic centre to get started.</p>' : '')
       ))
     ))
@@ -14512,7 +14449,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'diag-toggle-centres-list') { DIAG_SHOW_CENTRES = !DIAG_SHOW_CENTRES; render(); return; }
   if (action === 'diag-delete-centre') {
     const orphanedCount = DIAG_REFERRALS.filter(r => r.centreId === el.dataset.id).length;
-    if (orphanedCount) { ARMED_DELETE = null; toast('Is centre ki ' + orphanedCount + ' entries hain \u2014 hisaab ke liye delete nahi ho sakta'); render(); return; }
+    if (orphanedCount) { ARMED_DELETE = null; toast('This centre has ' + orphanedCount + ' entries, so it cannot be deleted'); render(); return; }
     DIAG_CENTRES = DIAG_CENTRES.filter(c => c.id !== el.dataset.id);
     saveDiagCentres(DIAG_CENTRES);
     ARMED_DELETE = null;
@@ -14641,13 +14578,13 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'diag-mark-paid') {
     const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
-    if (r) { r.status = 'paid'; r.paidAt = Date.now(); saveDiagReferrals(DIAG_REFERRALS); toast('Mila \u2713'); }
+    if (r) { r.status = 'paid'; r.paidAt = Date.now(); saveDiagReferrals(DIAG_REFERRALS); toast('Marked received'); }
     render();
     return;
   }
   if (action === 'diag-unmark-paid') {
     const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id);
-    if (r) { r.status = 'active'; delete r.paidAt; delete r.paidBatch; saveDiagReferrals(DIAG_REFERRALS); toast('Wapas baaki mein'); }
+    if (r) { r.status = 'active'; delete r.paidAt; delete r.paidBatch; saveDiagReferrals(DIAG_REFERRALS); toast('Moved back to pending'); }
     render();
     return;
   }
@@ -14661,7 +14598,7 @@ document.addEventListener('click', async (e) => {
       r.status = 'paid'; r.paidAt = Date.now(); r.paidBatch = batch; n++; amt += Number(r.doctorCutAmount) || 0;
     });
     saveDiagReferrals(DIAG_REFERRALS);
-    toast(n ? ('Clear \u2713 \u2014 ' + diagRs(amt) + ' (' + n + ' entries)') : 'Kuch baaki nahi tha');
+    toast(n ? ('Settled ' + diagRs(amt) + ' (' + n + ' entries)') : 'Nothing pending');
     render();
     return;
   }
@@ -14673,7 +14610,7 @@ document.addEventListener('click', async (e) => {
       r.status = 'active'; delete r.paidAt; delete r.paidBatch; n++;
     });
     saveDiagReferrals(DIAG_REFERRALS);
-    toast(n + ' entries wapas baaki mein');
+    toast(n + ' entries moved back to pending');
     render();
     return;
   }
