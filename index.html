@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="app-build" content="20261107.6">
+<meta name="app-build" content="20261107.7">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -1941,7 +1941,10 @@ function relfuPreviewHtml(idPrefix, dateStr, note) {
 }
 function relativeFollowupPickerHtml(idPrefix, currentDate, autoMode, note) {
   const autoAttr = autoMode ? ' data-relfu-mode="auto"' : '';
-  return '<div class="row gap2" style="align-items:flex-end;">'
+  const chips = [['1 wk',1,'weeks'],['2 wk',2,'weeks'],['1 mo',1,'months'],['3 mo',3,'months'],['6 mo',6,'months']]
+    .map(c => '<button type="button" class="chip" style="font-size:11.5px;padding:6px 11px;" data-action="relfu-chip" data-target="'+idPrefix+'" data-n="'+c[1]+'" data-unit="'+c[2]+'"'+(autoMode?' data-auto="1"':'')+'>'+c[0]+'</button>').join('');
+  return '<div class="row gap2" style="flex-wrap:wrap;margin-bottom:8px;">'+chips+'</div>'
+    + '<div class="row gap2" style="align-items:flex-end;">'
     + '<div style="flex:0.8;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">In</label>'
     + '<input class="input" type="number" min="1" max="365" inputmode="numeric" placeholder="" id="'+idPrefix+'-num" data-relfu="num" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
     + '</div>'
@@ -10698,6 +10701,8 @@ function renderCalendarView() {
   const s = computeDashboardStats();
   const overdueCount = s.important.filter(i => i.isOverdue).length;
   const todayCount = s.important.filter(i => !i.isOverdue).length;
+  const _td = todayStr();
+  const upcomingCount = PATIENTS.filter(p => (!p.status || p.status === 'Active' || p.status === 'Active follow-up') && p.nextFollowUpDate && p.nextFollowUpDate > _td).length;
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row between" style="margin-bottom:10px;"><div class="row gap3"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Follow-ups</h2></div><button class="btn btn-sm btn-primary" data-action="add-menu-pick-patient" data-value="followup">'+ic('plus')+' Add</button></div>'
@@ -10705,7 +10710,7 @@ function renderCalendarView() {
     + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='overdue'?' active':'')+'" data-action="cal-set-subview" data-value="overdue">Overdue'+(overdueCount?'<i class="fu-tn">'+(overdueCount)+'</i>':'')+'</button>'
     + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='today'?' active':'')+'" data-action="cal-set-subview" data-value="today">Today'+(todayCount?'<i class="fu-tn">'+(todayCount)+'</i>':'')+'</button>'
     + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='tomorrow'?' active':'')+'" data-action="cal-set-subview" data-value="tomorrow">Tomorrow'+(s.dueTomorrowList.length?'<i class="fu-tn">'+(s.dueTomorrowList.length)+'</i>':'')+'</button>'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming'+(0?'<i class="fu-tn">'+(0)+'</i>':'')+'</button>'
+    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming'+(upcomingCount?'<i class="fu-tn">'+(upcomingCount)+'</i>':'')+'</button>'
     + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar'+(0?'<i class="fu-tn">'+(0)+'</i>':'')+'</button>'
     + '</div>'
     + '</div>'
@@ -13131,6 +13136,13 @@ document.addEventListener('click', async (e) => {
 
   if (action === 'ap-set-casetype') { syncApTempFromDom(); AP_TEMP.caseType = el.dataset.value; if (AP_TEMP.caseType === 'surgical') { AP_TEMP.condition = ''; AP_OPEN_SECTION = 4; } else { AP_OPEN_SECTION = 2; } render(); return; }
   if (action === 'ap-set-trauma') { syncApTempFromDom(); AP_TEMP.traumaCase = el.dataset.value; render(); return; }
+  if (action === 'relfu-chip') {
+    const t = el.dataset.target, numEl = document.getElementById(t + '-num'), unitEl = document.getElementById(t + '-unit');
+    if (!numEl || !unitEl) return;
+    numEl.value = el.dataset.n; unitEl.value = el.dataset.unit;
+    await relfuHandle(numEl, true);
+    return;
+  }
   if (action === 'relfu-move-off') {
     const tg = el.dataset.target; const hv = document.getElementById(tg);
     if (hv && hv.value) { const sh = fuShiftOff(hv.value); relfuApply(tg, sh.date, 'Moved to ' + fmtDate(sh.date), true); }
