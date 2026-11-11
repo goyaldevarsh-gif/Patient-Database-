@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261111.2">
+<meta name="app-build" content="20261111.4">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -3551,6 +3551,14 @@ async function renderNotificationsView() {
   return html;
 }
 const CHANGELOG = [
+  { version:'1.6.0', date:'2026-11-11', features: [
+      'New Help & Guide: 64 topics in 10 groups, each opens on its own with step-by-step detail, plus a search box (More \u2192 Help & Guide)',
+      'Patient Statistics (More \u2192 Practice): totals, new patients per month, region, diagnoses, age, sex, photos and storage. Region counts moved here from Home, so Home is calmer',
+      'Diagnostic Referrals dashboard: month-wise CT / MRI totals per centre, Mark all received with Undo, staff share tracking, and entries are never deleted',
+      'App Lock now has a 6-digit PIN with a recovery code, and App Settings has Check for updates and Protect storage',
+      'Sample patients: load 5 demo patients (and remove them in one tap) from Home, the empty Patients list or App Settings. They never go to cloud sync',
+      'Follow-up date chips (1 wk, 2 wk, 1 mo, 3 mo, 6 mo), Upcoming tab count, CTEV / RA / Bone Health tab right after Overview, pinch-zoom allowed, and spoken names for icon buttons'
+    ] },
   { version:'1.5.0', date:'2026-11-05', features: [
       'Help is shorter and up to date (Quick tour + 7 collapsible topics); About shows the version and build number; AI tools moved into the patient \u22ee menu',
       'Settings reorganised into clear sections: Doctor, Clinic and WhatsApp footer in the profile; Appearance, Reminders, Backup & storage, Patient ID, Maintenance, AI usage and About in App Settings',
@@ -5994,7 +6002,7 @@ let SCHEME_CUSTOM_IMPLANT_OPEN = false;
 function renderContentIdeasTab() {
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
-    + '<div class="row gap3"><button class="icon-btn" data-action="close-content-ideas">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">FAQ</h2></div>'
+    + '<div class="row gap3"><button class="icon-btn" data-action="close-content-ideas">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Content Ideas</h2></div>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;padding-bottom:90px;">'
     + '<p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Frequently asked questions by patients. Quick-capture ideas for social media content.</p>'
@@ -6078,7 +6086,7 @@ function moreProfileCardHtml() {
 function moreSearchBarHtml() {
   return '<div class="row gap2" style="align-items:center;background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:9px 12px;margin-bottom:12px;">'
     + '<span style="flex:none;color:var(--muted);">'+ic('search')+'</span>'
-    + '<input type="text" id="more-search-input" placeholder="" value="'+esc(MORE_SEARCH||'')+'" style="flex:1;border:none;background:none;font-size:13px;outline:none;">'
+    + '<input type="text" id="more-search-input" placeholder="Search features (e.g. backup, referral)" value="'+esc(MORE_SEARCH||'')+'" style="flex:1;border:none;background:none;font-size:13px;outline:none;">'
     + '<button type="button" class="icon-btn" style="width:24px;height:24px;flex:none;" data-action="more-search-clear">'+ic('x')+'</button>'
     + '</div>';
 }
@@ -6777,7 +6785,7 @@ function renderAppSettingsView() {
     + '<div class="set-sec">Security</div>'
     + securityCardHtml()
     + '<div class="set-sec">Backup &amp; storage</div>'
-    + moreRowHtml('shield', 'Backup & Cloud Sync', 'Auto backup, cloud sync status', 'open-cloud-sync')
+    + moreRowHtml('shield', 'Account & Cloud Sync', 'Auto backup, cloud sync status', 'open-cloud-sync')
     + '<div class="card"><div class="row between" style="align-items:center;margin-bottom:6px;"><label class="field-label" style="margin:0;display:inline-flex;align-items:center;gap:6px;">'+ic('shield')+' Storage protection</label><span class="badge badge-slate" id="persist-badge">Checking\u2026</span></div>'
     + '<p style="font-size:12px;color:var(--muted);margin:0 0 10px;line-height:1.5;">Asks the phone not to clear OrthoVault\u2019s data when it runs low on space. Keep taking regular backups either way.</p>'
     + '<button type="button" class="btn btn-sm btn-block" id="persist-btn" data-action="protect-storage" style="display:none;">Protect storage</button></div>'
@@ -6881,7 +6889,7 @@ async function renderCloudSyncView() {
     return '<div style="padding-bottom:20px;">'
       + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
       + '<button class="icon-btn" data-action="close-cloud-sync">'+ic('back')+'</button>'
-      + '<h2 style="font-size:16px;font-weight:800;margin:0;">Backup & Cloud Sync</h2>'
+      + '<h2 style="font-size:16px;font-weight:800;margin:0;">Account & Cloud Sync</h2>'
       + '</div></div>'
       + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
       + backupCardHtml
@@ -6895,7 +6903,7 @@ async function renderCloudSyncView() {
     return '<div style="padding-bottom:20px;">'
       + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
       + '<button class="icon-btn" data-action="close-cloud-sync">'+ic('back')+'</button>'
-      + '<h2 style="font-size:16px;font-weight:800;margin:0;">Backup & Cloud Sync</h2>'
+      + '<h2 style="font-size:16px;font-weight:800;margin:0;">Account & Cloud Sync</h2>'
       + '</div></div>'
       + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
       + backupCardHtml
@@ -6910,7 +6918,7 @@ async function renderCloudSyncView() {
   return '<div style="padding-bottom:20px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
     + '<button class="icon-btn" data-action="close-cloud-sync">'+ic('back')+'</button>'
-    + '<h2 style="font-size:16px;font-weight:800;margin:0;">Backup & Cloud Sync</h2>'
+    + '<h2 style="font-size:16px;font-weight:800;margin:0;">Account & Cloud Sync</h2>'
     + '</div></div>'
     + '<div class="px" style="padding-top:12px;display:flex;flex-direction:column;gap:14px;">'
     + backupCardHtml
