@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261111.4">
+<meta name="app-build" content="20261111.6">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -3433,6 +3433,66 @@ function diagDashboardHtml() {
 
   return '<div class="dg-wrap">' + hero + chips + summary + chart + cards + '</div>';
 }
+let DIAG_CUSTOM_DISC = '';
+let DIAG_CUSTOM_MODE = 'amt'; // 'amt' = rupees off, 'pct' = percent off
+// Works out the patient discount for either a segment code (A0-A5) or a custom discount the lab gave (rupees or percent).
+function diagDiscountFor(key, rate) {
+  if (!key) return null;
+  rate = Number(rate) || 0;
+  if (key === 'CUSTOM') {
+    let raw = parseFloat(DIAG_CUSTOM_DISC); if (!(raw >= 0)) raw = 0;
+    let pct, amt;
+    if (DIAG_CUSTOM_MODE === 'pct') { pct = Math.min(raw, 100); amt = Math.round(rate * pct / 100); }
+    else { amt = Math.min(raw, rate); pct = rate > 0 ? Math.round(amt / rate * 10000) / 100 : 0; }
+    return { code: 'Custom', pct: pct, amt: Math.round(amt), custom: true };
+  }
+  const c = DIAG_SEGMENT_CODES.find(x => x.code === key);
+  return c ? { code: c.code, pct: c.discountPercent, amt: Math.round(rate * c.discountPercent / 100), custom: false } : null;
+}
+function diagCustomBlockHtml() {
+  const amt = DIAG_CUSTOM_MODE !== 'pct';
+  return '<div style="margin-bottom:10px;"><label class="field-label">Discount the lab gave the patient</label>'
+    + '<div class="row gap2" style="align-items:stretch;margin-bottom:6px;"><input class="input" type="number" inputmode="decimal" min="0" id="diag-custom-disc" placeholder="' + (amt ? 'e.g. 500' : 'e.g. 10') + '" value="' + esc(DIAG_CUSTOM_DISC) + '" style="flex:1;">'
+    + '<div class="seg" style="flex:none;"><button type="button" class="seg-btn' + (amt ? ' active' : '') + '" data-action="diag-custom-mode" data-value="amt">₹</button><button type="button" class="seg-btn' + (!amt ? ' active' : '') + '" data-action="diag-custom-mode" data-value="pct">%</button></div></div>'
+    + '<div style="font-size:11px;color:var(--muted);">Don’t know the code or your cut? Enter what the patient actually got off. Your cut = the centre’s pool % minus that discount.</div></div>';
+}
+function diagPreviewCalc(centre, invName, rate, key) {
+  const h = diagDiscountFor(key, rate) || { code: '', pct: 0, amt: 0, custom: false };
+  const dc = diagCalc(centre, invName, rate, h.pct);
+  return { h: h, dc: dc, cutAmt: Math.round(rate * dc.cutPct / 100) };
+}
+function diagPreviewCardHtml(rate, pc) {
+  const h = pc.h, dc = pc.dc;
+  const discLabel = h.custom ? ('Patient discount (₹' + h.amt.toLocaleString('en-IN') + ' · ' + h.pct + '%)') : ('Patient discount (' + h.pct + '%)');
+  return '<div class="card" style="background:var(--emerald-bg);border-color:var(--emerald-border);padding:10px 12px;margin-bottom:10px;">'
+    + '<div class="row between" style="font-size:12px;"><span>Rate</span><b>₹' + rate.toLocaleString('en-IN') + '</b></div>'
+    + '<div class="row between" style="font-size:12px;"><span>' + discLabel + '</span><b>-₹' + h.amt.toLocaleString('en-IN') + '</b></div>'
+    + '<div class="row between" style="font-size:12px;color:var(--muted);"><span>Patient pays</span><span>₹' + (rate - h.amt).toLocaleString('en-IN') + '</span></div>'
+    + '<div style="border-top:1px dashed rgba(5,150,105,0.3);margin:6px 0;"></div>'
+    + '<div class="row between" style="font-size:13.5px;font-weight:800;color:var(--emerald);"><span>Your cut (' + dc.cutPct + '%)</span><span>₹' + pc.cutAmt.toLocaleString('en-IN') + '</span></div>'
+    + diagStaffRowHtml(dc, rate) + '</div>';
+}
+function diagAddPreviewState() {
+  const centre = DIAG_CENTRES.find(c => c.id === DIAG_ADD_REFERRAL_CENTRE) || DIAG_CENTRES[0];
+  const inv = ((centre && centre.investigations) || []).find(i => i.name === DIAG_ADD_REFERRAL_INVESTIGATION) || ((centre && centre.investigations) || [])[0];
+  const rate = inv ? (DIAG_ADD_REFERRAL_CONTRAST === 'with' ? inv.withContrast : inv.withoutContrast) : 0;
+  return { rate: rate, pc: diagPreviewCalc(centre, inv ? inv.name : '', rate, DIAG_ADD_REFERRAL_CODE) };
+}
+function diagCompletePreviewState() {
+  const r = DIAG_REFERRALS.find(x => x.id === DIAG_COMPLETING_ID); if (!r) return null;
+  const centre = DIAG_CENTRES.find(c => c.id === r.centreId);
+  const invs = (centre && centre.investigations) || [];
+  const inv = invs.find(i => i.name === DIAG_COMPLETE_INVESTIGATION) || invs[0];
+  const rate = inv ? (DIAG_COMPLETE_CONTRAST === 'with' ? inv.withContrast : inv.withoutContrast) : 0;
+  return { rate: rate, pc: diagPreviewCalc(centre, inv ? inv.name : '', rate, DIAG_COMPLETE_CODE) };
+}
+// Live update while typing the custom discount (does not re-render the form, so the keyboard stays open)
+function diagRefreshCustomPreview() {
+  const a = document.getElementById('diag-prev-add');
+  if (a) { const st = diagAddPreviewState(); a.innerHTML = diagPreviewCardHtml(st.rate, st.pc); const ce = document.getElementById('diag-ref-cut'); if (ce) ce.placeholder = 'Auto: ₹' + st.pc.cutAmt.toLocaleString('en-IN'); }
+  const c = document.getElementById('diag-prev-complete');
+  if (c) { const st = diagCompletePreviewState(); if (st) { c.innerHTML = diagPreviewCardHtml(st.rate, st.pc); const ce = document.getElementById('diag-complete-cut'); if (ce) ce.placeholder = 'Auto: ₹' + st.pc.cutAmt.toLocaleString('en-IN'); } }
+}
 function diagCutInputHtml(id, value, autoAmt) {
   return '<label class="field-label">Your cut \u20b9 <span style="font-weight:500;color:var(--muted);">(optional \u2014 type to override auto)</span></label>'
     + '<input class="input" type="number" inputmode="numeric" min="0" id="'+id+'" placeholder="Auto: \u20b9'+Number(autoAmt||0).toLocaleString('en-IN')+'" value="'+esc(value||'')+'" style="margin-bottom:10px;">';
@@ -3552,6 +3612,8 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Home: the Commission pending tile now shows your full pending referral commission across all months, not just this month',
+      'Diagnostic Referrals: new Custom discount \u2014 type what the lab gave the patient (\u20b9 or %) when the code or your cut is unknown, and the cut, staff share and net are worked out from it',
       'New Help & Guide: 64 topics in 10 groups, each opens on its own with step-by-step detail, plus a search box (More \u2192 Help & Guide)',
       'Patient Statistics (More \u2192 Practice): totals, new patients per month, region, diagnoses, age, sex, photos and storage. Region counts moved here from Home, so Home is calmer',
       'Diagnostic Referrals dashboard: month-wise CT / MRI totals per centre, Mark all received with Undo, staff share tracking, and entries are never deleted',
@@ -5500,12 +5562,8 @@ function diagAddReferralFormHtml() {
   const selectedInv = investigations.find(i => i.name === DIAG_ADD_REFERRAL_INVESTIGATION) || investigations[0];
   const rate = selectedInv ? (DIAG_ADD_REFERRAL_CONTRAST === 'with' ? selectedInv.withContrast : selectedInv.withoutContrast) : 0;
   const pool = centre ? Number(centre.maxPoolPercent || 40) : 40;
-  const code = DIAG_SEGMENT_CODES.find(c => c.code === DIAG_ADD_REFERRAL_CODE);
-  const patientDiscountPercent = code ? code.discountPercent : 0;
-  const _dc = diagCalc(centre, selectedInv ? selectedInv.name : '', rate, patientDiscountPercent); const doctorCutPercent = _dc.cutPct;
-  const patientDiscountAmount = Math.round(rate * patientDiscountPercent / 100);
-  const doctorCutAmount = Math.round(rate * doctorCutPercent / 100);
-  const patientPays = rate - patientDiscountAmount;
+  const _pc = diagPreviewCalc(centre, selectedInv ? selectedInv.name : '', rate, DIAG_ADD_REFERRAL_CODE);
+  const doctorCutAmount = _pc.cutAmt;
 
   return '<div class="card" style="background:rgba(13,148,136,0.04);border-color:#B5E3DD;margin-bottom:12px;">'
     + (DIAG_CENTRES.length > 1 ? ('<label class="field-label">Diagnostic centre</label><select class="select" id="diag-ref-centre" style="margin-bottom:10px;">'
@@ -5522,16 +5580,11 @@ function diagAddReferralFormHtml() {
         + '</div>'
         + '<label class="field-label">Segment code (patient discount)</label><div class="seg" style="margin-bottom:10px;flex-wrap:wrap;">'
         + DIAG_SEGMENT_CODES.map(c => '<button type="button" class="seg-btn'+(DIAG_ADD_REFERRAL_CODE===c.code?' active':'')+'" data-action="diag-set-code" data-value="'+c.code+'">'+c.code+' ('+c.discountPercent+'%)</button>').join('')
+        + '<button type="button" class="seg-btn'+(DIAG_ADD_REFERRAL_CODE==='CUSTOM'?' active':'')+'" data-action="diag-set-code" data-value="CUSTOM">Custom</button>'
         + '</div>'
+        + (DIAG_ADD_REFERRAL_CODE === 'CUSTOM' ? diagCustomBlockHtml() : '')
         + (DIAG_ADD_REFERRAL_CODE ? (
-            '<div class="card" style="background:var(--emerald-bg);border-color:var(--emerald-border);padding:10px 12px;margin-bottom:10px;">'
-            + '<div class="row between" style="font-size:12px;"><span>Rate</span><b>\u20b9'+rate.toLocaleString('en-IN')+'</b></div>'
-            + '<div class="row between" style="font-size:12px;"><span>Patient discount ('+patientDiscountPercent+'%)</span><b>-\u20b9'+patientDiscountAmount.toLocaleString('en-IN')+'</b></div>'
-            + '<div class="row between" style="font-size:12px;color:var(--muted);"><span>Patient pays</span><span>\u20b9'+patientPays.toLocaleString('en-IN')+'</span></div>'
-            + '<div style="border-top:1px dashed rgba(5,150,105,0.3);margin:6px 0;"></div>'
-            + '<div class="row between" style="font-size:13.5px;font-weight:800;color:var(--emerald);"><span>Your cut ('+doctorCutPercent+'%)</span><span>\u20b9'+doctorCutAmount.toLocaleString('en-IN')+'</span></div>'
-            + diagStaffRowHtml(_dc, rate)
-            + '</div>'
+            '<div id="diag-prev-add">' + diagPreviewCardHtml(rate, _pc) + '</div>'
             + diagCutInputHtml('diag-ref-cut', DIAG_REF_CUT_DRAFT, doctorCutAmount)
           ) : '<p style="font-size:11.5px;color:var(--muted);margin-bottom:10px;">Pick a segment code to see your cut.</p>')
       ))
@@ -5659,10 +5712,8 @@ function diagCompleteEntryFormHtml(r) {
   const selectedInv = investigations.find(i => i.name === DIAG_COMPLETE_INVESTIGATION) || investigations[0];
   const rate = selectedInv ? (DIAG_COMPLETE_CONTRAST === 'with' ? selectedInv.withContrast : selectedInv.withoutContrast) : 0;
   const pool = centre ? Number(centre.maxPoolPercent || 40) : 40;
-  const code = DIAG_SEGMENT_CODES.find(c => c.code === DIAG_COMPLETE_CODE);
-  const patientDiscountPercent = code ? code.discountPercent : 0;
-  const _dc = diagCalc(centre, selectedInv ? selectedInv.name : '', rate, patientDiscountPercent); const doctorCutPercent = _dc.cutPct;
-  const doctorCutAmount = Math.round(rate * doctorCutPercent / 100);
+  const _pc = diagPreviewCalc(centre, selectedInv ? selectedInv.name : '', rate, DIAG_COMPLETE_CODE);
+  const doctorCutAmount = _pc.cutAmt;
   if (!investigations.length) return '<p style="font-size:11.5px;color:var(--muted);padding:8px 12px;">This centre has no rate list \u2014 edit it first to add investigations.</p>';
   return '<div style="background:rgba(13,148,136,0.05);border-radius:10px;padding:10px 12px;margin-top:2px;">'
     + '<label class="field-label">Investigation</label><select class="select" id="diag-complete-investigation" style="margin-bottom:8px;">'
@@ -5674,8 +5725,10 @@ function diagCompleteEntryFormHtml(r) {
     + '</div>'
     + '<div class="seg" style="margin-bottom:8px;flex-wrap:wrap;">'
     + DIAG_SEGMENT_CODES.map(c => '<button type="button" class="seg-btn'+(DIAG_COMPLETE_CODE===c.code?' active':'')+'" data-action="diag-complete-set-code" data-value="'+c.code+'">'+c.code+' ('+c.discountPercent+'%)</button>').join('')
+    + '<button type="button" class="seg-btn'+(DIAG_COMPLETE_CODE==='CUSTOM'?' active':'')+'" data-action="diag-complete-set-code" data-value="CUSTOM">Custom</button>'
     + '</div>'
-    + (DIAG_COMPLETE_CODE ? '<div style="font-size:13px;font-weight:800;color:var(--emerald);margin-bottom:8px;">Your cut: \u20b9'+doctorCutAmount.toLocaleString('en-IN')+'</div>' + diagStaffRowHtml(_dc, rate) + diagCutInputHtml('diag-complete-cut', DIAG_COMPLETE_CUT, doctorCutAmount) : '')
+    + (DIAG_COMPLETE_CODE === 'CUSTOM' ? diagCustomBlockHtml() : '')
+    + (DIAG_COMPLETE_CODE ? '<div id="diag-prev-complete">' + diagPreviewCardHtml(rate, _pc) + '</div>' + diagCutInputHtml('diag-complete-cut', DIAG_COMPLETE_CUT, doctorCutAmount) : '')
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-complete">Cancel</button><button class="btn btn-sm btn-primary" style="flex:1;" data-action="diag-save-complete" data-id="'+r.id+'">'+ic('check')+' Save</button></div>'
     + '</div>';
 }
@@ -6563,7 +6616,7 @@ const ABOUT_SECTIONS = (function () {
     tips
   ].filter(Boolean);
 })();
-const HELP_GUIDE = [{"key":"start","title":"Getting started","icon":"clipboard","items":[["Home screen","Home is your starting point.\n\u2022 Top row: total Patients, Surgical cases, and Follow-ups due (tap it to jump to overdue).\n\u2022 Create new: Add New OPD Case and Add New Surgical Case.\n\u2022 Follow-ups: Overdue, Today and Tomorrow tiles. Tap any tile to open that list. The \u201cToday\u2019s follow-up work\u201d button opens your one-by-one list for the day.\n\u2022 Manage & track tiles for Patients, Reminders and More. Region-wise counts are in More \u2192 Patient Statistics."],["Add an OPD case","1. Tap Add New OPD Case on Home (or the purple + in the bottom bar).\n2. Fill Patient Details: name, age, sex, occupation, WhatsApp number.\n3. Complaints & Diagnosis: complaints, duration, side, region/specialty (tap \u2726 Auto-detect), diagnosis.\n4. Investigations (optional): add an X-ray, photo or report you already have.\n5. Special Tracking is switched on by your diagnosis (CTEV, RA, osteoporosis). Check it, then Save.\nIt is one continuous form with coloured section labels. Only a name is needed to save."],["Add a Surgical case","1. Tap Add New Surgical Case.\n2. Fill Patient Details and Complaints & Diagnosis as for OPD.\n3. Investigations: pre-op X-rays and reports (use Pre-op as the type).\n4. Surgery Details: surgery type, procedure, surgery date, and the collapsible Payment section (Cash / Insurance).\n5. Save. On the day of surgery open the patient \u2192 Images & Records to add OT photos and post-op X-rays. Every later visit goes under Follow-Up."],["Bottom bar","Patients, Followups, a purple + in the centre, Reminders and More are always at the bottom. The + opens a quick menu: New OPD Case, New Surgical Case, Add Follow-up, Add Reminder, Add Investigation."],["Find a patient","\u2022 Home search bar: type a name, ID, diagnosis or place.\n\u2022 Patients tab: full list with search, Sort, Filter and region chips. Patients needing attention (overdue) are grouped at the top.\n\u2022 Tap anywhere on a card to open the record. If the patient has a number saved, the call button on the card dials them directly."],["Edit anything later","A patient\u2019s Overview is a read-only summary. Tap the pencil at the top right to edit any field. Name, ID, age/sex and diagnosis stay pinned at the top while you scroll."]]},{"key":"patient","title":"Patient record","icon":"file","items":[["Overview tab","A compact summary: Next follow-up at the top, then Visits (registered, last visit, follow-ups logged), Clinical, Contact details and Reminders. You can also convert an OPD case to Surgical from here."],["Follow-Up tab","Log each visit with notes, wound or union status and photos. Set the next follow-up date with the quick chips or the date picker (see Follow-ups \u2192 Setting the next date). Past follow-ups stay listed below."],["Images & Records tab","X-rays, clinical and wound photos, labs and injections, grouped by type. Tap + Add, pick a category and you go straight to the camera or gallery. Open any image to zoom, add a note, download it, or change its type from the dropdown (for example an old General OPD X-ray can become Pre-op)."],["Timeline tab","The whole case in date order. Tap any entry to jump to that follow-up or investigation."],["Special tracking tab (CTEV, RA, Bone Health)","When a patient\u2019s condition is CTEV, RA or osteoporosis, that tracker appears as a tab right after Overview. See Special condition tools."],["Prescriptions","Write medicines with dose, frequency and duration, save a Template for reuse, then print, share as PDF or send on WhatsApp. Open it from the Prescriptions tab."],["The \u22ee menu","Top right of a patient: Print summary, Download all, Bookmark for research, Delete case (goes to Recently Deleted). With AI on, AI tools is here too."],["Convert, duplicate and delete","Convert to Surgical turns an OPD case into a surgical one. Duplicate Case copies diagnosis, procedure, region and side for back-to-back similar surgeries \u2014 just change name and age. Delete moves the case to Recently Deleted for 30 days."],["Pin, tags and bookmarks","Pin a case from Overview and it appears in Quick Access on Home. Tags (Interesting, Teaching, Complication\u2026) let you filter the Patients list. Bookmark marks a case for research or teaching."]]},{"key":"photos","title":"Photos & documents","icon":"camera","items":[["Add photos","Anywhere you see the camera tile: tap it to pick several photos from the gallery in one go. Where there is a small round camera button, it opens the camera directly for a quick shot. Photos are saved to the phone the moment you pick them, even before you save the form."],["View, zoom and annotate","Tap a photo to open it full screen. Pinch or double-tap to zoom, or use + and \u2212. Add a note that shows on the image, or download it."],["Photo Gallery","More \u2192 Photo Gallery: a grid of every patient\u2019s photos. Filter by category, region, time or patient. Unfiled photos (without a patient or category) are listed there too so nothing is lost \u2014 file them or delete them."],["Print and share","Print summary from a patient\u2019s \u22ee menu gives a printable case summary with your letterhead. Prescriptions can be printed or shared as PDF or WhatsApp."]]},{"key":"followups","title":"Follow-ups & reminders","icon":"calendar","items":[["Follow-ups screen","Open it from the Followups tab or the Home tiles. Views: Overdue, Today, Tomorrow, Upcoming and Calendar. Each tab shows how many patients are in it. Tap a patient to open the record."],["Setting the next date","In any follow-up form: tap a quick chip (1 wk, 2 wk, 1 mo, 3 mo, 6 mo) or type a number with Days / Weeks / Months, or pick an exact date. You can also tap AI suggest. If the date falls on your clinic off-day (Sunday by default) it moves to the next day, and the form tells you."],["Suggested follow-up schedule","The app suggests each next date for you. Surgical cases follow Standard (2w, 4w, 8w, 3m, 6m, 1y) or Short (2w, 6w, 3m) counted from the surgery date. Trauma OPD follows 1w, 2w, 4w, 6w, 3m, 6m. Other OPD cases use one gap by condition. Edit every schedule in More \u2192 Follow-up Schedules."],["Today\u2019s follow-up work","The button on Home lists today\u2019s patients one by one. For each: Remind sends the WhatsApp reminder, and Done \u25be lets you choose: Patient came (open file to log the visit), Push date 7 days later, No more follow-up needed (Completed), Outcome call later (3 / 6 months), or Lost to follow-up."],["Overdue, sorted for you","Overdue is split into: Remind now (under 4 weeks, no recent reminder), Call or decide (reminders sent, no reply), Waiting for reply (reminded in the last few days \u2014 nothing to do) and Cold (4+ weeks overdue, collapsed)."],["Clean up overdue, one by one","On Overdue tap Clean up overdue. You see one patient at a time with diagnosis, last visit, follow-ups done and reminders sent. Decide: Remind, Called, new date (+1 week / +2 weeks / +1 month / custom), Completed, Lost or Skip. A pile clears in a few minutes."],["WhatsApp reminders","From Tomorrow or Overdue, tap Remind to open WhatsApp with a ready message (Hindi, with your profile name and the visit date). Every reminder sent is logged on the patient. After 2 unanswered reminders, or within 10 days of the last one, the app asks before sending another. Change both limits in More \u2192 App Settings."],["If WhatsApp crashed","Tap the same patient\u2019s reminder again within 2 hours and the app asks \u201cDid the message go?\u201d. Choose Not sent \u2014 resend and the earlier entry is replaced, not counted twice. The patient\u2019s Reminder History card also has Undo last reminder."],["Completed and Lost","Completed: the patient no longer needs follow-up (healed, discharged). Lost to follow-up: you could not reach them. Both leave the overdue list, can be reversed from the patient\u2019s status control, and adding a new visit makes them Active again. Auto schedules stop at 12 months, except chronic conditions (RA, osteoporosis, CTEV)."],["Reminders tab","Bottom bar \u2192 Reminders: a separate list for clinic, OT or general tasks that are not tied to a patient\u2019s follow-up. Home shows a badge when some are due."],["Follow-up Report","More \u2192 Follow-up Report: your compliance rate (returned vs lost), the monthly visit trend, and a browser of patients by status (Lost, Completed, Pending)."]]},{"key":"conditions","title":"Special condition tools","icon":"pill","items":[["How tracking switches on","Type a diagnosis such as CTEV or Rheumatoid arthritis and the matching tracker turns on by itself. To add one later: Overview \u2192 Clinical \u2192 + Track a condition."],["CTEV (clubfoot)","Pirani scoring for each cast session with a trend graph, bracing log, and an automatic alert when your tenotomy criteria are met. Parents can get a cast-care message in Hindi. The CTEV tab sits right after Overview."],["RA (rheumatoid arthritis)","DAS28, CDAI and SDAI tracking with a 28-joint reference, monitoring labs, treatment history and a management reference (MTX, HCQ, steroids)."],["Osteoporosis","DEXA tracking (spine, hip, wrist) with T-scores, risk factors, and a FRAX explainer."],["Trauma tools","RUST score with a trend graph, and union tracking."],["Arthroplasty tools","BMI calculator and a PJI (MSIS criteria) checklist."],["Paediatrics","Weight-based dose calculator and a rickets management reference, shown automatically for paediatric OPD cases."]]},{"key":"practice","title":"Practice tools","icon":"clipboard","items":[["Diagnostic Referrals","More \u2192 Diagnostic Referrals tracks scans you refer and your commission.\n\u2022 Add a centre once (Ananta and Emkay have ready rate lists), then Add Entry: patient, investigation, with or without contrast and the discount code (A0\u2013A5).\n\u2022 The app works out the patient discount, your cut and any staff share from the centre\u2019s pool % (Emkay: MRI 45%, CT 40%, with the staff share on MRI).\n\u2022 The dashboard shows each month separately: total, received and pending, split by CT and MRI per centre.\n\u2022 When a centre settles, tap Mark all received once. Nothing is deleted \u2014 it just moves to Received, and Undo is there if you tap by mistake.\n\u2022 The staff card shows how much staff is due and lets you mark it paid."],["Referral Excel / CSV","Export from Diagnostic Referrals: date, patient, centre, investigation, rate, code, discount, your cut, paid status, plus modality, staff share and net columns."],["Master Excel","More \u2192 Master Excel (top button): one tap builds a colour-coded Excel of every patient \u2014 place, diagnosis, procedure, hospital, injections, investigations, follow-up status and reminders. Overdue rows are tinted."],["Marketing Contacts","Every patient contact is collected automatically. Broadcast a message one by one, save everyone to your phone contacts, or export CSV."],["Scheme Code Finder","Search RGHS or MAA Yojana package codes and rates by procedure name. Also inside a patient\u2019s Overview so you can attach a package to that case; it shows in the printed summary."],["Find Duplicate Patients","More \u2192 Find Duplicate Patients scans for likely duplicates by name and lets you merge them safely."]]},{"key":"smart","title":"Smart & AI features","icon":"sparkle","items":[["Auto-detect region","On Overview or Complaints & Diagnosis tap \u2726 Auto-detect to guess the region or specialty from the diagnosis and procedure. You can always change it."],["Autocomplete memory","Diagnosis, complaints, procedure and tags remember what you typed before. Type 2+ letters to see past entries, in any word order."],["Universal search","The floating search button searches every field \u2014 name, ID, place, diagnosis, notes, investigations, prescriptions."],["Master AI button","The floating purple button: tap for Voice command, Ask AI about your patients, This Week\u2019s Digest and Ask OrthoVault. Hold it for voice. On a patient\u2019s page it opens that patient\u2019s tools. AI features run only in accounts with AI enabled."],["Voice commands","Say things like \u201cnaya case banao\u201d or \u201cCTEV cases last 3 months\u201d. If it mishears, tap Not quite right \u2014 edit, fix the text and run it again."],["Patient AI tools","Open a patient \u2192 \u22ee \u2192 AI tools: summarise the patient, or write a referral letter you can print with your letterhead."]]},{"key":"data","title":"Backup, sync & security","icon":"shield","items":[["Where your data lives","Everything works offline and is saved on this phone first. If you sign in, patients, photos and your Doctor Profile also sync privately across your own devices. If a sync fails (weak signal) a banner shows and it retries by itself."],["Back up your data","More \u2192 Export Backup saves a zip of everything. Do this every week or two, ideally to Google Drive (More \u2192 Google Drive Backup). Import Backup restores from a zip. Home reminds you if the last backup is old."],["Recently Deleted","Deleted patients stay for 30 days. More \u2192 Recently Deleted \u2192 Restore."],["App Lock (PIN)","More \u2192 App Settings \u2192 Security \u2192 App lock. Set a 6-digit PIN. You also get a recovery code \u2014 write it down, because it is shown once and is the only way back in if you forget the PIN. After 5 wrong tries the app waits 30 seconds. Change PIN, get a new recovery code, or turn the lock off from the same card. Cloud sync and your data are not touched by the lock."],["Storage protection","More \u2192 App Settings \u2192 Backup & storage \u2192 Protect storage asks the phone not to clear OrthoVault\u2019s data when space runs low. The badge shows whether it is on. It is not a backup \u2014 still export one."],["Check for updates","More \u2192 App Settings \u2192 App updates shows your version and build. Tap Check for updates; if a new version exists you get an update banner. Updating keeps all your data."],["Account, sign in and sign out","More \u2192 Backup & Account \u2192 Account & Cloud Sync. Sign out clears all patient data from this phone so the next person starts fresh; your cloud copy stays safe and signing in again restores it. Take a backup first if you do not use cloud sync."]]},{"key":"settings","title":"Settings & customisation","icon":"gear","items":[["Doctor / Clinic Profile","Name, qualifications, clinic address and phone. Used on prescriptions, printed summaries and WhatsApp messages."],["App Settings","Dark / light / auto theme, text size, accent colour, daily reminders, reminder limits, the Patient ID counter, App lock, updates, storage protection and a Maintenance box with one-time fixes."],["Fix labels and capitalisation","In More: Fix Follow-up Week Labels recalculates \u201c2 Weeks / 6 Weeks\u201d from the surgery or visit date. Fix Name/Diagnosis Capitalization tidies names typed in lowercase."],["Sample patients","Home (when the app is empty), the empty Patients list and More \u2192 App Settings \u2192 Sample data can load 5 demo patients: an overdue OPD case, a knee replacement due today, a wrist fracture, a CTEV baby and an upcoming follow-up. They are marked (Sample), never go to cloud sync or cloud backup, and Remove sample patients deletes only them."],["What\u2019s New","More \u2192 What\u2019s New lists the latest updates and improvements."]]},{"key":"tips","title":"Tips","icon":"pin","items":[["Keep the next follow-up date current","Everything \u2014 overdue alerts, Calendar, WhatsApp reminders \u2014 runs from that one date."],["Clear overdue once a week","Run Clean up overdue weekly and mark finished cases Completed, so the list holds only patients who really need chasing."],["Tag as you go","Tag teaching cases and complications the moment you notice them."],["Back up regularly","Weekly export to Google Drive is the safest habit. Protect storage and App lock help, but they are not backups."]]}];
+const HELP_GUIDE = [{"key":"start","title":"Getting started","icon":"clipboard","items":[["Home screen","Home is your starting point.\n\u2022 Top row: total Patients, Surgical cases, and Follow-ups due (tap it to jump to overdue).\n\u2022 Create new: Add New OPD Case and Add New Surgical Case.\n\u2022 Follow-ups: Overdue, Today and Tomorrow tiles. Tap any tile to open that list. The \u201cToday\u2019s follow-up work\u201d button opens your one-by-one list for the day.\n\u2022 Manage & track tiles for Patients, Reminders and More. Region-wise counts are in More \u2192 Patient Statistics."],["Add an OPD case","1. Tap Add New OPD Case on Home (or the purple + in the bottom bar).\n2. Fill Patient Details: name, age, sex, occupation, WhatsApp number.\n3. Complaints & Diagnosis: complaints, duration, side, region/specialty (tap \u2726 Auto-detect), diagnosis.\n4. Investigations (optional): add an X-ray, photo or report you already have.\n5. Special Tracking is switched on by your diagnosis (CTEV, RA, osteoporosis). Check it, then Save.\nIt is one continuous form with coloured section labels. Only a name is needed to save."],["Add a Surgical case","1. Tap Add New Surgical Case.\n2. Fill Patient Details and Complaints & Diagnosis as for OPD.\n3. Investigations: pre-op X-rays and reports (use Pre-op as the type).\n4. Surgery Details: surgery type, procedure, surgery date, and the collapsible Payment section (Cash / Insurance).\n5. Save. On the day of surgery open the patient \u2192 Images & Records to add OT photos and post-op X-rays. Every later visit goes under Follow-Up."],["Bottom bar","Patients, Followups, a purple + in the centre, Reminders and More are always at the bottom. The + opens a quick menu: New OPD Case, New Surgical Case, Add Follow-up, Add Reminder, Add Investigation."],["Find a patient","\u2022 Home search bar: type a name, ID, diagnosis or place.\n\u2022 Patients tab: full list with search, Sort, Filter and region chips. Patients needing attention (overdue) are grouped at the top.\n\u2022 Tap anywhere on a card to open the record. If the patient has a number saved, the call button on the card dials them directly."],["Edit anything later","A patient\u2019s Overview is a read-only summary. Tap the pencil at the top right to edit any field. Name, ID, age/sex and diagnosis stay pinned at the top while you scroll."]]},{"key":"patient","title":"Patient record","icon":"file","items":[["Overview tab","A compact summary: Next follow-up at the top, then Visits (registered, last visit, follow-ups logged), Clinical, Contact details and Reminders. You can also convert an OPD case to Surgical from here."],["Follow-Up tab","Log each visit with notes, wound or union status and photos. Set the next follow-up date with the quick chips or the date picker (see Follow-ups \u2192 Setting the next date). Past follow-ups stay listed below."],["Images & Records tab","X-rays, clinical and wound photos, labs and injections, grouped by type. Tap + Add, pick a category and you go straight to the camera or gallery. Open any image to zoom, add a note, download it, or change its type from the dropdown (for example an old General OPD X-ray can become Pre-op)."],["Timeline tab","The whole case in date order. Tap any entry to jump to that follow-up or investigation."],["Special tracking tab (CTEV, RA, Bone Health)","When a patient\u2019s condition is CTEV, RA or osteoporosis, that tracker appears as a tab right after Overview. See Special condition tools."],["Prescriptions","Write medicines with dose, frequency and duration, save a Template for reuse, then print, share as PDF or send on WhatsApp. Open it from the Prescriptions tab."],["The \u22ee menu","Top right of a patient: Print summary, Download all, Bookmark for research, Delete case (goes to Recently Deleted). With AI on, AI tools is here too."],["Convert, duplicate and delete","Convert to Surgical turns an OPD case into a surgical one. Duplicate Case copies diagnosis, procedure, region and side for back-to-back similar surgeries \u2014 just change name and age. Delete moves the case to Recently Deleted for 30 days."],["Pin, tags and bookmarks","Pin a case from Overview and it appears in Quick Access on Home. Tags (Interesting, Teaching, Complication\u2026) let you filter the Patients list. Bookmark marks a case for research or teaching."]]},{"key":"photos","title":"Photos & documents","icon":"camera","items":[["Add photos","Anywhere you see the camera tile: tap it to pick several photos from the gallery in one go. Where there is a small round camera button, it opens the camera directly for a quick shot. Photos are saved to the phone the moment you pick them, even before you save the form."],["View, zoom and annotate","Tap a photo to open it full screen. Pinch or double-tap to zoom, or use + and \u2212. Add a note that shows on the image, or download it."],["Photo Gallery","More \u2192 Photo Gallery: a grid of every patient\u2019s photos. Filter by category, region, time or patient. Unfiled photos (without a patient or category) are listed there too so nothing is lost \u2014 file them or delete them."],["Print and share","Print summary from a patient\u2019s \u22ee menu gives a printable case summary with your letterhead. Prescriptions can be printed or shared as PDF or WhatsApp."]]},{"key":"followups","title":"Follow-ups & reminders","icon":"calendar","items":[["Follow-ups screen","Open it from the Followups tab or the Home tiles. Views: Overdue, Today, Tomorrow, Upcoming and Calendar. Each tab shows how many patients are in it. Tap a patient to open the record."],["Setting the next date","In any follow-up form: tap a quick chip (1 wk, 2 wk, 1 mo, 3 mo, 6 mo) or type a number with Days / Weeks / Months, or pick an exact date. You can also tap AI suggest. If the date falls on your clinic off-day (Sunday by default) it moves to the next day, and the form tells you."],["Suggested follow-up schedule","The app suggests each next date for you. Surgical cases follow Standard (2w, 4w, 8w, 3m, 6m, 1y) or Short (2w, 6w, 3m) counted from the surgery date. Trauma OPD follows 1w, 2w, 4w, 6w, 3m, 6m. Other OPD cases use one gap by condition. Edit every schedule in More \u2192 Follow-up Schedules."],["Today\u2019s follow-up work","The button on Home lists today\u2019s patients one by one. For each: Remind sends the WhatsApp reminder, and Done \u25be lets you choose: Patient came (open file to log the visit), Push date 7 days later, No more follow-up needed (Completed), Outcome call later (3 / 6 months), or Lost to follow-up."],["Overdue, sorted for you","Overdue is split into: Remind now (under 4 weeks, no recent reminder), Call or decide (reminders sent, no reply), Waiting for reply (reminded in the last few days \u2014 nothing to do) and Cold (4+ weeks overdue, collapsed)."],["Clean up overdue, one by one","On Overdue tap Clean up overdue. You see one patient at a time with diagnosis, last visit, follow-ups done and reminders sent. Decide: Remind, Called, new date (+1 week / +2 weeks / +1 month / custom), Completed, Lost or Skip. A pile clears in a few minutes."],["WhatsApp reminders","From Tomorrow or Overdue, tap Remind to open WhatsApp with a ready message (Hindi, with your profile name and the visit date). Every reminder sent is logged on the patient. After 2 unanswered reminders, or within 10 days of the last one, the app asks before sending another. Change both limits in More \u2192 App Settings."],["If WhatsApp crashed","Tap the same patient\u2019s reminder again within 2 hours and the app asks \u201cDid the message go?\u201d. Choose Not sent \u2014 resend and the earlier entry is replaced, not counted twice. The patient\u2019s Reminder History card also has Undo last reminder."],["Completed and Lost","Completed: the patient no longer needs follow-up (healed, discharged). Lost to follow-up: you could not reach them. Both leave the overdue list, can be reversed from the patient\u2019s status control, and adding a new visit makes them Active again. Auto schedules stop at 12 months, except chronic conditions (RA, osteoporosis, CTEV)."],["Reminders tab","Bottom bar \u2192 Reminders: a separate list for clinic, OT or general tasks that are not tied to a patient\u2019s follow-up. Home shows a badge when some are due."],["Follow-up Report","More \u2192 Follow-up Report: your compliance rate (returned vs lost), the monthly visit trend, and a browser of patients by status (Lost, Completed, Pending)."]]},{"key":"conditions","title":"Special condition tools","icon":"pill","items":[["How tracking switches on","Type a diagnosis such as CTEV or Rheumatoid arthritis and the matching tracker turns on by itself. To add one later: Overview \u2192 Clinical \u2192 + Track a condition."],["CTEV (clubfoot)","Pirani scoring for each cast session with a trend graph, bracing log, and an automatic alert when your tenotomy criteria are met. Parents can get a cast-care message in Hindi. The CTEV tab sits right after Overview."],["RA (rheumatoid arthritis)","DAS28, CDAI and SDAI tracking with a 28-joint reference, monitoring labs, treatment history and a management reference (MTX, HCQ, steroids)."],["Osteoporosis","DEXA tracking (spine, hip, wrist) with T-scores, risk factors, and a FRAX explainer."],["Trauma tools","RUST score with a trend graph, and union tracking."],["Arthroplasty tools","BMI calculator and a PJI (MSIS criteria) checklist."],["Paediatrics","Weight-based dose calculator and a rickets management reference, shown automatically for paediatric OPD cases."]]},{"key":"practice","title":"Practice tools","icon":"clipboard","items":[["Diagnostic Referrals","More \u2192 Diagnostic Referrals tracks scans you refer and your commission.\n\u2022 Add a centre once (Ananta and Emkay have ready rate lists), then Add Entry: patient, investigation, with or without contrast and the discount code (A0\u2013A5).\n\u2022 Not sure of the code or your cut? Pick Custom and type what the lab actually gave the patient, in \u20b9 or %. The cut and staff share are worked out from it.\n\u2022 The app works out the patient discount, your cut and any staff share from the centre\u2019s pool % (Emkay: MRI 45%, CT 40%, with the staff share on MRI).\n\u2022 The dashboard shows each month separately: total, received and pending, split by CT and MRI per centre.\n\u2022 When a centre settles, tap Mark all received once. Nothing is deleted \u2014 it just moves to Received, and Undo is there if you tap by mistake.\n\u2022 The staff card shows how much staff is due and lets you mark it paid."],["Referral Excel / CSV","Export from Diagnostic Referrals: date, patient, centre, investigation, rate, code, discount, your cut, paid status, plus modality, staff share and net columns."],["Master Excel","More \u2192 Master Excel (top button): one tap builds a colour-coded Excel of every patient \u2014 place, diagnosis, procedure, hospital, injections, investigations, follow-up status and reminders. Overdue rows are tinted."],["Marketing Contacts","Every patient contact is collected automatically. Broadcast a message one by one, save everyone to your phone contacts, or export CSV."],["Scheme Code Finder","Search RGHS or MAA Yojana package codes and rates by procedure name. Also inside a patient\u2019s Overview so you can attach a package to that case; it shows in the printed summary."],["Find Duplicate Patients","More \u2192 Find Duplicate Patients scans for likely duplicates by name and lets you merge them safely."]]},{"key":"smart","title":"Smart & AI features","icon":"sparkle","items":[["Auto-detect region","On Overview or Complaints & Diagnosis tap \u2726 Auto-detect to guess the region or specialty from the diagnosis and procedure. You can always change it."],["Autocomplete memory","Diagnosis, complaints, procedure and tags remember what you typed before. Type 2+ letters to see past entries, in any word order."],["Universal search","The floating search button searches every field \u2014 name, ID, place, diagnosis, notes, investigations, prescriptions."],["Master AI button","The floating purple button: tap for Voice command, Ask AI about your patients, This Week\u2019s Digest and Ask OrthoVault. Hold it for voice. On a patient\u2019s page it opens that patient\u2019s tools. AI features run only in accounts with AI enabled."],["Voice commands","Say things like \u201cnaya case banao\u201d or \u201cCTEV cases last 3 months\u201d. If it mishears, tap Not quite right \u2014 edit, fix the text and run it again."],["Patient AI tools","Open a patient \u2192 \u22ee \u2192 AI tools: summarise the patient, or write a referral letter you can print with your letterhead."]]},{"key":"data","title":"Backup, sync & security","icon":"shield","items":[["Where your data lives","Everything works offline and is saved on this phone first. If you sign in, patients, photos and your Doctor Profile also sync privately across your own devices. If a sync fails (weak signal) a banner shows and it retries by itself."],["Back up your data","More \u2192 Export Backup saves a zip of everything. Do this every week or two, ideally to Google Drive (More \u2192 Google Drive Backup). Import Backup restores from a zip. Home reminds you if the last backup is old."],["Recently Deleted","Deleted patients stay for 30 days. More \u2192 Recently Deleted \u2192 Restore."],["App Lock (PIN)","More \u2192 App Settings \u2192 Security \u2192 App lock. Set a 6-digit PIN. You also get a recovery code \u2014 write it down, because it is shown once and is the only way back in if you forget the PIN. After 5 wrong tries the app waits 30 seconds. Change PIN, get a new recovery code, or turn the lock off from the same card. Cloud sync and your data are not touched by the lock."],["Storage protection","More \u2192 App Settings \u2192 Backup & storage \u2192 Protect storage asks the phone not to clear OrthoVault\u2019s data when space runs low. The badge shows whether it is on. It is not a backup \u2014 still export one."],["Check for updates","More \u2192 App Settings \u2192 App updates shows your version and build. Tap Check for updates; if a new version exists you get an update banner. Updating keeps all your data."],["Account, sign in and sign out","More \u2192 Backup & Account \u2192 Account & Cloud Sync. Sign out clears all patient data from this phone so the next person starts fresh; your cloud copy stays safe and signing in again restores it. Take a backup first if you do not use cloud sync."]]},{"key":"settings","title":"Settings & customisation","icon":"gear","items":[["Doctor / Clinic Profile","Name, qualifications, clinic address and phone. Used on prescriptions, printed summaries and WhatsApp messages."],["App Settings","Dark / light / auto theme, text size, accent colour, daily reminders, reminder limits, the Patient ID counter, App lock, updates, storage protection and a Maintenance box with one-time fixes."],["Fix labels and capitalisation","In More: Fix Follow-up Week Labels recalculates \u201c2 Weeks / 6 Weeks\u201d from the surgery or visit date. Fix Name/Diagnosis Capitalization tidies names typed in lowercase."],["Sample patients","Home (when the app is empty), the empty Patients list and More \u2192 App Settings \u2192 Sample data can load 5 demo patients: an overdue OPD case, a knee replacement due today, a wrist fracture, a CTEV baby and an upcoming follow-up. They are marked (Sample), never go to cloud sync or cloud backup, and Remove sample patients deletes only them."],["What\u2019s New","More \u2192 What\u2019s New lists the latest updates and improvements."]]},{"key":"tips","title":"Tips","icon":"pin","items":[["Keep the next follow-up date current","Everything \u2014 overdue alerts, Calendar, WhatsApp reminders \u2014 runs from that one date."],["Clear overdue once a week","Run Clean up overdue weekly and mark finished cases Completed, so the list holds only patients who really need chasing."],["Tag as you go","Tag teaching cases and complications the moment you notice them."],["Back up regularly","Weekly export to Google Drive is the safest habit. Protect storage and App lock help, but they are not backups."]]}];
 function renderHelpGuideHtml() {
   return '<div class="hg-search"><span>'+ic('search')+'</span><input type="search" id="help-search" placeholder="Search the guide (e.g. backup, reminder, PIN)" autocomplete="off"></div>'
     + '<div id="hg-empty" style="display:none;text-align:center;color:var(--muted);font-size:13px;padding:24px 0;">No matching topic. Try another word.</div>'
@@ -7454,7 +7507,8 @@ function renderDashboardSection() {
   const complianceObj = PATIENTS.length ? computeFollowUpCompliance() : { compliancePct: null };
   const showCompliance = complianceObj.compliancePct !== null;
   const curMonth = todayStr().slice(0,7);
-  const monthCommission = DIAG_REFERRALS.filter(r => r.reportDate && r.reportDate.slice(0,7) === curMonth)
+  // Total commission still pending (not yet received), across ALL months
+  const monthCommission = DIAG_REFERRALS.filter(r => r.status !== 'paid')
     .reduce((sum,r) => sum + Number(r.doctorCutAmount||0), 0);
   const showCommission = DIAG_REFERRALS.length > 0;
   if (showCompliance || showCommission) {
@@ -7466,7 +7520,7 @@ function renderDashboardSection() {
         + '</button>' : '')
       + (showCompliance && showCommission ? '<div style="width:1px;background:var(--border);margin:0;"></div>' : '')
       + (showCommission ? '<button type="button" data-action="open-diag-referrals" style="flex:1;min-width:0;text-align:left;background:none;border:none;padding:2px 10px;">'
-        + '<div style="font-size:10px;color:var(--muted);white-space:nowrap;">'+ic('flask')+' Referral commission</div>'
+        + '<div style="font-size:10px;color:var(--muted);white-space:nowrap;">'+ic('flask')+' Commission pending</div>'
         + '<div style="font-size:15px;font-weight:800;margin-top:1px;color:var(--emerald);">\u20b9'+monthCommission.toLocaleString('en-IN')+'</div>'
         + '</button>' : '')
       + '</div>'
@@ -14840,7 +14894,7 @@ document.addEventListener('click', async (e) => {
     const firstInv = (DIAG_CENTRES[0].investigations || [])[0];
     DIAG_ADD_REFERRAL_INVESTIGATION = firstInv ? firstInv.name : '';
     DIAG_ADD_REFERRAL_CONTRAST = 'without';
-    DIAG_ADD_REFERRAL_CODE = '';
+    DIAG_ADD_REFERRAL_CODE = ''; DIAG_CUSTOM_DISC = ''; DIAG_CUSTOM_MODE = 'amt';
     DIAG_REF_PATIENT_DRAFT = ''; DIAG_REF_DATE_DRAFT = ''; DIAG_REF_REPORTID_DRAFT = ''; DIAG_REF_CUT_DRAFT = '';
     render(); return;
   }
@@ -14851,7 +14905,8 @@ document.addEventListener('click', async (e) => {
     DIAG_ADD_REFERRAL_CENTRE = r.centreId;
     DIAG_ADD_REFERRAL_INVESTIGATION = r.investigation || '';
     DIAG_ADD_REFERRAL_CONTRAST = r.contrastType || 'without';
-    DIAG_ADD_REFERRAL_CODE = r.segmentCode || '';
+    DIAG_ADD_REFERRAL_CODE = (r.segmentCode === 'Custom') ? 'CUSTOM' : (r.segmentCode || '');
+    DIAG_CUSTOM_MODE = 'amt'; DIAG_CUSTOM_DISC = (r.segmentCode === 'Custom' && r.patientDiscountAmount != null) ? String(r.patientDiscountAmount) : '';
     DIAG_REF_PATIENT_DRAFT = r.patientName || '';
     DIAG_REF_DATE_DRAFT = r.reportDate || todayStr();
     DIAG_REF_REPORTID_DRAFT = r.reportId || '';
@@ -14861,6 +14916,7 @@ document.addEventListener('click', async (e) => {
   if (action === 'diag-cancel-add-referral') { DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDITING_REFERRAL_ID = null; render(); return; }
   if (action === 'diag-set-contrast') { diagStashReferralDrafts(); DIAG_ADD_REFERRAL_CONTRAST = el.dataset.value; render(); return; }
   if (action === 'diag-set-code') { diagStashReferralDrafts(); DIAG_ADD_REFERRAL_CODE = el.dataset.value; render(); return; }
+  if (action === 'diag-custom-mode') { { const ce = document.getElementById('diag-custom-disc'); if (ce) DIAG_CUSTOM_DISC = ce.value; } diagStashReferralDrafts(); DIAG_CUSTOM_MODE = el.dataset.value; render(); return; }
   if (action === 'diag-save-referral') {
     const centreEl = document.getElementById('diag-ref-centre');
     const centreId = centreEl ? centreEl.value : DIAG_ADD_REFERRAL_CENTRE;
@@ -14873,11 +14929,14 @@ document.addEventListener('click', async (e) => {
     const invName = invEl ? invEl.value : DIAG_ADD_REFERRAL_INVESTIGATION;
     const inv = (centre.investigations || []).find(i => i.name === invName);
     if (!inv) { toast('Pick an investigation'); return; }
-    if (!DIAG_ADD_REFERRAL_CODE) { toast('Pick a segment code'); return; }
-    const code = DIAG_SEGMENT_CODES.find(c => c.code === DIAG_ADD_REFERRAL_CODE);
+    if (!DIAG_ADD_REFERRAL_CODE) { toast('Pick a segment code, or Custom to enter the lab\u2019s discount'); return; }
+    { const ce = document.getElementById('diag-custom-disc'); if (ce) DIAG_CUSTOM_DISC = ce.value; }
+    if (DIAG_ADD_REFERRAL_CODE === 'CUSTOM' && DIAG_CUSTOM_DISC.trim() === '') { toast('Enter the discount the lab gave (0 if none)'); return; }
     const pool = Number(centre.maxPoolPercent || 40);
     const rate = DIAG_ADD_REFERRAL_CONTRAST === 'with' ? inv.withContrast : inv.withoutContrast;
-    const patientDiscountPercent = code.discountPercent;
+    const _h = diagDiscountFor(DIAG_ADD_REFERRAL_CODE, rate);
+    const code = { code: _h.code };
+    const patientDiscountPercent = _h.pct;
     const _dc = diagCalc(centre, inv.name, rate, patientDiscountPercent); const doctorCutPercent = _dc.cutPct;
     const dateEl = document.getElementById('diag-ref-date');
     const reportIdEl = document.getElementById('diag-ref-reportid');
@@ -14891,7 +14950,7 @@ document.addEventListener('click', async (e) => {
       patientDiscountPercent,
       doctorCutPercent,
       modality: _dc.modality, staffPercent: _dc.staffPct, staffAmount: _dc.staffAmt,
-      patientDiscountAmount: Math.round(rate * patientDiscountPercent / 100),
+      patientDiscountAmount: _h.amt,
       doctorCutAmount: Math.round(rate * doctorCutPercent / 100),
       reportDate: dateEl ? dateEl.value : todayStr(),
       reportId: reportIdEl ? reportIdEl.value.trim() : '',
@@ -15064,7 +15123,7 @@ document.addEventListener('click', async (e) => {
     DIAG_COMPLETING_ID = el.dataset.id;
     DIAG_COMPLETE_INVESTIGATION = firstInv ? firstInv.name : '';
     DIAG_COMPLETE_CONTRAST = 'without';
-    DIAG_COMPLETE_CODE = ''; DIAG_COMPLETE_CUT = '';
+    DIAG_COMPLETE_CODE = ''; DIAG_COMPLETE_CUT = ''; DIAG_CUSTOM_DISC = ''; DIAG_CUSTOM_MODE = 'amt';
     render(); return;
   }
   if (action === 'diag-cancel-complete') { DIAG_COMPLETING_ID = null; render(); return; }
@@ -15078,11 +15137,14 @@ document.addEventListener('click', async (e) => {
     const invName = invEl ? invEl.value : DIAG_COMPLETE_INVESTIGATION;
     const inv = centre ? (centre.investigations || []).find(i => i.name === invName) : null;
     if (!inv) { toast('Pick an investigation'); return; }
-    if (!DIAG_COMPLETE_CODE) { toast('Pick a segment code'); return; }
-    const code = DIAG_SEGMENT_CODES.find(c => c.code === DIAG_COMPLETE_CODE);
+    if (!DIAG_COMPLETE_CODE) { toast('Pick a segment code, or Custom to enter the lab\u2019s discount'); return; }
+    { const ce = document.getElementById('diag-custom-disc'); if (ce) DIAG_CUSTOM_DISC = ce.value; }
+    if (DIAG_COMPLETE_CODE === 'CUSTOM' && DIAG_CUSTOM_DISC.trim() === '') { toast('Enter the discount the lab gave (0 if none)'); return; }
     const pool = Number((centre && centre.maxPoolPercent) || 40);
     const rate = DIAG_COMPLETE_CONTRAST === 'with' ? inv.withContrast : inv.withoutContrast;
-    const patientDiscountPercent = code.discountPercent;
+    const _h = diagDiscountFor(DIAG_COMPLETE_CODE, rate);
+    const code = { code: _h.code };
+    const patientDiscountPercent = _h.pct;
     const _dc = diagCalc(centre, inv.name, rate, patientDiscountPercent); const doctorCutPercent = _dc.cutPct;
     r.investigation = inv.name;
     r.contrastType = DIAG_COMPLETE_CONTRAST;
@@ -15091,7 +15153,7 @@ document.addEventListener('click', async (e) => {
     r.patientDiscountPercent = patientDiscountPercent;
     r.doctorCutPercent = doctorCutPercent;
     r.modality = _dc.modality; r.staffPercent = _dc.staffPct; r.staffAmount = _dc.staffAmt;
-    r.patientDiscountAmount = Math.round(rate * patientDiscountPercent / 100);
+    r.patientDiscountAmount = _h.amt;
     r.doctorCutAmount = Math.round(rate * doctorCutPercent / 100);
     const ccEl = document.getElementById('diag-complete-cut');
     diagApplyCut(r, rate, doctorCutPercent, r.doctorCutAmount, ccEl ? ccEl.value : DIAG_COMPLETE_CUT);
@@ -16344,6 +16406,7 @@ document.addEventListener('input', (e) => {
     window.__galleryySearchTimer = setTimeout(() => { GALLERY_PATIENT_SEARCH = e.target.value; render(); }, 350);
     return;
   }
+  if (e.target.id === 'diag-custom-disc') { DIAG_CUSTOM_DISC = e.target.value; diagRefreshCustomPreview(); return; }
   if (e.target.id === 'more-search-input') {
     MORE_SEARCH = e.target.value;
     const container = document.getElementById('more-results-container');
