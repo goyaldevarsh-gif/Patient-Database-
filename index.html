@@ -7377,18 +7377,21 @@ async function handleMedScriptHandoff() {
   let d = null;
   try { d = mvB64d(m[1]); } catch (e) {}
   try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  return importMsRx(d, false);
+}
+/* Core import. auto=true (from the private cloud inbox of this same signed-in account) skips the confirm dialog. */
+async function importMsRx(d, auto) {
   const nm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
   const dg = s => String(s || '').replace(/\D/g, '').slice(-10);
-  if (!d || d.v !== 1 || !d.patient || !nm(d.patient.name) || !Array.isArray(d.medicines) || !d.medicines.length) { toast('MedScript prescription could not be read'); return false; }
+  if (!d || d.v !== 1 || !d.patient || !nm(d.patient.name) || !Array.isArray(d.medicines) || !d.medicines.length) { if (!auto) toast('MedScript prescription could not be read'); return false; }
   const ph = dg(d.patient.phone);
   let p = (d.ovId && PATIENTS.find(x => x.id === d.ovId)) || (ph.length === 10 && PATIENTS.find(x => dg(x.whatsapp) === ph)) || PATIENTS.find(x => nm(x.name) === nm(d.patient.name)) || null;
   if (p && d.rxNo && (p.prescriptions || []).some(r => r.msRxNo === d.rxNo)) {
-    SELECTED_ID = p.id; VIEW = 'detail'; TAB = 'timeline';
-    toast('Prescription ' + esc(d.rxNo) + ' is already saved for ' + esc(p.name));
+    if (!auto) { SELECTED_ID = p.id; VIEW = 'detail'; TAB = 'timeline'; toast('Prescription ' + esc(d.rxNo) + ' is already saved for ' + esc(p.name)); }
     return true;
   }
   const isNew = !p;
-  const ok = await showConfirmDialog({
+  const ok = auto ? true : await showConfirmDialog({
     title: 'Save MedScript prescription?',
     message: (isNew ? 'A new OPD patient <b>' + esc(d.patient.name) + '</b> will be created and ' : 'This will be added to <b>' + esc(p.name) + '</b>: ') + 'prescription ' + esc(d.rxNo || '') + ' with ' + d.medicines.length + ' medicine' + (d.medicines.length > 1 ? 's' : '') + '.',
     confirmText: 'Save'
@@ -7414,6 +7417,40 @@ async function handleMedScriptHandoff() {
   await refreshPatients();
   SELECTED_ID = p.id; VIEW = 'detail'; TAB = 'timeline'; ADD_PRESCRIPTION_OPEN = false;
   toast('Prescription saved' + (isNew ? ' to new patient ' : ' for ') + esc(p.name));
+  return true;
+}
+
+
+/* Private cloud inbox: users/{this account's uid}/mvOutbox (patients sent to MedScript) and mvReturn (prescriptions coming back).
+   Only the signed-in doctor's own uid path is ever touched. */
+let MV_UNSUB = null; let MV_BUSY = false;
+function stopMvReturnListener() { if (MV_UNSUB) { try { MV_UNSUB(); } catch (e) {} MV_UNSUB = null; } }
+function startMvReturnListener(uid) {
+  stopMvReturnListener();
+  if (!firestoreDB) return;
+  try {
+    MV_UNSUB = firestoreDB.collection('users').doc(uid).collection('mvReturn').onSnapshot(async snap => {
+      if (MV_BUSY) return;
+      MV_BUSY = true;
+      try {
+        for (const doc of snap.docs) {
+          if (!CURRENT_USER || CURRENT_USER.uid !== uid) break;
+          let tries = 0;
+          while (APP_LOCKED && tries++ < 30) await new Promise(r => setTimeout(r, 2000));
+          if (APP_LOCKED) break;
+          let ok = false;
+          try { ok = await importMsRx(doc.data(), true); } catch (e) { console.error('MedScript import failed', e); }
+          if (ok) { try { await doc.ref.delete(); } catch (e) {} await render(); }
+        }
+      } finally { MV_BUSY = false; }
+    }, err => console.warn('MedScript inbox listener', err && err.code));
+  } catch (e) { console.warn('MedScript inbox failed to start', e); }
+}
+async function sendPatientToMedScript(pm) {
+  if (!CURRENT_USER || !firestoreDB) return false;
+  const months = !pm.age && pm.ageMonths;
+  const out = { name: pm.name || '', age: String(months ? pm.ageMonths : (pm.age || '')), ageUnit: months ? 'M' : 'Y', sex: pm.sex || '', phone: pm.whatsapp || '', weight: pm.weightKg || '', dx: pm.diagnosis || '', cc: pm.chiefComplaints || '', side: pm.side || '', createdAt: Date.now() };
+  await firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('mvOutbox').doc(String(pm.id)).set(out);
   return true;
 }
 
@@ -15978,6 +16015,7 @@ function readProfileFromDom() {
   if (action === 'open-medscript-rx') {
     const pm = getPatient(SELECTED_ID); if (!pm) return;
     const months = !pm.age && pm.ageMonths;
+    try { if (await sendPatientToMedScript(pm)) { toast('Sent to MedScript. Open MedScript from your home screen and tap ' + esc(pm.name || 'the patient') + '.'); return; } } catch (e) { console.warn('MedScript send failed, using link', e); }
     const out = { id: pm.id, name: pm.name || '', age: String(months ? pm.ageMonths : (pm.age || '')), ageUnit: months ? 'M' : 'Y', sex: pm.sex || '', phone: pm.whatsapp || '', weight: pm.weightKg || '', dx: pm.diagnosis || '', cc: pm.chiefComplaints || '', side: pm.side || '', back: location.origin + location.pathname };
     window.open(MEDSCRIPT_URL + '#/new?ov=' + mvB64e(out), '_blank');
     return;
@@ -17006,9 +17044,11 @@ async function onAuthChanged(user) {
     // Firebase Cloud Sync (Firestore + Storage) costs money to run, so it's gated to the
     // AI tier only. Free/Pro accounts still sign in (for the subscription doc + Drive
     // backup) but their case data never touches Firestore.
+    startMvReturnListener(user.uid);
     if (isAiTier()) { startCloudSync(user.uid); startImageCloudSync(user.uid); retryPendingSync(); pullProfileFromCloud(user.uid); pullDiagDataFromCloud(user.uid); pullMarketingContactsFromCloud(user.uid); }
     else { stopCloudSync(); stopImageCloudSync(); }
   } else {
+    stopMvReturnListener();
     stopCloudSync(); stopImageCloudSync();
     CURRENT_PLAN = 'free';
     TOKEN_USAGE = { dailyCount: 0, monthlyCount: 0, date: '', monthStart: '' };
