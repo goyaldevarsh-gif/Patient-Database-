@@ -16015,7 +16015,17 @@ function readProfileFromDom() {
   if (action === 'open-medscript-rx') {
     const pm = getPatient(SELECTED_ID); if (!pm) return;
     const months = !pm.age && pm.ageMonths;
-    try { if (await sendPatientToMedScript(pm)) { toast('Sent to MedScript. Open MedScript from your home screen and tap ' + esc(pm.name || 'the patient') + '.'); return; } } catch (e) { console.warn('MedScript send failed, using link', e); }
+    if (CURRENT_USER && firestoreDB) {
+      try {
+        await Promise.race([sendPatientToMedScript(pm), new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 15000))]);
+        toast('Sent to MedScript. Open MedScript from your home screen and tap ' + esc(pm.name || 'the patient') + '.');
+      } catch (e) {
+        const code = (e && e.code) || '';
+        toast('Could not send to MedScript (' + esc(code || (e && e.message) || 'error') + ')' + (/permission/.test(code) ? ': Firestore rules not published yet' : ''));
+      }
+      return;
+    }
+    toast('Not signed in to OrthoVault here, so opening MedScript by link instead.');
     const out = { id: pm.id, name: pm.name || '', age: String(months ? pm.ageMonths : (pm.age || '')), ageUnit: months ? 'M' : 'Y', sex: pm.sex || '', phone: pm.whatsapp || '', weight: pm.weightKg || '', dx: pm.diagnosis || '', cc: pm.chiefComplaints || '', side: pm.side || '', back: location.origin + location.pathname };
     window.open(MEDSCRIPT_URL + '#/new?ov=' + mvB64e(out), '_blank');
     return;
