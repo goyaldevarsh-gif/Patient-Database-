@@ -7511,8 +7511,9 @@ function renderDashboardSection() {
     + '<div class="home-create">'
     + '<button type="button" class="home-act" data-action="add-menu-new-opd"><span class="home-act-ic">'+ic('userPlus')+'</span><span class="home-act-t">Add New OPD Case</span><span class="home-act-s">New case for consultation</span></button>'
     + '<button type="button" class="home-act" data-action="add-menu-new-surgical"><span class="home-act-ic">'+ic('scalpel')+'</span><span class="home-act-t">Add New Surgical Case</span><span class="home-act-s">New case for procedure</span></button>'
-    + '<button type="button" class="home-act" data-action="open-medscript-new" style="grid-column:1 / -1;"><span class="home-act-ic">'+ic('printer')+'</span><span class="home-act-t">New Prescription (MedScript)</span><span class="home-act-s">Make a prescription PDF without opening a case</span></button>'
-    + '</div><div style="height:14px;"></div>';
+    + '</div>'
+    + '<button type="button" class="chip" data-action="open-medscript-new" style="margin-top:10px;display:inline-flex;align-items:center;gap:7px;font-weight:700;"><svg viewBox="0 0 130 100" width="22" height="17" aria-hidden="true"><path d="M12 90 L28 22 L48 64 L70 22 L84 90" fill="none" stroke="#2563EB" stroke-width="17" stroke-miterlimit="2.2"/><path d="M104 12v36M86 30h36" fill="none" stroke="#14B8A6" stroke-width="14"/></svg> MedScript</button>'
+    + '<div style="height:14px;"></div>';
   html += sampleBannerHtml();
 
   const showBackupBanner = !BACKUP_BANNER_DISMISSED && (daysBack === null || daysBack >= 7);
