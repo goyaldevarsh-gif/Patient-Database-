@@ -7366,6 +7366,57 @@ async function savePatient(p) {
   }
 }
 
+/* ================= MedScript hand-off ================= */
+const MEDSCRIPT_URL = 'https://goyaldevarsh-gif.github.io/MedScript/';
+function mvB64e(o) { return btoa(unescape(encodeURIComponent(JSON.stringify(o)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function mvB64d(s) { return JSON.parse(decodeURIComponent(escape(atob(s.replace(/-/g,'+').replace(/_/g,'/'))))); }
+/* A prescription finalised in MedScript arrives as #mvrx=... ; after a confirmation it is added to the matching patient (or a new OPD patient). */
+async function handleMedScriptHandoff() {
+  const m = /^#mvrx=([\w-]+)/.exec(location.hash || '');
+  if (!m) return false;
+  let d = null;
+  try { d = mvB64d(m[1]); } catch (e) {}
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+  const nm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const dg = s => String(s || '').replace(/\D/g, '').slice(-10);
+  if (!d || d.v !== 1 || !d.patient || !nm(d.patient.name) || !Array.isArray(d.medicines) || !d.medicines.length) { toast('MedScript prescription could not be read'); return false; }
+  const ph = dg(d.patient.phone);
+  let p = (d.ovId && PATIENTS.find(x => x.id === d.ovId)) || (ph.length === 10 && PATIENTS.find(x => dg(x.whatsapp) === ph)) || PATIENTS.find(x => nm(x.name) === nm(d.patient.name)) || null;
+  if (p && d.rxNo && (p.prescriptions || []).some(r => r.msRxNo === d.rxNo)) {
+    SELECTED_ID = p.id; VIEW = 'detail'; TAB = 'timeline';
+    toast('Prescription ' + esc(d.rxNo) + ' is already saved for ' + esc(p.name));
+    return true;
+  }
+  const isNew = !p;
+  const ok = await showConfirmDialog({
+    title: 'Save MedScript prescription?',
+    message: (isNew ? 'A new OPD patient <b>' + esc(d.patient.name) + '</b> will be created and ' : 'This will be added to <b>' + esc(p.name) + '</b>: ') + 'prescription ' + esc(d.rxNo || '') + ' with ' + d.medicines.length + ' medicine' + (d.medicines.length > 1 ? 's' : '') + '.',
+    confirmText: 'Save'
+  });
+  if (!ok) { toast('Not saved'); return false; }
+  if (isNew) {
+    p = newPatientShape();
+    p.name = String(d.patient.name).trim();
+    if (d.patient.ageUnit === 'M') p.ageMonths = String(d.patient.age || ''); else p.age = String(d.patient.age || '');
+    p.sex = /^f/i.test(d.patient.sex || '') ? 'F' : /^m/i.test(d.patient.sex || '') ? 'M' : 'O';
+    p.whatsapp = ph; p.weightKg = String(d.patient.weight || '');
+    p.diagnosis = d.dx || ''; p.chiefComplaints = d.cc || '';
+    p.caseType = 'opd'; p.surgeryDate = '';
+  }
+  const str = v => String(v == null ? '' : v);
+  const medicines = d.medicines.map(x => ({ id: uid(), name: str(x.name), dose: str(x.dose), frequency: str(x.frequency), duration: str(x.duration), instructions: str(x.instructions) })).filter(x => x.name.trim());
+  const rx = { id: uid(), date: /^\d{4}-\d{2}-\d{2}$/.test(d.date || '') ? d.date : todayStr(), medicines, advice: str(d.advice), followUpDate: /^\d{4}-\d{2}-\d{2}$/.test(d.followUpDate || '') ? d.followUpDate : '', imageCount: 0, createdAt: Date.now(), source: 'medscript', msRxNo: str(d.rxNo) };
+  p.prescriptions = p.prescriptions || [];
+  p.prescriptions.push(rx);
+  if (rx.followUpDate) p.nextFollowUpDate = rx.followUpDate;
+  try { recordMedicinesUsed(medicines); } catch (e) {}
+  await dbPutPatient(p);
+  await refreshPatients();
+  SELECTED_ID = p.id; VIEW = 'detail'; TAB = 'timeline'; ADD_PRESCRIPTION_OPEN = false;
+  toast('Prescription saved' + (isNew ? ' to new patient ' : ' for ') + esc(p.name));
+  return true;
+}
+
 /* ================= Toast ================= */
 
 function compactEmptyState(icon, text) {
@@ -7460,6 +7511,7 @@ function renderDashboardSection() {
     + '<div class="home-create">'
     + '<button type="button" class="home-act" data-action="add-menu-new-opd"><span class="home-act-ic">'+ic('userPlus')+'</span><span class="home-act-t">Add New OPD Case</span><span class="home-act-s">New case for consultation</span></button>'
     + '<button type="button" class="home-act" data-action="add-menu-new-surgical"><span class="home-act-ic">'+ic('scalpel')+'</span><span class="home-act-t">Add New Surgical Case</span><span class="home-act-s">New case for procedure</span></button>'
+    + '<button type="button" class="home-act" data-action="open-medscript-new" style="grid-column:1 / -1;"><span class="home-act-ic">'+ic('printer')+'</span><span class="home-act-t">New Prescription (MedScript)</span><span class="home-act-s">Make a prescription PDF without opening a case</span></button>'
     + '</div><div style="height:14px;"></div>';
   html += sampleBannerHtml();
 
@@ -8874,6 +8926,7 @@ function renderOverviewTab(p) {
     + '</div>'
     + '</div>'
     + ((p.side === 'Left' || p.side === 'Right') ? '<button class="btn btn-sm btn-block" style="margin-top:8px;" data-action="duplicate-for-bilateral" data-id="'+p.id+'">'+ic('copy')+' Duplicate for Other Side</button>' : '')
+    + '<button class="btn btn-sm btn-block" style="margin-top:8px;" data-action="open-medscript-rx">'+ic('printer')+' Make Rx in MedScript</button>'
     + '</div>';
 }
 
@@ -15920,6 +15973,14 @@ function readProfileFromDom() {
     await renderTabBody(p);
     return;
   }
+  if (action === 'open-medscript-new') { window.open(MEDSCRIPT_URL + '#/new?ovback=' + encodeURIComponent(location.origin + location.pathname), '_blank'); return; }
+  if (action === 'open-medscript-rx') {
+    const pm = getPatient(SELECTED_ID); if (!pm) return;
+    const months = !pm.age && pm.ageMonths;
+    const out = { id: pm.id, name: pm.name || '', age: String(months ? pm.ageMonths : (pm.age || '')), ageUnit: months ? 'M' : 'Y', sex: pm.sex || '', phone: pm.whatsapp || '', weight: pm.weightKg || '', dx: pm.diagnosis || '', cc: pm.chiefComplaints || '', side: pm.side || '', back: location.origin + location.pathname };
+    window.open(MEDSCRIPT_URL + '#/new?ov=' + mvB64e(out), '_blank');
+    return;
+  }
   if (action === 'open-add-rx') { const p0 = getPatient(SELECTED_ID); initRxTemp(p0 ? p0.nextFollowUpDate : ''); RX_PHOTOS = []; ADD_PRESCRIPTION_OPEN = true; await renderTabBody(p0); return; }
   if (action === 'cancel-add-rx') {
     await discardStagedPhotos(RX_PHOTOS);
@@ -17017,6 +17078,8 @@ function renderSplashScreen() {
     const justConnectedDrive = await handleOAuthCallback();
     if (justConnectedDrive) { VIEW = 'drive-backup'; }
     await render();
+    if (await handleMedScriptHandoff()) await render();
+    window.addEventListener('hashchange', async () => { if (/^#mvrx=/.test(location.hash) && !APP_LOCKED) { if (await handleMedScriptHandoff()) await render(); } });
     // One-time: offer to move existing upcoming follow-ups that fall on the clinic off-day
     setTimeout(async () => {
       try {
