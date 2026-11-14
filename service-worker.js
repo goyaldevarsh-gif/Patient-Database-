@@ -1,4 +1,4 @@
-const CACHE_NAME = 'surgical-case-log-v9';
+const CACHE_NAME = 'surgical-case-log-v10';
 const ASSETS = [
   './',
   './index.html',

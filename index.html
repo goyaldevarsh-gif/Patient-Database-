@@ -16018,7 +16018,7 @@ function readProfileFromDom() {
     if (CURRENT_USER && firestoreDB) {
       try {
         await Promise.race([sendPatientToMedScript(pm), new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 15000))]);
-        toast('Sent to MedScript. Open MedScript from your home screen and tap ' + esc(pm.name || 'the patient') + '.');
+        toast('Sent to MedScript from ' + esc(CURRENT_USER.email || 'this account') + ' (id …' + esc(String(CURRENT_USER.uid).slice(-6)) + '). Open MedScript from your home screen and tap ' + esc(pm.name || 'the patient') + '.');
       } catch (e) {
         const code = (e && e.code) || '';
         toast('Could not send to MedScript (' + esc(code || (e && e.message) || 'error') + ')' + (/permission/.test(code) ? ': Firestore rules not published yet' : ''));
