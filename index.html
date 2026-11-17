@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261117.3">
+<meta name="app-build" content="20261117.5">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -3803,6 +3803,8 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Backup fix: restoring a backup now brings back every photo with its type (X-ray, wound\u2026), Pre-op/Post-op label, notes and original date \u2014 OT photos and unfiled photos were being left out. Take a fresh backup once to get the full version',
+      'Fix: names like Baker\u2019s cyst, Parkinson\u2019s, Smith\u2019s fracture no longer become Baker\u2019S. To repair old ones, run More \u2192 Fix Name/Diagnosis Capitalization once',
       'Fixes: after midnight (till ~5:30 AM) the Tomorrow tile, the Yesterday chip and the +7 day snooze were a day off \u2014 all dates now follow your local clock. A follow-up label you typed is no longer overwritten when you tap Good/Issue. CTEV, RA and Bone Health tabs no longer crash on an old record with no tracker data',
       'Fix: while filling a follow-up (or any form) a small sideways drag no longer jumps you to the Overview tab and closes the form. Tab swipes now need a clear, deliberate swipe and are ignored while a form is open or you are typing',
       'New: Photos zip. Patient \u22ee menu \u2192 Photos zip, or More \u2192 Data & Reports \u2192 Photos Zip (all patients). Every photo, X-ray and video in a folder per patient, each file named by stage (Pre-op, Post-op, Pre-Reduction, OT, Follow-up\u2026) with an info.txt. Turn on Anonymous names for social media',
@@ -4273,8 +4275,20 @@ function sideToggleHtml(action, currentSide, includeNA) {
     + '</div>';
 }
 function autoCapitalizeWords(text) {
-  return String(text || '').replace(/\b\w/g, c => c.toUpperCase());
+  // Capitalise the first letter of each word, but not the s/t/ll/re after an apostrophe (Baker's, Parkinson's, Smith's),
+  // while keeping real name prefixes like D'Souza and O'Brien.
+  return String(text || '').replace(/\b\w/g, (c, off, str) => {
+    const prev = str[off - 1];
+    if (prev === "'" || prev === '\u2019') {
+      const p2 = str[off - 2] || '', p3 = str[off - 3] || '';
+      const namePrefix = /^[OoDd]$/.test(p2) && !/[A-Za-z]/.test(p3);
+      if (!namePrefix) return c;
+    }
+    return c.toUpperCase();
+  });
 }
+// Repairs text that an older version turned into Baker'S / Parkinson'S
+function fixApostropheS(text) { return String(text || '').replace(/([A-Za-z]{2,})(['\u2019])S\b/g, '$1$2s'); }
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
 function patientAgeGroup(p) {
   const age = parseInt(p.age, 10);
@@ -7389,8 +7403,8 @@ async function capitalizeExistingPatients() {
   let patientsTouched = 0;
   for (const p of PATIENTS) {
     let changed = false;
-    if (p.name) { const c = autoCapitalizeWords(p.name); if (c !== p.name) { p.name = c; changed = true; } }
-    if (p.diagnosis) { const c = autoCapitalizeWords(p.diagnosis); if (c !== p.diagnosis) { p.diagnosis = c; changed = true; } }
+    if (p.name) { const c = fixApostropheS(autoCapitalizeWords(p.name)); if (c !== p.name) { p.name = c; changed = true; } }
+    if (p.diagnosis) { const c = fixApostropheS(autoCapitalizeWords(p.diagnosis)); if (c !== p.diagnosis) { p.diagnosis = c; changed = true; } }
     if (changed) { await dbPutPatient(p); patientsTouched++; }
   }
   if (patientsTouched) await refreshPatients();
@@ -12307,6 +12321,31 @@ function backupFilename(caseCount) {
     : 'Doctor';
   return 'OV-' + docPart + '-' + caseCount + 'cases-' + todayStr() + '.zip';
 }
+/* Writes every photo/video into a backup zip. The folder layout is unchanged (older backups and app versions still work),
+   and images-meta.json keeps what a folder cannot: category, X-ray stage (Pre-op/Post-op…), notes, real date, wound/OT flags and file type.
+   Photos that belong to no patient (unfiled, Clinical Bank) go to images/_extra so nothing is silently left out. */
+async function addImagesToBackupZip(zip, allPatients) {
+  const known = new Set(allPatients.map(p => p.id));
+  const meta = {};
+  const imgs = await dbGetAllImages();
+  for (const im of imgs) {
+    if (!im || !im.id || !im.blob) continue;
+    let folder;
+    if (im.patientId && known.has(im.patientId)) {
+      const base = 'images/' + im.patientId;
+      folder = im.followUpId ? (base + '/followup_' + im.followUpId)
+        : im.investigationId ? (base + '/investigation_' + im.investigationId)
+        : im.isIntraOp ? (base + '/ot')
+        : (base + '/preop');
+    } else folder = 'images/_extra';
+    zip.file(folder + '/' + im.id + '.jpg', im.blob);
+    const m = {};
+    for (const k of Object.keys(im)) { const v = im[k]; if (k !== 'blob' && (v === null || ['string', 'number', 'boolean'].indexOf(typeof v) > -1)) m[k] = v; }
+    m.mime = im.blob.type || '';
+    meta[im.id] = m;
+  }
+  zip.file('images-meta.json', JSON.stringify(meta));
+}
 async function exportBackup(auto) {
   if (typeof JSZip === 'undefined') { if (!auto) toast('Backup tool failed to load \u2014 check your internet connection'); return; }
   if (!auto) toast('Preparing backup\u2026');
@@ -12335,16 +12374,7 @@ async function exportBackup(auto) {
     zip.file('reminders.json', JSON.stringify(REMINDERS, null, 2));
     zip.file('profile.json', JSON.stringify(loadProfile(), null, 2));
     try { zip.file('fu-schedule.json', JSON.stringify(loadFuSchedule(), null, 2)); } catch (e) {}
-    for (const p of allPatients) {
-      const images = await dbGetImagesByPatient(p.id);
-      for (const im of images) {
-        const folder = im.followUpId ? ('images/'+p.id+'/followup_'+im.followUpId)
-          : im.investigationId ? ('images/'+p.id+'/investigation_'+im.investigationId)
-          : im.isIntraOp ? ('images/'+p.id+'/ot')
-          : ('images/'+p.id+'/preop');
-        zip.file(folder+'/'+im.id+'.jpg', im.blob);
-      }
-    }
+    await addImagesToBackupZip(zip, allPatients);
     const blob = await zip.generateAsync({type:'blob'});
     if (fileHandle) {
       const writable = await fileHandle.createWritable();
@@ -12387,7 +12417,8 @@ async function maybeAutoBackup() {
   } catch (e) {}
 }
 
-const IMPORT_IMG_REGEX = /^images\/([^/]+)\/(?:preop|followup_([^/]+)|investigation_([^/]+))\/([^/]+)\.jpg$/;
+const IMPORT_IMG_REGEX = /^images\/([^/]+)\/(?:(preop|ot)|followup_([^/]+)|investigation_([^/]+))\/([^/]+)\.jpg$/;
+const IMPORT_EXTRA_REGEX = /^images\/_extra\/([^/]+)\.jpg$/;
 
 async function importBackup(file) {
   if (typeof JSZip === 'undefined') { toast('Import tool failed to load \u2014 check your internet connection'); return; }
@@ -12421,13 +12452,24 @@ async function importBackup(file) {
       try { saveProfile(JSON.parse(await profileEntry.async('string')), true); } catch(e) {}
     }
 
-    const imagePaths = Object.keys(zip.files).filter(path => IMPORT_IMG_REGEX.test(path) && !zip.files[path].dir);
+    const imagePaths = Object.keys(zip.files).filter(path => (IMPORT_IMG_REGEX.test(path) || IMPORT_EXTRA_REGEX.test(path)) && !zip.files[path].dir);
     let imgCount = 0;
+    // images-meta.json (newer backups) restores category, X-ray stage, notes, real date, wound/OT flags and file type; older backups simply skip it
+    let imgMeta = {};
+    try { const me = zip.file('images-meta.json'); if (me) imgMeta = JSON.parse(await me.async('string')) || {}; } catch (e) { imgMeta = {}; }
     for (const path of imagePaths) {
       const m = path.match(IMPORT_IMG_REGEX);
-      const patientId = m[1], followUpId = m[2] || null, investigationId = m[3] || null, imageId = m[4];
-      const blob = await zip.file(path).async('blob');
-      await dbAddImage({ id: imageId, patientId, followUpId, investigationId, blob, createdAt: Date.now() });
+      const imageId = m ? m[5] : path.match(IMPORT_EXTRA_REGEX)[1];
+      const mt = imgMeta[imageId] || {};
+      const raw = await zip.file(path).async('blob');
+      const blob = mt.mime ? new Blob([raw], { type: mt.mime }) : raw;
+      const rec = {};
+      Object.keys(mt).forEach(k => { const v = mt[k]; if (k !== 'mime' && (v === null || ['string', 'number', 'boolean'].indexOf(typeof v) > -1)) rec[k] = v; });
+      rec.id = imageId; rec.blob = blob;
+      if (m) { rec.patientId = m[1]; rec.followUpId = m[3] || null; rec.investigationId = m[4] || null; if (m[2] === 'ot') rec.isIntraOp = true; }
+      else rec.patientId = (mt.patientId === undefined ? null : mt.patientId);
+      if (!rec.createdAt) rec.createdAt = Date.now();
+      await dbAddImage(rec);
       imgCount++;
     }
     await refreshPatients();
@@ -12555,16 +12597,7 @@ async function maybeAutoBackupToDrive(force) {
       zip.file('reminders.json', JSON.stringify(REMINDERS, null, 2));
       zip.file('profile.json', JSON.stringify(loadProfile(), null, 2));
       
-      for (const p of allPatients) {
-        const images = await dbGetImagesByPatient(p.id);
-        for (const im of images) {
-          const folder = im.followUpId ? ('images/'+p.id+'/followup_'+im.followUpId)
-            : im.investigationId ? ('images/'+p.id+'/investigation_'+im.investigationId)
-            : im.isIntraOp ? ('images/'+p.id+'/ot')
-            : ('images/'+p.id+'/preop');
-          zip.file(folder+'/'+im.id+'.jpg', im.blob);
-        }
-      }
+      await addImagesToBackupZip(zip, allPatients);
       
       const blob = await zip.generateAsync({type:'blob'});
       const filename = backupFilename(allPatients.length);
