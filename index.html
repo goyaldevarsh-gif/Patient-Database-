@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261117.5">
+<meta name="app-build" content="20261117.6">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -1354,6 +1354,17 @@ function removePendingSync(type, id) {
   if (next.length !== list.length) savePendingSync(next);
 }
 function pendingSyncCount() { return loadPendingSync().length; }
+/* Marks/unmarks an item in the pending queue WITHOUT redrawing the screen. Used to flag a patient as "unsynced"
+   the moment it is saved (before the upload starts), so that if the app is closed mid-upload the edit is still
+   known to be unsynced on the next launch and cannot be overwritten by an older cloud copy. */
+function pendingQuiet(type, id, on) {
+  try {
+    const list = loadPendingSync(), sid = String(id);
+    const has = list.some(x => x.type === type && x.id === sid);
+    if (on && !has) { list.push({ type: type, id: sid }); localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(list)); }
+    else if (!on && has) { localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(list.filter(x => !(x.type === type && x.id === sid)))); }
+  } catch (e) {}
+}
 function refreshPendingSyncBadge() { if (VIEW === 'list') render(); } // avoid disrupting an in-progress form on other screens
 
 function syncPatientToCloud(p) {
@@ -1361,9 +1372,10 @@ function syncPatientToCloud(p) {
   if (p && p.isSample) return; // demo patients never go to the cloud
   try {
     const clean = JSON.parse(JSON.stringify(p));
+    pendingQuiet('patient', p.id, true); // unsynced until the cloud confirms
     withTimeout(firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('patients').doc(String(p.id)).set(clean), 20000, 'Sync')
-      .then(function() { removePendingSync('patient', p.id); })
-      .catch(function(err) { console.error('Cloud sync (save) failed for patient', p.id, err); addPendingSync('patient', p.id); toast('Cloud sync failed for "' + (p.name||p.id) + '" \u2014 will retry automatically'); });
+      .then(function() { pendingQuiet('patient', p.id, false); if (loadPendingSync().length) refreshPendingSyncBadge(); })
+      .catch(function(err) { console.error('Cloud sync (save) failed for patient', p.id, err); addPendingSync('patient', p.id); refreshPendingSyncBadge(); toast('Cloud sync failed for "' + (p.name||p.id) + '" \u2014 will retry automatically'); });
   } catch (e) {}
 }
 /* ---- Doctor/Clinic Profile cloud sync \u2014 so a reinstall + sign-in restores it, not just
@@ -1539,7 +1551,11 @@ function stopCloudSync() {
 async function applyRemoteChanges(snapshot) {
   SYNC_APPLYING_REMOTE = true;
   try {
+    // Patients with edits that have not reached the cloud yet are newer than the cloud copy: never overwrite them
+    // (they are pushed by retryPendingSync). Without this an older cloud copy could silently replace a fresh local edit.
+    const unsynced = new Set(loadPendingSync().filter(x => x.type === 'patient').map(x => x.id));
     for (const change of snapshot.docChanges()) {
+      if (unsynced.has(String(change.doc.id))) continue;
       if (change.type === 'removed') await dbDeletePatient(change.doc.id);
       else await dbPutPatient(change.doc.data());
     }
@@ -3803,6 +3819,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Sync safety: an edit saved while the signal was weak, then the app closed, could be overwritten by the older cloud copy on the next launch. Unsynced edits are now protected until they reach the cloud',
       'Backup fix: restoring a backup now brings back every photo with its type (X-ray, wound\u2026), Pre-op/Post-op label, notes and original date \u2014 OT photos and unfiled photos were being left out. Take a fresh backup once to get the full version',
       'Fix: names like Baker\u2019s cyst, Parkinson\u2019s, Smith\u2019s fracture no longer become Baker\u2019S. To repair old ones, run More \u2192 Fix Name/Diagnosis Capitalization once',
       'Fixes: after midnight (till ~5:30 AM) the Tomorrow tile, the Yesterday chip and the +7 day snooze were a day off \u2014 all dates now follow your local clock. A follow-up label you typed is no longer overwritten when you tap Good/Issue. CTEV, RA and Bone Health tabs no longer crash on an old record with no tracker data',
