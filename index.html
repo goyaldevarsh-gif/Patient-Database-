@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261114.5">
+<meta name="app-build" content="20261117.1">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -2873,11 +2873,31 @@ function setupSwipeNavigation(container, onSwipeLeft, onSwipeRight) {
   if (container.dataset.swipeBound === '1') return;
   container.dataset.swipeBound = '1';
 
-  let touchStart = 0, touchEnd = 0, touchStartY = 0, touchEndY = 0;
+  let touchStart = 0, touchEnd = 0, touchStartY = 0, touchEndY = 0, swipeBlocked = false;
+
+  // A swipe must never fire while the doctor is filling something in: a sideways drag while typing,
+  // selecting text, moving a slider or scrolling a chip row used to jump to another tab and close the form.
+  function swipeShouldBeBlocked(e) {
+    try {
+      if (ADD_FOLLOWUP_OPEN) return true;
+      const a = document.activeElement;
+      if (a && container.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+      const sel = window.getSelection && window.getSelection();
+      if (sel && String(sel).length > 0) return true;
+      let n = e.target;
+      while (n && n !== container && n.nodeType === 1) {
+        if (/^(INPUT|TEXTAREA|SELECT|LABEL)$/.test(n.tagName) || n.isContentEditable || n.hasAttribute('data-noswipe')) return true;
+        if (n.scrollWidth > n.clientWidth + 2) { const ox = getComputedStyle(n).overflowX; if (ox === 'auto' || ox === 'scroll') return true; }
+        n = n.parentNode;
+      }
+    } catch (err) {}
+    return false;
+  }
 
   container.addEventListener('touchstart', (e) => {
     touchStart = e.changedTouches[0].clientX;
     touchStartY = e.changedTouches[0].clientY;
+    swipeBlocked = swipeShouldBeBlocked(e);
   }, { passive: true });
 
   container.addEventListener('touchend', (e) => {
@@ -2887,8 +2907,8 @@ function setupSwipeNavigation(container, onSwipeLeft, onSwipeRight) {
     const horizontalDiff = touchStart - touchEnd;
     const verticalDiff = Math.abs(touchStartY - touchEndY);
 
-    // Only trigger swipe if horizontal movement > vertical and > 50px threshold
-    if (Math.abs(horizontalDiff) > 50 && Math.abs(horizontalDiff) > verticalDiff) {
+    // Only trigger swipe if it is a clear, mostly-horizontal move (> 70px and well above the vertical drift)
+    if (!swipeBlocked && swipeShouldBeBlocked(e) === false && Math.abs(horizontalDiff) > 70 && Math.abs(horizontalDiff) > verticalDiff * 1.8) {
       if (horizontalDiff > 0 && container._swipeOnLeft) container._swipeOnLeft();
       else if (horizontalDiff < 0 && container._swipeOnRight) container._swipeOnRight();
     }
@@ -3783,6 +3803,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Fix: while filling a follow-up (or any form) a small sideways drag no longer jumps you to the Overview tab and closes the form. Tab swipes now need a clear, deliberate swipe and are ignored while a form is open or you are typing',
       'New: Photos zip. Patient \u22ee menu \u2192 Photos zip, or More \u2192 Data & Reports \u2192 Photos Zip (all patients). Every photo, X-ray and video in a folder per patient, each file named by stage (Pre-op, Post-op, Pre-Reduction, OT, Follow-up\u2026) with an info.txt. Turn on Anonymous names for social media',
       'Laptop Home is now a proper dashboard: one strip with all your numbers, the Create and Today\u2019s work buttons, then Follow-ups to do (overdue, today, tomorrow \u2014 tap to open the file) next to your Recent patients. Phones unchanged',
       'Laptop: popups (Sort, Filter, menus) open as a centred window instead of a strip at the bottom, the Add case form is in two panels, and photos in Records show in a bigger grid. Phones unchanged',
