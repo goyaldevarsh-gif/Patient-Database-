@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261117.1">
+<meta name="app-build" content="20261117.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -3112,7 +3112,7 @@ function reminderHistoryCardHtml(p) {
   const hit = lim > 0 && reminderStreak(p) >= lim;
   const lab = { came: 'came', 'no-response': 'no response', pending: 'waiting', void: 'rescheduled' };
   const col = { came: 'var(--emerald)', 'no-response': 'var(--red)', pending: '#b45309', void: 'var(--muted)' };
-  const rows = log.filter(r => r && isFinite(new Date(r.ts))).slice(-6).reverse().map(r => '<div class="row between" style="font-size:11.5px;padding:3px 0;"><span>' + fmtDate(new Date(r.ts).toISOString().slice(0,10)) + ' · ' + (r.channel === 'call' ? 'Call' : 'WhatsApp') + '</span><span style="font-weight:700;color:' + (col[r.outcome] || 'var(--muted)') + ';">' + (lab[r.outcome] || r.outcome) + '</span></div>').join('');
+  const rows = log.filter(r => r && isFinite(new Date(r.ts))).slice(-6).reverse().map(r => '<div class="row between" style="font-size:11.5px;padding:3px 0;"><span>' + fmtDate(localYmd(new Date(r.ts))) + ' · ' + (r.channel === 'call' ? 'Call' : 'WhatsApp') + '</span><span style="font-weight:700;color:' + (col[r.outcome] || 'var(--muted)') + ';">' + (lab[r.outcome] || r.outcome) + '</span></div>').join('');
   return '<div class="card" style="margin-bottom:10px;">'
     + '<div style="font-size:11px;font-weight:800;color:var(--muted);letter-spacing:0.04em;margin-bottom:4px;">REMINDER HISTORY</div>'
     + '<div style="font-size:12.5px;font-weight:700;">Reminded ' + st.total + '× · ' + st.came + ' came · ' + st.noResp + ' no response' + (st.pending ? ' · ' + st.pending + ' waiting' : '') + '</div>'
@@ -3803,6 +3803,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Fixes: after midnight (till ~5:30 AM) the Tomorrow tile, the Yesterday chip and the +7 day snooze were a day off \u2014 all dates now follow your local clock. A follow-up label you typed is no longer overwritten when you tap Good/Issue. CTEV, RA and Bone Health tabs no longer crash on an old record with no tracker data',
       'Fix: while filling a follow-up (or any form) a small sideways drag no longer jumps you to the Overview tab and closes the form. Tab swipes now need a clear, deliberate swipe and are ignored while a form is open or you are typing',
       'New: Photos zip. Patient \u22ee menu \u2192 Photos zip, or More \u2192 Data & Reports \u2192 Photos Zip (all patients). Every photo, X-ray and video in a folder per patient, each file named by stage (Pre-op, Post-op, Pre-Reduction, OT, Follow-up\u2026) with an info.txt. Turn on Anonymous names for social media',
       'Laptop Home is now a proper dashboard: one strip with all your numbers, the Create and Today\u2019s work buttons, then Follow-ups to do (overdue, today, tomorrow \u2014 tap to open the file) next to your Recent patients. Phones unchanged',
@@ -4520,12 +4521,12 @@ function renderFollowUpStatusBrowser() {
 function computeDashboardStats() {
   const today = todayStr();
   const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate()-6);
-  const sevenDaysAgoStr = sevenDaysAgo.toISOString().slice(0,10);
+  const sevenDaysAgoStr = localYmd(sevenDaysAgo);
 
   const isTrackable = p => !p.status || p.status === 'Active' || p.status === 'Active follow-up';
   const dueToday = PATIENTS.filter(p => isTrackable(p) && p.nextFollowUpDate === today);
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-  const tomorrowStr = tomorrow.toISOString().slice(0,10);
+  const tomorrowStr = localYmd(tomorrow);
   const dueTomorrowList = PATIENTS.filter(p => isTrackable(p) && p.nextFollowUpDate === tomorrowStr);
   const overdue = PATIENTS.filter(p => isTrackable(p) && isOverdue(p.nextFollowUpDate));
   const raDueToday = PATIENTS.filter(p => isTrackable(p) && !HIDE_RA_OSTEO && p.condition === 'ra' && p.ra && p.ra.nextLabsDate === today);
@@ -4549,8 +4550,8 @@ function computeDashboardStats() {
   const weekTrend = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
-    const dayKey = d.toISOString().slice(0,10);
-    const count = PATIENTS.filter(p => p.createdAt && new Date(p.createdAt).toISOString().slice(0,10) === dayKey).length;
+    const dayKey = localYmd(d);
+    const count = PATIENTS.filter(p => p.createdAt && localYmd(new Date(p.createdAt)) === dayKey).length;
     weekTrend.push({ day: d.toLocaleDateString('en-IN',{weekday:'narrow'}), count });
   }
   const weekNewCases = weekTrend.reduce((sum,d) => sum + d.count, 0);
@@ -5819,7 +5820,7 @@ function exportDiagReferralsCsv(month) {
       rate, r.segmentCode || '', r.patientDiscountPercent == null ? '' : r.patientDiscountPercent, disc,
       pool, r.doctorCutPercent == null ? '' : r.doctorCutPercent, cut,
       r.status === 'paid' ? 'Paid' : (complete ? 'Pending' : 'Incomplete'),
-      r.paidAt ? new Date(r.paidAt).toISOString().slice(0,10) : '',
+      r.paidAt ? localYmd(new Date(r.paidAt)) : '',
       diagModalityOf(centre, r.investigation, r.modality), Number(r.staffAmount) || 0, cut - (Number(r.staffAmount) || 0)
     ].map(csvCell).join(','));
     totRate += rate; totDisc += disc; totCut += cut; totStaff += Number(r.staffAmount) || 0;
@@ -7716,7 +7717,7 @@ function renderDashboardSection() {
   const tomorrowCount = s.dueTomorrowList.length;
 
   const wTomorrow = new Date(); wTomorrow.setDate(wTomorrow.getDate() + 1);
-  const wTomorrowStr = wTomorrow.toISOString().slice(0,10);
+  const wTomorrowStr = localYmd(wTomorrow);
   const watchOverdueCount = DIAG_WATCHLIST.filter(w => w.date && w.date < todayStr()).length;
   const watchTodayCount = DIAG_WATCHLIST.filter(w => w.date === todayStr()).length;
   const watchTomorrowCount = DIAG_WATCHLIST.filter(w => w.date === wTomorrowStr).length;
@@ -8686,7 +8687,7 @@ function apSimilarCasesBlockHtml() {
           + '<span style="display:block;font-size:12.5px;font-weight:700;">'+escName(m.name)+'</span>'
           + '<span style="display:block;font-size:11px;color:var(--muted);">'+esc(displayDiagnosis(m.diagnosis||m.chiefComplaints||''))+(m.procedure?' \u00b7 '+esc(m.procedure):'')+'</span>'
         + '</span>'
-        + '<span style="font-size:10.5px;color:var(--muted);flex-shrink:0;margin-left:8px;">'+(m.surgeryDate?fmtDate(m.surgeryDate):(m.createdAt?fmtDate(new Date(m.createdAt).toISOString().slice(0,10)):''))+'</span>'
+        + '<span style="font-size:10.5px;color:var(--muted);flex-shrink:0;margin-left:8px;">'+(m.surgeryDate?fmtDate(m.surgeryDate):(m.createdAt?fmtDate(localYmd(new Date(m.createdAt))):''))+'</span>'
         + '</button>'
       )).join('')
     + '</div>';
@@ -9023,9 +9024,9 @@ function ovSnapCell(icon, label, value, valueColor) {
 let INITIAL_VISIT_SUMMARY_CACHE = [];
 async function computeInitialVisitSummary(p) {
   if (!p.createdAt) return [];
-  const createdDateStr = new Date(p.createdAt).toISOString().slice(0,10);
+  const createdDateStr = localYmd(new Date(p.createdAt));
   const allImages = await dbGetImagesByPatient(p.id);
-  const initialImages = allImages.filter(img => new Date(img.createdAt).toISOString().slice(0,10) === createdDateStr);
+  const initialImages = allImages.filter(img => localYmd(new Date(img.createdAt)) === createdDateStr);
   const catLabel = { xray:'X-ray', clinical:'Clinical photo', wound:'Wound photo', ct:'CT', mri:'MRI', usg:'USG' };
   const counts = {};
   initialImages.forEach(img => {
@@ -9440,7 +9441,7 @@ function renderSmartFollowupFormLayer1(p) {
     + '<label class="field-label">When was this visit?</label>'
     + '<div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">'
     + '<button type="button" class="chip active" data-action="fu-quick-date" data-date="'+todayStr()+'">Today</button>'
-    + '<button type="button" class="chip" data-action="fu-quick-date" data-date="'+(new Date(new Date().getTime()-86400000).toISOString().split('T')[0])+'">Yesterday</button>'
+    + '<button type="button" class="chip" data-action="fu-quick-date" data-date="'+(localYmd(new Date(new Date().getTime()-86400000)))+'">Yesterday</button>'
     + '<button type="button" class="chip" data-action="fu-toggle-date-picker">Custom</button>'
     + '</div>'
     + '<input class="input" type="date" id="fu-date" value="'+todayStr()+'" max="'+todayStr()+'" style="display:none;margin-bottom:10px;">'
@@ -10501,6 +10502,7 @@ function surgicalDetailsSectionHtml(p) {
   return { read, body };
 }
 async function renderCtevTab(p) {
+  if (!p.ctev) p.ctev = newCtevShape(); // old/imported record with the condition set but no tracker data yet — don't crash the tab
   const feet = feetForLaterality(p.laterality);
   const ctev = p.ctev;
   const allImages = await dbGetImagesByPatient(p.id);
@@ -10685,6 +10687,7 @@ const RA_MEDICATION_REMINDER_MESSAGE = '\u0906\u092a\u0915\u0940 RA (Rheumatoid 
   + '\n\u2022 \u0938\u093e\u0902\u0938 \u0932\u0947\u0928\u0947 \u092e\u0947\u0902 \u0924\u0915\u0932\u0940\u092b \u0939\u094b';
 
 function renderRaTab(p) {
+  if (!p.ra) p.ra = newRaShape();
   const ra = p.ra;
   const mon = ra.monitoring || { cbc:'', lft:'', creatinine:'' };
   const overdueLabs = isOverdue(ra.nextLabsDate);
@@ -10872,7 +10875,7 @@ async function renderComparePickerView() {
     return '<button type="button" class="compare-pick-item'+(idx>-1?' selected':'')+'" data-action="compare-select-image" data-id="'+im.id+'">'
       + '<img src="'+url+'">'
       + (idx>-1 ? '<span class="compare-pick-badge">'+(idx===0?'Before':'After')+'</span>' : '')
-      + '<span class="compare-pick-label">'+esc(imageSourceLabel(im, p))+' \u00b7 '+fmtDate(im.createdAt ? new Date(im.createdAt).toISOString().slice(0,10) : '')+'</span>'
+      + '<span class="compare-pick-label">'+esc(imageSourceLabel(im, p))+' \u00b7 '+fmtDate(im.createdAt ? localYmd(new Date(im.createdAt)) : '')+'</span>'
       + '</button>';
   }).join('');
   return '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3">'
@@ -10908,6 +10911,7 @@ let DEXA_TEMP = null;
 function initDexaTemp() { DEXA_TEMP = { date: todayStr(), tScoreSpine:'', tScoreHip:'', tScoreWrist:'', notes:'' }; }
 
 async function renderOsteoTab(p) {
+  if (!p.osteo) p.osteo = newOsteoShape();
   const o = p.osteo;
   const riskCount = OSTEO_RISK_FACTORS.filter(([k]) => o.riskFactors[k]).length;
   const overdueDexa = isOverdue(o.nextDexaDate);
@@ -11151,7 +11155,7 @@ function renderCalendarGrid() {
   const dots = computeCalendarDots(year, month);
   const monthLabel = first.toLocaleDateString('en-IN', { month:'long', year:'numeric' });
   const today = todayStr();
-  const weekCount = PATIENTS.filter(p => p.nextFollowUpDate && p.nextFollowUpDate >= today && p.nextFollowUpDate <= (function(){ const d=new Date(); d.setDate(d.getDate()+6); return d.toISOString().slice(0,10); })()).length;
+  const weekCount = PATIENTS.filter(p => p.nextFollowUpDate && p.nextFollowUpDate >= today && p.nextFollowUpDate <= (function(){ const d=new Date(); d.setDate(d.getDate()+6); return localYmd(d); })()).length;
 
   let cells = '<div class="cal-dow-row">'+['S','M','T','W','T','F','S'].map(d=>'<span>'+d+'</span>').join('')+'</div><div class="cal-grid">';
   for (let i=0;i<startDow;i++) cells += '<div></div>';
@@ -11293,7 +11297,7 @@ function renderTomorrowFollowUpsList() {
 }
 function renderUpcomingFollowUpsList() {
   const today = todayStr();
-  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })();
+  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate()+1); return localYmd(d); })();
   const withDates = PATIENTS.filter(p => p.nextFollowUpDate).sort((a,b) => new Date(a.nextFollowUpDate) - new Date(b.nextFollowUpDate));
   if (!withDates.length) return '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:24px;">No upcoming follow-ups scheduled.</p>';
   const dateLabel = (d) => d === today ? 'Today' : d === tomorrow ? 'Tomorrow' : fmtDate(d);
@@ -12074,7 +12078,7 @@ async function shareSelectedImages(patientId) {
       if (!rec || !rec.blob) continue;
       const isVid = rec.blob.type && rec.blob.type.indexOf('video/') === 0;
       const ext = isVid ? '.mp4' : '.jpg';
-      const dateTag = rec.createdAt ? new Date(rec.createdAt).toISOString().slice(0,10) : 'undated';
+      const dateTag = rec.createdAt ? localYmd(new Date(rec.createdAt)) : 'undated';
       const name = (p ? p.name.replace(/[^a-zA-Z0-9]+/g,'-') : 'photo') + '-' + dateTag + '-' + (files.length+1) + ext;
       files.push(new File([rec.blob], name, { type: rec.blob.type || (isVid ? 'video/mp4' : 'image/jpeg') }));
     }
@@ -12271,7 +12275,7 @@ async function exportCaseZip(patientId) {
         : im.followUpId ? 'followup-photos'
         : im.investigationId ? 'investigation-photos'
         : 'clinical-photos';
-      const dateTag = im.createdAt ? new Date(im.createdAt).toISOString().slice(0,10) : 'undated';
+      const dateTag = im.createdAt ? localYmd(new Date(im.createdAt)) : 'undated';
       zip.file(folder + '/' + dateTag + '_' + String(idx).padStart(3,'0') + '.jpg', im.blob);
       idx++;
     }
@@ -14330,7 +14334,7 @@ document.addEventListener('click', async (e) => {
     if (!p) return;
     const field = el.dataset.field;
     const d = new Date(); d.setDate(d.getDate() + 14);
-    const dateStr = d.toISOString().slice(0,10);
+    const dateStr = localYmd(d);
     if (field === 'ra' && p.ra) p.ra.nextLabsDate = dateStr;
     else if (field === 'dexa' && p.osteo) p.osteo.nextDexaDate = dateStr;
     else return;
@@ -14398,7 +14402,7 @@ document.addEventListener('click', async (e) => {
       if (!ds || ds <= todayStr()) { toast('Pick a future date'); return; }
     } else {
       const d = new Date(); d.setDate(d.getDate() + parseInt(el.dataset.days, 10));
-      ds = d.toISOString().slice(0, 10);
+      ds = localYmd(d);
     }
     p.nextFollowUpDate = ds; p.lastReminderSentAt = null; p.followUpConfirmedAt = null;
     resolveReminders(p, 'void');
@@ -14443,7 +14447,7 @@ document.addEventListener('click', async (e) => {
     const p = getPatient(el.dataset.id);
     if (!p) return;
     const d = new Date(); d.setDate(d.getDate() + 7);
-    p.nextFollowUpDate = d.toISOString().slice(0,10);
+    p.nextFollowUpDate = localYmd(d);
     p.followUpSnoozeCount = (p.followUpSnoozeCount || 0) + 1;
     resolveReminders(p, 'no-response');
     p.lastReminderSentAt = null; p.followUpConfirmedAt = null;
@@ -14582,13 +14586,13 @@ document.addEventListener('click', async (e) => {
     const statusEl = document.getElementById('fu-recovery-status');
     if (statusEl) statusEl.value = status;
     
-    // Auto-fill label based on status
-    if (status === 'Issue') {
-      if (labelEl) labelEl.value = 'Follow-up - Concern';
-    } else {
+    // Auto-fill label based on status — but never overwrite a label the doctor typed themselves
+    {
       const p = getPatient(SELECTED_ID);
-      const suggested = suggestVisitLabel(p);
-      if (labelEl) labelEl.value = suggested || '1 Week';
+      const suggested = suggestVisitLabel(p) || '1 Week';
+      const cur = labelEl ? labelEl.value.trim() : '';
+      const isAuto = !cur || cur === suggested || cur === '1 Week' || cur === 'Follow-up - Concern';
+      if (labelEl && isAuto) labelEl.value = (status === 'Issue') ? 'Follow-up - Concern' : suggested;
     }
     
     return;
