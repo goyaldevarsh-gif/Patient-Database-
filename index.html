@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261117.11">
+<meta name="app-build" content="20261117.12">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -363,10 +363,10 @@
   .tl-row::before { content:''; position:absolute; left:15px; top:32px; bottom:0; width:2px; background:var(--border); }
   .tl-row:last-child::before { display:none; }
   .tl-dot { flex-shrink:0; width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; z-index:1; }
-  .tl-content { flex:1; padding-top:4px; cursor:pointer; }
+  .tl-content { flex:1; min-width:0; padding-top:4px; cursor:pointer; }
   .tl-date { font-size:10px; color:var(--muted); font-weight:700; text-transform:uppercase; letter-spacing:0.02em; }
-  .tl-title { font-size:13px; font-weight:700; color:var(--ink); margin-top:2px; }
-  .tl-sub { font-size:12px; color:#64748b; margin-top:2px; }
+  .tl-title { font-size:13px; font-weight:700; color:var(--ink); margin-top:2px; overflow-wrap:anywhere; }
+  .tl-sub { font-size:12px; color:#64748b; margin-top:2px; overflow-wrap:anywhere; }
   .overdue-note { font-size:11px; font-weight:700; color:var(--red); margin-top:3px; display:flex; align-items:center; gap:4px; }
   .bottom-bar { position:sticky; bottom:0; border-top:1px solid var(--border); background:#fff; padding:10px 12px; padding-bottom:calc(10px + env(safe-area-inset-bottom, 0px)); display:flex; gap:8px; }
 
@@ -3839,6 +3839,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Fixes: very long unbroken text no longer pushes the Timeline off-screen; screen-reader labels on unlabeled boxes; Email/Password hints on the Cloud Sync sign-in; notification tap now opens the app root',
       'Fixes: infants (age in months/days) can be saved; WhatsApp numbers with a leading 0 or two numbers in one box now open the right chat; follow-ups on 31st no longer jump a month; weekly digest uses local days; Photos zip works for Hindi names; laptop patient search covers all patients; contact export fields fixed',
       'Laptop: Esc closes the open popup or menu first; patient-file shortcuts pause while a form has typed text, so nothing is lost',
       'Laptop patient file: J/K to jump to next/previous patient, 1-4 for tabs, Esc to go back; Next Follow-up bar now full width. Phones unchanged',
@@ -5628,7 +5629,7 @@ function renderBroadcastQueueView() {
       + '<div class="row gap3"><button class="icon-btn" data-action="mc-cancel-broadcast">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Broadcast Message</h2></div>'
       + '</div>'
       + '<div class="px" style="padding-top:14px;">'
-      + '<textarea class="input" id="mc-msg-input" rows="5" placeholder=""></textarea>'
+      + '<textarea class="input" id="mc-msg-input" rows="5" placeholder="" aria-label="Broadcast message"></textarea>'
       + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="mc-confirm-msg">Start Sending</button>'
       + '</div></div>';
   }
@@ -6600,7 +6601,7 @@ async function renderClinicalBankView() {
     + '</div>'
     + '<div class="px" style="padding-top:14px;">'
     + '<p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">Interesting findings, saved separately from patient records \u2014 for papers, teaching, or your own reference.</p>'
-    + '<div class="search-wrap" style="margin-bottom:10px;">'+ic('search')+'<input class="search-input" id="cb-search-input" placeholder="" value="'+esc(CB_SEARCH)+'"></div>'
+    + '<div class="search-wrap" style="margin-bottom:10px;">'+ic('search')+'<input class="search-input" id="cb-search-input" placeholder="" aria-label="Search notes" value="'+esc(CB_SEARCH)+'"></div>'
     + '<button type="button" class="btn btn-block" style="margin-bottom:14px;" data-action="cb-open-add">'+ic('plus')+' New Entry</button>'
     + '<div id="cb-results-list">' + cbResultsListHtml(filtered, imageMap) + '</div>'
     + '</div></div>';
@@ -7018,9 +7019,9 @@ function renderSettingsView() {
         + '<button class="icon-btn" style="color:var(--red);" data-action="pr-remove-clinic" data-index="'+idx+'">'+ic('trash')+'</button>'
         + '</div>'
         + '<div style="display:flex;flex-direction:column;gap:8px;">'
-        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="name" placeholder="" value="'+esc(clinic.name)+'">'
-        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="timings" placeholder="" value="'+esc(clinic.timings||'')+'">'
-        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="mapsLink" placeholder="" value="'+esc(clinic.mapsLink||'')+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="name" placeholder="" aria-label="Clinic name" value="'+esc(clinic.name)+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="timings" placeholder="" aria-label="Clinic timings" value="'+esc(clinic.timings||'')+'">'
+        + '<input class="input" data-clinic-index="'+idx+'" data-clinic-field="mapsLink" placeholder="" aria-label="Maps link" value="'+esc(clinic.mapsLink||'')+'">'
         + '</div></div>').join('') : '')
     + '<button class="btn btn-sm" style="margin-bottom:16px;" data-action="pr-add-clinic">'+ic('plus')+' Add clinic</button>'
     + '</div>'
@@ -7032,7 +7033,7 @@ function renderFuScheduleView() {
   const prev = t => { const st = parseFuSteps(t); return st.length ? st.map(fuStepLabel).join(' → ') : 'Invalid — use e.g. 2w, 6w, 3m, 1y'; };
   const patRow = (key, label) => '<div style="margin-bottom:10px;"><label class="field-label">'+label+'</label><input class="input" id="fs-pat-'+key+'" value="'+esc(cfg.patterns[key])+'" autocomplete="off"><div id="fsprev-fs-pat-'+key+'" style="font-size:11px;color:var(--muted);margin-top:3px;">'+esc(prev(cfg.patterns[key]))+'</div></div>';
   const opdRow = key => '<div style="margin-bottom:10px;"><label class="field-label">'+esc(FU_OPD_LABELS[key])+'</label><input class="input" id="fs-opd-'+key+'" value="'+esc(cfg.opd[key])+'" autocomplete="off"><div id="fsprev-fs-opd-'+key+'" style="font-size:11px;color:var(--muted);margin-top:3px;">'+esc(prev(cfg.opd[key]))+'</div></div>';
-  const mapRows = SURGERY_TYPES.map((t, i) => '<div class="row between" style="margin-bottom:8px;gap:10px;"><span style="font-size:12.5px;font-weight:600;flex:1;">'+esc(t)+'</span><select class="select" id="fs-map-'+i+'" data-type="'+esc(t)+'" style="flex:none;width:130px;"><option value="standard"'+((cfg.surgeryMap[t]||'standard')==='standard'?' selected':'')+'>Standard</option><option value="short"'+(cfg.surgeryMap[t]==='short'?' selected':'')+'>Short</option></select></div>').join('');
+  const mapRows = SURGERY_TYPES.map((t, i) => '<div class="row between" style="margin-bottom:8px;gap:10px;"><span style="font-size:12.5px;font-weight:600;flex:1;">'+esc(t)+'</span><select class="select" id="fs-map-'+i+'" aria-label="Schedule for '+esc(t)+'" data-type="'+esc(t)+'" style="flex:none;width:130px;"><option value="standard"'+((cfg.surgeryMap[t]||'standard')==='standard'?' selected':'')+'>Standard</option><option value="short"'+(cfg.surgeryMap[t]==='short'?' selected':'')+'>Short</option></select></div>').join('');
   const offOpts = ['none'].concat([0,1,2,3,4,5,6]).map(v => '<option value="'+v+'"'+(String(v)===cfg.offDay?' selected':'')+'>'+(v==='none'?'No off-day':FU_DAY_NAMES[v])+'</option>').join('');
   const nOff = fuOffDayPatients().length;
   return '<div style="padding-bottom:90px;">'
@@ -8690,7 +8691,7 @@ function renderAiQueryView() {
     + '<div class="px" style="padding-top:14px;">'
     + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;">Plain-language question over your current patient list (' + PATIENTS.length + ' patients). Answers only from your own data \u2014 nothing external.</p>'
     + '<div class="row between" style="margin-bottom:4px;"><span></span>'+micButtonHtml('ai-query-input')+'</div>'
-    + '<textarea class="textarea" id="ai-query-input" rows="3" placeholder="">'+esc(AI_QUERY_TEXT||'')+'</textarea>'
+    + '<textarea class="textarea" id="ai-query-input" rows="3" placeholder="" aria-label="Your question">'+esc(AI_QUERY_TEXT||'')+'</textarea>'
     + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-query">'+ic('shield')+' Ask</button>'
     + (AI_QUERY_ANSWER ? '<div style="margin-top:16px;"><div class="row between" style="margin-bottom:4px;"><span></span>'+speakButtonHtml('ai-query-answer-text')+'</div><div class="card" id="ai-query-answer-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_QUERY_ANSWER)+'</div></div>' : '')
     + '</div></div>';
@@ -11099,7 +11100,7 @@ function renderDetailShell(p) {
         : '<span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:rgba(13,148,136,0.14);color:var(--accent-dark);white-space:nowrap;">'+(isSurgical?'Surgical':'OPD')+'</span>')
     + '<span style="font-size:11px;font-weight:700;padding:4px 8px 4px 10px;border-radius:20px;white-space:nowrap;display:flex;align-items:center;gap:5px;background:'+(currentStatus==='Active'?'rgba(22,163,74,0.12)':currentStatus==='Completed'?'rgba(37,99,235,0.12)':'rgba(31,41,55,0.1)')+';">'
       + '<span style="width:5px;height:5px;border-radius:50%;flex:none;background:'+(currentStatus==='Active'?'#15803d':currentStatus==='Completed'?'#1d4ed8':'#1f2937')+';"></span>'
-      + '<select class="select" style="font-size:11px;padding:0;height:auto;border:none;background:none;font-weight:700;color:'+(currentStatus==='Active'?'#15803d':currentStatus==='Completed'?'#1d4ed8':'#1f2937')+';" data-field="status">'+statusOptions+'</select>'
+      + '<select class="select" aria-label="Case status" style="font-size:11px;padding:0;height:auto;border:none;background:none;font-weight:700;color:'+(currentStatus==='Active'?'#15803d':currentStatus==='Completed'?'#1d4ed8':'#1f2937')+';" data-field="status">'+statusOptions+'</select>'
     + '</span>'
   + '</div>';
   const regionsSpecLineHdr = (p.regions||[]).length ? (p.regions||[]).join(', ') : '';
@@ -17552,8 +17553,8 @@ function syncCardHtml() {
     + '<label class="field-label">Cloud Sync Account</label>'
     + '<p style="font-size:12px;color:var(--muted);margin:6px 0 10px;">Set this up once to prepare for multi-device sync. Sync isn\u2019t active yet \u2014 your data stays local for now.</p>'
     + '<div style="display:flex;flex-direction:column;gap:8px;">'
-    + '<input class="input" id="auth-email" type="email" placeholder="" autocomplete="username">'
-    + '<div style="position:relative;"><input class="input" id="auth-password" type="password" placeholder="" autocomplete="current-password" style="padding-right:64px;">'
+    + '<input class="input" id="auth-email" type="email" placeholder="Email" aria-label="Email" autocomplete="username">'
+    + '<div style="position:relative;"><input class="input" id="auth-password" type="password" placeholder="Password" aria-label="Password" autocomplete="current-password" style="padding-right:64px;">'
     + '<button type="button" data-action="toggle-auth-pw" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--accent-dark);font-weight:700;font-size:12px;padding:8px;">Show</button></div>'
     + '</div>'
     + '<div id="auth-err" role="alert" style="font-size:12px;color:var(--red);min-height:16px;margin-top:8px;"></div>'
