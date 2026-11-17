@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261117.9">
+<meta name="app-build" content="20261117.10">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -1263,7 +1263,7 @@ button.stat3-i{cursor:pointer;} button.stat3-i:active{transform:scale(0.97);}
   <button type="button" class="dn-btn dn-create" data-action="add-menu-new-opd"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>New OPD case</span></button>
   <button type="button" class="dn-btn dn-create" data-action="add-menu-new-surgical"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>New surgical case</span></button>
   <div class="dn-grow"></div>
-  <div class="dn-hint" aria-hidden="true"><b>/</b> search &middot; <b>N</b> new OPD &middot; <b>Shift+N</b> new surgical<br><b>H</b> home &middot; <b>P</b> patients &middot; <b>F</b> follow-ups &middot; <b>T</b> today<br><b>J</b>/<b>K</b> next/prev patient &middot; <b>1&ndash;4</b> tabs &middot; <b>Esc</b> back</div>
+  <div class="dn-hint" aria-hidden="true"><b>/</b> search &middot; <b>N</b> new OPD &middot; <b>Shift+N</b> new surgical<br><b>H</b> home &middot; <b>P</b> patients &middot; <b>F</b> follow-ups &middot; <b>T</b> today<br><span style="white-space:nowrap"><b>J</b>/<b>K</b> patient &middot; <b>1&ndash;4</b> tabs &middot; <b>Esc</b> back</span></div>
   <button type="button" class="dn-btn" data-nav="more" data-action="open-more"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg><span>More</span></button>
 </nav>
 <aside id="desk-rail" aria-label="Patients"><input id="rail-q" type="search" placeholder="Find patient&hellip;" autocomplete="off" aria-label="Find patient"><div id="rail-list"></div></aside>
@@ -3834,6 +3834,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Laptop: Esc closes the open popup or menu first; patient-file shortcuts pause while a form has typed text, so nothing is lost',
       'Laptop patient file: J/K to jump to next/previous patient, 1-4 for tabs, Esc to go back; Next Follow-up bar now full width. Phones unchanged',
       'Laptop: the left menu now stays on every page (Follow-ups calendar, Photo Gallery, Stats, Settings, Backup...), with a new Follow-ups entry and F shortcut. Phones unchanged',
       'Merge undo: restoring a merged duplicate from Recently Deleted now also moves its follow-ups, investigations, prescriptions and photos back. Photo changes (label, note, which patient) now sync to your other devices',
@@ -11428,13 +11429,21 @@ document.addEventListener('keydown', function (e) {
   if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || window.innerWidth < 900) return;
   const t = e.target, tag = ((t && t.tagName) || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select' || (t && t.isContentEditable)) { if (e.key === 'Escape' && t.blur) t.blur(); return; }
+  if (e.key === 'Escape') { // Esc closes the open menu or popup first
+    const pm = document.getElementById('patient-menu-wrap');
+    if (pm && !pm.hidden) { pm.hidden = true; e.preventDefault(); return; }
+    const bd = Array.from(document.querySelectorAll('.modal-backdrop[data-action]')).filter(x => /close|cancel/.test(x.dataset.action)).pop();
+    if (bd) { e.preventDefault(); bd.click(); return; }
+  }
   const nav = document.getElementById('desk-nav');
   if (!nav || getComputedStyle(nav).display === 'none') return;
   if (document.querySelector('.modal-backdrop, .modal-overlay, [role="dialog"]')) return;
   const go = a => { const b = nav.querySelector('[data-action="' + a + '"]'); if (b) { e.preventDefault(); b.click(); return true; } return false; };
   const k = e.key;
-  if (VIEW === 'detail' && window.innerWidth >= 1100) { // patient-file shortcuts
+  if (VIEW === 'detail' && window.innerWidth >= 1100) { // patient-file shortcuts (skipped while a form or typed text is open, so no draft is lost)
+    const draft = ADD_FOLLOWUP_OPEN || Array.from(document.querySelectorAll('#app textarea, #app input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=file])')).some(x => (x.value || '').trim());
     const tabs = Array.from(document.querySelectorAll('#detail-tabs .detail-tab-btn'));
+    if (!draft) {
     if (/^[1-4]$/.test(k) && tabs[+k - 1]) { e.preventDefault(); tabs[+k - 1].click(); return; }
     if (k === 'j' || k === 'k' || k === 'J' || k === 'K') {
       const items = Array.from(document.querySelectorAll('#rail-list .rail-item')).filter(x => !x.hidden);
@@ -11444,6 +11453,7 @@ document.addEventListener('keydown', function (e) {
       return;
     }
     if (k === 'Escape') { const b = document.querySelector('[data-action="back-to-list"]'); if (b) { e.preventDefault(); b.click(); } return; }
+    }
   }
   if (k === '/') {
     e.preventDefault();
