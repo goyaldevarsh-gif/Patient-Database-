@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261117.10">
+<meta name="app-build" content="20261117.11">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -1803,12 +1803,17 @@ function parseFuSteps(text) {
   });
   return out;
 }
+function addMonthsClamped(d, n) { // 31 Jan + 1 month = 28/29 Feb (not 3 Mar)
+  const day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + n);
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return d;
+}
 function fuStepAdd(base, st) {
   const d = new Date(base.getTime());
   if (st.u === 'd') d.setDate(d.getDate() + st.n);
   else if (st.u === 'w') d.setDate(d.getDate() + 7 * st.n);
-  else if (st.u === 'm') d.setMonth(d.getMonth() + st.n);
-  else d.setFullYear(d.getFullYear() + st.n);
+  else if (st.u === 'm') addMonthsClamped(d, st.n);
+  else addMonthsClamped(d, 12 * st.n);
   return d;
 }
 function fuStepLabel(st) { return st.n + ' ' + ({d:'day',w:'week',m:'month',y:'year'}[st.u]) + (st.n > 1 ? 's' : ''); }
@@ -2157,7 +2162,7 @@ function computeRelativeFollowupDate(num, unit) {
   if (!n || n < 1) return '';
   const d = new Date(); d.setHours(12, 0, 0, 0);
   if (unit === 'weeks') d.setDate(d.getDate() + n * 7);
-  else if (unit === 'months') d.setMonth(d.getMonth() + n);
+  else if (unit === 'months') addMonthsClamped(d, n);
   else d.setDate(d.getDate() + n); // days
   return localYmd(d);
 }
@@ -3834,6 +3839,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Fixes: infants (age in months/days) can be saved; WhatsApp numbers with a leading 0 or two numbers in one box now open the right chat; follow-ups on 31st no longer jump a month; weekly digest uses local days; Photos zip works for Hindi names; laptop patient search covers all patients; contact export fields fixed',
       'Laptop: Esc closes the open popup or menu first; patient-file shortcuts pause while a form has typed text, so nothing is lost',
       'Laptop patient file: J/K to jump to next/previous patient, 1-4 for tabs, Esc to go back; Next Follow-up bar now full width. Phones unchanged',
       'Laptop: the left menu now stays on every page (Follow-ups calendar, Photo Gallery, Stats, Settings, Backup...), with a new Follow-ups entry and F shortcut. Phones unchanged',
@@ -4328,7 +4334,7 @@ function fixApostropheS(text) { return String(text || '').replace(/([A-Za-z]{2,}
 function isOverdue(dateStr) { if (!dateStr) return false; const d = new Date(dateStr); if (isNaN(d)) return false; return d < new Date(todayStr()); }
 function patientAgeGroup(p) {
   const age = parseInt(p.age, 10);
-  if (isNaN(age)) return null;
+  if (isNaN(age)) return (parseInt(p.ageMonths, 10) > 0 || parseInt(p.ageDays, 10) > 0) ? 'pediatric' : null; // infants are recorded in months/days
   if (age < 18) return 'pediatric';
   if (age >= 60) return 'geriatric';
   return 'adult';
@@ -5175,7 +5181,7 @@ function shortDiagnosisForContact(diagnosis) {
 }
 function syncMarketingContact(patient) {
   if (!patient || !patient.whatsapp) return;
-  let digits = String(patient.whatsapp).replace(/\D/g, '');
+  let digits = toWaNumber(patient.whatsapp);
   if (!digits) return;
   const list = loadMarketingContactsLocal();
   const existing = list.find(c => c.digits === digits);
@@ -5189,7 +5195,7 @@ function backfillMarketingContacts() {
   let list = loadMarketingContactsLocal();
   (PATIENTS || []).forEach(patient => {
     if (!patient || !patient.whatsapp) return;
-    let digits = String(patient.whatsapp).replace(/\D/g, '');
+    let digits = toWaNumber(patient.whatsapp);
     if (!digits) return;
     const existing = list.find(c => c.digits === digits);
     const diagnosis = shortDiagnosisForContact(patient.diagnosis);
@@ -5292,14 +5298,14 @@ function computeWeeklyDigestStats() {
   const weekAhead = new Date(); weekAhead.setDate(weekAhead.getDate() + 7);
   let surgeriesThisWeek = 0, newOpdThisWeek = 0, overdueFollowUps = 0, dueNext7Days = 0;
   PATIENTS.forEach(p => {
-    const d = p.surgeryDate ? new Date(p.surgeryDate) : null;
-    if (d && d >= weekAgo && d <= now) {
+    const d = p.surgeryDate || '';
+    if (d && d >= localYmd(weekAgo) && d <= localYmd(now)) {
       if (p.caseType === 'surgical' && p.surgeryStatus !== 'awaiting') surgeriesThisWeek++; else if (p.caseType !== 'surgical') newOpdThisWeek++;
     }
     if (isOverdue(p.nextFollowUpDate)) overdueFollowUps++;
     else if (p.nextFollowUpDate) {
-      const fu = new Date(p.nextFollowUpDate);
-      if (fu >= now && fu <= weekAhead) dueNext7Days++;
+      const fu = p.nextFollowUpDate;
+      if (fu >= localYmd(now) && fu <= localYmd(weekAhead)) dueNext7Days++;
     }
   });
   return { surgeriesThisWeek, newOpdThisWeek, overdueFollowUps, dueNext7Days, totalPatients: PATIENTS.length };
@@ -5630,7 +5636,7 @@ function renderBroadcastQueueView() {
     return '<div style="padding:60px 24px;text-align:center;"><div class="done-ic"><svg class="ic" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div><div style="font-weight:800;margin:8px 0;">All done</div><button class="btn" data-action="close-mc">Close</button></div>';
   }
   const c = MC_QUEUE[MC_QUEUE_INDEX];
-  const waUrl = 'https://wa.me/'+c.digits+'?text='+encodeURIComponent(MC_BROADCAST_MSG);
+  const waUrl = 'https://wa.me/'+(toWaNumber(c.digits)||c.digits)+'?text='+encodeURIComponent(MC_BROADCAST_MSG);
   return '<div style="padding:24px;text-align:center;">'
     + '<div style="font-size:13px;color:var(--muted);margin-bottom:10px;">'+(MC_QUEUE_INDEX+1)+' of '+MC_QUEUE.length+'</div>'
     + '<div style="font-size:18px;font-weight:800;margin-bottom:20px;">'+esc(c.name)+'</div>'
@@ -7325,8 +7331,13 @@ function renderOnboardingView() {
 }
 
 function toWaNumber(raw) {
-  let digits = String(raw||'').replace(/\D/g,'');
+  let txt = String(raw||'');
+  // two numbers in one box ("98xxxxxxx1 / 98xxxxxxx2"): use the first one
+  const parts = txt.split(/\s*(?:[\/,;]|\bor\b|\s{2,})\s*/i).filter(x => x.replace(/\D/g,'').length >= 10);
+  if (parts.length > 1) txt = parts[0];
+  let digits = txt.replace(/\D/g,'');
   if (!digits) return '';
+  digits = digits.replace(/^0+/, ''); // 0091..., 09876... -> drop the dialling zeros
   if (digits.length === 10) digits = '91' + digits; // assume India if no country code given
   return digits;
 }
@@ -9060,6 +9071,7 @@ function avatarColorFor(id) {
 function relativeDaysUntil(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr), today = new Date(todayStr());
+  if (isNaN(d)) return '';
   const days = Math.round((d - today) / 86400000);
   if (days === 0) return 'today';
   if (days === 1) return 'tomorrow';
@@ -11413,7 +11425,11 @@ function fillDeskRail() {
   if (!box) return;
   if (VIEW !== 'detail' || window.innerWidth < 1100) { box.innerHTML = ''; return; }
   const q = ((document.getElementById('rail-q') || {}).value || '').trim().toLowerCase();
-  const list = PATIENTS.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 400);
+  const all = PATIENTS.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const matches = p => ((p.name || '') + ' ' + (p.patientCode || '') + ' ' + (p.diagnosis || '')).toLowerCase().indexOf(q) >= 0;
+  // with a search typed, look through every patient (not just the newest 400) so older cases can still be found
+  const list = q ? all.filter(matches).slice(0, 400) : all.slice(0, 400);
+  if (q && SELECTED_ID && !list.some(p => p.id === SELECTED_ID)) { const cur = all.find(p => p.id === SELECTED_ID); if (cur) list.unshift(cur); }
   box.innerHTML = list.map(p => {
     const hay = ((p.name || '') + ' ' + (p.patientCode || '') + ' ' + (p.diagnosis || '')).toLowerCase();
     const meta = [formatAge(p), p.sex].filter(x => x && x !== '\u2014').join(' \u00b7 ');
@@ -12213,7 +12229,7 @@ function photoStageLabel(im, p) {
   return p.caseType === 'surgical' ? 'Pre-op' : 'Clinical';
 }
 function zipSafe(str, max) {
-  return String(str || '').replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/[^\w\s\-().,&+]/g, '').replace(/\s+/g, '-').replace(/^-+|-+$/g, '').slice(0, max || 60);
+  return String(str || '').replace(/[\\/:*?"<>|\r\n]+/g, ' ').replace(/[^\p{L}\p{N}\p{M}_\s\-().,&+]/gu, '').replace(/\s+/g, '-').replace(/^-+|-+$/g, '').slice(0, max || 60);
 }
 function photoExt(blob) {
   const t = (blob && blob.type || '').toLowerCase();
@@ -12234,7 +12250,7 @@ async function buildPhotosZip(patients, opts) {
     seq++; nPatients++;
     let folder = anon
       ? 'Case-' + String(seq).padStart(3, '0') + (zipSafe(p.procedure || displayDiagnosis(p.diagnosis) || '', 40) ? '_' + zipSafe(p.procedure || displayDiagnosis(p.diagnosis), 40) : '')
-      : zipSafe(p.name || 'Patient', 40) + (p.patientCode ? '_' + zipSafe(p.patientCode, 20) : '');
+      : (zipSafe(p.name || '', 40) || 'Patient') + (p.patientCode ? '_' + zipSafe(p.patientCode, 20) : '');
     if (usedFolders[folder]) { usedFolders[folder]++; folder += '-' + usedFolders[folder]; } else usedFolders[folder] = 1;
     let info = (anon ? 'Case ' + String(seq).padStart(3, '0') : (p.name || 'Patient') + (p.patientCode ? '  (' + p.patientCode + ')' : '')) + '\n';
     info += '='.repeat(40) + '\n';
@@ -12301,7 +12317,7 @@ function openPhotosZipDialog(scope, patientId) {
         const pct = Math.floor(m.percent / 20) * 20;
         if (pct !== lastPct && pct > 0 && pct < 100) { lastPct = pct; toast('Zipping ' + pct + '%…'); }
       });
-      const base = scope === 'case' ? (anon ? 'Case-photos' : zipSafe(p.name || 'patient', 40) + '-photos') : 'OrthoVault-all-photos';
+      const base = scope === 'case' ? (anon ? 'Case-photos' : (zipSafe(p.name || '', 40) || 'patient') + '-photos') : 'OrthoVault-all-photos';
       await saveZipBlob(blob, base + (anon ? '-anonymous' : '') + '-' + todayStr() + '.zip');
       toast('✓ ' + nPhotos + ' file' + (nPhotos !== 1 ? 's' : '') + (nPatients > 1 ? ' from ' + nPatients + ' patients' : '') + ' zipped');
     } catch (err) {
@@ -14282,8 +14298,9 @@ document.addEventListener('click', async (e) => {
       if (nameEl) { nameEl.scrollIntoView({behavior:'smooth', block:'center'}); nameEl.focus(); }
       return;
     }
-    if (!AP_TEMP.age || !String(AP_TEMP.age).trim()) {
-      toast('Age is required');
+    if (!String(AP_TEMP.age || '').trim() && !String(AP_TEMP.ageMonths || '').trim() && !String(AP_TEMP.ageDays || '').trim()) {
+      const typed = ((document.getElementById('ap-age-text') || {}).value || '').trim();
+      toast(typed ? 'Age not understood \u2014 try 45, 6 months or 3 days' : 'Age is required');
       const ageEl = document.getElementById('ap-age-text');
       if (ageEl) { ageEl.scrollIntoView({behavior:'smooth', block:'center'}); ageEl.focus(); }
       return;
@@ -16000,8 +16017,9 @@ document.addEventListener('click', async (e) => {
     if (!contacts.length) { toast('No contacts to export'); return; }
     const vcards = contacts.map(c => {
       const phone = c.digits.length === 10 ? '+91' + c.digits : '+' + c.digits;
-      const firstName = (c.name || 'Unknown').trim().split(' ')[0];
-      const lastName = 'Patient' + (c.diagnosis ? ' ' + c.diagnosis : '');
+      const vEsc = t => String(t).replace(/\\/g, '\\\\').replace(/,/g, '\\,'); // commas/backslashes would split the vCard fields
+      const firstName = vEsc((c.name || 'Unknown').trim().split(' ')[0]);
+      const lastName = 'Patient' + (c.diagnosis ? ' ' + vEsc(c.diagnosis) : '');
       const fullDisplay = firstName + ' ' + lastName;
       return 'BEGIN:VCARD\r\nVERSION:3.0\r\nN:' + lastName.replace(/[\r\n;]/g,' ') + ';' + firstName.replace(/[\r\n;]/g,' ') + ';;;\r\nFN:' + fullDisplay.replace(/[\r\n]/g,' ') + '\r\nTEL;TYPE=CELL:' + phone + '\r\nEND:VCARD';
     }).join('\r\n');
