@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261119.1">
+<meta name="app-build" content="20261119.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -1398,32 +1398,85 @@ function syncPatientToCloud(p) {
    patient data. Stored as a single doc rather than a live-synced collection since it's
    small and changes rarely; pulled once at sign-in, pushed on every save. AI tier only,
    same as everything else that touches Firestore. */
-function syncDiagDataToCloud() {
-  if (!CURRENT_USER || !isAiTier()) return;
-  try {
-    firestoreDB.collection('users').doc(CURRENT_USER.uid).collection('meta').doc('diag-data')
-      .set({ centres: DIAG_CENTRES, referrals: DIAG_REFERRALS, watchlist: DIAG_WATCHLIST })
-      .catch(function(err) { console.error('Diagnostic data cloud sync failed', err); });
-  } catch (e) {}
+/* Referral data (centres, entries, watchlist) is merged between devices instead of one overwriting the other:
+   entries from both sides are kept, anything deleted on one device (tombstones) stays deleted, and the merged
+   copy is written back. It runs at sign-in, when the app comes back to the foreground, when Referrals is opened,
+   and shortly after every save. */
+const DIAG_REMOVED_KEY = 'orthovault-diag-removed-v1';
+function loadDiagRemoved() { try { const r = JSON.parse(localStorage.getItem(DIAG_REMOVED_KEY) || '[]'); return Array.isArray(r) ? r : []; } catch (e) { return []; } }
+function markDiagRemoved(id) { try { const r = loadDiagRemoved(); if (r.indexOf(String(id)) < 0) { r.push(String(id)); localStorage.setItem(DIAG_REMOVED_KEY, JSON.stringify(r.slice(-2000))); } } catch (e) {} }
+function stampDiagChanged(list, prevList) { // marks new/edited entries with the time, so the newer copy wins when devices merge
+  const prev = {}; (prevList || []).forEach(x => { if (x) prev[x.id] = x; });
+  (list || []).forEach(x => {
+    if (!x) return; const p = prev[x.id];
+    if (!p) { if (!x.updatedAt) x.updatedAt = Date.now(); return; }
+    if (JSON.stringify(Object.assign({}, p, { updatedAt: 0 })) !== JSON.stringify(Object.assign({}, x, { updatedAt: 0 }))) x.updatedAt = Date.now();
+    else if (p.updatedAt && !x.updatedAt) x.updatedAt = p.updatedAt;
+  });
 }
-async function pullDiagDataFromCloud(uid) {
-  if (!isAiTier()) return;
-  try {
-    const doc = await firestoreDB.collection('users').doc(uid).collection('meta').doc('diag-data').get();
-    const localCentres = loadDiagCentres();
-    const localReferrals = loadDiagReferrals();
-    const localWatchlist = loadDiagWatchlist();
-    if (doc.exists) {
-      const data = doc.data();
-      if (Array.isArray(data.centres) && data.centres.length && !localCentres.length) { DIAG_CENTRES = data.centres; saveDiagCentresLocal(DIAG_CENTRES); }
-      if (Array.isArray(data.referrals) && data.referrals.length && !localReferrals.length) { DIAG_REFERRALS = data.referrals; saveDiagReferralsLocal(DIAG_REFERRALS); }
-      if (Array.isArray(data.watchlist) && data.watchlist.length && !localWatchlist.length) { DIAG_WATCHLIST = data.watchlist; saveDiagWatchlistLocal(DIAG_WATCHLIST); }
-    } else if (localCentres.length || localReferrals.length || localWatchlist.length) {
-      DIAG_CENTRES = localCentres; DIAG_REFERRALS = localReferrals; DIAG_WATCHLIST = localWatchlist;
-      syncDiagDataToCloud(); // first time signing in \u2014 seed the cloud copy from this device
+function diagMergeLists(localL, cloudL, removed) {
+  const out = [], byId = {};
+  (localL || []).forEach(x => { if (x && x.id != null && removed.indexOf(String(x.id)) < 0 && !byId[x.id]) { byId[x.id] = x; out.push(x); } });
+  (cloudL || []).forEach(x => {
+    if (!x || x.id == null || removed.indexOf(String(x.id)) >= 0) return;
+    const cur = byId[x.id];
+    if (!cur) { byId[x.id] = x; out.push(x); }
+    else {
+      const xu = Number(x.updatedAt) || 0, cu = Number(cur.updatedAt) || 0;
+      if (xu > cu || (xu === cu && (Number(x.paidAt) || 0) > (Number(cur.paidAt) || 0))) { out[out.indexOf(cur)] = x; byId[x.id] = x; } // the newer edit wins
     }
-  } catch (e) { console.error('Diagnostic data cloud pull failed', e); }
+  });
+  return out;
 }
+let DIAG_SYNC_BUSY = false, DIAG_SYNC_TIMER = null, DIAG_SYNC_LAST = 0;
+async function diagSyncNow(uid) {
+  uid = uid || (CURRENT_USER && CURRENT_USER.uid);
+  if (!uid || !isAiTier() || DIAG_SYNC_BUSY) return;
+  DIAG_SYNC_BUSY = true;
+  try {
+    const ref = firestoreDB.collection('users').doc(uid).collection('meta').doc('diag-data');
+    const doc = await ref.get();
+    const cloud = doc.exists ? (doc.data() || {}) : {};
+    const removed = Array.from(new Set(loadDiagRemoved().concat((cloud.removed || []).map(String))));
+    try { localStorage.setItem(DIAG_REMOVED_KEY, JSON.stringify(removed.slice(-2000))); } catch (e) {}
+    const lc = loadDiagCentres(), lr = loadDiagReferrals(), lw = loadDiagWatchlist();
+    const lcJ = JSON.stringify(lc), lrJ = JSON.stringify(lr), lwJ = JSON.stringify(lw); // as stored, before any id clean-up below
+    // a centre with the same name on both devices is one centre: point the other device's entries at the local one
+    const idMap = {};
+    const cloudCentres = (Array.isArray(cloud.centres) ? cloud.centres : []).filter(c => {
+      const same = lc.find(l => l.id !== c.id && String(l.name || '').trim().toLowerCase() === String(c.name || '').trim().toLowerCase());
+      if (!same) return true;
+      if (String(c.id) < String(same.id)) { // both devices settle on the smaller id so they stop disagreeing
+        lr.forEach(r => { if (r.centreId === same.id) r.centreId = c.id; });
+        same.id = c.id; return false;
+      }
+      idMap[c.id] = same.id; return false;
+    });
+    const cloudRefs = (Array.isArray(cloud.referrals) ? cloud.referrals : []).map(r => idMap[r.centreId] ? Object.assign({}, r, { centreId: idMap[r.centreId] }) : r);
+    const mc = diagMergeLists(lc, cloudCentres, removed);
+    const mr = diagMergeLists(lr, cloudRefs, removed);
+    const mw = diagMergeLists(lw, Array.isArray(cloud.watchlist) ? cloud.watchlist : [], removed);
+    const changedLocal = JSON.stringify(mc) !== lcJ || JSON.stringify(mr) !== lrJ || JSON.stringify(mw) !== lwJ;
+    if (changedLocal) {
+      DIAG_CENTRES = mc; DIAG_REFERRALS = mr; DIAG_WATCHLIST = mw;
+      saveDiagCentresLocal(mc); saveDiagReferralsLocal(mr); saveDiagWatchlistLocal(mw);
+    }
+    const sameAsCloud = doc.exists && JSON.stringify(mc) === JSON.stringify(cloud.centres || []) && JSON.stringify(mr) === JSON.stringify(cloud.referrals || []) && JSON.stringify(mw) === JSON.stringify(cloud.watchlist || []) && removed.length === (cloud.removed || []).length;
+    if (!sameAsCloud && (mc.length || mr.length || mw.length || removed.length)) await ref.set({ centres: mc, referrals: mr, watchlist: mw, removed: removed });
+    DIAG_SYNC_LAST = Date.now();
+    if (changedLocal) {
+      if (VIEW === 'list') render();
+      else if (VIEW === 'diag-referrals' && !DIAG_ADD_REFERRAL_OPEN && !DIAG_ADD_CENTRE_OPEN && !DIAG_COMPLETING_ID) render();
+    }
+  } catch (e) { console.error('Diagnostic data cloud sync failed', e); }
+  DIAG_SYNC_BUSY = false;
+}
+function syncDiagDataToCloud() { // called after every local save; waits a moment so quick edits go up together
+  if (!CURRENT_USER || !isAiTier()) return;
+  clearTimeout(DIAG_SYNC_TIMER);
+  DIAG_SYNC_TIMER = setTimeout(function() { diagSyncNow(); }, 900);
+}
+async function pullDiagDataFromCloud(uid) { return diagSyncNow(uid); }
 function syncMarketingContactsToCloud() {
   if (!CURRENT_USER || !isAiTier()) return;
   try {
@@ -3854,6 +3907,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Referrals now merge between phone and laptop (entries from both are kept, deletions stay deleted) instead of one device overwriting the other; syncs on sign-in, when the app is reopened, and when Referrals is opened',
       'New AI logo on every AI button; laptop: Referrals added to the left menu and a Referrals summary card (pending commission, earned/received this month, per-centre pending) on Home. Phones unchanged',
       'Fixes: very long unbroken text no longer pushes the Timeline off-screen; screen-reader labels on unlabeled boxes; Email/Password hints on the Cloud Sync sign-in; notification tap now opens the app root',
       'Fixes: infants (age in months/days) can be saved; WhatsApp numbers with a leading 0 or two numbers in one box now open the right chat; follow-ups on 31st no longer jump a month; weekly digest uses local days; Photos zip works for Hindi names; laptop patient search covers all patients; contact export fields fixed',
@@ -5180,7 +5234,7 @@ function loadDiagCentres() {
 function saveDiagCentresLocal(list) {
   try { localStorage.setItem(DIAG_CENTRES_KEY, JSON.stringify(list)); } catch (e) {}
 }
-function saveDiagCentres(list) { saveDiagCentresLocal(list); syncDiagDataToCloud(); }
+function saveDiagCentres(list) { stampDiagChanged(list, loadDiagCentres()); saveDiagCentresLocal(list); syncDiagDataToCloud(); }
 const MARKETING_CONTACTS_KEY = 'orthovault-marketing-contacts-v1';
 function loadMarketingContactsLocal() {
   try { const raw = localStorage.getItem(MARKETING_CONTACTS_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
@@ -5228,7 +5282,7 @@ function loadDiagReferrals() {
 function saveDiagReferralsLocal(list) {
   try { localStorage.setItem(DIAG_REFERRALS_KEY, JSON.stringify(list)); } catch (e) {}
 }
-function saveDiagReferrals(list) { saveDiagReferralsLocal(list); syncDiagDataToCloud(); }
+function saveDiagReferrals(list) { stampDiagChanged(list, loadDiagReferrals()); saveDiagReferralsLocal(list); syncDiagDataToCloud(); }
 const DIAG_WATCHLIST_KEY = 'orthovault-diag-watchlist-v1';
 function loadDiagWatchlist() {
   try { const raw = localStorage.getItem(DIAG_WATCHLIST_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; }
@@ -5236,7 +5290,7 @@ function loadDiagWatchlist() {
 function saveDiagWatchlistLocal(list) {
   try { localStorage.setItem(DIAG_WATCHLIST_KEY, JSON.stringify(list)); } catch (e) {}
 }
-function saveDiagWatchlist(list) { saveDiagWatchlistLocal(list); syncDiagDataToCloud(); }
+function saveDiagWatchlist(list) { stampDiagChanged(list, loadDiagWatchlist()); saveDiagWatchlistLocal(list); syncDiagDataToCloud(); }
 function diagWatchReminderLink(entry) {
   const digits = toWaNumber(entry.phone);
   if (!digits || !entry.date) return null;
@@ -13079,6 +13133,7 @@ function ovBanner(id, html, buttons, autoHideMs) {
   setTimeout(check, 20000);
   setInterval(check, 20 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && CURRENT_USER && Date.now() - DIAG_SYNC_LAST > 60000) diagSyncNow(); });
 })();
 
 /* Add-patient draft autosave (text fields only; photos are already stored in IndexedDB as they are added) */
@@ -15493,7 +15548,7 @@ document.addEventListener('click', async (e) => {
     DIAG_WATCHLIST = loadDiagWatchlist();
     DIAG_ADD_CENTRE_OPEN = false; DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDIT_CENTRE_ID = null; DIAG_FILTER_CENTRE = ''; DIAG_VIEW_MODE = 'active';
     DIAG_COMPLETING_ID = null; DIAG_SHOW_MONTHLY = false; DIAG_SCREEN_TAB = 'referrals'; DIAG_WATCH_ADD_OPEN = false; DIAG_WATCH_EDIT_ID = null;
-    VIEW = 'diag-referrals'; render(); return;
+    VIEW = 'diag-referrals'; render(); diagSyncNow(); return;
   }
   if (action === 'close-diag-referrals') { VIEW = 'more'; render(); return; }
   if (action === 'diag-quick-add-starter') {
@@ -15511,6 +15566,7 @@ document.addEventListener('click', async (e) => {
     const orphanedCount = DIAG_REFERRALS.filter(r => r.centreId === el.dataset.id).length;
     if (orphanedCount) { ARMED_DELETE = null; toast('This centre has ' + orphanedCount + ' entries, so it cannot be deleted'); render(); return; }
     DIAG_CENTRES = DIAG_CENTRES.filter(c => c.id !== el.dataset.id);
+    markDiagRemoved(el.dataset.id);
     saveDiagCentres(DIAG_CENTRES);
     ARMED_DELETE = null;
     toast('Centre removed' + (orphanedCount ? ' \u2014 ' + orphanedCount + ' existing entr' + (orphanedCount!==1?'ies':'y') + ' kept, just unlinked' : ''));
@@ -15705,6 +15761,7 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'diag-delete-referral') {
     DIAG_REFERRALS = DIAG_REFERRALS.filter(x => x.id !== el.dataset.id);
+    markDiagRemoved(el.dataset.id);
     saveDiagReferrals(DIAG_REFERRALS);
     toast('Entry deleted');
     render();
@@ -15746,6 +15803,7 @@ document.addEventListener('click', async (e) => {
   }
   if (action === 'diag-watch-close') {
     DIAG_WATCHLIST = DIAG_WATCHLIST.filter(x => x.id !== el.dataset.id);
+    markDiagRemoved(el.dataset.id);
     saveDiagWatchlist(DIAG_WATCHLIST);
     toast('Removed from watchlist');
     render();
@@ -15761,6 +15819,7 @@ document.addEventListener('click', async (e) => {
     AP_TEMP.chiefComplaints = w.complaint;
     AP_PHOTOS = []; AP_DUPLICATE_FROM = null;
     DIAG_WATCHLIST = DIAG_WATCHLIST.filter(x => x.id !== w.id);
+    markDiagRemoved(w.id);
     saveDiagWatchlist(DIAG_WATCHLIST);
     VIEW = 'add';
     render();
