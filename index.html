@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261119.2">
+<meta name="app-build" content="20261121.1">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -82,8 +82,8 @@
     if (!isAiTier()) return; // Only AI tier has token limits
     try {
       const doc = await firestoreDB.collection('users').doc(uid).collection('meta').doc('tokenUsage').get();
-      const today = new Date().toISOString().split('T')[0];
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+      const today = localYmd(new Date());
+      const monthStart = localYmd(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
       
       if (doc.exists) {
         const data = doc.data();
@@ -117,8 +117,8 @@
     if (!isAiTier()) return;
     try {
       const totalTokens = (inputTokens || 0) + (outputTokens || 0);
-      const today = new Date().toISOString().split('T')[0];
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+      const today = localYmd(new Date());
+      const monthStart = localYmd(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
       
       TOKEN_USAGE.dailyCount = (TOKEN_USAGE.dailyCount || 0) + totalTokens;
       TOKEN_USAGE.monthlyCount = (TOKEN_USAGE.monthlyCount || 0) + totalTokens;
@@ -1192,6 +1192,8 @@ button.stat3-i{cursor:pointer;} button.stat3-i:active{transform:scale(0.97);}
   #tab-body > .px > button.card[data-action="quick-fu-open"] { width:100%; gap:12px; }
   .detail-tabs-bar .tabs { padding:0 20px; }
   .detail-tabs-bar .tab { padding:14px 18px 13px; }
+  /* follow-up calendar: shorter day boxes so the chosen day's list stays on screen */
+  .cal-cell { aspect-ratio:auto; height:58px; }
   /* list-style screens: keep lines readable */
   html:is([data-view="reminders-tab"],[data-view="daily"],[data-view="more"]) #app > div > .px:not(.sticky-top) { max-width:980px; }
 
@@ -1466,7 +1468,7 @@ async function diagSyncNow(uid) {
     DIAG_SYNC_LAST = Date.now();
     if (changedLocal) {
       if (VIEW === 'list') render();
-      else if (VIEW === 'diag-referrals' && !DIAG_ADD_REFERRAL_OPEN && !DIAG_ADD_CENTRE_OPEN && !DIAG_COMPLETING_ID) render();
+      else if (VIEW === 'diag-referrals' && !DIAG_ADD_REFERRAL_OPEN && !DIAG_ADD_CENTRE_OPEN && !DIAG_COMPLETING_ID && !DIAG_WATCH_ADD_OPEN && !DIAG_WATCH_EDIT_ID && !DIAG_EDIT_CENTRE_ID && !DIAG_EDITING_REFERRAL_ID) render();
     }
   } catch (e) { console.error('Diagnostic data cloud sync failed', e); }
   DIAG_SYNC_BUSY = false;
@@ -3413,7 +3415,7 @@ function quickPickerHtml() {
   const purposeLabel = { followup:'Add Follow-up Visit', reminder:'Add Reminder', investigation:'Add Investigation' }[QUICK_PICKER_PURPOSE] || 'Pick a patient';
   return '<div class="usearch-topbar">'
     + '<button class="icon-btn" data-action="close-quick-picker" aria-label="Close patient picker">'+ic('back')+'</button>'
-    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="quick-picker-input" autofocus placeholder="" value="'+esc(QUICK_PICKER_QUERY)+'"></div>'
+    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="quick-picker-input" autofocus placeholder="Search patient…" value="'+esc(QUICK_PICKER_QUERY)+'"></div>'
     + '</div>'
     + '<div class="usearch-results" id="quick-picker-results">'+quickPickerResultsHtml()+'</div>';
 }
@@ -3907,6 +3909,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Fixes: search boxes and unlabeled boxes (prescription dose/frequency/duration, investigation values) now show hints; Photo Gallery and Marketing Contacts search keep the cursor while typing; Gallery shows a Show all time button when the month is empty; More search clear button only shows when needed; AI daily/monthly limits reset on local dates. Laptop: patient list scrolls to the open patient; follow-up calendar boxes are shorter so the day list stays visible',
       'Referrals now merge between phone and laptop (entries from both are kept, deletions stay deleted) instead of one device overwriting the other; syncs on sign-in, when the app is reopened, and when Referrals is opened',
       'New AI logo on every AI button; laptop: Referrals added to the left menu and a Referrals summary card (pending commission, earned/received this month, per-centre pending) on Home. Phones unchanged',
       'Fixes: very long unbroken text no longer pushes the Timeline off-screen; screen-reader labels on unlabeled boxes; Email/Password hints on the Cloud Sync sign-in; notification tap now opens the app root',
@@ -5683,7 +5686,7 @@ function renderMarketingContactsView() {
     + '<div class="row gap3" style="margin-bottom:0;"><button class="icon-btn" data-action="close-mc">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Marketing Contacts ('+list.length+')</h2></div>'
     + '</div>'
     + '<div class="px" style="padding-top:14px;">'
-    + '<input class="input" placeholder="" value="'+esc(MC_SEARCH||'')+'" oninput="MC_SEARCH=this.value;render()" style="margin-bottom:10px;">'
+    + '<input class="input" id="mc-search-input" placeholder="Search name or number…" value="'+esc(MC_SEARCH||'')+'" oninput="MC_SEARCH=this.value;renderKeepFocus(\'mc-search-input\')" style="margin-bottom:10px;">'
     + (list.length ? '<button class="btn btn-primary btn-block" style="margin-bottom:12px;" data-action="mc-start-broadcast">'+ic('message')+' Broadcast to all ('+list.length+')</button>' : '')
     + '<div class="row gap2" style="margin-bottom:14px;">'
     + '<button class="btn btn-sm" style="flex:1;" data-action="mc-export-vcard">'+ic('users')+' Save All to Contacts</button>'
@@ -5699,7 +5702,7 @@ function renderBroadcastQueueView() {
       + '<div class="row gap3"><button class="icon-btn" data-action="mc-cancel-broadcast">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Broadcast Message</h2></div>'
       + '</div>'
       + '<div class="px" style="padding-top:14px;">'
-      + '<textarea class="input" id="mc-msg-input" rows="5" placeholder="" aria-label="Broadcast message"></textarea>'
+      + '<textarea class="input" id="mc-msg-input" rows="5" placeholder="Type the message to send to everyone…" aria-label="Broadcast message"></textarea>'
       + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="mc-confirm-msg">Start Sending</button>'
       + '</div></div>';
   }
@@ -6223,7 +6226,7 @@ function renderSchemeFinderView() {
         + '<span class="score-badge" style="background:var(--accent-light);color:var(--accent-dark);">'+(isRghs?'RGHS':'MAA Yojana')+'</span>'
         + '<button class="btn btn-sm" data-action="scheme-change-scheme">Change scheme</button>'
       + '</div>'
-      + '<input class="input" id="scheme-search-input" placeholder="" value="'+esc(SCHEME_FINDER_QUERY)+'" style="margin-bottom:12px;">'
+      + '<input class="input" id="scheme-search-input" placeholder="Search procedure or code…" value="'+esc(SCHEME_FINDER_QUERY)+'" style="margin-bottom:12px;">'
       + '<div id="scheme-results-list">' + schemeResultsHtml(forCase) + '</div>'
       + '</div>';
   }
@@ -6468,7 +6471,7 @@ function moreSearchBarHtml() {
   return '<div class="row gap2" style="align-items:center;background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:9px 12px;margin-bottom:12px;">'
     + '<span style="flex:none;color:var(--muted);">'+ic('search')+'</span>'
     + '<input type="text" id="more-search-input" placeholder="Search features (e.g. backup, referral)" value="'+esc(MORE_SEARCH||'')+'" style="flex:1;border:none;background:none;font-size:13px;outline:none;">'
-    + '<button type="button" class="icon-btn" style="width:24px;height:24px;flex:none;" data-action="more-search-clear">'+ic('x')+'</button>'
+    + '<button type="button" class="icon-btn" style="width:24px;height:24px;flex:none;'+(MORE_SEARCH?'':'visibility:hidden;')+'" data-action="more-search-clear">'+ic('x')+'</button>'
     + '</div>';
 }
 function moreBodyHtml() {
@@ -6577,7 +6580,7 @@ function cbTagEditorHtml() {
   const suggestions = cbAllTags().filter(t => !CB_DRAFT_TAGS.includes(t));
   return '<label class="field-label" style="margin-top:10px;">Tags</label>'
     + '<div class="row gap2">'
-      + '<input class="input" id="cb-tag-input" placeholder="" style="flex:1;">'
+      + '<input class="input" id="cb-tag-input" placeholder="Add a tag" style="flex:1;">'
       + '<button type="button" class="btn" data-action="cb-add-tag">'+ic('plus')+'</button>'
     + '</div>'
     + (CB_DRAFT_TAGS.length ? '<div class="chips" style="margin-top:8px;">' + CB_DRAFT_TAGS.map(t => '<button type="button" class="chip" data-action="cb-remove-draft-tag" data-tag="'+esc(t)+'" style="background:var(--accent-bg);color:var(--accent);border-color:var(--accent-border);">'+esc(t)+' '+ic('x')+'</button>').join('') + '</div>' : '')
@@ -6671,7 +6674,7 @@ async function renderClinicalBankView() {
     + '</div>'
     + '<div class="px" style="padding-top:14px;">'
     + '<p style="font-size:11.5px;color:var(--muted);margin:0 0 12px;">Interesting findings, saved separately from patient records \u2014 for papers, teaching, or your own reference.</p>'
-    + '<div class="search-wrap" style="margin-bottom:10px;">'+ic('search')+'<input class="search-input" id="cb-search-input" placeholder="" aria-label="Search notes" value="'+esc(CB_SEARCH)+'"></div>'
+    + '<div class="search-wrap" style="margin-bottom:10px;">'+ic('search')+'<input class="search-input" id="cb-search-input" placeholder="Search notes, tags…" aria-label="Search notes" value="'+esc(CB_SEARCH)+'"></div>'
     + '<button type="button" class="btn btn-block" style="margin-bottom:14px;" data-action="cb-open-add">'+ic('plus')+' New Entry</button>'
     + '<div id="cb-results-list">' + cbResultsListHtml(filtered, imageMap) + '</div>'
     + '</div></div>';
@@ -8274,7 +8277,7 @@ function closeUniversalSearch() {
 }
 function usearchOverlayHtml() {
   return '<div class="usearch-topbar">'
-    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="usearch-input" autofocus placeholder="" value="'+esc(USEARCH_QUERY)+'"></div>'
+    + '<div class="search-wrap" style="flex:1;">'+ic('search')+'<input class="search-input" id="usearch-input" autofocus placeholder="Search name, ID, diagnosis, notes…" value="'+esc(USEARCH_QUERY)+'"></div>'
     + '<button class="icon-btn" data-action="close-usearch">'+ic('x')+'</button>'
     + '</div>'
     + '<div class="usearch-results" id="usearch-results">'+usearchResultsHtml()+'</div>';
@@ -8516,7 +8519,7 @@ function renderPatientsView() {
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px 10px;">'
     + '<div class="row gap3" style="margin-bottom:10px;align-items:center;"><button class="icon-btn" data-action="back-to-list">'+ic('back')+'</button><h2 style="font-size:17px;font-weight:800;margin:0;">Patients</h2><span style="font-size:12px;color:var(--muted);">'+PATIENTS.length+' total</span></div>'
-    + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
+    + '<div class="search-wrap'+(searchMicButtonHtml('search-input')?' has-mic':'')+'">'+ic('search')+'<input class="search-input" id="search-input" placeholder="Search name, ID, diagnosis, place…" value="'+esc(SEARCH)+'">'+searchMicButtonHtml('search-input')+'</div>'
     + chips
     + sortFilterRow
     + ((SEARCH || FILTER_TYPE !== 'all' || activeFilterCount) ? (
@@ -8971,7 +8974,7 @@ function renderAddView() {
       + '<details style="border-radius:8px;background:rgba(13,148,136,0.04);border:1px solid rgba(13,148,136,0.15);margin-top:8px;"><summary style="cursor:pointer;font-weight:700;padding:10px 12px;color:var(--accent-dark);">'+ic('plus')+' Quick add injection (optional)</summary>'
       + '<div style="padding:0 12px 12px;">'
       + '<label class="field-label" style="font-size:11px;color:var(--muted);">Injection type & site</label>'+renderQuickTextChips(INJECTION_LIB_KEY,'ap-inj-label')
-      + '<input class="input" id="ap-inj-label" placeholder="" style="margin-bottom:8px;" data-field="apInjLabel">'
+      + '<input class="input" id="ap-inj-label" placeholder="e.g. PRP, Steroid — right knee" style="margin-bottom:8px;" data-field="apInjLabel">'
       + autocompleteBoxHtml('ap-inj-label')
       + '<label class="field-label" style="font-size:11px;color:var(--muted);margin-top:8px;">Notes (optional)</label>'
       + '<textarea class="textarea" id="ap-inj-notes" rows="2" placeholder="" style="font-size:12px;" data-field="apInjNotes"></textarea>'
@@ -9445,8 +9448,8 @@ async function renderPhotoGalleryView() {
   const timeOptions = [['week','This Week'],['month','This Month'],['3months','Last 3 Months'],['all','All Time']];
 
   const filtersHtml = '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">'
-    + '<button type="button" class="btn btn-sm btn-block" data-action="open-unfiled-photos">'+ic('camera')+' Unfiled photos'+(UNFILED_COUNT_CACHE?' ('+UNFILED_COUNT_CACHE+')':'')+' \u2014 recover photos without a patient</button>'
-    + '<input class="input" id="gallery-patient-search" placeholder="" value="'+esc(GALLERY_PATIENT_SEARCH)+'" style="font-size:13px;">'
+    + '<button type="button" class="btn btn-sm btn-block" data-action="open-unfiled-photos">'+ic('camera')+' Unfiled photos'+(UNFILED_COUNT_CACHE?' ('+UNFILED_COUNT_CACHE+')':'')+' \u2014 no patient linked</button>'
+    + '<input class="input" id="gallery-patient-search" placeholder="Search patient name…" value="'+esc(GALLERY_PATIENT_SEARCH)+'" style="font-size:13px;">'
     + '<div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;">'
     + '<select class="select" id="gallery-category" style="flex:none;width:auto;font-size:12px;">'+catOptions.map(([v,l])=>'<option value="'+v+'"'+(GALLERY_CATEGORY===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'
     + '<select class="select" id="gallery-region" style="flex:none;width:auto;font-size:12px;">'+regionOptions.map(([v,l])=>'<option value="'+v+'"'+(GALLERY_REGION===v?' selected':'')+'>'+l+'</option>').join('')+'</select>'
@@ -9457,7 +9460,8 @@ async function renderPhotoGalleryView() {
     return '<div style="padding-bottom:40px;">'
       + '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3"><button class="icon-btn" data-action="close-photo-gallery">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Photo Gallery</h2></div></div>'
       + '<div class="px" style="padding-top:14px;">' + filtersHtml
-      + '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">No photos match these filters.</div>'
+      + '<div style="text-align:center;color:var(--muted);font-size:12px;padding:40px 0;">No photos match these filters.'
+      + (GALLERY_TIMEPERIOD !== 'all' ? '<div style="margin-top:12px;"><button type="button" class="btn btn-sm" data-action="gallery-show-all-time">Show all time</button></div>' : '') + '</div>'
       + '</div></div>';
   }
 
@@ -9825,13 +9829,13 @@ async function renderInvestigationsTab(p) {
     addBlock = '<button class="btn btn-outline-dashed btn-block" data-action="open-add-inv">'+ic('plus')+' Add investigation</button>';
   } else {
     addBlock = '<div class="card" style="background:rgba(13,148,136,0.04);border-color:#B5E3DD;margin-bottom:12px;">'
-      + '<label class="field-label" style="font-weight:700;">Investigation Type</label><input class="input" id="inv-label" placeholder="" style="margin-bottom:12px;">'
+      + '<label class="field-label" style="font-weight:700;">Investigation Type</label><input class="input" id="inv-label" placeholder="e.g. X-ray, MRI, Blood tests" style="margin-bottom:12px;">'
       + '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:12px;">'
       + '<label class="field-label">Parameter Details</label>'
       + '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px;margin-bottom:8px;">'
-      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Parameter name</label><input class="input" id="inv-param" placeholder="" style="font-size:12px;"></div>'
-      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Value</label><input class="input" id="inv-value" type="text" inputmode="decimal" placeholder="" style="font-size:12px;"></div>'
-      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Unit</label><input class="input" id="inv-unit" placeholder="" style="font-size:12px;"></div>'
+      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Parameter name</label><input class="input" id="inv-param" placeholder="e.g. Hb" style="font-size:12px;"></div>'
+      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Value</label><input class="input" id="inv-value" type="text" inputmode="decimal" placeholder="11.2" style="font-size:12px;"></div>'
+      + '<div><label class="field-label" style="font-size:11px;color:var(--muted);">Unit</label><input class="input" id="inv-unit" placeholder="g/dl" style="font-size:12px;"></div>'
       + '</div>'
       + '</div>'
       + '<label class="field-label">Test Date</label><input class="input" type="date" id="inv-date" value="'+todayStr()+'" style="margin-bottom:12px;">'
@@ -9892,14 +9896,14 @@ function renderRxMedRows() {
     + '<div class="row between" style="margin-bottom:8px;"><span style="font-weight:800;font-size:11px;color:var(--muted);text-transform:uppercase;">Medicine '+(idx+1)+'</span>'
     + (RX_TEMP.medicines.length>1 ? '<button class="icon-btn" data-action="rx-remove-med" data-id="'+m.id+'">'+ic('trash')+'</button>' : '')
     + '</div>'
-    + '<input class="input" id="rxm-'+m.id+'-name" list="rx-med-names" placeholder="" value="'+esc(m.name)+'" style="margin-bottom:8px;">'
+    + '<input class="input" id="rxm-'+m.id+'-name" list="rx-med-names" placeholder="Medicine name" value="'+esc(m.name)+'" style="margin-bottom:8px;">'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">'
-    + '<input class="input" id="rxm-'+m.id+'-dose" placeholder="" value="'+esc(m.dose)+'">'
-    + '<input class="input" id="rxm-'+m.id+'-frequency" placeholder="" value="'+esc(m.frequency)+'">'
+    + '<input class="input" id="rxm-'+m.id+'-dose" placeholder="Dose, e.g. 500 mg" value="'+esc(m.dose)+'">'
+    + '<input class="input" id="rxm-'+m.id+'-frequency" placeholder="Frequency, e.g. 1-0-1" value="'+esc(m.frequency)+'">'
     + '</div>'
     + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-    + '<input class="input" id="rxm-'+m.id+'-duration" placeholder="" value="'+esc(m.duration)+'">'
-    + '<input class="input" id="rxm-'+m.id+'-instructions" placeholder="" value="'+esc(m.instructions)+'">'
+    + '<input class="input" id="rxm-'+m.id+'-duration" placeholder="Duration, e.g. 5 days" value="'+esc(m.duration)+'">'
+    + '<input class="input" id="rxm-'+m.id+'-instructions" placeholder="Instructions, e.g. after food" value="'+esc(m.instructions)+'">'
     + '</div>'
     + '</div>'
   ).join('') + '<datalist id="rx-med-names">'+medNameSuggestions().map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist>';
@@ -11385,7 +11389,7 @@ function renderReminderForm() {
   const patient = REMINDER_FORM_PATIENT_ID ? getPatient(REMINDER_FORM_PATIENT_ID) : null;
   return '<div class="card" style="background:rgba(13,148,136,0.04);border-color:#B5E3DD;margin-bottom:12px;">'
     + '<label class="field-label">New reminder'+(patient?' for '+escName(patient.name):'')+'</label>'
-    + '<textarea class="textarea" id="rem-text" rows="2" placeholder=""></textarea>'
+    + '<textarea class="textarea" id="rem-text" rows="2" placeholder="e.g. Call lab for culture report"></textarea>'
     + (!patient ? '<label class="field-label" style="margin-top:8px;">Category</label><div class="seg">'+REMINDER_CATEGORIES.map(c=>'<button class="seg-btn'+(REMINDER_FORM_CATEGORY===c?' active':'')+'" data-action="reminder-set-category" data-value="'+c+'">'+c+'</button>').join('')+'</div>' : '')
     + '<label class="field-label" style="margin-top:8px;">Due date (optional)</label><input class="input" type="date" id="rem-date" value="'+esc(REMINDER_FORM_DATE)+'">'
     + '<div class="row gap2" style="margin-top:10px;"><button class="btn" style="flex:1;" data-action="reminder-cancel">Cancel</button><button class="btn btn-primary" style="flex:2;" data-action="reminder-save">Save reminder</button></div>'
@@ -11527,6 +11531,9 @@ function fillDeskRail() {
       + '<span class="rail-m">' + esc(meta) + (p.caseType === 'surgical' ? ' \u00b7 Surgical' : ' \u00b7 OPD') + '</span>'
       + (p.diagnosis ? '<span class="rail-d">' + esc(p.diagnosis) + '</span>' : '') + '</button>';
   }).join('');
+  // the list is rebuilt on every change, so bring the open patient back into view (older patients sit far down)
+  const act = box.querySelector('.rail-item.active');
+  if (act) { const br = box.getBoundingClientRect(), ar = act.getBoundingClientRect(); box.scrollTop += (ar.top - br.top) - (box.clientHeight - ar.height) / 2; }
 }
 document.addEventListener('input', function (e) { if (e.target && e.target.id === 'rail-q') { try { fillDeskRail(); } catch (x) {} } });
 window.addEventListener('resize', function () { if (VIEW === 'detail') { try { fillDeskRail(); } catch (x) {} } });
@@ -11578,6 +11585,14 @@ document.addEventListener('keydown', function (e) {
 
 /* ================= Root render ================= */
 
+/* Re-draw the screen but keep the cursor in the search box the doctor is typing in */
+async function renderKeepFocus(id) {
+  const old = document.getElementById(id);
+  const pos = old && typeof old.selectionStart === 'number' ? old.selectionStart : null;
+  await render();
+  const el = document.getElementById(id);
+  if (el) { el.focus(); try { const n = pos == null ? el.value.length : pos; el.setSelectionRange(n, n); } catch (e) {} }
+}
 async function render() {
   const app = document.getElementById('app');
   SHOW_PATIENT_MORE_MENU = false;
@@ -11849,7 +11864,7 @@ async function renderImageViewerFrame(url, imgId) {
     + (isVid ? '<video src="'+url+'" controls playsinline style="max-width:100%;max-height:78vh;margin:auto;display:block;"></video>' : '<img src="'+url+'" style="touch-action:none;transform-origin:center center;">')
     + '<div class="modal-note-bar">'
     + (rec && rec.imageCategory === 'xray' ? '<select class="select" id="viewer-xray-subtype-select" data-imgid="'+imgId+'" style="margin-bottom:6px;font-size:12px;">'+ALL_XRAY_SUBTYPES.map(s=>'<option'+(rec.xraySubtype===s?' selected':'')+'>'+s+'</option>').join('')+'</select>' : '')
-    + '<input class="input" id="img-note-input" data-img-note="'+imgId+'" placeholder="" value="'+esc(note)+'"></div>';
+    + '<input class="input" id="img-note-input" data-img-note="'+imgId+'" placeholder="Add a note for this image…" value="'+esc(note)+'"></div>';
 }
 function viewerNav(dir) {
   if (!IMG_GALLERY) return;
@@ -16277,7 +16292,8 @@ document.addEventListener('click', async (e) => {
     const container = document.getElementById('more-results-container');
     if (container) container.innerHTML = moreBodyHtml();
     const input = document.getElementById('more-search-input');
-    if (input) input.value = '';
+    if (input) { input.value = ''; input.focus(); }
+    el.style.visibility = 'hidden';
     return;
   }
 
@@ -16344,6 +16360,7 @@ document.addEventListener('click', async (e) => {
     await openImageViewer(el.dataset.url, el.dataset.imgid, gallery, startIdx);
     return;
   }
+  if (action === 'gallery-show-all-time') { GALLERY_TIMEPERIOD = 'all'; await render(); return; }
   if (action === 'open-unfiled-photos') { VIEW = 'unfiled-photos'; await render(); return; }
   if (action === 'close-unfiled-photos') { VIEW = 'more'; await render(); return; }
   if (action === 'unfiled-file') {
@@ -17185,13 +17202,14 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'ap-name' || e.target.id === 'ap-age-text') { updateApReadiness(); }
   if (e.target.id === 'gallery-patient-search') {
     clearTimeout(window.__galleryySearchTimer);
-    window.__galleryySearchTimer = setTimeout(() => { GALLERY_PATIENT_SEARCH = e.target.value; render(); }, 350);
+    window.__galleryySearchTimer = setTimeout(() => { GALLERY_PATIENT_SEARCH = e.target.value; renderKeepFocus('gallery-patient-search'); }, 350);
     return;
   }
   if (e.target.id === 'ap-oc-date') { if (AP_TEMP) { AP_TEMP.outcomeDate = e.target.value; document.querySelectorAll('[data-action="ap-outcome-set"]').forEach(b => b.classList.remove('active')); } return; }
   if (e.target.id === 'diag-custom-disc') { DIAG_CUSTOM_DISC = e.target.value; diagRefreshCustomPreview(); return; }
   if (e.target.id === 'more-search-input') {
     MORE_SEARCH = e.target.value;
+    const clearBtn = document.querySelector('[data-action="more-search-clear"]'); if (clearBtn) clearBtn.style.visibility = MORE_SEARCH ? '' : 'hidden';
     const container = document.getElementById('more-results-container');
     if (container) container.innerHTML = moreBodyHtml();
     return;
