@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261121.1">
+<meta name="app-build" content="20261121.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -765,7 +765,7 @@
   .chips { scroll-snap-type:x proximity; -webkit-overflow-scrolling:touch; }
   .chip { scroll-snap-align:start; transition:background 150ms ease, color 150ms ease, border-color 150ms ease; }
   .btn, .icon-btn { transition:background 150ms ease, border-color 150ms ease, box-shadow 150ms ease; }
-  button:focus-visible, a:focus-visible, .chip:focus-visible, .btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  button:focus-visible, a:focus-visible, .chip:focus-visible, .btn:focus-visible, div[data-action][tabindex]:focus-visible, span[data-action][tabindex]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration:0.01ms !important; animation-iteration-count:1 !important; transition-duration:0.01ms !important; scroll-behavior:auto !important; }
   }
@@ -1143,7 +1143,7 @@ button.stat3-i{cursor:pointer;} button.stat3-i:active{transform:scale(0.97);}
   .home-grid { display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:16px 20px; grid-auto-flow:row dense; align-items:stretch; padding-bottom:8px; }
   .home-col, .stat3, .home-stats { display:contents; }
   .home-grid .home-h, .home-grid > .home-col > div[style*="height:14px"] { display:none; }
-  .home-grid .stat3-i, .home-grid .fu-tile { grid-row:auto; grid-column:span 4; margin:0; padding:18px 14px; justify-content:center; align-items:center; text-align:center; }
+  .home-grid .stat3-i, .home-grid .fu-tile { grid-row:auto; grid-column:span 2; margin:0; padding:18px 14px; justify-content:center; align-items:center; text-align:center; }
   .home-grid > .home-col:nth-child(2) > button.card, .home-grid > .home-col:nth-child(2) > .btn-block { grid-row:auto; }
   .home-grid > .home-col > button.chip[data-action="open-medscript-new"] { grid-column:1 / -1; justify-self:start; margin:0 !important; }
   .home-grid > .home-col:nth-child(2) > button.card { grid-column:7 / span 6; margin:0 !important; }
@@ -2175,9 +2175,9 @@ function dailyRowHtml(p, kind) {
       : '<button type="button" class="chip" style="font-size:11.5px;padding:6px 12px;" data-action="open-patient" data-id="' + p.id + '">Open file</button>');
   return '<div style="padding:9px 14px;border-bottom:1px solid var(--border);">'
     + '<div class="row between" style="align-items:center;gap:8px;">'
-    + '<span data-action="open-patient" data-id="' + p.id + '" style="cursor:pointer;flex:1;min-width:0;"><span style="display:block;font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(p.name) + '</span>'
+    + '<span data-action="open-patient" data-id="' + p.id + '" style="cursor:pointer;flex:1;min-width:0;"><span style="display:block;font-size:13px;font-weight:700;overflow-wrap:anywhere;">' + esc(p.name) + '</span>'
     + '<span style="display:block;font-size:11px;font-weight:600;color:' + (d < today ? 'var(--red)' : '#b45309') + ';">' + esc(when + rem) + '</span>'
-    + '<span style="display:block;font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + followUpContextLine(p) + '</span></span>'
+    + '<span style="display:block;font-size:10.5px;color:var(--muted);line-height:1.35;overflow-wrap:anywhere;">' + followUpContextLine(p) + '</span></span>'
     + main
     + '<button type="button" class="chip" style="font-size:11.5px;padding:6px 10px;" data-action="daily-done-menu" data-id="' + p.id + '">Done ▾</button>'
     + '</div></div>';
@@ -2256,7 +2256,7 @@ function relativeFollowupPickerHtml(idPrefix, currentDate, autoMode, note) {
   return '<div class="row gap2" style="flex-wrap:wrap;margin-bottom:8px;">'+chips+'</div>'
     + '<div class="row gap2" style="align-items:flex-end;">'
     + '<div style="flex:0.8;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">In</label>'
-    + '<input class="input" type="number" min="1" max="365" inputmode="numeric" placeholder="" id="'+idPrefix+'-num" data-relfu="num" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
+    + '<input class="input" type="number" min="1" max="365" inputmode="numeric" placeholder="e.g. 3" id="'+idPrefix+'-num" data-relfu="num" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
     + '</div>'
     + '<div style="flex:1.1;"><label style="font-size:10px;color:var(--muted);display:block;margin-bottom:4px;">Unit</label>'
     + '<select class="select" id="'+idPrefix+'-unit" data-relfu="unit" data-relfu-target="'+idPrefix+'"'+autoAttr+'>'
@@ -3909,6 +3909,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'More fixes: Home tiles tidy on mid-size laptop windows; Today\u2019s work shows full names and last-seen dates; hints on follow-up, AI and referral boxes; patient cards and rows can be reached with Tab and opened with Enter on a laptop; long names wrap on cards at Large text; settings rows no longer run off narrow phones',
       'Fixes: search boxes and unlabeled boxes (prescription dose/frequency/duration, investigation values) now show hints; Photo Gallery and Marketing Contacts search keep the cursor while typing; Gallery shows a Show all time button when the month is empty; More search clear button only shows when needed; AI daily/monthly limits reset on local dates. Laptop: patient list scrolls to the open patient; follow-up calendar boxes are shorter so the day list stays visible',
       'Referrals now merge between phone and laptop (entries from both are kept, deletions stay deleted) instead of one device overwriting the other; syncs on sign-in, when the app is reopened, and when Referrals is opened',
       'New AI logo on every AI button; laptop: Referrals added to the left menu and a Referrals summary card (pending commission, earned/received this month, per-centre pending) on Home. Phones unchanged',
@@ -4187,6 +4188,12 @@ function newPatientShape() {
   function label(root) {
     if (!root || !root.querySelectorAll) return;
     const list = root.matches && root.matches('button') ? [root] : [];
+    // clickable cards/rows built from div/span: reachable with Tab and opened with Enter/Space (laptop keyboard)
+    root.querySelectorAll('div[data-action]:not([tabindex]), span[data-action]:not([tabindex])').forEach(x => {
+      if (x.closest('.modal-backdrop, .modal-overlay') && x.matches('.modal-backdrop, .modal-overlay')) return;
+      if (x.querySelector('input, textarea, select')) return;
+      x.setAttribute('tabindex', '0'); if (!x.hasAttribute('role')) x.setAttribute('role', 'button');
+    });
     root.querySelectorAll('button:not([aria-label])').forEach(b => list.push(b));
     list.forEach(b => {
       if (b.hasAttribute('aria-label') || (b.textContent || '').trim()) return;
@@ -4203,6 +4210,12 @@ function newPatientShape() {
       if (queued.size && !raf) raf = requestAnimationFrame(flush);
     }).observe(document.body, { childList: true, subtree: true });
   }
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const t = e.target;
+    if (!t || !t.matches || !t.matches('div[data-action][tabindex], span[data-action][tabindex]')) return;
+    e.preventDefault(); t.click();
+  });
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
 /* ============ Sample patients (demo data, clearly marked, removable in one tap) ============ */
@@ -5469,7 +5482,7 @@ function masterAiModalHtml() {
     + '</div>'
     + '<div style="padding:16px;">'
     + '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">e.g. "add patient 45M knee pain OPD ACL tear" \u00b7 "CTEV cases last 3 months" \u00b7 "iska summary do" \u00b7 "Patel ka follow-up Monday rakho"</div>'
-    + '<textarea class="textarea" id="master-ai-input" rows="4" placeholder="" autofocus style="margin-bottom:10px;">'+esc(MASTER_AI_INPUT)+'</textarea>'
+    + '<textarea class="textarea" id="master-ai-input" rows="4" placeholder="Type your command or question…" autofocus style="margin-bottom:10px;">'+esc(MASTER_AI_INPUT)+'</textarea>'
     + '<div class="row gap2">'
     + '<button class="icon-btn" style="flex:none;width:44px;height:44px;background:var(--bg-soft);border-radius:12px;" data-action="master-ai-use-mic" title="Speak instead">'+ic('mic')+'</button>'
     + '<button class="btn btn-primary" style="flex:1;" data-action="master-ai-analyze">'+aiLogo(18)+' Send</button>'
@@ -5878,7 +5891,7 @@ const DIAG_STARTERS = { ananta: { label: 'Ananta Diagnostic', list: () => ANANTA
 function diagAddCentreFormHtml() {
   const editing = DIAG_EDIT_CENTRE_ID ? DIAG_CENTRES.find(c => c.id === DIAG_EDIT_CENTRE_ID) : null;
   return '<div class="card" style="background:rgba(13,148,136,0.04);border-color:#B5E3DD;margin-bottom:12px;">'
-    + '<label class="field-label">Centre name</label><input class="input" id="diag-centre-name" placeholder="" value="'+esc(editing?editing.name:'')+'" style="margin-bottom:10px;">'
+    + '<label class="field-label">Centre name</label><input class="input" id="diag-centre-name" placeholder="e.g. Ananta Diagnostics" value="'+esc(editing?editing.name:'')+'" style="margin-bottom:10px;">'
     + '<label class="field-label">Max pool % (your ceiling before any discount)</label><input class="input" type="number" id="diag-centre-pool" placeholder="" value="'+esc(editing?editing.maxPoolPercent:'40')+'" style="margin-bottom:10px;">'
     + '<div class="row gap2" style="margin-bottom:10px;"><div style="flex:1;"><label class="field-label">MRI pool %</label><input class="input" type="number" id="diag-centre-pool-mri" placeholder="same" value="'+esc(editing&&editing.poolByType&&editing.poolByType.MRI!=null?editing.poolByType.MRI:'')+'"></div><div style="flex:1;"><label class="field-label">CT pool %</label><input class="input" type="number" id="diag-centre-pool-ct" placeholder="same" value="'+esc(editing&&editing.poolByType&&editing.poolByType.CT!=null?editing.poolByType.CT:'')+'"></div></div>'
     + '<div class="row gap2" style="margin-bottom:10px;"><div style="flex:1;"><label class="field-label">Staff % on MRI</label><input class="input" type="number" id="diag-centre-staff-mri" placeholder="0" value="'+esc(editing&&editing.staffByType&&editing.staffByType.MRI?editing.staffByType.MRI:'')+'"></div><div style="flex:1;"><label class="field-label">Staff % on CT</label><input class="input" type="number" id="diag-centre-staff-ct" placeholder="0" value="'+esc(editing&&editing.staffByType&&editing.staffByType.CT?editing.staffByType.CT:'')+'"></div></div>'
@@ -5900,7 +5913,7 @@ function diagAddReferralFormHtml() {
     + (DIAG_CENTRES.length > 1 ? ('<label class="field-label">Diagnostic centre</label><select class="select" id="diag-ref-centre" style="margin-bottom:10px;">'
         + DIAG_CENTRES.map(c => '<option value="'+c.id+'"'+(c.id===centre.id?' selected':'')+'>'+esc(c.name)+'</option>').join('')
         + '</select>') : '')
-    + '<label class="field-label">Patient name</label><input class="input" id="diag-ref-patient" placeholder="" value="'+esc(DIAG_REF_PATIENT_DRAFT)+'" style="margin-bottom:10px;">'
+    + '<label class="field-label">Patient name</label><input class="input" id="diag-ref-patient" placeholder="Patient name" value="'+esc(DIAG_REF_PATIENT_DRAFT)+'" style="margin-bottom:10px;">'
     + (!investigations.length ? '<p style="font-size:12px;color:var(--muted);margin-bottom:10px;">This centre has no rate list yet \u2014 edit it to add investigations, or load Ananta\u2019s starter list.</p>' : (
         '<label class="field-label">Investigation</label><select class="select" id="diag-ref-investigation" style="margin-bottom:10px;">'
         + investigations.map(i => '<option value="'+esc(i.name)+'"'+(selectedInv&&i.name===selectedInv.name?' selected':'')+'>'+esc(i.name)+' ('+i.type+')</option>').join('')
@@ -6184,9 +6197,9 @@ function renderPatientAiToolsView() {
     : ('<p style="font-size:12px;color:var(--muted);margin:0 0 8px;">A quick 2-3 sentence clinical recap for your own reference.</p>'+aiButtonHtml('ai-summarize-patient','Generate summary',false,null,'gemini'));
 
   const referralContent = '<label class="field-label">Refer to (specialty / doctor name)</label>'
-    + '<input class="input" id="ai-referral-specialist" placeholder="" value="'+esc(AI_REFERRAL_SPECIALIST)+'" style="margin-bottom:8px;">'
+    + '<input class="input" id="ai-referral-specialist" placeholder="e.g. Spine surgeon, Neurologist" value="'+esc(AI_REFERRAL_SPECIALIST)+'" style="margin-bottom:8px;">'
     + '<label class="field-label">Reason for referral</label>'
-    + '<input class="input" id="ai-referral-reason" placeholder="" value="'+esc(AI_REFERRAL_REASON)+'" style="margin-bottom:8px;">'
+    + '<input class="input" id="ai-referral-reason" placeholder="e.g. Suspected cord compression" value="'+esc(AI_REFERRAL_REASON)+'" style="margin-bottom:8px;">'
     + (AI_REFERRAL_LETTER
         ? '<div class="row between" style="margin-bottom:2px;"><span></span>'+speakButtonHtml('ai-referral-letter-text')+'</div><div class="card" id="ai-referral-letter-text" style="white-space:pre-wrap;font-size:12.5px;margin-bottom:8px;">'+esc(AI_REFERRAL_LETTER)+'</div>'
           + '<button class="btn btn-block" data-action="print-referral-letter">'+ic('printer')+' Print with letterhead</button>'
@@ -6694,7 +6707,7 @@ async function renderClinicalBankDetailView() {
     + '<label class="field-label">Images</label>'
     + '<div id="cb-thumbs" style="position:relative;margin-top:8px;margin-bottom:14px;">' + thumbsHtml + '</div>'
     + '<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:10px;">'
-    + '<div><label class="field-label">Patient name (optional)</label><input class="input" id="cb-name" placeholder="" value="'+esc(CB_DRAFT_NAME)+'"></div>'
+    + '<div><label class="field-label">Patient name (optional)</label><input class="input" id="cb-name" placeholder="Name" value="'+esc(CB_DRAFT_NAME)+'"></div>'
     + '<div><label class="field-label">Age</label><input class="input" type="number" id="cb-age" placeholder="" value="'+esc(CB_DRAFT_AGE)+'"></div>'
     + '</div>'
     + '<div style="margin-bottom:10px;"><label class="field-label">Phone number (optional)</label>'
@@ -6703,7 +6716,7 @@ async function renderClinicalBankDetailView() {
     + (CB_DRAFT_PHONE ? '<a href="tel:'+esc(CB_DRAFT_PHONE)+'" class="btn" style="flex:none;">'+ic('phone')+' Call</a>' : '')
     + '</div></div>'
     + '<label class="field-label">What\u2019s interesting about this?</label>'
-    + '<textarea class="textarea" id="cb-note" rows="3" placeholder="">'+esc(CB_DRAFT_NOTE)+'</textarea>'
+    + '<textarea class="textarea" id="cb-note" rows="3" placeholder="What did you find or want to remember?">'+esc(CB_DRAFT_NOTE)+'</textarea>'
     + cbTagEditorHtml()
     + '<button type="button" class="btn btn-primary btn-block" style="margin-top:14px;" data-action="cb-save-entry">'+ic('check')+' Save</button>'
     + '</div>';
@@ -7140,7 +7153,7 @@ function renderAppSettingsView() {
     + '</div></div>'
     + (loadTheme()==='auto' ? '<p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Light 6 AM\u20137 PM, Dark otherwise \u2014 switches automatically.</p>' : '')
     + '</div>'
-    + '<div class="card"><label class="field-label">Text Size</label><div class="row between"><span style="font-size:13px;font-weight:600;">App-wide size</span><div class="seg" style="width:auto;">'
+    + '<div class="card"><label class="field-label">Text Size</label><div class="row between" style="flex-wrap:wrap;gap:8px;"><span style="font-size:13px;font-weight:600;">App-wide size</span><div class="seg" style="width:auto;">'
     + [['small','Small'],['medium','Medium'],['large','Large']].map(([v,l])=>'<button class="seg-btn'+(loadFontSize()===v?' active':'')+'" data-action="set-font-size" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div>'
     + '</div>'
@@ -7149,14 +7162,14 @@ function renderAppSettingsView() {
     + '<details class="card"><summary style="cursor:pointer;font-weight:800;font-size:13px;">Advanced follow-up settings <span style="color:var(--muted);font-weight:500;">(reminders, auto-Lost)</span></summary><div style="margin-top:12px;"><label class="field-label">Reminder limit</label><div class="row between"><span style="font-size:13px;font-weight:600;">Max unanswered reminders</span><div class="seg" style="width:auto;">'
     + [[1,'1'],[2,'2'],[3,'3'],[0,'No limit']].map(([v,l])=>'<button class="seg-btn'+(getReminderLimit()===v?' active':'')+'" data-action="set-reminder-limit" data-value="'+v+'" style="flex:none;padding:8px 12px;">'+l+'</button>').join('')
     + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">The app asks for confirmation before another WhatsApp once this many reminders go unanswered.</p>'
-    + '<div class="row between" style="margin-top:12px;"><span style="font-size:13px;font-weight:600;">Gap between reminders</span><div class="seg" style="width:auto;">'
+    + '<div class="row between" style="margin-top:12px;flex-wrap:wrap;gap:8px;"><span style="font-size:13px;font-weight:600;">Gap between reminders</span><div class="seg" style="width:auto;">'
     + [[5,'5d'],[7,'7d'],[10,'10d'],[14,'14d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getReminderGap()===v?' active':'')+'" data-action="set-reminder-gap" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
     + '</div></div>'
     + '<div style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;"><label class="field-label">Auto-move to Lost</label>'
     + '<div class="row between"><span style="font-size:13px;font-weight:600;">After a reminder, overdue</span><div class="seg" style="width:auto;">'
     + [[30,'30d'],[45,'45d'],[60,'60d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getAutoLostSoft()===v?' active':'')+'" data-action="set-autolost-soft" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
     + '</div></div>'
-    + '<div class="row between" style="margin-top:12px;"><span style="font-size:13px;font-weight:600;">Even without reminder</span><div class="seg" style="width:auto;">'
+    + '<div class="row between" style="margin-top:12px;flex-wrap:wrap;gap:8px;"><span style="font-size:13px;font-weight:600;">Even without reminder</span><div class="seg" style="width:auto;">'
     + [[60,'60d'],[90,'90d'],[120,'120d'],[0,'Off']].map(([v,l])=>'<button class="seg-btn'+(getAutoLostHard()===v?' active':'')+'" data-action="set-autolost-hard" data-value="'+v+'" style="flex:none;padding:8px 10px;">'+l+'</button>').join('')
     + '</div></div><p style="font-size:10.5px;color:var(--muted);margin:6px 0 0;">Lost patients keep all data - adding a visit reopens them, and every auto move has an Undo.</p></div>'
     + '</div></details>'
@@ -8493,7 +8506,7 @@ function renderPatientsView() {
         + '<div class="row between" style="align-items:center;gap:6px;">'
         + '<span class="row gap1" style="min-width:0;overflow:hidden;">'
           + (dot ? '<span class="status-dot" style="background:'+dot.color+';flex:none;" title="'+dot.label+'"></span>' : '')
-          + '<span class="display" style="font-weight:800;font-size:14.5px;color:var(--navy);text-transform:capitalize;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(p.name)+'</span>'
+          + '<span class="display" style="font-weight:800;font-size:14.5px;color:var(--navy);text-transform:capitalize;overflow-wrap:anywhere;">'+esc(p.name)+'</span>'
           + '</span>'
         + '<span class="row gap1" style="flex:none;">'
         + (p.caseType==='surgical' && p.surgeryStatus==='awaiting'
@@ -8782,7 +8795,7 @@ function renderAiQueryView() {
     + '<div class="px" style="padding-top:14px;">'
     + '<p style="font-size:12.5px;color:var(--muted);margin:0 0 16px;">Plain-language question over your current patient list (' + PATIENTS.length + ' patients). Answers only from your own data \u2014 nothing external.</p>'
     + '<div class="row between" style="margin-bottom:4px;"><span></span>'+micButtonHtml('ai-query-input')+'</div>'
-    + '<textarea class="textarea" id="ai-query-input" rows="3" placeholder="" aria-label="Your question">'+esc(AI_QUERY_TEXT||'')+'</textarea>'
+    + '<textarea class="textarea" id="ai-query-input" rows="3" placeholder="e.g. How many ACL cases did I operate this year?" aria-label="Your question">'+esc(AI_QUERY_TEXT||'')+'</textarea>'
     + '<button class="btn btn-primary btn-block" style="margin-top:10px;" data-action="ask-ai-query">'+ic('shield')+' Ask</button>'
     + (AI_QUERY_ANSWER ? '<div style="margin-top:16px;"><div class="row between" style="margin-bottom:4px;"><span></span>'+speakButtonHtml('ai-query-answer-text')+'</div><div class="card" id="ai-query-answer-text" style="white-space:pre-wrap;font-size:13.5px;line-height:1.6;">'+esc(AI_QUERY_ANSWER)+'</div></div>' : '')
     + '</div></div>';
@@ -9611,7 +9624,7 @@ function renderSmartFollowupFormLayer1(p) {
     + '<button type="button" class="chip" data-action="fu-status-select" data-status="Issue">🚨 Issue</button>'
     + '</div>'
     + '<input type="hidden" id="fu-recovery-status" value="">'
-    + '<input class="input" id="fu-label" placeholder="" value="'+esc(suggested)+'" style="margin-bottom:10px;">'
+    + '<input class="input" id="fu-label" placeholder="Visit name, e.g. 3 Weeks" value="'+esc(suggested)+'" style="margin-bottom:10px;">'
     + '</div>'
     + '<div style="margin-bottom:16px;">'
     + '<label class="field-label">Next follow-up?</label>'
@@ -9678,7 +9691,7 @@ function renderSmartFollowupFormLayer3(p) {
     + '</summary>'
     + '<div style="padding:0 12px 14px;">'
     + '<div class="row between" style="margin-bottom:8px;"><span style="font-size:11px;color:var(--muted);">ROM, complications, concerns\u2026</span>'+micButtonHtml('fu-notes')+'</div>'
-    + '<textarea class="textarea" id="fu-notes" rows="3" maxlength="5000" placeholder="" style="background:#fff;"></textarea>'
+    + '<textarea class="textarea" id="fu-notes" rows="3" maxlength="5000" placeholder="Visit notes: wound, ROM, weight-bearing…" style="background:#fff;"></textarea>'
     + '</div>'
     + '</details>';
 
