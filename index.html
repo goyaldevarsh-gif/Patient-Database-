@@ -7716,9 +7716,22 @@ async function handleMedScriptHandoff() {
 async function importMsRx(d, auto) {
   const nm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
   const dg = s => String(s || '').replace(/\D/g, '').slice(-10);
-  if (!d || d.v !== 1 || !d.patient || !nm(d.patient.name) || !Array.isArray(d.medicines) || !d.medicines.length) { if (!auto) toast('MedScript prescription could not be read'); return false; }
+  if (!d || d.v !== 1 || !d.patient || !nm(d.patient.name) || !Array.isArray(d.medicines) || (!d.medicines.length && !String(d.advice || '').trim() && !String(d.dx || '').trim())) { if (!auto) toast('MedScript prescription could not be read'); return false; }
   const ph = dg(d.patient.phone);
-  let p = (d.ovId && PATIENTS.find(x => x.id === d.ovId)) || (ph.length === 10 && PATIENTS.find(x => dg(x.whatsapp) === ph)) || PATIENTS.find(x => nm(x.name) === nm(d.patient.name)) || null;
+  let p = (d.ovId && PATIENTS.find(x => x.id === d.ovId)) || (ph.length === 10 && PATIENTS.find(x => dg(x.whatsapp) === ph)) || null;
+  if (!p) {
+    /* Name alone is weak. Match by name only when exactly one patient has it and nothing contradicts it (different mobile, age far apart, different sex); otherwise start a new patient rather than mix two people's records. */
+    const same = PATIENTS.filter(x => nm(x.name) === nm(d.patient.name));
+    const c = same.length === 1 ? same[0] : null;
+    if (c) {
+      const yrs = (a, m) => (parseFloat(a) >= 0 ? parseFloat(a) : parseFloat(m) >= 0 ? parseFloat(m) / 12 : NaN);
+      const a1 = yrs(c.age, c.ageMonths), a2 = d.patient.ageUnit === 'M' ? yrs('', d.patient.age) : yrs(d.patient.age, '');
+      const phoneClash = ph.length === 10 && dg(c.whatsapp).length === 10 && dg(c.whatsapp) !== ph;
+      const ageClash = !isNaN(a1) && !isNaN(a2) && Math.abs(a1 - a2) > 3;
+      const s1 = /^f/i.test(c.sex || '') ? 'F' : /^m/i.test(c.sex || '') ? 'M' : '', s2 = /^f/i.test(d.patient.sex || '') ? 'F' : /^m/i.test(d.patient.sex || '') ? 'M' : '';
+      if (!phoneClash && !ageClash && !(s1 && s2 && s1 !== s2)) p = c;
+    }
+  }
   if (p && d.rxNo && (p.prescriptions || []).some(r => r.msRxNo === d.rxNo)) {
     if (!auto) { SELECTED_ID = p.id; VIEW = 'detail'; TAB = 'timeline'; toast('Prescription ' + esc(d.rxNo) + ' is already saved for ' + esc(p.name)); }
     return true;
