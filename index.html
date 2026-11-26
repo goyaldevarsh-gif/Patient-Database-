@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261126.4">
+<meta name="app-build" content="20261126.5">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -2150,6 +2150,90 @@ function outcomeSummaryHtml() {
     + (sched ? '<button type="button" class="chip" style="margin-top:8px;" data-action="open-outcome-calls">' + sched + ' scheduled' + (due ? ' · ' + due + ' due' : '') + ' ›</button>' : '') + '</div>';
 }
 
+/* ============ Check-ins: a friendly nudge OUTSIDE the routine follow-ups ============
+   Surgical: 2 weeks / 1 month / 3 months / 6 months / 1 year after surgery. OPD: seen about a month ago with nothing booked.
+   Left out when the patient already came around then, has a follow-up within the next week, is overdue (that lives in the Overdue tab) or is Completed / Lost.
+   What you heard is stored on the patient as p.checkIns = [{key, result, at}] so the same nudge never comes twice. */
+const CHECKIN_STEPS = [[14, '2 weeks', 14], [30, '1 month', 14], [90, '3 months', 30], [180, '6 months', 30], [365, '1 year', 45]];
+const CHECKIN_RESULTS = ['Doing well', 'Needs visit', 'No answer'];
+function checkinDaysSince(ymd) {
+  if (!ymd) return NaN;
+  const a = new Date(todayStr() + 'T12:00:00'), b = new Date(String(ymd).slice(0, 10) + 'T12:00:00');
+  return isNaN(a) || isNaN(b) ? NaN : Math.floor((a - b) / 86400000);
+}
+function checkinState(p, key) {
+  const es = (Array.isArray(p.checkIns) ? p.checkIns : []).filter(c => c && c.key === key);
+  if (es.some(c => c.result !== 'No answer')) return 'done';
+  const na = es.filter(c => c.result === 'No answer');
+  if (na.length >= 3) return 'done';
+  if (na.length && (Date.now() - Math.max.apply(null, na.map(c => c.at || 0))) < 3 * 86400000) return 'snoozed';
+  return 'open';
+}
+function computeCheckIns() {
+  const today = todayStr(), weekAhead = localYmd(new Date(Date.now() + 7 * 86400000));
+  const out = [];
+  (PATIENTS || []).forEach(p => {
+    if (!p || p.isSample) return;
+    if (p.status && p.status !== 'Active' && p.status !== 'Active follow-up') return;
+    const nf = p.nextFollowUpDate || '';
+    if (nf && nf < today) return;
+    if (nf && nf <= weekAhead) return;
+    const lastFu = getLastFollowUpDate(p);
+    if (p.caseType === 'surgical') {
+      if (p.surgeryStatus === 'awaiting' || !/^\d{4}-\d{2}-\d{2}/.test(p.surgeryDate || '')) return;
+      const days = checkinDaysSince(p.surgeryDate);
+      if (isNaN(days) || days < 0) return;
+      let hit = null;
+      CHECKIN_STEPS.forEach(st => { if (days >= st[0] && days <= st[0] + st[2]) hit = st; });
+      if (!hit) return;
+      const key = 's' + hit[0];
+      const due = new Date(new Date(p.surgeryDate.slice(0, 10) + 'T12:00:00').getTime() + hit[0] * 86400000);
+      if (lastFu && lastFu >= localYmd(new Date(due.getTime() - 3 * 86400000)) && lastFu <= today) return;
+      if (checkinState(p, key) !== 'open') return;
+      out.push({ p: p, key: key, kind: 'surgical', when: hit[1], label: hit[1] + ' after surgery · ' + (days - hit[0] > 0 ? (days - hit[0]) + (days - hit[0] === 1 ? ' day' : ' days') + ' ago' : 'today'), waiting: days - hit[0], days: days });
+    } else {
+      if (nf) return;
+      const vd = /^\d{4}-\d{2}-\d{2}/.test(p.surgeryDate || '') ? p.surgeryDate.slice(0, 10) : '';  // for OPD this field is the visit date
+      const visit = (lastFu && vd) ? (lastFu > vd ? lastFu : vd) : (lastFu || vd || (p.createdAt ? localYmd(new Date(p.createdAt)) : ''));
+      const days = checkinDaysSince(visit);
+      if (isNaN(days) || days < 21 || days > 60) return;
+      const key = 'o' + visit;
+      if (checkinState(p, key) !== 'open') return;
+      out.push({ p: p, key: key, kind: 'opd', when: '', label: 'Seen ' + days + ' days ago · nothing booked', waiting: days - 30, days: days });
+    }
+  });
+  out.sort((a, b) => (a.kind === b.kind ? b.waiting - a.waiting : (a.kind === 'surgical' ? -1 : 1)));
+  return out;
+}
+function checkinWaLink(c) {
+  const p = c.p; if (!p.whatsapp) return '';
+  const nm = p.name || '';
+  const msg = c.kind === 'surgical'
+    ? 'Namaste ' + nm + ', clinic se message. Aapki surgery ko ' + c.when + ' ho gaya hai. Ab recovery kaisi chal rahi hai? Dard, sujan ya chalne mein koi dikkat ho to zaroor batayein.'
+    : 'Namaste ' + nm + ', clinic se message. Aapko dikhaye hue ' + (c.days >= 45 ? 'kareeb ' + Math.round(c.days / 30) + ' mahine' : 'kareeb ek mahina') + ' ho gaya hai. Ab aap kaisa feel kar rahe hain? Aaram ho to batayein, nahi to dobara dikhane aa sakte hain.';
+  return 'https://wa.me/' + toWaNumber(p.whatsapp) + '?text=' + encodeURIComponent(msg);
+}
+function checkinRowHtml(c) {
+  const p = c.p;
+  const chip = (r, muted) => '<button type="button" class="chip" style="font-size:11px;padding:5px 10px;' + (muted ? 'color:var(--muted);' : '') + '" data-action="checkin-record" data-id="' + p.id + '" data-key="' + esc(c.key) + '" data-result="' + esc(r) + '">' + (r === 'Skipped' ? 'Skip' : esc(r)) + '</button>';
+  return '<div class="card" style="padding:12px 14px;margin-bottom:12px;">'
+    + '<div class="row between" style="align-items:flex-start;gap:8px;">'
+    + '<span data-action="open-patient" data-id="' + p.id + '" style="cursor:pointer;flex:1;min-width:0;"><span style="display:block;font-weight:800;font-size:13.5px;overflow-wrap:anywhere;">' + escName(p.name) + '</span>'
+    + '<span style="display:block;font-size:11px;color:var(--muted);margin-top:1px;">' + followUpContextLine(p) + '</span>'
+    + '<span style="display:block;font-size:11.5px;font-weight:700;margin-top:3px;color:var(--accent-dark);">' + esc(c.label) + '</span></span>'
+    + (p.whatsapp ? '<a href="tel:+' + esc(toWaNumber(p.whatsapp)) + '" class="icon-btn" title="Call">' + ic('phone') + '</a><a href="' + esc(checkinWaLink(c)) + '" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;" title="WhatsApp">' + ic('whatsapp') + '</a>' : '')
+    + '</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">' + CHECKIN_RESULTS.map(r => chip(r)).join('') + chip('Skipped', true) + '</div></div>';
+}
+function renderCheckInsList() {
+  const list = computeCheckIns();
+  const intro = '<p style="font-size:11.5px;color:var(--muted);margin:0 0 14px;line-height:1.55;">A friendly check-in, apart from routine follow-ups: surgical patients at 2 weeks, 1, 3, 6 months and 1 year, and OPD patients you saw about a month ago with nothing booked. Tap what you hear after the call or message.</p>';
+  if (!list.length) return intro + compactEmptyState('check', 'No check-ins due right now.');
+  const surg = list.filter(c => c.kind === 'surgical'), opd = list.filter(c => c.kind === 'opd');
+  return intro
+    + (surg.length ? '<div class="field-label" style="margin-bottom:10px;">After surgery (' + surg.length + ')</div>' + surg.map(checkinRowHtml).join('') : '')
+    + (opd.length ? '<div class="field-label" style="margin:' + (surg.length ? '20px' : '0') + ' 0 10px;">OPD patients (' + opd.length + ')</div>' + opd.map(checkinRowHtml).join('') : '');
+}
+
 /* ============ Today screen: one place for the day's follow-up work ============ */
 function dailyGroups() {
   const today = todayStr(), tm = localYmd(new Date(Date.now() + 86400000));
@@ -3917,6 +4001,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Follow-ups has a new Check-ins tab: patients who are due a friendly call or message outside routine follow-ups \u2014 surgical patients at 2 weeks, 1, 3, 6 months and 1 year, and OPD patients seen about a month ago with nothing booked. Call or WhatsApp in one tap, then tap what you heard',
       'Surgical Journey: milestones are closer together and have names, for both Surgeries and OPD patients (First Incision, Double Digits, Half Century, Century! ...). Rank under your count, this month vs your best month, a "just 3 more" nudge when close, a swipeable badge strip that opens on your next target, and a little celebration the moment you save a case that unlocks one',
       'New: My Surgical Journey (More \u2192 Practice) \u2014 your surgery count, how many you operated vs assisted vs observed, most-done procedures, and milestone badges. Tap the big number for a little celebration',
       'Your role in a surgery (Assistant / Observer) now shows as a small badge on the patient list, and the Master Excel has a My Role column',
@@ -4093,7 +4178,7 @@ let REMINDERS = [];
 let CAL_YEAR = new Date().getFullYear();
 let CAL_MONTH = new Date().getMonth(); // 0-indexed
 let CAL_SELECTED_DATE = todayStr();
-let CAL_SUBVIEW = 'overdue'; // 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'calendar'
+let CAL_SUBVIEW = 'overdue'; // 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'checkins' | 'calendar'
 let BULK_RESCHEDULE_OPEN = false;
 let ATTN_FILTER = null; // null | 'pending' | 'reminded' \u2014 tap the Reminded/Pending box to filter
 let REMINDER_FORM_OPEN = false;
@@ -11669,6 +11754,7 @@ function renderCalendarView() {
   const todayCount = s.important.filter(i => !i.isOverdue).length;
   const _td = todayStr();
   const upcomingCount = PATIENTS.filter(p => (!p.status || p.status === 'Active' || p.status === 'Active follow-up') && p.nextFollowUpDate && p.nextFollowUpDate > _td).length;
+  const checkInCount = computeCheckIns().length;
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row between" style="margin-bottom:10px;"><div class="row gap3"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Follow-ups</h2></div><button class="btn btn-sm btn-primary" data-action="add-menu-pick-patient" data-value="followup">'+ic('plus')+' Add</button></div>'
@@ -11677,11 +11763,12 @@ function renderCalendarView() {
     + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='today'?' active':'')+'" data-action="cal-set-subview" data-value="today">Today'+(todayCount?'<i class="fu-tn">'+(todayCount)+'</i>':'')+'</button>'
     + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='tomorrow'?' active':'')+'" data-action="cal-set-subview" data-value="tomorrow">Tomorrow'+(s.dueTomorrowList.length?'<i class="fu-tn">'+(s.dueTomorrowList.length)+'</i>':'')+'</button>'
     + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming'+(upcomingCount?'<i class="fu-tn">'+(upcomingCount)+'</i>':'')+'</button>'
+    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='checkins'?' active':'')+'" data-action="cal-set-subview" data-value="checkins">Check-ins'+(checkInCount?'<i class="fu-tn">'+checkInCount+'</i>':'')+'</button>'
     + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar'+(0?'<i class="fu-tn">'+(0)+'</i>':'')+'</button>'
     + '</div>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
-    + (CAL_SUBVIEW==='overdue' ? renderNeedsAttentionBlock(s, true) : CAL_SUBVIEW==='today' ? renderNeedsAttentionBlock(s, false) : CAL_SUBVIEW==='tomorrow' ? renderTomorrowFollowUpsList() : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : (renderCalendarGrid() + renderCalendarDayDetail()))
+    + (CAL_SUBVIEW==='overdue' ? renderNeedsAttentionBlock(s, true) : CAL_SUBVIEW==='today' ? renderNeedsAttentionBlock(s, false) : CAL_SUBVIEW==='tomorrow' ? renderTomorrowFollowUpsList() : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : CAL_SUBVIEW==='checkins' ? renderCheckInsList() : (renderCalendarGrid() + renderCalendarDayDetail()))
     + '</div>'
     + '</div>';
 }
@@ -12691,7 +12778,7 @@ async function exportCaseZip(patientId) {
    File = a zip: ovcase.json (the whole patient record) + media/<id> (every photo/video). The other surgeon imports it as a NEW case in
    their own log (own id, own patient code) and nothing already in their data is touched. Left out on purpose because they belong to the
    sender only: payment/fee fields, reminder log, pin/research flags. */
-const SHARE_CASE_DROP = ['id','patientCode','createdAt','updatedAt','deletedAt','reminderLog','lastReminderSentAt','followUpSnoozeCount','pinned','researchFlag','researchNote','paymentMethod','insuranceType','cashAmount','sharedFrom','surgeonRole'];
+const SHARE_CASE_DROP = ['id','patientCode','createdAt','updatedAt','deletedAt','reminderLog','lastReminderSentAt','followUpSnoozeCount','pinned','researchFlag','researchNote','paymentMethod','insuranceType','cashAmount','sharedFrom','surgeonRole','checkIns'];
 function surgeonRoleLabel(r) { return r === 'assistant' ? 'Assistant surgeon' : r === 'observer' ? 'Observer' : 'Operating surgeon'; }
 function sharePrimitiveFields(o, skip) {
   const m = {};
@@ -16829,6 +16916,14 @@ document.addEventListener('click', async (e) => {
   }
 
   if (action === 'close-calendar') { REMINDER_FORM_OPEN = false; BULK_RESCHEDULE_OPEN = false; VIEW = 'list'; render(); return; }
+  if (action === 'checkin-record') {
+    const p = getPatient(el.dataset.id); if (!p) return;
+    const result = el.dataset.result;
+    p.checkIns = (Array.isArray(p.checkIns) ? p.checkIns : []).concat([{ key: el.dataset.key, result: result, at: Date.now() }]);
+    await dbPutPatient(p); await refreshPatients(); await render();
+    toast(result === 'Needs visit' ? 'Noted \u2014 open the patient to book a visit' : result === 'No answer' ? 'Noted \u2014 it will come back in 3 days' : result === 'Skipped' ? 'Skipped' : 'Great \u2014 noted');
+    return;
+  }
   if (action === 'cal-set-subview') { CAL_SUBVIEW = el.dataset.value; ATTN_FILTER = null; REMINDER_FORM_OPEN = false; BULK_RESCHEDULE_OPEN = false; render(); return; }
   if (action === 'cal-prev-month') { CAL_MONTH--; if (CAL_MONTH<0) { CAL_MONTH=11; CAL_YEAR--; } render(); return; }
   if (action === 'cal-next-month') { CAL_MONTH++; if (CAL_MONTH>11) { CAL_MONTH=0; CAL_YEAR++; } render(); return; }
