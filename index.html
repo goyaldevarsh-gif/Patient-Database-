@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261126.1">
+<meta name="app-build" content="20261126.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -3909,6 +3909,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Your role in a surgery (Assistant / Observer) now shows as a small badge on the patient list, and the Master Excel has a My Role column',
       'Share a case with another surgeon: patient menu \u2192 Share case with a surgeon sends one file with the full record and every photo; the other surgeon opens More \u2192 Import Shared Case and gets it as a new case. New "My role in this surgery" (Operating / Assistant / Observer) on surgical cases. Fees and reminder history are not shared',
       'More fixes: Home tiles tidy on mid-size laptop windows; Today\u2019s work shows full names and last-seen dates; hints on follow-up, AI and referral boxes; patient cards and rows can be reached with Tab and opened with Enter on a laptop; long names wrap on cards at Large text; settings rows no longer run off narrow phones',
       'Fixes: search boxes and unlabeled boxes (prescription dose/frequency/duration, investigation values) now show hints; Photo Gallery and Marketing Contacts search keep the cursor while typing; Gallery shows a Show all time button when the month is empty; More search clear button only shows when needed; AI daily/monthly limits reset on local dates. Laptop: patient list scrolls to the open patient; follow-up calendar boxes are shorter so the day list stays visible',
@@ -8525,6 +8526,7 @@ function renderPatientsView() {
           + '<span class="display" style="font-weight:800;font-size:14.5px;color:var(--navy);text-transform:capitalize;overflow-wrap:anywhere;">'+esc(p.name)+'</span>'
           + '</span>'
         + '<span class="row gap1" style="flex:none;">'
+        + (p.surgeonRole ? '<span class="badge" title="My role: '+surgeonRoleLabel(p.surgeonRole)+'" style="font-size:10px;padding:2px 8px;background:rgba(13,148,136,0.14);color:var(--accent-dark);">'+(p.surgeonRole==='assistant'?'Assist':'Observer')+'</span>' : '')
         + (p.caseType==='surgical' && p.surgeryStatus==='awaiting'
             ? '<span class="badge" style="font-size:10px;padding:2px 8px;background:rgba(217,119,6,0.14);color:#92400e;">'+ic('clock')+'</span>'
             : '<span class="badge badge-'+(p.caseType==='surgical'?'indigo':'slate')+'" style="font-size:10px;padding:2px 8px;">'+(p.caseType==='surgical'?'Surgical':'OPD')+'</span>')
@@ -12197,7 +12199,7 @@ async function exportMasterXlsx() {
   const cols = [
     ['Patient ID', 11], ['Name', 28], ['Age', 9], ['Sex', 6], ['Place / Residence', 18], ['Phone (WhatsApp)', 15],
     ['Case Type', 10], ['Case Status', 17], ['Diagnosis', 34], ['Chief Complaints', 34], ['Region', 16], ['Side', 8],
-    ['Procedure', 32], ['Surgery Type', 12], ['Hospital / Where done', 22], ['Anaesthesia', 12], ['Visit / Surgery Date', 13], ['Tracked Condition', 13],
+    ['Procedure', 32], ['Surgery Type', 12], ['Hospital / Where done', 22], ['Anaesthesia', 12], ['My Role', 16], ['Visit / Surgery Date', 13], ['Tracked Condition', 13],
     ['No. of Injections', 10], ['Injections (details)', 36], ['No. of Investigations', 12], ['Investigations (details)', 40],
     ['Follow-ups Done', 10], ['Last Follow-up', 13], ['Next Follow-up Due', 13], ['Follow-up Status', 20], ['Days Overdue', 9],
     ['Reminders Sent', 10], ['Reminders No Response', 11], ['Outcome', 18], ['Outcome Date', 13], ['Payment', 12], ['Cash Amount', 11], ['Insurance', 14],
@@ -12225,6 +12227,7 @@ async function exportMasterXlsx() {
       { v: (p.regions || []).join(', '), k: 's', s: base }, { v: p.side && p.side !== 'N/A' ? p.side : '', k: 's', s: ctr },
       { v: p.procedure || '', k: 's', s: wrap }, { v: isS ? (p.surgeryType || '') : '', k: 's', s: base },
       { v: p.hospital || '', k: 's', s: base }, { v: p.anaesthesiaType || '', k: 's', s: base },
+      { v: isS ? (p.surgeonRole === 'assistant' ? 'Assistant' : p.surgeonRole === 'observer' ? 'Observer' : 'Operating') : '', k: 's', s: ctr },
       dateCell(p.surgeryDate, ctr), { v: p.condition ? String(p.condition).toUpperCase() : '', k: 's', s: ctr },
       { v: injs.length, k: 'n', s: ctr }, { v: injText, k: 's', s: wrap },
       { v: invs.length, k: 'n', s: ctr }, { v: invText, k: 's', s: wrap },
