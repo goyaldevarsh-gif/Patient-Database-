@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261126.2">
+<meta name="app-build" content="20261126.3">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -1255,6 +1255,11 @@ button.stat3-i{cursor:pointer;} button.stat3-i:active{transform:scale(0.97);}
   html[data-view="add"] #app > div > .px:not(.sticky-top) > [id^="ap-section-"] { grid-column:2; }
   html[data-view="add"] .bottom-bar[style*="position:fixed"] { max-width:1180px !important; }
 }
+  /* My Surgical Journey: light confetti (hidden for reduced motion) */
+  .jr-confetti { position:fixed; inset:0; pointer-events:none; z-index:9999; overflow:hidden; }
+  .jr-confetti i { position:absolute; top:-14px; width:8px; height:12px; border-radius:2px; opacity:0; animation:jr-fall var(--d,2.2s) ease-in forwards; animation-delay:var(--dl,0s); }
+  @keyframes jr-fall { 0% { transform:translate3d(0,0,0) rotate(0deg); opacity:1; } 100% { transform:translate3d(var(--dx,0),105vh,0) rotate(var(--r,540deg)); opacity:.9; } }
+  @media (prefers-reduced-motion: reduce) { .jr-confetti { display:none; } }
 </style>
 </head>
 <body>
@@ -3909,6 +3914,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'New: My Surgical Journey (More \u2192 Practice) \u2014 your surgery count, how many you operated vs assisted vs observed, most-done procedures, and milestone badges. Tap the big number for a little celebration',
       'Your role in a surgery (Assistant / Observer) now shows as a small badge on the patient list, and the Master Excel has a My Role column',
       'Share a case with another surgeon: patient menu \u2192 Share case with a surgeon sends one file with the full record and every photo; the other surgeon opens More \u2192 Import Shared Case and gets it as a new case. New "My role in this surgery" (Operating / Assistant / Observer) on surgical cases. Fees and reminder history are not shared',
       'More fixes: Home tiles tidy on mid-size laptop windows; Today\u2019s work shows full names and last-seen dates; hints on follow-up, AI and referral boxes; patient cards and rows can be reached with Tab and opened with Enter on a laptop; long names wrap on cards at Large text; settings rows no longer run off narrow phones',
@@ -4172,7 +4178,7 @@ function newPatientShape() {
   const OVERRIDE = {
     'toggle-patient-menu':'More options', 'log-reminder-sent':'Log reminder sent', 'master-ai-use-mic':'Use microphone',
     'open-reading-mode':'Open reading mode', 'ov-toggle-section-edit':'Edit this section', 'ov-toggle-section':'Expand or collapse section',
-    'arm-delete':'Delete', 'more-search-clear':'Clear search', 'toggle-legend':'Show or hide legend', 'nav-patients':'Back to patients',
+    'close-journey':'Back', 'arm-delete':'Delete', 'more-search-clear':'Clear search', 'toggle-legend':'Show or hide legend', 'nav-patients':'Back to patients',
     'back-to-list':'Back', 'view-rx':'View prescription', 'save-patient-code':'Save patient ID', 'save-header-date':'Save date',
     'download-case-zip':'Download case', 'photos-zip-case':'Photos zip', 'photos-zip-all':'Photos zip', 'imgrec-enter-select':'Select photos', 'dismiss-backup-banner':'Dismiss',
     'diag-print-statement':'Print statement', 'diag-export-csv':'Export CSV', 'mc-cancel-broadcast':'Cancel broadcast', 'ps-edit':'Edit planned surgery'
@@ -4571,6 +4577,98 @@ function renderPatientStatsView() {
       + card('Data on this phone', '<div class="row between" style="font-size:13px;margin-bottom:8px;"><span>Photos</span><b id="ps-photos">…</b></div><div class="row between" style="font-size:13px;"><span>Storage used</span><b id="ps-storage">…</b></div>')
       + (st.samples ? '<p style="font-size:11px;color:var(--muted);text-align:center;">' + st.samples + ' sample patients are not counted.</p>' : '')))
     + '</div></div>';
+}
+/* ================= My Surgical Journey (More menu) =================
+   Read-only screen: how many surgeries you have logged, your role in them (operated / assisted / observed), what you do most, milestone badges. */
+const JOURNEY_MILESTONES = [1, 10, 25, 50, 100, 250, 500, 1000];
+const JOURNEY_CELEBRATED_KEY = 'orthovault-journey-celebrated-v1';
+function computeJourney() {
+  const done = (PATIENTS || []).filter(p => p && !p.isSample && p.caseType === 'surgical' && p.surgeryStatus !== 'awaiting');
+  const yr = todayStr().slice(0, 4);
+  const j = { total: done.length, year: 0, operated: 0, assisted: 0, observed: 0, procs: {}, procLabel: {}, noProc: 0, first: '' };
+  done.forEach(p => {
+    if (p.surgeonRole === 'assistant') j.assisted++; else if (p.surgeonRole === 'observer') j.observed++; else j.operated++;
+    const d = String(p.surgeryDate || '');
+    if (d.slice(0, 4) === yr) j.year++;
+    if (/^\d{4}-\d{2}/.test(d) && (!j.first || d < j.first)) j.first = d;
+    const raw = String(p.procedure || '').trim(), k = raw.toLowerCase();
+    if (k) { j.procs[k] = (j.procs[k] || 0) + 1; if (!j.procLabel[k]) j.procLabel[k] = raw; } else j.noProc++;
+  });
+  j.next = JOURNEY_MILESTONES.find(m => m > j.total) || null;
+  j.prev = JOURNEY_MILESTONES.filter(m => m <= j.total).pop() || 0;
+  return j;
+}
+function journeyMonthLabel(ymd) {
+  const d = new Date(String(ymd).slice(0, 7) + '-01T12:00:00');
+  return isNaN(d) ? '' : d.toLocaleString('en-IN', { month: 'short', year: 'numeric' });
+}
+function journeyShareText(j) {
+  return 'My surgical log (OrthoVault): ' + j.total + ' surgeries — ' + j.operated + ' operated, ' + j.assisted + ' assisted, ' + j.observed + ' observed' + (j.first ? ' since ' + journeyMonthLabel(j.first) : '') + '.';
+}
+function renderJourneyView() {
+  const j = computeJourney();
+  const head = '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3"><button class="icon-btn" data-action="close-journey">' + ic('back') + '</button><h2 style="font-size:16px;font-weight:800;margin:0;">My Surgical Journey</h2></div></div>';
+  if (!j.total) {
+    return '<div style="padding-bottom:90px;">' + head + '<div class="px" style="padding-top:24px;"><div class="card" style="text-align:center;color:var(--muted);font-size:13.5px;padding:36px 20px;line-height:1.6;">Log your first surgical case and your journey starts here.</div></div></div>';
+  }
+  const pct = j.next ? Math.round(((j.total - j.prev) / (j.next - j.prev)) * 100) : 100;
+  const hero = '<div class="card" data-action="journey-confetti" style="text-align:center;padding:30px 20px 24px;background:linear-gradient(135deg,var(--accent),var(--accent-dark));border:none;color:#fff;margin-bottom:24px;cursor:pointer;">'
+    + '<div id="jr-count" style="font-size:58px;font-weight:800;line-height:1;">' + j.total + '</div>'
+    + '<div style="font-size:13px;font-weight:700;opacity:.92;margin-top:10px;">surgeries logged' + (j.year ? ' · ' + j.year + ' this year' : '') + '</div>'
+    + '<div style="margin-top:22px;"><div style="height:6px;border-radius:99px;background:rgba(255,255,255,0.28);overflow:hidden;"><div style="height:100%;width:' + pct + '%;background:#fff;border-radius:99px;"></div></div>'
+    + '<div style="font-size:12px;opacity:.92;margin-top:8px;">' + (j.next ? (j.next - j.total) + ' more to reach ' + j.next : 'Thousand club — legend') + '</div></div></div>';
+  const seg = (n, color) => n ? '<div style="width:' + (n / j.total * 100) + '%;background:' + color + ';"></div>' : '';
+  const roleCol = (n, label, color) => '<div style="flex:1;text-align:center;"><div style="font-size:24px;font-weight:800;line-height:1;color:' + color + ';">' + n + '</div><div style="font-size:11.5px;font-weight:600;color:var(--muted);margin-top:6px;">' + label + '</div></div>';
+  const roles = '<div class="card" style="padding:22px 20px;margin-bottom:24px;"><div class="field-label" style="margin-bottom:16px;">Your role</div>'
+    + '<div style="display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--bg-soft);">' + seg(j.operated, 'var(--accent)') + seg(j.assisted, '#d97706') + seg(j.observed, '#94a3b8') + '</div>'
+    + '<div class="row" style="margin-top:20px;">' + roleCol(j.operated, 'Operated', 'var(--accent)') + roleCol(j.assisted, 'Assisted', '#d97706') + roleCol(j.observed, 'Observed', 'var(--muted)') + '</div></div>';
+  const topP = Object.entries(j.procs).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, n]) => [j.procLabel[k] || k, n]);
+  const procs = topP.length ? '<div class="card" style="padding:22px 20px;margin-bottom:24px;"><div class="field-label" style="margin-bottom:16px;">Most done</div>' + psBarsHtml(topP, j.total - j.noProc)
+    + (j.noProc ? '<div style="font-size:11px;color:var(--muted);margin-top:2px;">' + j.noProc + ' case' + (j.noProc === 1 ? ' has' : 's have') + ' no procedure written yet.</div>' : '') + '</div>' : '';
+  const unlocked = JOURNEY_MILESTONES.filter(m => m <= j.total).length;
+  const badges = '<div class="card" style="padding:22px 20px;margin-bottom:24px;"><div class="row between" style="margin-bottom:16px;"><div class="field-label" style="margin:0;">Milestones</div><span style="font-size:11.5px;font-weight:700;color:var(--muted);">' + unlocked + ' of ' + JOURNEY_MILESTONES.length + '</span></div>'
+    + '<div style="display:flex;flex-wrap:wrap;gap:14px;">' + JOURNEY_MILESTONES.map(m => {
+      const got = m <= j.total;
+      return '<div title="' + m + (m === 1 ? ' surgery' : ' surgeries') + '" style="width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:' + (m >= 1000 ? 12 : 14) + 'px;font-weight:800;'
+        + (got ? 'background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;' : 'border:2px dashed var(--border);color:var(--muted);opacity:0.6;') + '">' + m + '</div>';
+    }).join('') + '</div></div>';
+  return '<div style="padding-bottom:90px;">' + head + '<div class="px" style="padding-top:20px;max-width:640px;margin:0 auto;">' + hero + roles + procs + badges
+    + '<button type="button" class="btn btn-primary btn-block" data-action="journey-share">Share my numbers</button></div></div>';
+}
+function journeyConfetti() {
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const old = document.getElementById('jr-confetti'); if (old) old.remove();
+  const box = document.createElement('div'); box.id = 'jr-confetti'; box.className = 'jr-confetti'; box.setAttribute('aria-hidden', 'true');
+  const cols = ['#0d9488', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#22c55e'];
+  let h = '';
+  for (let i = 0; i < 46; i++) {
+    h += '<i style="left:' + (Math.random() * 100).toFixed(1) + '%;background:' + cols[i % cols.length] + ';--dx:' + Math.round((Math.random() - 0.5) * 160) + 'px;--r:' + Math.round(360 + Math.random() * 540) + 'deg;--d:' + (1.8 + Math.random() * 1.4).toFixed(2) + 's;--dl:' + (Math.random() * 0.5).toFixed(2) + 's"></i>';
+  }
+  box.innerHTML = h; document.body.appendChild(box);
+  setTimeout(() => { box.remove(); }, 3800);
+}
+function fillJourney() {
+  const j = computeJourney();
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const el = document.getElementById('jr-count');
+  if (el && j.total > 1 && !reduce) {
+    const t0 = performance.now(), dur = 700;
+    el.textContent = '0';
+    const step = now => {
+      const cur = document.getElementById('jr-count'); if (!cur) return;
+      const f = Math.min(1, (now - t0) / dur);
+      cur.textContent = String(Math.round(j.total * (1 - Math.pow(1 - f, 3))));
+      if (f < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    setTimeout(() => { const cur = document.getElementById('jr-count'); if (cur) cur.textContent = String(j.total); }, 900);
+  }
+  let seen = 0; try { seen = parseInt(localStorage.getItem(JOURNEY_CELEBRATED_KEY) || '0', 10) || 0; } catch (e) {}
+  if (j.prev > seen) {
+    try { localStorage.setItem(JOURNEY_CELEBRATED_KEY, String(j.prev)); } catch (e) {}
+    setTimeout(journeyConfetti, 350);
+    toast(j.prev === 1 ? 'First surgery logged — your journey has started!' : j.prev + ' surgeries — milestone unlocked!');
+  }
 }
 async function fillPatientStatsData() {
   try {
@@ -6504,6 +6602,7 @@ function moreBodyHtml() {
     { group:'backup', title:'Recently Deleted', sub:'Restore a case deleted by mistake', html: moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted') },
     { group:'practice', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
     { group:'practice', title:'Patient Statistics', sub:'Totals, case mix, new patients per month', html: moreRowHtml('trending', 'Patient Statistics', 'Totals, case mix by region, top diagnoses, new patients per month', 'open-patient-stats') },
+    { group:'practice', title:'My Surgical Journey', sub:'Surgery count, role split, milestones', html: moreRowHtml('scalpel', 'My Surgical Journey', 'Your surgery count, what you operated vs assisted, and milestones', 'open-journey') },
     { group:'practice', title:'Follow-up Report', sub:'Compliance rate and monthly visit trends', html: moreRowHtml('calendar', 'Follow-up Report', 'See how many patients actually return, and your monthly follow-up trend', 'open-followup-report') },
     { group:'practice', title:'Follow-up Schedules', sub:'Auto follow-up dates, off-day, trauma/OPD gaps', html: moreRowHtml('calendar', 'Follow-up Schedules', 'Auto-suggested follow-up dates by surgery type, plus your off-day rule', 'open-fu-schedule') },
     { group:'practice', title:'Marketing Contacts', sub:'Auto-synced patient contacts for broadcasts', html: moreRowHtml('users', 'Marketing Contacts', 'Every patient contact, auto-collected \u2014 broadcast reels/updates to all at once', 'open-mc') },
@@ -11639,7 +11738,7 @@ async function render() {
   LAST_RENDERED_VIEW = VIEW; LAST_RENDERED_KEY = viewKey;
   document.documentElement.setAttribute('data-view', VIEW);
   try { // which screens carry the laptop side menu, and which menu item is lit
-    const DESK_NAV_VIEWS = ['list','patients','detail','reminders-tab','daily','more','calendar','overdue','photo-gallery','followup-report','patient-stats','recently-deleted','unfiled-photos','duplicate-finder','whats-new','app-settings','cloud-sync','drive-backup','research-cases','clinical-bank','clinical-bank-detail','content-ideas','academic-vault','marketing-contacts','diag-referrals','diag-statement','scheme-finder','outcome-calls','fu-schedule','fu-cleanup','reminder-queue','planned-surgeries','notifications','about'];
+    const DESK_NAV_VIEWS = ['list','patients','detail','reminders-tab','daily','more','calendar','overdue','photo-gallery','followup-report','patient-stats','journey','recently-deleted','unfiled-photos','duplicate-finder','whats-new','app-settings','cloud-sync','drive-backup','research-cases','clinical-bank','clinical-bank-detail','content-ideas','academic-vault','marketing-contacts','diag-referrals','diag-statement','scheme-finder','outcome-calls','fu-schedule','fu-cleanup','reminder-queue','planned-surgeries','notifications','about'];
     const act = ({ list:'home', patients:'patients', detail:'patients', calendar:'followups', overdue:'followups', daily:'daily', 'reminders-tab':'reminders', 'diag-referrals':'referrals', 'diag-statement':'referrals' })[VIEW] || 'more';
     const de = document.documentElement;
     if (DESK_NAV_VIEWS.includes(VIEW)) { de.setAttribute('data-dn', '1'); de.setAttribute('data-dnact', act); } else { de.removeAttribute('data-dn'); de.removeAttribute('data-dnact'); }
@@ -11698,6 +11797,7 @@ async function renderCurrentView(app) {
   if (VIEW === 'diag-statement') { app.innerHTML = renderDiagStatementView(); return; }
   if (VIEW === 'followup-report') { app.innerHTML = renderFollowUpReportView(); return; }
   if (VIEW === 'patient-stats') { app.innerHTML = renderPatientStatsView(); setTimeout(fillPatientStatsData, 0); return; }
+  if (VIEW === 'journey') { app.innerHTML = renderJourneyView(); setTimeout(fillJourney, 0); return; }
   if (VIEW === 'planned-surgeries') { app.innerHTML = renderPlannedSurgeriesView(); return; }
   if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
   if (VIEW === 'fu-cleanup') { app.innerHTML = renderFuCleanupView(); return; }
@@ -13054,7 +13154,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['close-daily','close-outcome-calls','cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-fu-schedule','close-diag-referrals'];
+const SWIPE_BACK_ACTIONS = ['close-journey','close-daily','close-outcome-calls','cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-fu-schedule','close-diag-referrals'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -16032,6 +16132,17 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-followup-report') { VIEW = 'list'; render(); return; }
   if (action === 'open-patient-stats') { VIEW = 'patient-stats'; render(); return; }
   if (action === 'close-patient-stats') { VIEW = 'list'; render(); return; }
+  if (action === 'open-journey') { VIEW = 'journey'; await render(); window.scrollTo(0, 0); return; }
+  if (action === 'close-journey') { VIEW = 'more'; render(); return; }
+  if (action === 'journey-confetti') { journeyConfetti(); return; }
+  if (action === 'journey-share') {
+    const txt = journeyShareText(computeJourney());
+    try {
+      if (navigator.share) { await navigator.share({ text: txt }); }
+      else { await navigator.clipboard.writeText(txt); toast('Copied \u2014 paste it anywhere'); }
+    } catch (err) { if (!(err && err.name === 'AbortError')) toast('Could not share \u2014 ' + esc(err && err.message ? err.message : 'try again')); }
+    return;
+  }
   if (action === 'fur-set-status-tab') { FUR_STATUS_TAB = el.dataset.value; render(); return; }
   if (action === 'fur-open-watch-entry') {
     DIAG_CENTRES = loadDiagCentres();
