@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261121.2">
+<meta name="app-build" content="20261126.1">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -3909,6 +3909,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Share a case with another surgeon: patient menu \u2192 Share case with a surgeon sends one file with the full record and every photo; the other surgeon opens More \u2192 Import Shared Case and gets it as a new case. New "My role in this surgery" (Operating / Assistant / Observer) on surgical cases. Fees and reminder history are not shared',
       'More fixes: Home tiles tidy on mid-size laptop windows; Today\u2019s work shows full names and last-seen dates; hints on follow-up, AI and referral boxes; patient cards and rows can be reached with Tab and opened with Enter on a laptop; long names wrap on cards at Large text; settings rows no longer run off narrow phones',
       'Fixes: search boxes and unlabeled boxes (prescription dose/frequency/duration, investigation values) now show hints; Photo Gallery and Marketing Contacts search keep the cursor while typing; Gallery shows a Show all time button when the month is empty; More search clear button only shows when needed; AI daily/monthly limits reset on local dates. Laptop: patient list scrolls to the open patient; follow-up calendar boxes are shorter so the day list stays visible',
       'Referrals now merge between phone and laptop (entries from both are kept, deletions stay deleted) instead of one device overwriting the other; syncs on sign-in, when the app is reopened, and when Referrals is opened',
@@ -6467,6 +6468,7 @@ async function renderMoreView() {
     + moreSearchBarHtml()
     + '<div id="more-results-container">'+moreBodyHtml()+'</div>'
     + '<input type="file" accept=".zip,application/zip" id="import-file-input" style="display:none;">'
+    + '<input type="file" accept=".zip,application/zip" id="import-case-input" style="display:none;">'
     + '</div>'
     + '</div>';
 }
@@ -6497,6 +6499,7 @@ function moreBodyHtml() {
     { group:'backup', title:'Google Drive Backup', sub:'Back up to Google Drive, restore from Drive', html: moreRowHtml('upload', 'Google Drive Backup', 'Connect Google Drive, back up now or restore from Drive', 'open-drive-backup') },
     { group:'backup', title:'Export Backup', sub:'Zip of all cases, photos, reminders', html: moreRowHtml('download', 'Export Backup', 'Zip of all cases, photos, reminders \u2014 pick your Drive folder for an off-device copy', 'export-backup') },
     { group:'backup', title:'Import Backup', sub:'Restore from a previously exported zip', html: moreRowHtml('upload', 'Import Backup', 'Restore from a previously exported zip', 'trigger-import') },
+    { group:'backup', title:'Import Shared Case', sub:'Case file sent by another surgeon, with all details and photos', html: moreRowHtml('upload', 'Import Shared Case', 'Open a case file another surgeon sent you \u2014 all details and photos', 'trigger-import-case') },
     { group:'backup', title:'Recently Deleted', sub:'Restore a case deleted by mistake', html: moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted') },
     { group:'practice', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
     { group:'practice', title:'Patient Statistics', sub:'Totals, case mix, new patients per month', html: moreRowHtml('trending', 'Patient Statistics', 'Totals, case mix by region, top diagnoses, new patients per month', 'open-patient-stats') },
@@ -10660,6 +10663,7 @@ function surgicalDetailsSectionHtml(p) {
     + ovSnapCell('scalpel', 'Surgery Type', p.surgeryType)
     + '</div>'
     + ((p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+(p.hospital?ovSnapCell('clipboard','Hospital',p.hospital):'')+(p.anaesthesiaType?ovSnapCell('shield','Anaesthesia',p.anaesthesiaType):'')+'</div>' : '')
+    + ((p.surgeonRole || (p.sharedFrom && p.sharedFrom.doctor)) ? '<div class="row" style="gap:10px;">'+(p.surgeonRole?ovSnapCell('scalpel','My role',surgeonRoleLabel(p.surgeonRole)):'')+((p.sharedFrom && p.sharedFrom.doctor)?ovSnapCell('users','Shared by',p.sharedFrom.doctor):'')+'</div>' : '')
     + (p.paymentMethod ? ovSnapCell('clipboard','Payment', p.paymentMethod + (p.paymentMethod!=='Insurance'&&p.cashAmount?' \u2014 \u20b9'+p.cashAmount:'') + (p.paymentMethod!=='Cash'&&p.insuranceType?' \u2014 '+p.insuranceType:'')) : '');
   const body = '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+surgeryTypeOptionsHtml(p.surgeryType)+'</select></div>'
     + '<p style="font-size:10.5px;color:var(--muted);margin:0 0 4px;">Diagnosis, Procedure and Surgery Date are edited from the header above (kept in one place).</p>'
@@ -10667,6 +10671,7 @@ function surgicalDetailsSectionHtml(p) {
     + '<div><label class="field-label">Hospital (optional)</label><input class="input" data-field="hospital" value="'+esc(p.hospital||'')+'"></div>'
     + '<div><label class="field-label">Anaesthesia (optional)</label><select class="select" data-field="anaesthesiaType"><option value=""'+(!p.anaesthesiaType?' selected':'')+'>\u2014</option>'+['Spinal','General','Regional','Local','Combined Spinal-Epidural'].map(a=>'<option'+(p.anaesthesiaType===a?' selected':'')+'>'+a+'</option>').join('')+'</select></div>'
     + '</div>'
+    + '<div><label class="field-label">My role in this surgery</label><select class="select" data-field="surgeonRole">'+[['','Operating surgeon'],['assistant','Assistant surgeon'],['observer','Observer']].map(function(r){return '<option value="'+r[0]+'"'+((p.surgeonRole||'')===r[0]?' selected':'')+'>'+r[1]+'</option>';}).join('')+'</select></div>'
     + '<div class="card" style="padding:0;overflow:hidden;">'
     + '<button type="button" class="row between" style="width:100%;background:none;border:none;padding:12px;text-align:left;" data-action="ov-toggle-payment">'
     + '<span style="font-size:13px;font-weight:700;">Payment'+(p.paymentMethod?' \u2014 '+esc(p.paymentMethod):'')+'</span>'
@@ -11234,6 +11239,7 @@ function renderDetailShell(p) {
       + (isAiTier() ? '<button type="button" class="pm-item" data-action="open-patient-ai-tools"><span>'+aiLogo(18)+'</span>AI tools</button>' : '')
       + '<button type="button" class="pm-item" data-action="open-export-summary"><span>'+ic('printer')+'</span>Print summary</button>'
       + '<button type="button" class="pm-item" data-action="download-case-zip" data-id="'+p.id+'"><span>'+ic('download')+'</span>Download all</button>'
+      + '<button type="button" class="pm-item" data-action="share-case-file" data-id="'+p.id+'"><span>'+ic('users')+'</span>Share case with a surgeon</button>'
       + '<button type="button" class="pm-item" data-action="photos-zip-case" data-id="'+p.id+'"><span>'+ic('camera')+'</span>Photos zip</button>'
       + '<button type="button" class="pm-item" data-action="toggle-research-flag" data-id="'+p.id+'"><span>'+ic('bookmark')+'</span>'+(p.researchFlag?'Remove from research':'Bookmark for research')+'</button>'
       + '<button type="button" class="pm-item pm-danger" data-action="open-confirm-delete"><span>'+ic('trash')+'</span>Delete case</button>'
@@ -12525,6 +12531,145 @@ async function exportCaseZip(patientId) {
   }
 }
 
+/* ================= Share a case with another OrthoVault surgeon =================
+   File = a zip: ovcase.json (the whole patient record) + media/<id> (every photo/video). The other surgeon imports it as a NEW case in
+   their own log (own id, own patient code) and nothing already in their data is touched. Left out on purpose because they belong to the
+   sender only: payment/fee fields, reminder log, pin/research flags. */
+const SHARE_CASE_DROP = ['id','patientCode','createdAt','updatedAt','deletedAt','reminderLog','lastReminderSentAt','followUpSnoozeCount','pinned','researchFlag','researchNote','paymentMethod','insuranceType','cashAmount','sharedFrom','surgeonRole'];
+function surgeonRoleLabel(r) { return r === 'assistant' ? 'Assistant surgeon' : r === 'observer' ? 'Observer' : 'Operating surgeon'; }
+function sharePrimitiveFields(o, skip) {
+  const m = {};
+  for (const k of Object.keys(o)) { const v = o[k]; if (skip.indexOf(k) < 0 && (v === null || ['string', 'number', 'boolean'].indexOf(typeof v) > -1)) m[k] = v; }
+  return m;
+}
+async function exportSharedCase(patientId) {
+  if (typeof JSZip === 'undefined') { toast('Share tool failed to load — check your internet connection'); return; }
+  const p = getPatient(patientId);
+  if (!p) { toast('Patient not found'); return; }
+  toast('Preparing case file…');
+  try {
+    const prof = loadProfile();
+    const rec = JSON.parse(JSON.stringify(p));
+    SHARE_CASE_DROP.forEach(k => { delete rec[k]; });
+    const images = await dbGetImagesByPatient(patientId);
+    const zip = new JSZip();
+    const imgMeta = [];
+    for (const im of images) {
+      if (!im || !im.id || !im.blob) continue;
+      const m = sharePrimitiveFields(im, ['blob', 'patientId']);
+      m.mime = im.blob.type || 'image/jpeg';
+      imgMeta.push(m);
+      zip.file('media/' + im.id, im.blob);
+    }
+    zip.file('ovcase.json', JSON.stringify({
+      format: 'orthovault-case', version: 1, sharedAt: Date.now(),
+      sharedBy: { doctor: prof.doctorName || '', specialty: prof.specialty || '' },
+      srcId: p.id, srcCode: p.patientCode || '', srcRole: p.surgeonRole || '',
+      patient: rec, images: imgMeta
+    }));
+    zip.file('README.txt', 'OrthoVault shared case.\nIn OrthoVault: More > Import Shared Case, and pick this file.\n');
+    const blob = await zip.generateAsync({ type: 'blob' });
+    const safeName = (p.name || 'patient').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'patient';
+    const filename = 'OrthoVault-case-' + safeName + '-' + todayStr() + '.zip';
+    const file = new File([blob], filename, { type: 'application/zip' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: filename });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }
+    toast('✓ Case file ready — ' + imgMeta.length + ' photo/video file' + (imgMeta.length !== 1 ? 's' : ''));
+  } catch (err) {
+    if (err && err.name === 'AbortError') return;
+    toast('Share failed: ' + esc(err.message || 'unknown error'));
+  }
+}
+async function importSharedCase(file, zipPre) {
+  if (typeof JSZip === 'undefined') { toast('Import tool failed to load — check your internet connection'); return; }
+  try {
+    const zip = zipPre || await JSZip.loadAsync(file);
+    const entry = zip.file('ovcase.json');
+    if (!entry) { toast('This is not a shared-case file — for a full backup use Import Backup'); return; }
+    const man = JSON.parse(await entry.async('string'));
+    if (!man || man.format !== 'orthovault-case' || !man.patient || typeof man.patient !== 'object') { toast('Invalid case file'); return; }
+    if ((man.version || 1) > 1) { toast('This case file is from a newer OrthoVault — please update the app'); return; }
+    const src = man.patient;
+    const doctor = (man.sharedBy && man.sharedBy.doctor) || '';
+    const imgList = (Array.isArray(man.images) ? man.images : []).filter(m => m && m.id && zip.file('media/' + m.id));
+    const dup = man.srcId ? PATIENTS.find(x => x.sharedFrom && x.sharedFrom.srcId === man.srcId && (x.sharedFrom.doctor || '') === doctor) : null;
+    let dx = ''; try { dx = displayDiagnosis(src.diagnosis) || src.chiefComplaints || ''; } catch (e) { dx = ''; }
+    const ok = await showConfirmDialog({
+      title: 'Import shared case?',
+      message: '<b>' + esc(src.name || 'Patient') + '</b>' + (dx ? ' — ' + esc(dx) : '') + '<br>' + (doctor ? 'From ' + esc(doctor) + '<br>' : '') + imgList.length + ' photo/video file' + (imgList.length === 1 ? '' : 's') + '. It is added as a new case in your log.',
+      confirmText: 'Import', cancelText: 'Cancel'
+    });
+    if (!ok) return;
+    let updateExisting = false;
+    if (dup) {
+      updateExisting = await showConfirmDialog({
+        title: 'Already in your log',
+        message: '<b>' + esc(dup.name || 'Patient') + '</b> (' + esc(dup.patientCode || '') + ') was imported from this surgeon before.<br>Update it with this newer copy? Your own follow-ups and notes are kept; new photos are added.',
+        confirmText: 'Update it', cancelText: 'Add as new copy'
+      });
+    }
+    const clean = JSON.parse(JSON.stringify(src));
+    SHARE_CASE_DROP.concat(['__proto__', 'constructor', 'prototype']).forEach(k => { delete clean[k]; });
+    const fromRole = man.srcRole || '';
+    const myRole = (clean.caseType === 'surgical' && fromRole !== 'assistant' && fromRole !== 'observer') ? 'assistant' : '';
+    const prov = { doctor: doctor, srcId: man.srcId || '', srcCode: man.srcCode || '', sharedAt: man.sharedAt || Date.now(), importedAt: Date.now() };
+    let target;
+    if (dup && updateExisting) {
+      target = dup;
+      const arrKeys = ['followUps', 'investigations', 'prescriptions', 'injections'];
+      arrKeys.forEach(k => {
+        const out = (Array.isArray(target[k]) ? target[k] : []).slice();
+        (Array.isArray(clean[k]) ? clean[k] : []).forEach(x => {
+          const i = out.findIndex(y => y && x && y.id === x.id);
+          if (i >= 0) out[i] = x; else out.push(x);
+        });
+        target[k] = out;
+        delete clean[k];
+      });
+      delete clean.notes;
+      Object.assign(target, clean);
+      target.sharedFrom = prov;
+    } else {
+      target = newPatientShape();
+      Object.assign(target, clean);
+      target.createdAt = Date.now();
+      target.surgeonRole = myRole;
+      target.sharedFrom = prov;
+    }
+    // straight to the store (not dbPutPatient): a shared patient's phone number must not silently land in Marketing Contacts
+    const st = await storeOf('patients', 'readwrite');
+    await reqToPromise(st.put(target));
+    syncPatientToCloud(target);
+    const have = new Set();
+    if (dup && updateExisting) (await dbGetImagesByPatient(target.id)).forEach(im => { if (im && im.srcImgId) have.add(im.srcImgId); });
+    let n = 0;
+    for (const m of imgList) {
+      if (have.has(m.id)) continue;
+      const raw = await zip.file('media/' + m.id).async('blob');
+      const r = sharePrimitiveFields(m, ['mime', 'id', 'patientId']);
+      r.id = uid(); r.srcImgId = m.id; r.patientId = target.id;
+      r.blob = new Blob([raw], { type: m.mime || 'image/jpeg' });
+      if (!r.createdAt) r.createdAt = Date.now();
+      await dbAddImage(r);
+      n++;
+    }
+    await refreshPatients();
+    SELECTED_ID = target.id; recordLastPatient(target.id); VIEW = 'detail'; TAB = 'overview'; resetPerPatientUiState(); EXPANDED_FOLLOWUP.clear(); EDU_SEARCH = null;
+    await render();
+    window.scrollTo(0, 0);
+    toast((dup && updateExisting ? 'Updated ' : 'Imported ') + esc(target.name || 'case') + ' — ' + n + ' new photo/video file' + (n === 1 ? '' : 's') + (target.surgeonRole ? ' · your role: ' + surgeonRoleLabel(target.surgeonRole) : ''));
+  } catch (err) {
+    toast('Import failed: ' + esc(err && err.message ? err.message : 'unknown error'));
+  }
+}
+
 function backupFilename(caseCount) {
   const profile = loadProfile();
   const docPart = profile.doctorName
@@ -12637,6 +12782,7 @@ async function importBackup(file) {
   try {
     const zip = await JSZip.loadAsync(file);
     const casesEntry = zip.file('cases.json');
+    if (!casesEntry && zip.file('ovcase.json')) { await importSharedCase(file, zip); return; }
     if (!casesEntry) { toast('Invalid backup file \u2014 cases.json not found'); return; }
     const casesJson = await casesEntry.async('string');
     const patients = JSON.parse(casesJson);
@@ -15190,6 +15336,14 @@ document.addEventListener('click', async (e) => {
     if (IMGREC_SELECT_MODE) { el.innerHTML = originalHtml; el.disabled = false; }
     return;
   }
+  if (action === 'share-case-file') {
+    const patientId = el.dataset.id;
+    const originalHtml = el.innerHTML;
+    el.innerHTML = '<span class="spinner"></span>';
+    el.disabled = true;
+    try { await exportSharedCase(patientId); } finally { el.innerHTML = originalHtml; el.disabled = false; }
+    return;
+  }
   if (action === 'download-case-zip') {
     const patientId = el.dataset.id;
     const originalHtml = el.innerHTML;
@@ -15424,6 +15578,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
   if (action === 'trigger-import') { document.getElementById('import-file-input').click(); return; }
+  if (action === 'trigger-import-case') { document.getElementById('import-case-input').click(); return; }
 
   if (action === 'open-settings') { SETTINGS_OPEN = true; VIEW = 'settings'; render(); updateStorageIndicator(); return; }
   if (action === 'close-settings') { VIEW = 'more'; render(); return; }
@@ -16924,6 +17079,12 @@ document.addEventListener('change', async (e) => {
     const file = t.files && t.files[0];
     if (file) await importBackup(file);
     t.value = '';
+    return;
+  }
+  if (t.id === 'import-case-input') {
+    const file = t.files && t.files[0];
+    t.value = '';
+    if (file) await importSharedCase(file);
     return;
   }
 
