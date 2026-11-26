@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261126.3">
+<meta name="app-build" content="20261126.4">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -1260,6 +1260,9 @@ button.stat3-i{cursor:pointer;} button.stat3-i:active{transform:scale(0.97);}
   .jr-confetti i { position:absolute; top:-14px; width:8px; height:12px; border-radius:2px; opacity:0; animation:jr-fall var(--d,2.2s) ease-in forwards; animation-delay:var(--dl,0s); }
   @keyframes jr-fall { 0% { transform:translate3d(0,0,0) rotate(0deg); opacity:1; } 100% { transform:translate3d(var(--dx,0),105vh,0) rotate(var(--r,540deg)); opacity:.9; } }
   @media (prefers-reduced-motion: reduce) { .jr-confetti { display:none; } }
+  .jr-strip { display:flex; gap:12px; overflow-x:auto; padding:4px 20px 10px; scroll-snap-type:x proximity; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+  .jr-strip::-webkit-scrollbar { display:none; }
+  .jr-ms { flex:0 0 74px; scroll-snap-align:center; }
 </style>
 </head>
 <body>
@@ -3914,6 +3917,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Surgical Journey: milestones are closer together and have names, for both Surgeries and OPD patients (First Incision, Double Digits, Half Century, Century! ...). Rank under your count, this month vs your best month, a "just 3 more" nudge when close, a swipeable badge strip that opens on your next target, and a little celebration the moment you save a case that unlocks one',
       'New: My Surgical Journey (More \u2192 Practice) \u2014 your surgery count, how many you operated vs assisted vs observed, most-done procedures, and milestone badges. Tap the big number for a little celebration',
       'Your role in a surgery (Assistant / Observer) now shows as a small badge on the patient list, and the Master Excel has a My Role column',
       'Share a case with another surgeon: patient menu \u2192 Share case with a surgeon sends one file with the full record and every photo; the other surgeon opens More \u2192 Import Shared Case and gets it as a new case. New "My role in this surgery" (Operating / Assistant / Observer) on surgical cases. Fees and reminder history are not shared',
@@ -4579,23 +4583,42 @@ function renderPatientStatsView() {
     + '</div></div>';
 }
 /* ================= My Surgical Journey (More menu) =================
-   Read-only screen: how many surgeries you have logged, your role in them (operated / assisted / observed), what you do most, milestone badges. */
-const JOURNEY_MILESTONES = [1, 10, 25, 50, 100, 250, 500, 1000];
-const JOURNEY_CELEBRATED_KEY = 'orthovault-journey-celebrated-v1';
-function computeJourney() {
-  const done = (PATIENTS || []).filter(p => p && !p.isSample && p.caseType === 'surgical' && p.surgeryStatus !== 'awaiting');
-  const yr = todayStr().slice(0, 4);
-  const j = { total: done.length, year: 0, operated: 0, assisted: 0, observed: 0, procs: {}, procLabel: {}, noProc: 0, first: '' };
-  done.forEach(p => {
-    if (p.surgeonRole === 'assistant') j.assisted++; else if (p.surgeonRole === 'observer') j.observed++; else j.operated++;
-    const d = String(p.surgeryDate || '');
-    if (d.slice(0, 4) === yr) j.year++;
-    if (/^\d{4}-\d{2}/.test(d) && (!j.first || d < j.first)) j.first = d;
-    const raw = String(p.procedure || '').trim(), k = raw.toLowerCase();
-    if (k) { j.procs[k] = (j.procs[k] || 0) + 1; if (!j.procLabel[k]) j.procLabel[k] = raw; } else j.noProc++;
+   Read-only screen with two tracks (Surgeries / OPD patients): count, rank title, this month vs best month, what you do most, named milestone badges.
+   A new milestone is celebrated once (confetti + toast) when you open this screen or right after saving a new case. */
+const JOURNEY_MS = [[1, 'First Incision'], [5, 'Hands Warmed Up'], [10, 'Double Digits'], [20, 'Steady Hands'], [30, 'Getting Confident'], [50, 'Half Century'], [75, 'Rising Surgeon'], [100, 'Century!'],
+  [150, 'Seasoned Hands'], [200, 'Double Century'], [300, 'Trusted Hands'], [400, 'Master in the Making'], [500, 'Five Hundred Club'], [750, 'Elite Operator'], [1000, 'Thousand Club']];
+const JOURNEY_MS_OPD = [[1, 'First Patient'], [5, 'Doors Open'], [10, 'Clinic Rolling'], [25, 'Familiar Faces'], [50, 'Half Hundred'], [100, 'Hundred Strong'], [150, 'Growing Practice'], [250, 'Quarter Thousand'],
+  [400, 'Go-To Doctor'], [500, 'Five Hundred Club'], [750, 'Busy OPD'], [1000, 'Thousand Club'], [1500, 'Local Name'], [2000, 'Two Thousand Strong'], [3000, 'Pillar of the Clinic'], [5000, 'Legend of the OPD']];
+const JOURNEY_KEYS = { surgical: 'orthovault-journey-celebrated-v1', opd: 'orthovault-journey-celebrated-opd-v1' };
+const JOURNEY_CELEBRATED_KEY = JOURNEY_KEYS.surgical;
+let JOURNEY_TRACK = 'surgical';
+function journeyTitle(ms, n) { const m = ms.find(x => x[0] === n); return m ? m[1] : ''; }
+function computeJourney(track) {
+  track = track || JOURNEY_TRACK;
+  const isS = track === 'surgical';
+  const rows = (PATIENTS || []).filter(p => p && !p.isSample && (isS ? (p.caseType === 'surgical' && p.surgeryStatus !== 'awaiting') : p.caseType !== 'surgical'));
+  const nowYm = todayStr().slice(0, 7), yr = nowYm.slice(0, 4);
+  const ymOf = p => {
+    if (isS) { const d = String(p.surgeryDate || ''); return /^\d{4}-\d{2}/.test(d) ? d.slice(0, 7) : ''; }
+    const d = new Date(p.createdAt); return isNaN(d) ? '' : d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  };
+  const j = { track: track, isS: isS, ms: isS ? JOURNEY_MS : JOURNEY_MS_OPD, total: rows.length, year: 0, month: 0, best: 0, bestYm: '', operated: 0, assisted: 0, observed: 0, items: {}, itemLabel: {}, noItem: 0, first: '' };
+  const byM = {};
+  rows.forEach(p => {
+    if (isS) { if (p.surgeonRole === 'assistant') j.assisted++; else if (p.surgeonRole === 'observer') j.observed++; else j.operated++; }
+    const ym = ymOf(p);
+    if (ym) {
+      byM[ym] = (byM[ym] || 0) + 1;
+      if (ym.slice(0, 4) === yr) j.year++;
+      if (ym === nowYm) j.month++;
+      if (!j.first || ym < j.first.slice(0, 7)) j.first = ym + '-01';
+    }
+    const raw = String((isS ? p.procedure : p.diagnosis) || '').trim(), k = raw.toLowerCase();
+    if (k) { j.items[k] = (j.items[k] || 0) + 1; if (!j.itemLabel[k]) j.itemLabel[k] = raw; } else j.noItem++;
   });
-  j.next = JOURNEY_MILESTONES.find(m => m > j.total) || null;
-  j.prev = JOURNEY_MILESTONES.filter(m => m <= j.total).pop() || 0;
+  Object.keys(byM).forEach(ym => { if (byM[ym] > j.best || (byM[ym] === j.best && ym > j.bestYm)) { j.best = byM[ym]; j.bestYm = ym; } });
+  j.next = (j.ms.find(m => m[0] > j.total) || [null])[0];
+  j.prev = (j.ms.filter(m => m[0] <= j.total).pop() || [0])[0];
   return j;
 }
 function journeyMonthLabel(ymd) {
@@ -4603,37 +4626,53 @@ function journeyMonthLabel(ymd) {
   return isNaN(d) ? '' : d.toLocaleString('en-IN', { month: 'short', year: 'numeric' });
 }
 function journeyShareText(j) {
+  if (!j.isS) return 'My OPD log (OrthoVault): ' + j.total + ' patients seen' + (j.first ? ' since ' + journeyMonthLabel(j.first) : '') + '.';
   return 'My surgical log (OrthoVault): ' + j.total + ' surgeries — ' + j.operated + ' operated, ' + j.assisted + ' assisted, ' + j.observed + ' observed' + (j.first ? ' since ' + journeyMonthLabel(j.first) : '') + '.';
 }
 function renderJourneyView() {
-  const j = computeJourney();
+  const j = computeJourney(JOURNEY_TRACK);
   const head = '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3"><button class="icon-btn" data-action="close-journey">' + ic('back') + '</button><h2 style="font-size:16px;font-weight:800;margin:0;">My Surgical Journey</h2></div></div>';
+  const toggle = '<div class="row gap2" style="margin-bottom:20px;">' + [['surgical', 'Surgeries'], ['opd', 'OPD patients']].map(([k, l]) =>
+    '<button type="button" class="seg-btn' + (JOURNEY_TRACK === k ? ' active' : '') + '" data-action="journey-track" data-value="' + k + '">' + l + '</button>').join('') + '</div>';
+  const open = '<div style="padding-bottom:90px;">' + head + '<div class="px" style="padding-top:20px;max-width:640px;margin:0 auto;">' + toggle;
   if (!j.total) {
-    return '<div style="padding-bottom:90px;">' + head + '<div class="px" style="padding-top:24px;"><div class="card" style="text-align:center;color:var(--muted);font-size:13.5px;padding:36px 20px;line-height:1.6;">Log your first surgical case and your journey starts here.</div></div></div>';
+    return open + '<div class="card" style="text-align:center;color:var(--muted);font-size:13.5px;padding:36px 20px;line-height:1.6;">' + (j.isS ? 'Log your first surgical case and your journey starts here.' : 'Add your first OPD patient and your count starts here.') + '</div></div></div>';
   }
   const pct = j.next ? Math.round(((j.total - j.prev) / (j.next - j.prev)) * 100) : 100;
+  const left = j.next ? j.next - j.total : 0;
   const hero = '<div class="card" data-action="journey-confetti" style="text-align:center;padding:30px 20px 24px;background:linear-gradient(135deg,var(--accent),var(--accent-dark));border:none;color:#fff;margin-bottom:24px;cursor:pointer;">'
+    + '<div style="display:inline-block;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;background:rgba(255,255,255,0.2);border-radius:99px;padding:5px 12px;margin-bottom:14px;">' + esc(journeyTitle(j.ms, j.prev)) + '</div>'
     + '<div id="jr-count" style="font-size:58px;font-weight:800;line-height:1;">' + j.total + '</div>'
-    + '<div style="font-size:13px;font-weight:700;opacity:.92;margin-top:10px;">surgeries logged' + (j.year ? ' · ' + j.year + ' this year' : '') + '</div>'
+    + '<div style="font-size:13px;font-weight:700;opacity:.92;margin-top:10px;">' + (j.isS ? 'surgeries logged' : 'OPD patients seen') + (j.year ? ' · ' + j.year + ' this year' : '') + '</div>'
     + '<div style="margin-top:22px;"><div style="height:6px;border-radius:99px;background:rgba(255,255,255,0.28);overflow:hidden;"><div style="height:100%;width:' + pct + '%;background:#fff;border-radius:99px;"></div></div>'
-    + '<div style="font-size:12px;opacity:.92;margin-top:8px;">' + (j.next ? (j.next - j.total) + ' more to reach ' + j.next : 'Thousand club — legend') + '</div></div></div>';
+    + '<div style="font-size:12px;opacity:.92;margin-top:8px;">' + (j.next ? (left <= 3 ? 'Almost there — just ' + left + ' more for ' + esc(journeyTitle(j.ms, j.next)) + '!' : left + ' more to reach ' + esc(journeyTitle(j.ms, j.next)) + ' (' + j.next + ')') : 'Top of the ladder — legend') + '</div></div></div>';
+  let monthCard = '';
+  if (j.best > 0) {
+    const beat = j.month > 0 && j.month >= j.best;
+    monthCard = '<div class="card" style="padding:20px;margin-bottom:24px;"><div class="row" style="text-align:center;">'
+      + '<div style="flex:1;"><div style="font-size:26px;font-weight:800;line-height:1;color:var(--accent);">' + j.month + '</div><div style="font-size:11.5px;font-weight:600;color:var(--muted);margin-top:6px;">This month</div></div>'
+      + '<div style="flex:1;"><div style="font-size:26px;font-weight:800;line-height:1;color:var(--ink);">' + j.best + '</div><div style="font-size:11.5px;font-weight:600;color:var(--muted);margin-top:6px;">Best month' + (j.bestYm ? ' · ' + journeyMonthLabel(j.bestYm + '-01') : '') + '</div></div></div>'
+      + '<div style="text-align:center;font-size:12.5px;font-weight:700;color:var(--accent-dark);margin-top:16px;">' + (beat ? 'New personal best this month — keep it going!' : (j.best - j.month + 1) + ' more this month to beat your best') + '</div></div>';
+  }
   const seg = (n, color) => n ? '<div style="width:' + (n / j.total * 100) + '%;background:' + color + ';"></div>' : '';
   const roleCol = (n, label, color) => '<div style="flex:1;text-align:center;"><div style="font-size:24px;font-weight:800;line-height:1;color:' + color + ';">' + n + '</div><div style="font-size:11.5px;font-weight:600;color:var(--muted);margin-top:6px;">' + label + '</div></div>';
-  const roles = '<div class="card" style="padding:22px 20px;margin-bottom:24px;"><div class="field-label" style="margin-bottom:16px;">Your role</div>'
+  const roles = !j.isS ? '' : '<div class="card" style="padding:22px 20px;margin-bottom:24px;"><div class="field-label" style="margin-bottom:16px;">Your role</div>'
     + '<div style="display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--bg-soft);">' + seg(j.operated, 'var(--accent)') + seg(j.assisted, '#d97706') + seg(j.observed, '#94a3b8') + '</div>'
     + '<div class="row" style="margin-top:20px;">' + roleCol(j.operated, 'Operated', 'var(--accent)') + roleCol(j.assisted, 'Assisted', '#d97706') + roleCol(j.observed, 'Observed', 'var(--muted)') + '</div></div>';
-  const topP = Object.entries(j.procs).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, n]) => [j.procLabel[k] || k, n]);
-  const procs = topP.length ? '<div class="card" style="padding:22px 20px;margin-bottom:24px;"><div class="field-label" style="margin-bottom:16px;">Most done</div>' + psBarsHtml(topP, j.total - j.noProc)
-    + (j.noProc ? '<div style="font-size:11px;color:var(--muted);margin-top:2px;">' + j.noProc + ' case' + (j.noProc === 1 ? ' has' : 's have') + ' no procedure written yet.</div>' : '') + '</div>' : '';
-  const unlocked = JOURNEY_MILESTONES.filter(m => m <= j.total).length;
-  const badges = '<div class="card" style="padding:22px 20px;margin-bottom:24px;"><div class="row between" style="margin-bottom:16px;"><div class="field-label" style="margin:0;">Milestones</div><span style="font-size:11.5px;font-weight:700;color:var(--muted);">' + unlocked + ' of ' + JOURNEY_MILESTONES.length + '</span></div>'
-    + '<div style="display:flex;flex-wrap:wrap;gap:14px;">' + JOURNEY_MILESTONES.map(m => {
-      const got = m <= j.total;
-      return '<div title="' + m + (m === 1 ? ' surgery' : ' surgeries') + '" style="width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:' + (m >= 1000 ? 12 : 14) + 'px;font-weight:800;'
-        + (got ? 'background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;' : 'border:2px dashed var(--border);color:var(--muted);opacity:0.6;') + '">' + m + '</div>';
+  const topP = Object.entries(j.items).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, n]) => [j.itemLabel[k] || k, n]);
+  const procs = topP.length ? '<div class="card" style="padding:22px 20px;margin-bottom:24px;"><div class="field-label" style="margin-bottom:16px;">' + (j.isS ? 'Most done' : 'Most seen') + '</div>' + psBarsHtml(topP, j.total - j.noItem, { cap: !j.isS })
+    + (j.noItem ? '<div style="font-size:11px;color:var(--muted);margin-top:2px;">' + j.noItem + ' case' + (j.noItem === 1 ? ' has' : 's have') + ' no ' + (j.isS ? 'procedure' : 'diagnosis') + ' written yet.</div>' : '') + '</div>' : '';
+  const unlocked = j.ms.filter(m => m[0] <= j.total).length;
+  const badges = '<div class="card" style="padding:22px 0 14px;margin-bottom:24px;"><div class="row between" style="margin:0 20px 14px;"><div class="field-label" style="margin:0;">Milestones</div><span style="font-size:11.5px;font-weight:700;color:var(--muted);">' + unlocked + ' of ' + j.ms.length + '</span></div>'
+    + '<div class="jr-strip" id="jr-strip">' + j.ms.map(([m, name]) => {
+      const got = m <= j.total, isNext = m === j.next;
+      const circle = got ? 'background:linear-gradient(135deg,var(--accent),var(--accent-dark));color:#fff;'
+        : isNext ? 'border:2px solid var(--accent);color:var(--accent-dark);background:var(--surface);' : 'border:2px dashed var(--border);color:var(--muted);opacity:0.65;';
+      return '<div class="jr-ms" data-next="' + (isNext ? '1' : '') + '" title="' + esc(name) + ' — ' + m + '">'
+        + '<div style="width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:' + (m >= 1000 ? 12 : 15) + 'px;font-weight:800;margin:0 auto;' + circle + '">' + m + '</div>'
+        + '<div style="font-size:10.5px;font-weight:' + (got || isNext ? 700 : 600) + ';line-height:1.25;margin-top:8px;text-align:center;color:' + (got || isNext ? 'var(--ink)' : 'var(--muted)') + ';">' + esc(name) + '</div></div>';
     }).join('') + '</div></div>';
-  return '<div style="padding-bottom:90px;">' + head + '<div class="px" style="padding-top:20px;max-width:640px;margin:0 auto;">' + hero + roles + procs + badges
-    + '<button type="button" class="btn btn-primary btn-block" data-action="journey-share">Share my numbers</button></div></div>';
+  return open + hero + monthCard + roles + procs + badges + '<button type="button" class="btn btn-primary btn-block" data-action="journey-share">Share my numbers</button></div></div>';
 }
 function journeyConfetti() {
   if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -4647,8 +4686,25 @@ function journeyConfetti() {
   box.innerHTML = h; document.body.appendChild(box);
   setTimeout(() => { box.remove(); }, 3800);
 }
+// Celebrates every milestone you have newly reached (surgeries and OPD), once. delay = ms to wait (so "Case saved" is seen first).
+function journeyCelebrate(delay) {
+  const msgs = [];
+  ['surgical', 'opd'].forEach(tr => {
+    const jj = computeJourney(tr);
+    let seen = 0; try { seen = parseInt(localStorage.getItem(JOURNEY_KEYS[tr]) || '0', 10) || 0; } catch (e) {}
+    if (jj.prev > seen) {
+      try { localStorage.setItem(JOURNEY_KEYS[tr], String(jj.prev)); } catch (e) {}
+      msgs.push(esc(journeyTitle(jj.ms, jj.prev)) + ' unlocked — ' + (jj.isS ? (jj.prev === 1 ? 'your first surgery is in the log!' : jj.prev + ' surgeries and counting!') : (jj.prev === 1 ? 'your first OPD patient is in!' : jj.prev + ' OPD patients and counting!')));
+    }
+  });
+  if (!msgs.length) return;
+  const d = delay || 0;
+  setTimeout(journeyConfetti, d + 350);
+  setTimeout(() => toast(msgs[0]), d);
+  if (msgs[1]) setTimeout(() => toast(msgs[1]), d + 3400);
+}
 function fillJourney() {
-  const j = computeJourney();
+  const j = computeJourney(JOURNEY_TRACK);
   const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   const el = document.getElementById('jr-count');
   if (el && j.total > 1 && !reduce) {
@@ -4663,12 +4719,9 @@ function fillJourney() {
     requestAnimationFrame(step);
     setTimeout(() => { const cur = document.getElementById('jr-count'); if (cur) cur.textContent = String(j.total); }, 900);
   }
-  let seen = 0; try { seen = parseInt(localStorage.getItem(JOURNEY_CELEBRATED_KEY) || '0', 10) || 0; } catch (e) {}
-  if (j.prev > seen) {
-    try { localStorage.setItem(JOURNEY_CELEBRATED_KEY, String(j.prev)); } catch (e) {}
-    setTimeout(journeyConfetti, 350);
-    toast(j.prev === 1 ? 'First surgery logged — your journey has started!' : j.prev + ' surgeries — milestone unlocked!');
-  }
+  const strip = document.getElementById('jr-strip'), nx = strip && (strip.querySelector('[data-next="1"]') || strip.lastElementChild);
+  if (strip && nx) strip.scrollLeft = Math.max(0, nx.offsetLeft - strip.clientWidth / 2 + nx.offsetWidth / 2);
+  journeyCelebrate(0);
 }
 async function fillPatientStatsData() {
   try {
@@ -14781,6 +14834,7 @@ document.addEventListener('click', async (e) => {
       toast('Case saved');
       await render();
       window.scrollTo(0,0);
+      try { journeyCelebrate(1800); } catch (e) {}
     } catch (err) {
       el.innerHTML = originalHtml; el.disabled = false;
       toast('Could not save \u2014 try again');
@@ -16135,8 +16189,9 @@ document.addEventListener('click', async (e) => {
   if (action === 'open-journey') { VIEW = 'journey'; await render(); window.scrollTo(0, 0); return; }
   if (action === 'close-journey') { VIEW = 'more'; render(); return; }
   if (action === 'journey-confetti') { journeyConfetti(); return; }
+  if (action === 'journey-track') { JOURNEY_TRACK = el.dataset.value === 'opd' ? 'opd' : 'surgical'; await render(); return; }
   if (action === 'journey-share') {
-    const txt = journeyShareText(computeJourney());
+    const txt = journeyShareText(computeJourney(JOURNEY_TRACK));
     try {
       if (navigator.share) { await navigator.share({ text: txt }); }
       else { await navigator.clipboard.writeText(txt); toast('Copied \u2014 paste it anywhere'); }
