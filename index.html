@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261127.1">
+<meta name="app-build" content="20261127.2">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -4002,6 +4002,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Compare photos (patient menu): pick a before and an after X-ray or photo, slide between them or view side by side, and share the pair as one image (stage and date only, no patient name). Monthly Summary (More \u2192 Practice): your month in numbers with a share option',
       'Surgical cases can store implant details (brand, components, sizes, lot number) \u2014 tucked behind a small "+ Implant details" link in the case edit view; shows in the case snapshot and the Master Excel',
       'Follow-ups has a new Check-ins tab: patients who are due a friendly call or message outside routine follow-ups \u2014 surgical patients at 2 weeks, 1, 3, 6 months and 1 year, and OPD patients seen about a month ago with nothing booked. Call or WhatsApp in one tap, then tap what you heard',
       'Surgical Journey: milestones are closer together and have names, for both Surgeries and OPD patients (First Incision, Double Digits, Half Century, Century! ...). Rank under your count, this month vs your best month, a "just 3 more" nudge when close, a swipeable badge strip that opens on your next target, and a little celebration the moment you save a case that unlocks one',
@@ -4269,7 +4270,7 @@ function newPatientShape() {
   const OVERRIDE = {
     'toggle-patient-menu':'More options', 'log-reminder-sent':'Log reminder sent', 'master-ai-use-mic':'Use microphone',
     'open-reading-mode':'Open reading mode', 'ov-toggle-section-edit':'Edit this section', 'ov-toggle-section':'Expand or collapse section',
-    'close-journey':'Back', 'arm-delete':'Delete', 'more-search-clear':'Clear search', 'toggle-legend':'Show or hide legend', 'nav-patients':'Back to patients',
+    'close-journey':'Back', 'close-compare':'Back', 'close-monthly':'Back', 'monthly-prev':'Previous month', 'monthly-next':'Next month', 'arm-delete':'Delete', 'more-search-clear':'Clear search', 'toggle-legend':'Show or hide legend', 'nav-patients':'Back to patients',
     'back-to-list':'Back', 'view-rx':'View prescription', 'save-patient-code':'Save patient ID', 'save-header-date':'Save date',
     'download-case-zip':'Download case', 'photos-zip-case':'Photos zip', 'photos-zip-all':'Photos zip', 'imgrec-enter-select':'Select photos', 'dismiss-backup-banner':'Dismiss',
     'diag-print-statement':'Print statement', 'diag-export-csv':'Export CSV', 'mc-cancel-broadcast':'Cancel broadcast', 'ps-edit':'Edit planned surgery'
@@ -4810,6 +4811,170 @@ function fillJourney() {
   if (strip && nx) strip.scrollLeft = Math.max(0, nx.offsetLeft - strip.clientWidth / 2 + nx.offsetWidth / 2);
   journeyCelebrate(0);
 }
+/* ============ Photo compare: before / after on one screen ============ */
+let CMP = null; // { pid, imgs:[{id,blob,url,cat,label,ymd,order}], cat, a, b, mode:'slider'|'side', pos }
+const CMP_CATS = [['xray', 'X-ray'], ['clinical', 'Clinical'], ['wound', 'Wound'], ['ct', 'CT'], ['mri', 'MRI'], ['usg', 'USG'], ['other', 'Photos']];
+function cmpStage(p, im) {
+  const created = localYmd(new Date(im.createdAt || Date.now()));
+  if (im.followUpId) {
+    const f = (p.followUps || []).find(x => x.id === im.followUpId);
+    return { label: (f && f.label) || 'Follow-up', ymd: String((f && f.date) || created).slice(0, 10) };
+  }
+  const sub = im.xraySubtype && im.xraySubtype !== 'General OPD' ? im.xraySubtype : '';
+  if (sub) return { label: sub, ymd: created };
+  if (im.isIntraOp) return { label: 'Intra-op', ymd: created };
+  const sd = /^\d{4}-\d{2}-\d{2}/.test(p.surgeryDate || '') ? p.surgeryDate.slice(0, 10) : '';
+  if (p.caseType === 'surgical' && sd) return { label: created < sd ? 'Pre-op' : created === sd ? 'Surgery day' : 'Post-op', ymd: created };
+  return { label: 'First visit', ymd: created };
+}
+function cmpRevoke() { if (CMP && CMP.imgs) CMP.imgs.forEach(i => { try { URL.revokeObjectURL(i.url); } catch (e) {} }); }
+async function openCompare(pid) {
+  const p = getPatient(pid); if (!p) return;
+  const all = (await dbGetImagesByPatient(pid)).filter(im => im && im.blob && im.imageCategory !== 'video' && !(im.blob.type && !/^image\//.test(im.blob.type)));
+  if (all.length < 2) { toast('Add at least 2 photos to compare'); return; }
+  cmpRevoke();
+  const imgs = all.map((im, i) => {
+    const st = cmpStage(p, im);
+    const cat = im.isWoundPhoto ? 'wound' : (CMP_CATS.some(c => c[0] === im.imageCategory) ? im.imageCategory : 'other');
+    return { id: im.id, blob: im.blob, url: URL.createObjectURL(im.blob), cat: cat, label: st.label, ymd: st.ymd, order: im.createdAt || i };
+  }).sort((x, y) => (x.ymd === y.ymd ? x.order - y.order : (x.ymd < y.ymd ? -1 : 1)));
+  const counts = {}; imgs.forEach(i => { counts[i.cat] = (counts[i.cat] || 0) + 1; });
+  const best = CMP_CATS.map(c => c[0]).filter(k => counts[k] >= 2).sort((x, y) => (x === 'xray' ? -1 : y === 'xray' ? 1 : counts[y] - counts[x]))[0] || Object.keys(counts).sort((x, y) => counts[y] - counts[x])[0];
+  CMP = { pid: pid, imgs: imgs, cat: best, mode: 'slider', pos: 50, a: null, b: null };
+  cmpDefaults();
+  VIEW = 'compare'; await render(); window.scrollTo(0, 0);
+}
+function cmpList() { return CMP.imgs.filter(i => i.cat === CMP.cat); }
+function cmpDefaults() { const l = cmpList(); CMP.a = l.length ? l[0].id : null; CMP.b = l.length > 1 ? l[l.length - 1].id : (l.length ? l[0].id : null); }
+function cmpGet(id) { return CMP.imgs.find(i => i.id === id); }
+function cmpCap(i) { return i ? esc(i.label) + ' · ' + esc(fmtDateShort(i.ymd)) : ''; }
+function cmpThumbs(side) {
+  const sel = side === 'a' ? CMP.a : CMP.b;
+  return '<div style="display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;-webkit-overflow-scrolling:touch;">' + cmpList().map(i =>
+    '<button type="button" data-action="cmp-pick" data-side="' + side + '" data-id="' + esc(i.id) + '" style="flex:0 0 auto;width:64px;background:none;border:none;padding:0;cursor:pointer;text-align:center;">'
+    + '<img src="' + esc(i.url) + '" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:10px;display:block;border:2px solid ' + (i.id === sel ? 'var(--accent)' : 'transparent') + ';opacity:' + (i.id === sel ? '1' : '.7') + ';">'
+    + '<span style="display:block;font-size:9.5px;margin-top:3px;color:' + (i.id === sel ? 'var(--accent-dark)' : 'var(--muted)') + ';font-weight:' + (i.id === sel ? '800' : '600') + ';line-height:1.25;">' + esc(i.label) + '<br>' + esc(fmtDateShort(i.ymd)) + '</span></button>').join('') + '</div>';
+}
+function cmpStageHtml() {
+  const A = cmpGet(CMP.a), B = cmpGet(CMP.b);
+  if (!A || !B) return '';
+  const tag = (t, right) => '<span style="position:absolute;top:8px;' + (right ? 'right' : 'left') + ':8px;background:rgba(0,0,0,.62);color:#fff;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:999px;pointer-events:none;">' + t + '</span>';
+  if (CMP.mode === 'side') {
+    const cell = (i, right) => '<div style="position:relative;flex:1;min-width:0;background:#000;border-radius:12px;overflow:hidden;height:min(52vh,420px);"><img src="' + esc(i.url) + '" alt="" style="width:100%;height:100%;object-fit:contain;display:block;">' + tag(cmpCap(i), right) + '</div>';
+    return '<div style="display:flex;gap:8px;">' + cell(A, false) + cell(B, true) + '</div>';
+  }
+  return '<div id="cmp-stage" style="position:relative;background:#000;border-radius:14px;overflow:hidden;height:min(58vh,480px);user-select:none;">'
+    + '<img src="' + esc(A.url) + '" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;">'
+    + '<img id="cmp-top" src="' + esc(B.url) + '" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;clip-path:inset(0 0 0 ' + CMP.pos + '%);">'
+    + '<div id="cmp-line" style="position:absolute;top:0;bottom:0;left:' + CMP.pos + '%;width:2px;background:#fff;box-shadow:0 0 6px rgba(0,0,0,.5);pointer-events:none;"></div>'
+    + '<div id="cmp-knob" style="position:absolute;top:50%;left:' + CMP.pos + '%;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:13px;color:#333;pointer-events:none;">↔</div>'
+    + tag(cmpCap(A), false) + tag(cmpCap(B), true)
+    + '<input id="cmp-range" type="range" min="0" max="100" value="' + CMP.pos + '" aria-label="Compare slider" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:ew-resize;margin:0;touch-action:pan-y;">'
+    + '</div>';
+}
+function renderPhotoCompareView() {
+  const p = CMP ? getPatient(CMP.pid) : null;
+  const head = '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3"><button class="icon-btn" data-action="close-compare">' + ic('back') + '</button><h2 style="font-size:16px;font-weight:800;margin:0;">Compare photos</h2></div></div>';
+  if (!CMP || !p) return '<div style="padding-bottom:90px;">' + head + '<div class="px" style="padding-top:20px;color:var(--muted);">Nothing to compare.</div></div>';
+  const counts = {}; CMP.imgs.forEach(i => { counts[i.cat] = (counts[i.cat] || 0) + 1; });
+  const cats = CMP_CATS.filter(c => counts[c[0]]);
+  const chips = cats.length > 1 ? '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">' + cats.map(c => '<button type="button" class="chip' + (CMP.cat === c[0] ? ' active' : '') + '" style="font-size:11.5px;padding:5px 11px;" data-action="cmp-cat" data-value="' + c[0] + '">' + c[1] + ' ' + counts[c[0]] + '</button>').join('') + '</div>' : '';
+  const enough = cmpList().length >= 2;
+  const seg = '<div class="row gap2" style="margin-bottom:12px;">' + [['slider', 'Slider'], ['side', 'Side by side']].map(m => '<button type="button" class="seg-btn' + (CMP.mode === m[0] ? ' active' : '') + '" data-action="cmp-mode" data-value="' + m[0] + '">' + m[1] + '</button>').join('') + '</div>';
+  return '<div style="padding-bottom:90px;">' + head + '<div class="px" style="padding-top:16px;max-width:760px;margin:0 auto;">'
+    + '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">' + escName(p.name) + (p.procedure || p.diagnosis ? ' · ' + esc(p.procedure || p.diagnosis) : '') + '</div>'
+    + chips
+    + (enough ? seg + cmpStageHtml()
+        + '<div class="field-label" style="margin:16px 0 6px;">Before (left)</div>' + cmpThumbs('a')
+        + '<div class="field-label" style="margin:10px 0 6px;">After (right)</div>' + cmpThumbs('b')
+        + '<button type="button" class="btn" style="margin-top:16px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;" data-action="cmp-share">' + ic('download') + ' Share this comparison as image</button>'
+        + '<p style="font-size:10.5px;color:var(--muted);margin:8px 0 0;text-align:center;">The image has stage and date only — no patient name.</p>'
+      : '<div class="card" style="text-align:center;color:var(--muted);font-size:13px;padding:30px 18px;">Only one photo in this group. Pick another group above, or add more photos.</div>')
+    + '</div></div>';
+}
+async function cmpShare() {
+  const A = cmpGet(CMP.a), B = cmpGet(CMP.b); if (!A || !B) return;
+  try {
+    const [ba, bb] = await Promise.all([createImageBitmap(A.blob), createImageBitmap(B.blob)]);
+    const H = 1000, bar = 64, wa = Math.round(ba.width * H / ba.height), wb = Math.round(bb.width * H / bb.height);
+    const scale = Math.min(1, 2800 / (wa + wb));
+    const hh = Math.round(H * scale), w1 = Math.round(wa * scale), w2 = Math.round(wb * scale), br = Math.round(bar * scale);
+    const cv = document.createElement('canvas'); cv.width = w1 + w2 + 6; cv.height = hh + br;
+    const g = cv.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0, 0, cv.width, cv.height);
+    g.drawImage(ba, 0, 0, w1, hh); g.drawImage(bb, w1 + 6, 0, w2, hh);
+    g.fillStyle = '#fff'; g.font = '600 ' + Math.round(26 * scale) + 'px sans-serif'; g.textBaseline = 'middle';
+    const cap = i => i.label + ' · ' + fmtDateShort(i.ymd);
+    g.textAlign = 'left'; g.fillText(cap(A), 14, hh + br / 2); g.textAlign = 'right'; g.fillText(cap(B), cv.width - 14, hh + br / 2);
+    const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.9));
+    if (!blob) throw new Error('encode');
+    const name = 'comparison-' + A.label.replace(/[^a-z0-9]+/gi, '') + '-vs-' + B.label.replace(/[^a-z0-9]+/gi, '') + '.jpg';
+    const file = new File([blob], name, { type: 'image/jpeg' });
+    const desktop = window.matchMedia && window.matchMedia('(min-width:900px)').matches;
+    if (!desktop && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Photo comparison' }); return; }
+    const url = URL.createObjectURL(blob); const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+    toast('Comparison image saved');
+  } catch (e) { if (e && e.name === 'AbortError') return; toast('Could not make the image'); }
+}
+
+/* ============ Monthly summary: a recap of the month, shareable as text ============ */
+let MONTHLY_YM = '';
+function monthlyYm(ymd) { return /^\d{4}-\d{2}/.test(String(ymd || '')) ? String(ymd).slice(0, 7) : ''; }
+function computeMonthly(ym) {
+  const rows = (PATIENTS || []).filter(p => p && !p.isSample);
+  const d = { ym: ym, surg: 0, operated: 0, assisted: 0, observed: 0, opd: 0, visits: 0, checkins: 0, procs: {}, procLabel: {} };
+  const best = {};
+  rows.forEach(p => {
+    if (p.caseType === 'surgical' && p.surgeryStatus !== 'awaiting') {
+      const m = monthlyYm(p.surgeryDate);
+      if (m) best[m] = (best[m] || 0) + 1;
+      if (m === ym) {
+        d.surg++;
+        if (p.surgeonRole === 'assistant') d.assisted++; else if (p.surgeonRole === 'observer') d.observed++; else d.operated++;
+        const raw = String(p.procedure || '').trim(), k = raw.toLowerCase();
+        if (k) { d.procs[k] = (d.procs[k] || 0) + 1; if (!d.procLabel[k]) d.procLabel[k] = raw; }
+      }
+    } else if (p.caseType !== 'surgical') {
+      const c = new Date(p.createdAt);
+      if (!isNaN(c) && c.getFullYear() + '-' + String(c.getMonth() + 1).padStart(2, '0') === ym) d.opd++;
+    }
+    (p.followUps || []).forEach(f => { if (f && monthlyYm(f.date) === ym) d.visits++; });
+    (Array.isArray(p.checkIns) ? p.checkIns : []).forEach(c => { if (c && c.result !== 'Skipped' && c.at && localYmd(new Date(c.at)).slice(0, 7) === ym) d.checkins++; });
+  });
+  d.top = Object.keys(d.procs).sort((a, b) => d.procs[b] - d.procs[a]).slice(0, 3).map(k => [d.procLabel[k], d.procs[k]]);
+  const bm = Math.max.apply(null, [0].concat(Object.keys(best).map(k => best[k])));
+  d.bestEver = d.surg > 0 && d.surg >= bm && Object.keys(best).length > 1;
+  return d;
+}
+function monthlyShift(ym, n) { const y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1 + n; const dt = new Date(y, m, 1, 12); return dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0'); }
+function monthlyShareText(d) {
+  const L = journeyMonthLabel(d.ym + '-01');
+  const parts = [L + ' — my month in numbers', d.surg + ' surgeries' + (d.surg ? ' (' + d.operated + ' operated' + (d.assisted ? ', ' + d.assisted + ' assisted' : '') + (d.observed ? ', ' + d.observed + ' observed' : '') + ')' : ''), d.opd + ' new OPD patients', d.visits + ' follow-up visits'];
+  if (d.top.length) parts.push('Most done: ' + d.top.map(t => t[0] + ' ×' + t[1]).join(', '));
+  return parts.join('\n');
+}
+function renderMonthlyView() {
+  if (!MONTHLY_YM) MONTHLY_YM = todayStr().slice(0, 7);
+  const nowYm = todayStr().slice(0, 7), d = computeMonthly(MONTHLY_YM), pv = computeMonthly(monthlyShift(MONTHLY_YM, -1));
+  const head = '<div class="sticky-top px" style="padding:14px 16px;"><div class="row gap3"><button class="icon-btn" data-action="close-monthly">' + ic('back') + '</button><h2 style="font-size:16px;font-weight:800;margin:0;">Monthly Summary</h2></div></div>';
+  const nav = '<div class="row between" style="align-items:center;margin-bottom:22px;"><button class="icon-btn" data-action="monthly-prev" aria-label="Previous month" style="transform:rotate(180deg);">' + ic('chevron') + '</button>'
+    + '<div style="font-size:20px;font-weight:800;">' + esc(journeyMonthLabel(MONTHLY_YM + '-01')) + '</div>'
+    + '<button class="icon-btn" data-action="monthly-next" aria-label="Next month"' + (MONTHLY_YM >= nowYm ? ' disabled style="opacity:.25;"' : '') + '>' + ic('chevron') + '</button></div>';
+  const delta = (a, b) => { const x = a - b; return x === 0 ? '' : '<div style="font-size:11px;font-weight:700;margin-top:2px;color:' + (x > 0 ? 'var(--emerald)' : 'var(--muted)') + ';">' + (x > 0 ? '+' : '−') + Math.abs(x) + ' vs last month</div>'; };
+  const tile = (n, l, dl) => '<div class="card" style="text-align:center;padding:20px 8px;"><div style="font-size:34px;font-weight:800;line-height:1.1;">' + n + '</div><div style="font-size:11.5px;color:var(--muted);margin-top:4px;font-weight:600;">' + l + '</div>' + dl + '</div>';
+  const empty = !d.surg && !d.opd && !d.visits;
+  return '<div style="padding-bottom:90px;">' + head + '<div class="px" style="padding-top:20px;max-width:640px;margin:0 auto;">' + nav
+    + (d.bestEver ? '<div style="text-align:center;font-size:12.5px;font-weight:800;color:var(--accent-dark);margin:-8px 0 16px;">Your best surgical month so far</div>' : '')
+    + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;">' + tile(d.surg, 'Surgeries', delta(d.surg, pv.surg)) + tile(d.opd, 'New OPD', delta(d.opd, pv.opd)) + tile(d.visits, 'Follow-up visits', delta(d.visits, pv.visits)) + '</div>'
+    + (empty ? '<div style="text-align:center;color:var(--muted);font-size:13px;padding:10px 0 20px;">Nothing logged for this month.</div>' : '')
+    + (d.surg ? '<div style="font-size:13px;margin-bottom:6px;text-align:center;">' + d.operated + ' operated' + (d.assisted ? ' · ' + d.assisted + ' assisted' : '') + (d.observed ? ' · ' + d.observed + ' observed' : '') + '</div>' : '')
+    + (d.checkins ? '<div style="font-size:12.5px;color:var(--muted);text-align:center;margin-bottom:6px;">' + d.checkins + ' patient check-in' + (d.checkins > 1 ? 's' : '') + ' done</div>' : '')
+    + (d.top.length ? '<div class="field-label" style="margin:22px 0 10px;">Most done</div>' + d.top.map(t => '<div class="row between" style="padding:9px 2px;border-bottom:1px solid var(--border);font-size:13.5px;"><span style="overflow-wrap:anywhere;">' + esc(t[0]) + '</span><span style="font-weight:800;">×' + t[1] + '</span></div>').join('') : '')
+    + (empty ? '' : '<button type="button" class="btn" style="margin-top:26px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;" data-action="monthly-share">' + ic('download') + ' Share summary</button>')
+    + '</div></div>';
+}
+
 async function fillPatientStatsData() {
   try {
     const s = await storeOf('images', 'readonly');
@@ -6742,6 +6907,7 @@ function moreBodyHtml() {
     { group:'backup', title:'Recently Deleted', sub:'Restore a case deleted by mistake', html: moreRowHtml('trash', 'Recently Deleted', 'Restore a case deleted by mistake \u2014 kept for 30 days', 'open-recently-deleted') },
     { group:'practice', title:'Diagnostic Referrals', sub:'Track USG/CT/MRI referrals and commissions', html: moreRowHtml('flask', 'Diagnostic Referrals', 'Track USG/CT/MRI referrals, commissions and patient discounts by centre', 'open-diag-referrals') },
     { group:'practice', title:'Patient Statistics', sub:'Totals, case mix, new patients per month', html: moreRowHtml('trending', 'Patient Statistics', 'Totals, case mix by region, top diagnoses, new patients per month', 'open-patient-stats') },
+    { group:'practice', title:'Monthly Summary', sub:'Surgeries, OPD and follow-ups this month, shareable', html: moreRowHtml('clipboard', 'Monthly Summary', 'Your month in numbers \u2014 surgeries, new OPD, follow-up visits, most-done procedures', 'open-monthly') },
     { group:'practice', title:'My Surgical Journey', sub:'Surgery count, role split, milestones', html: moreRowHtml('scalpel', 'My Surgical Journey', 'Your surgery count, what you operated vs assisted, and milestones', 'open-journey') },
     { group:'practice', title:'Follow-up Report', sub:'Compliance rate and monthly visit trends', html: moreRowHtml('calendar', 'Follow-up Report', 'See how many patients actually return, and your monthly follow-up trend', 'open-followup-report') },
     { group:'practice', title:'Follow-up Schedules', sub:'Auto follow-up dates, off-day, trauma/OPD gaps', html: moreRowHtml('calendar', 'Follow-up Schedules', 'Auto-suggested follow-up dates by surgery type, plus your off-day rule', 'open-fu-schedule') },
@@ -11496,6 +11662,7 @@ function renderDetailShell(p) {
       + '<button type="button" class="pm-item" data-action="open-export-summary"><span>'+ic('printer')+'</span>Print summary</button>'
       + '<button type="button" class="pm-item" data-action="download-case-zip" data-id="'+p.id+'"><span>'+ic('download')+'</span>Download all</button>'
       + '<button type="button" class="pm-item" data-action="share-case-file" data-id="'+p.id+'"><span>'+ic('users')+'</span>Share case with a surgeon</button>'
+      + '<button type="button" class="pm-item" data-action="open-compare" data-id="'+p.id+'"><span>'+ic('camera')+'</span>Compare photos</button>'
       + '<button type="button" class="pm-item" data-action="photos-zip-case" data-id="'+p.id+'"><span>'+ic('camera')+'</span>Photos zip</button>'
       + '<button type="button" class="pm-item" data-action="toggle-research-flag" data-id="'+p.id+'"><span>'+ic('bookmark')+'</span>'+(p.researchFlag?'Remove from research':'Bookmark for research')+'</button>'
       + '<button type="button" class="pm-item pm-danger" data-action="open-confirm-delete"><span>'+ic('trash')+'</span>Delete case</button>'
@@ -11825,6 +11992,7 @@ function fillDeskRail() {
   const act = box.querySelector('.rail-item.active');
   if (act) { const br = box.getBoundingClientRect(), ar = act.getBoundingClientRect(); box.scrollTop += (ar.top - br.top) - (box.clientHeight - ar.height) / 2; }
 }
+document.addEventListener('input', function (e) { const t = e.target; if (t && t.id === 'cmp-range' && CMP) { CMP.pos = +t.value; const top = document.getElementById('cmp-top'), ln = document.getElementById('cmp-line'), kn = document.getElementById('cmp-knob'); if (top) top.style.clipPath = 'inset(0 0 0 ' + CMP.pos + '%)'; if (ln) ln.style.left = CMP.pos + '%'; if (kn) kn.style.left = CMP.pos + '%'; } });
 document.addEventListener('input', function (e) { if (e.target && e.target.id === 'rail-q') { try { fillDeskRail(); } catch (x) {} } });
 window.addEventListener('resize', function () { if (VIEW === 'detail') { try { fillDeskRail(); } catch (x) {} } });
 document.addEventListener('keydown', function (e) {
@@ -11895,7 +12063,7 @@ async function render() {
   LAST_RENDERED_VIEW = VIEW; LAST_RENDERED_KEY = viewKey;
   document.documentElement.setAttribute('data-view', VIEW);
   try { // which screens carry the laptop side menu, and which menu item is lit
-    const DESK_NAV_VIEWS = ['list','patients','detail','reminders-tab','daily','more','calendar','overdue','photo-gallery','followup-report','patient-stats','journey','recently-deleted','unfiled-photos','duplicate-finder','whats-new','app-settings','cloud-sync','drive-backup','research-cases','clinical-bank','clinical-bank-detail','content-ideas','academic-vault','marketing-contacts','diag-referrals','diag-statement','scheme-finder','outcome-calls','fu-schedule','fu-cleanup','reminder-queue','planned-surgeries','notifications','about'];
+    const DESK_NAV_VIEWS = ['list','patients','detail','reminders-tab','daily','more','calendar','overdue','photo-gallery','followup-report','patient-stats','journey','compare','monthly','recently-deleted','unfiled-photos','duplicate-finder','whats-new','app-settings','cloud-sync','drive-backup','research-cases','clinical-bank','clinical-bank-detail','content-ideas','academic-vault','marketing-contacts','diag-referrals','diag-statement','scheme-finder','outcome-calls','fu-schedule','fu-cleanup','reminder-queue','planned-surgeries','notifications','about'];
     const act = ({ list:'home', patients:'patients', detail:'patients', calendar:'followups', overdue:'followups', daily:'daily', 'reminders-tab':'reminders', 'diag-referrals':'referrals', 'diag-statement':'referrals' })[VIEW] || 'more';
     const de = document.documentElement;
     if (DESK_NAV_VIEWS.includes(VIEW)) { de.setAttribute('data-dn', '1'); de.setAttribute('data-dnact', act); } else { de.removeAttribute('data-dn'); de.removeAttribute('data-dnact'); }
@@ -11955,6 +12123,8 @@ async function renderCurrentView(app) {
   if (VIEW === 'followup-report') { app.innerHTML = renderFollowUpReportView(); return; }
   if (VIEW === 'patient-stats') { app.innerHTML = renderPatientStatsView(); setTimeout(fillPatientStatsData, 0); return; }
   if (VIEW === 'journey') { app.innerHTML = renderJourneyView(); setTimeout(fillJourney, 0); return; }
+  if (VIEW === 'compare') { app.innerHTML = renderPhotoCompareView(); return; }
+  if (VIEW === 'monthly') { app.innerHTML = renderMonthlyView(); return; }
   if (VIEW === 'planned-surgeries') { app.innerHTML = renderPlannedSurgeriesView(); return; }
   if (VIEW === 'reminder-queue') { app.innerHTML = renderReminderQueueView(); return; }
   if (VIEW === 'fu-cleanup') { app.innerHTML = renderFuCleanupView(); return; }
@@ -13312,7 +13482,7 @@ async function disconnectGoogleDrive() {
 /* ================= Events ================= */
 
 /* ================= Swipe-right to go back ================= */
-const SWIPE_BACK_ACTIONS = ['close-journey','close-daily','close-outcome-calls','cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-fu-schedule','close-diag-referrals'];
+const SWIPE_BACK_ACTIONS = ['close-compare','close-monthly','close-journey','close-daily','close-outcome-calls','cancel-add','close-ai-query','close-ai-digest','close-ai-assistant','close-ai-hub','close-cash-audit','close-settings','close-app-settings','close-cloud-sync','close-drive-backup','close-drive-restore','back-to-list','close-print','close-compare-picker','close-compare-view','close-calendar','close-reminders-tab','close-more','close-about','close-recently-deleted','close-confirm-delete','close-export-summary','close-print-summary','close-notifications','close-whats-new','close-upgrade','close-scheme-finder','close-patient-ai-tools','close-print-referral','close-planned-surgeries','close-reminder-queue','close-fu-cleanup','close-fu-schedule','close-diag-referrals'];
 function findBackActionBtn() {
   for (const action of SWIPE_BACK_ACTIONS) {
     const btn = document.querySelector('[data-action="'+action+'"]');
@@ -14460,7 +14630,7 @@ document.addEventListener('click', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
-  if (action === 'open-compare-picker') { COMPARE_SELECTED = []; VIEW = 'compare-picker'; await render(); return; }
+  if (action === 'open-compare-picker') { await openCompare(SELECTED_ID); return; }  // old two-step picker replaced by the new Compare photos screen
   if (action === 'compare-select-image') {
     const id = el.dataset.id;
     const idx = COMPARE_SELECTED.indexOf(id);
@@ -16292,6 +16462,22 @@ document.addEventListener('click', async (e) => {
   if (action === 'close-followup-report') { VIEW = 'list'; render(); return; }
   if (action === 'open-patient-stats') { VIEW = 'patient-stats'; render(); return; }
   if (action === 'close-patient-stats') { VIEW = 'list'; render(); return; }
+  if (action === 'open-compare') { const w = document.getElementById('patient-menu-wrap'); if (w) w.hidden = true; await openCompare(el.dataset.id); return; }
+  if (action === 'close-compare') { cmpRevoke(); CMP = null; VIEW = 'detail'; render(); return; }
+  if (action === 'cmp-cat' && CMP) { CMP.cat = el.dataset.value; cmpDefaults(); const y = window.scrollY; await render(); window.scrollTo(0, y); return; }
+  if (action === 'cmp-mode' && CMP) { CMP.mode = el.dataset.value; const y = window.scrollY; await render(); window.scrollTo(0, y); return; }
+  if (action === 'cmp-pick' && CMP) { if (el.dataset.side === 'a') CMP.a = el.dataset.id; else CMP.b = el.dataset.id; const y = window.scrollY; await render(); window.scrollTo(0, y); return; }
+  if (action === 'cmp-share' && CMP) { await cmpShare(); return; }
+  if (action === 'open-monthly') { MONTHLY_YM = todayStr().slice(0, 7); VIEW = 'monthly'; await render(); window.scrollTo(0, 0); return; }
+  if (action === 'close-monthly') { VIEW = 'more'; render(); return; }
+  if (action === 'monthly-prev') { MONTHLY_YM = monthlyShift(MONTHLY_YM || todayStr().slice(0, 7), -1); render(); return; }
+  if (action === 'monthly-next') { const n = monthlyShift(MONTHLY_YM || todayStr().slice(0, 7), 1); if (n <= todayStr().slice(0, 7)) { MONTHLY_YM = n; render(); } return; }
+  if (action === 'monthly-share') {
+    const text = monthlyShareText(computeMonthly(MONTHLY_YM));
+    try { if (navigator.share) { await navigator.share({ text: text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(text); toast('Summary copied'); } catch (e) { toast('Could not copy'); }
+    return;
+  }
   if (action === 'open-journey') { VIEW = 'journey'; await render(); window.scrollTo(0, 0); return; }
   if (action === 'close-journey') { VIEW = 'more'; render(); return; }
   if (action === 'journey-confetti') { journeyConfetti(); return; }
