@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261127.2">
+<meta name="app-build" content="20261127.3">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -4002,6 +4002,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Diagnostic Referrals: a wrongly added entry can now be deleted \u2014 open it with the pencil and tap Delete this entry (asks to confirm, stays deleted on phone and laptop)',
       'Compare photos (patient menu): pick a before and an after X-ray or photo, slide between them or view side by side, and share the pair as one image (stage and date only, no patient name). Monthly Summary (More \u2192 Practice): your month in numbers with a share option',
       'Surgical cases can store implant details (brand, components, sizes, lot number) \u2014 tucked behind a small "+ Implant details" link in the case edit view; shows in the case snapshot and the Master Excel',
       'Follow-ups has a new Check-ins tab: patients who are due a friendly call or message outside routine follow-ups \u2014 surgical patients at 2 weeks, 1, 3, 6 months and 1 year, and OPD patients seen about a month ago with nothing booked. Call or WhatsApp in one tap, then tap what you heard',
@@ -6342,6 +6343,7 @@ function diagAddReferralFormHtml() {
     + '<div style="flex:1;"><label class="field-label">Report ID no.</label><input class="input" id="diag-ref-reportid" placeholder="" value="'+esc(DIAG_REF_REPORTID_DRAFT)+'"></div>'
     + '</div>'
     + '<div class="row gap2"><button class="btn btn-sm" style="flex:1;" data-action="diag-cancel-add-referral">Cancel</button><button class="btn btn-sm btn-primary" style="flex:2;" data-action="diag-save-referral">'+ic('check')+' '+(DIAG_EDITING_REFERRAL_ID?'Update entry':'Save entry')+'</button></div>'
+    + (DIAG_EDITING_REFERRAL_ID ? '<div style="text-align:center;margin-top:12px;"><button type="button" data-action="diag-delete-referral" data-id="'+esc(DIAG_EDITING_REFERRAL_ID)+'" style="background:none;border:none;color:var(--red);font-size:12px;padding:6px 10px;cursor:pointer;">Delete this entry</button></div>' : '')
     + '</div>';
 }
 
@@ -16266,6 +16268,17 @@ document.addEventListener('click', async (e) => {
     DIAG_REF_REPORTID_DRAFT = r.reportId || '';
     DIAG_REF_CUT_DRAFT = r.cutManual ? String(r.doctorCutAmount) : '';
     render(); return;
+  }
+  if (action === 'diag-delete-referral') {
+    const r = DIAG_REFERRALS.find(x => x.id === el.dataset.id); if (!r) return;
+    const ok = await showConfirmDialog({ title: 'Delete this entry?', message: esc(r.patientName || 'This entry') + (r.investigation ? ' \u00b7 ' + esc(r.investigation) : '') + '<br>It will be removed from your referral totals' + (r.status === 'paid' ? ' (it is marked as received)' : '') + '. This can\u2019t be undone.', confirmText: 'Delete', cancelText: 'Keep', destructive: true });
+    if (!ok) return;
+    DIAG_REFERRALS = DIAG_REFERRALS.filter(x => x.id !== r.id);
+    markDiagRemoved(r.id);
+    saveDiagReferrals(DIAG_REFERRALS);
+    DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDITING_REFERRAL_ID = null; DIAG_COMPLETING_ID = null;
+    await render(); toast('Entry deleted');
+    return;
   }
   if (action === 'diag-cancel-add-referral') { DIAG_ADD_REFERRAL_OPEN = false; DIAG_EDITING_REFERRAL_ID = null; render(); return; }
   if (action === 'diag-set-contrast') { diagStashReferralDrafts(); DIAG_ADD_REFERRAL_CONTRAST = el.dataset.value; render(); return; }
