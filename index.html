@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261126.5">
+<meta name="app-build" content="20261127.1">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -3542,6 +3542,7 @@ function resetPerPatientUiState() {
   REGION_EDIT_STATE.ov = undefined;
   OV_EXPANDED = new Set(['snapshot']);
   OV_SHOW_PAYMENT = false;
+  OV_SHOW_IMPLANT = false;
   OV_SHOW_TRACKING_PICK = false;
   OV_EDIT_SECTIONS = new Set();
   AI_PATIENT_SUMMARY = null;
@@ -4001,6 +4002,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Surgical cases can store implant details (brand, components, sizes, lot number) \u2014 tucked behind a small "+ Implant details" link in the case edit view; shows in the case snapshot and the Master Excel',
       'Follow-ups has a new Check-ins tab: patients who are due a friendly call or message outside routine follow-ups \u2014 surgical patients at 2 weeks, 1, 3, 6 months and 1 year, and OPD patients seen about a month ago with nothing booked. Call or WhatsApp in one tap, then tap what you heard',
       'Surgical Journey: milestones are closer together and have names, for both Surgeries and OPD patients (First Incision, Double Digits, Half Century, Century! ...). Rank under your count, this month vs your best month, a "just 3 more" nudge when close, a swipeable badge strip that opens on your next target, and a little celebration the moment you save a case that unlocks one',
       'New: My Surgical Journey (More \u2192 Practice) \u2014 your surgery count, how many you operated vs assisted vs observed, most-done procedures, and milestone badges. Tap the big number for a little celebration',
@@ -9381,6 +9383,7 @@ function ovRow(label, value) {
   return '<div style="font-size:12.5px;line-height:1.6;"><span style="color:var(--muted);">'+esc(label)+':</span> <b style="color:#142536;font-weight:700;">'+esc(value)+'</b></div>';
 }
 let OV_SHOW_PAYMENT = false;
+let OV_SHOW_IMPLANT = false;
 let OV_SHOW_TRACKING_PICK = false;
 /* Each Overview section is independently collapsible AND independently editable \u2014 no
    single global "edit mode" for the whole tab. Sections default collapsed (except
@@ -10903,6 +10906,7 @@ function surgicalDetailsSectionHtml(p) {
     + '</div>'
     + ((p.hospital || p.anaesthesiaType) ? '<div class="row" style="gap:10px;">'+(p.hospital?ovSnapCell('clipboard','Hospital',p.hospital):'')+(p.anaesthesiaType?ovSnapCell('shield','Anaesthesia',p.anaesthesiaType):'')+'</div>' : '')
     + ((p.surgeonRole || (p.sharedFrom && p.sharedFrom.doctor)) ? '<div class="row" style="gap:10px;">'+(p.surgeonRole?ovSnapCell('scalpel','My role',surgeonRoleLabel(p.surgeonRole)):'')+((p.sharedFrom && p.sharedFrom.doctor)?ovSnapCell('users','Shared by',p.sharedFrom.doctor):'')+'</div>' : '')
+    + ((p.implantDetails || p.implantLot) ? ovSnapCell('clipboard','Implant', [p.implantDetails, p.implantLot ? 'Lot ' + p.implantLot : ''].filter(Boolean).join(' \u00b7 ')) : '')
     + (p.paymentMethod ? ovSnapCell('clipboard','Payment', p.paymentMethod + (p.paymentMethod!=='Insurance'&&p.cashAmount?' \u2014 \u20b9'+p.cashAmount:'') + (p.paymentMethod!=='Cash'&&p.insuranceType?' \u2014 '+p.insuranceType:'')) : '');
   const body = '<div><label class="field-label">Surgery type</label><select class="select" data-field="surgeryType">'+surgeryTypeOptionsHtml(p.surgeryType)+'</select></div>'
     + '<p style="font-size:10.5px;color:var(--muted);margin:0 0 4px;">Diagnosis, Procedure and Surgery Date are edited from the header above (kept in one place).</p>'
@@ -10921,6 +10925,19 @@ function surgicalDetailsSectionHtml(p) {
         + '<div class="seg">' + [['Cash','Cash'],['Insurance','Insurance'],['Both','Insurance + Cash']].map(([v,l])=>'<button class="seg-btn'+(p.paymentMethod===v?' active':'')+'" data-action="ov-set-payment" data-value="'+v+'">'+l+'</button>').join('') + '</div>'
         + (p.paymentMethod==='Insurance' || p.paymentMethod==='Both' ? '<input class="input" data-field="insuranceType" placeholder="" value="'+esc(p.insuranceType||'')+'" style="margin-top:8px;">' : '')
         + (p.paymentMethod==='Cash' || p.paymentMethod==='Both' ? '<input class="input" type="number" inputmode="numeric" data-field="cashAmount" placeholder="" value="'+esc(p.cashAmount||'')+'" style="margin-top:8px;">' : '')
+        + '</div>'
+      ) : '')
+    + '</div>'
+    + '<div>'
+    + '<button type="button" data-action="ov-toggle-implant" style="background:none;border:none;padding:4px 2px;font-size:12px;color:var(--muted);cursor:pointer;text-align:left;">'
+    + ((p.implantDetails || p.implantLot) ? 'Implant details \u2014 ' + esc(String(p.implantDetails || ('Lot ' + p.implantLot)).split('\n')[0].slice(0, 40)) : (OV_SHOW_IMPLANT ? '\u2212 Implant details' : '+ Implant details'))
+    + '</button>'
+    + ((OV_SHOW_IMPLANT || p.implantDetails || p.implantLot) && OV_SHOW_IMPLANT ? (
+        '<div style="margin-top:6px;">'
+        + '<label class="field-label">Brand, components and sizes</label>'
+        + '<textarea class="input" rows="3" data-field="implantDetails" placeholder="e.g. Zimmer NexGen CR, femur 4, tibia 3, poly 10 mm">' + esc(p.implantDetails || '') + '</textarea>'
+        + '<label class="field-label" style="margin-top:8px;">Lot / batch / sticker no.</label>'
+        + '<input class="input" data-field="implantLot" value="' + esc(p.implantLot || '') + '">'
         + '</div>'
       ) : '')
     + '</div>';
@@ -12439,7 +12456,7 @@ async function exportMasterXlsx() {
   const cols = [
     ['Patient ID', 11], ['Name', 28], ['Age', 9], ['Sex', 6], ['Place / Residence', 18], ['Phone (WhatsApp)', 15],
     ['Case Type', 10], ['Case Status', 17], ['Diagnosis', 34], ['Chief Complaints', 34], ['Region', 16], ['Side', 8],
-    ['Procedure', 32], ['Surgery Type', 12], ['Hospital / Where done', 22], ['Anaesthesia', 12], ['My Role', 16], ['Visit / Surgery Date', 13], ['Tracked Condition', 13],
+    ['Procedure', 32], ['Surgery Type', 12], ['Hospital / Where done', 22], ['Anaesthesia', 12], ['My Role', 16], ['Implant', 26], ['Visit / Surgery Date', 13], ['Tracked Condition', 13],
     ['No. of Injections', 10], ['Injections (details)', 36], ['No. of Investigations', 12], ['Investigations (details)', 40],
     ['Follow-ups Done', 10], ['Last Follow-up', 13], ['Next Follow-up Due', 13], ['Follow-up Status', 20], ['Days Overdue', 9],
     ['Reminders Sent', 10], ['Reminders No Response', 11], ['Outcome', 18], ['Outcome Date', 13], ['Payment', 12], ['Cash Amount', 11], ['Insurance', 14],
@@ -12468,6 +12485,7 @@ async function exportMasterXlsx() {
       { v: p.procedure || '', k: 's', s: wrap }, { v: isS ? (p.surgeryType || '') : '', k: 's', s: base },
       { v: p.hospital || '', k: 's', s: base }, { v: p.anaesthesiaType || '', k: 's', s: base },
       { v: isS ? (p.surgeonRole === 'assistant' ? 'Assistant' : p.surgeonRole === 'observer' ? 'Observer' : 'Operating') : '', k: 's', s: ctr },
+      { v: isS ? [p.implantDetails, p.implantLot ? 'Lot ' + p.implantLot : ''].filter(Boolean).join(' \u00b7 ') : '', k: 's', s: wrap },
       dateCell(p.surgeryDate, ctr), { v: p.condition ? String(p.condition).toUpperCase() : '', k: 's', s: ctr },
       { v: injs.length, k: 'n', s: ctr }, { v: injText, k: 's', s: wrap },
       { v: invs.length, k: 'n', s: ctr }, { v: invText, k: 's', s: wrap },
@@ -14652,6 +14670,7 @@ document.addEventListener('click', async (e) => {
     await renderTabBody(getPatient(SELECTED_ID));
     return;
   }
+  if (action === 'ov-toggle-implant') { OV_SHOW_IMPLANT = !OV_SHOW_IMPLANT; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-toggle-payment') { OV_SHOW_PAYMENT = !OV_SHOW_PAYMENT; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-show-tracking-pick') { OV_SHOW_TRACKING_PICK = true; await renderTabBody(getPatient(SELECTED_ID)); return; }
   if (action === 'ov-toggle-section-edit') {
