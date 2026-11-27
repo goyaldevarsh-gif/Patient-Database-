@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="app-build" content="20261127.3">
+<meta name="app-build" content="20261127.4">
 <title>OrthoVault</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0F2942">
@@ -968,6 +968,7 @@
 .hdr-name [data-action="edit-patient-name"]{padding:8px;margin:-8px;}
 #app [data-action="onboarding-skip"],#app [data-action="more-search-clear"],#app [data-action="mic-toggle"],#app [data-action="toggle-legend"]{min-width:36px;min-height:36px;}
 .fu-tn{color:inherit;}
+.fu-seg.fu4 .fu-tab{font-size:12.5px !important;padding:9px 4px !important;flex-direction:row;justify-content:center;gap:5px;}
 
 .view-fwd{animation:view-in-fwd 260ms cubic-bezier(.22,.8,.3,1);}
 .view-back{animation:view-in-back 260ms cubic-bezier(.22,.8,.3,1);}
@@ -4002,6 +4003,7 @@ async function renderNotificationsView() {
 }
 const CHANGELOG = [
   { version:'1.6.0', date:'2026-11-11', features: [
+      'Follow-ups tidied: four tabs instead of six \u2014 To-do (Overdue / Today / Tomorrow chips inside), Upcoming (List or Calendar), Check-ins and a new All tab: every patient\u2019s follow-up in one list you can search by name, ID, diagnosis or phone, filter by Surgical / OPD / Closed',
       'Diagnostic Referrals: a wrongly added entry can now be deleted \u2014 open it with the pencil and tap Delete this entry (asks to confirm, stays deleted on phone and laptop)',
       'Compare photos (patient menu): pick a before and an after X-ray or photo, slide between them or view side by side, and share the pair as one image (stage and date only, no patient name). Monthly Summary (More \u2192 Practice): your month in numbers with a share option',
       'Surgical cases can store implant details (brand, components, sizes, lot number) \u2014 tucked behind a small "+ Implant details" link in the case edit view; shows in the case snapshot and the Master Excel',
@@ -4182,7 +4184,7 @@ let REMINDERS = [];
 let CAL_YEAR = new Date().getFullYear();
 let CAL_MONTH = new Date().getMonth(); // 0-indexed
 let CAL_SELECTED_DATE = todayStr();
-let CAL_SUBVIEW = 'overdue'; // 'overdue' | 'today' | 'tomorrow' | 'upcoming' | 'checkins' | 'calendar'
+let CAL_SUBVIEW = 'overdue'; // 'overdue' | 'today' | 'tomorrow' (the To-do tab) | 'upcoming' | 'calendar' (the Upcoming tab) | 'checkins' | 'all'
 let BULK_RESCHEDULE_OPEN = false;
 let ATTN_FILTER = null; // null | 'pending' | 'reminded' \u2014 tap the Reminded/Pending box to filter
 let REMINDER_FORM_OPEN = false;
@@ -11907,6 +11909,57 @@ function renderTomorrowFollowUpsList() {
       + '</div>';
   }).join('');
 }
+/* ============ Follow-ups > All: every patient's follow-up as one searchable list ============ */
+let FU_ALL_Q = '', FU_ALL_FILTER = 'active', FU_ALL_LIMIT = 40;
+function fuIsActive(p) { return !p.status || p.status === 'Active' || p.status === 'Active follow-up'; }
+function fuAllRows() {
+  const today = todayStr(), q = FU_ALL_Q.trim().toLowerCase(), qd = q.replace(/\D/g, '');
+  let rows = (PATIENTS || []).filter(p => p && !p.isSample);
+  rows = rows.filter(p => FU_ALL_FILTER === 'closed' ? !fuIsActive(p) : fuIsActive(p) && (FU_ALL_FILTER === 'surgical' ? p.caseType === 'surgical' : FU_ALL_FILTER === 'opd' ? p.caseType !== 'surgical' : true));
+  if (q) rows = rows.filter(p => {
+    const hay = [p.name, p.patientCode, p.diagnosis, p.procedure, p.chiefComplaints, p.condition, p.place].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q) || (qd.length >= 3 && String(p.whatsapp || '').replace(/\D/g, '').includes(qd));
+  });
+  const seen = p => getLastFollowUpDate(p) || String(p.surgeryDate || '').slice(0, 10) || '';
+  const grp = p => !p.nextFollowUpDate ? 2 : (p.nextFollowUpDate < today ? 0 : 1);
+  rows.sort((a, b) => {
+    if (FU_ALL_FILTER === 'closed') return seen(b).localeCompare(seen(a));
+    const ga = grp(a), gb = grp(b); if (ga !== gb) return ga - gb;
+    if (ga === 2) return (seen(a) || '9').localeCompare(seen(b) || '9');
+    return a.nextFollowUpDate.localeCompare(b.nextFollowUpDate);
+  });
+  return rows;
+}
+function fuAllRowHtml(p) {
+  const today = todayStr(), nf = p.nextFollowUpDate || '';
+  let st = '', col = 'var(--muted)';
+  if (!nf) st = 'No follow-up set';
+  else if (nf < today) { const d = overdueDays(nf); st = 'Overdue ' + d + (d === 1 ? ' day' : ' days') + ' · was ' + fmtDateShort(nf); col = 'var(--red)'; }
+  else if (nf === today) { st = 'Due today'; col = 'var(--accent-dark)'; }
+  else { const d = Math.round((new Date(nf + 'T12:00:00') - new Date(today + 'T12:00:00')) / 86400000); st = 'Next ' + fmtDateShort(nf) + ' · in ' + d + (d === 1 ? ' day' : ' days'); col = 'var(--accent-dark)'; }
+  const num = p.whatsapp ? esc(toWaNumber(p.whatsapp)) : '';
+  return '<div class="card" style="padding:12px 14px;margin-bottom:10px;"><div class="row between" style="align-items:center;gap:8px;">'
+    + '<span data-action="open-patient" data-id="' + p.id + '" style="cursor:pointer;flex:1;min-width:0;"><span style="display:block;font-weight:800;font-size:13.5px;overflow-wrap:anywhere;">' + escName(p.name) + '</span>'
+    + '<span style="display:block;font-size:11px;color:var(--muted);margin-top:1px;">' + followUpContextLine(p) + '</span>'
+    + '<span style="display:block;font-size:11.5px;font-weight:700;margin-top:3px;color:' + col + ';">' + st + '</span></span>'
+    + (num ? '<a href="tel:+' + num + '" class="icon-btn" title="Call">' + ic('phone') + '</a><a href="https://wa.me/' + num + '" target="_blank" rel="noopener" class="icon-btn" style="color:#25D366;" title="WhatsApp">' + ic('whatsapp') + '</a>' : '')
+    + '</div></div>';
+}
+function fuAllListHtml() {
+  const rows = fuAllRows();
+  if (!rows.length) return '<p style="font-size:12.5px;color:var(--muted);text-align:center;margin-top:28px;">' + (FU_ALL_Q.trim() ? 'No patient matches “' + esc(FU_ALL_Q.trim()) + '”.' : 'No patients here yet.') + '</p>';
+  const shown = rows.slice(0, FU_ALL_LIMIT);
+  return '<div style="font-size:11px;color:var(--muted);margin:0 2px 10px;">' + rows.length + (rows.length === 1 ? ' patient' : ' patients') + '</div>'
+    + shown.map(fuAllRowHtml).join('')
+    + (rows.length > shown.length ? '<button type="button" class="btn btn-block" data-action="fu-all-more">Show more (' + (rows.length - shown.length) + ' left)</button>' : '');
+}
+function fuAllRefresh() { const el = document.getElementById('fu-all-list'); if (el) el.innerHTML = fuAllListHtml(); }
+function renderAllFollowUpsList() {
+  const chip = (k, l) => '<button type="button" class="chip' + (FU_ALL_FILTER === k ? ' active' : '') + '" style="font-size:11.5px;padding:5px 11px;" data-action="fu-all-filter" data-value="' + k + '">' + l + '</button>';
+  return '<input class="input" id="fu-all-q" type="search" placeholder="Search name, ID, diagnosis, phone" value="' + esc(FU_ALL_Q) + '" autocomplete="off" style="margin-bottom:10px;">'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">' + chip('active', 'All') + chip('surgical', 'Surgical') + chip('opd', 'OPD') + chip('closed', 'Closed') + '</div>'
+    + '<div id="fu-all-list">' + fuAllListHtml() + '</div>';
+}
 function renderUpcomingFollowUpsList() {
   const today = todayStr();
   const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate()+1); return localYmd(d); })();
@@ -11941,20 +11994,26 @@ function renderCalendarView() {
   const _td = todayStr();
   const upcomingCount = PATIENTS.filter(p => (!p.status || p.status === 'Active' || p.status === 'Active follow-up') && p.nextFollowUpDate && p.nextFollowUpDate > _td).length;
   const checkInCount = computeCheckIns().length;
+  const inTodo = CAL_SUBVIEW === 'overdue' || CAL_SUBVIEW === 'today' || CAL_SUBVIEW === 'tomorrow';
+  const inUp = CAL_SUBVIEW === 'upcoming' || CAL_SUBVIEW === 'calendar';
+  const todoCount = overdueCount + todayCount;
+  const mkChip = (v, label, n, red) => '<button type="button" class="chip' + (CAL_SUBVIEW === v ? ' active' : '') + '" style="font-size:11.5px;padding:5px 12px;" data-action="cal-set-subview" data-value="' + v + '">' + label + (n ? ' <b style="' + (red && CAL_SUBVIEW !== v ? 'color:var(--red);' : '') + '">' + n + '</b>' : '') + '</button>';
+  const subChips = inTodo
+    ? '<div style="display:flex;gap:6px;margin-bottom:14px;">' + mkChip('overdue', 'Overdue', overdueCount, true) + mkChip('today', 'Today', todayCount) + mkChip('tomorrow', 'Tomorrow', s.dueTomorrowList.length) + '</div>'
+    : inUp ? '<div style="display:flex;gap:6px;margin-bottom:14px;">' + mkChip('upcoming', 'List', 0) + mkChip('calendar', 'Calendar', 0) + '</div>' : '';
   return '<div style="padding-bottom:90px;">'
     + '<div class="sticky-top px" style="padding:14px 16px;">'
     + '<div class="row between" style="margin-bottom:10px;"><div class="row gap3"><button class="icon-btn" data-action="close-calendar">'+ic('back')+'</button><h2 style="font-size:16px;font-weight:800;margin:0;">Follow-ups</h2></div><button class="btn btn-sm btn-primary" data-action="add-menu-pick-patient" data-value="followup">'+ic('plus')+' Add</button></div>'
-    + '<div class="seg fu-seg">'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='overdue'?' active':'')+'" data-action="cal-set-subview" data-value="overdue">Overdue'+(overdueCount?'<i class="fu-tn">'+(overdueCount)+'</i>':'')+'</button>'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='today'?' active':'')+'" data-action="cal-set-subview" data-value="today">Today'+(todayCount?'<i class="fu-tn">'+(todayCount)+'</i>':'')+'</button>'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='tomorrow'?' active':'')+'" data-action="cal-set-subview" data-value="tomorrow">Tomorrow'+(s.dueTomorrowList.length?'<i class="fu-tn">'+(s.dueTomorrowList.length)+'</i>':'')+'</button>'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='upcoming'?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming'+(upcomingCount?'<i class="fu-tn">'+(upcomingCount)+'</i>':'')+'</button>'
+    + '<div class="seg fu-seg fu4">'
+    + '<button class="seg-btn fu-tab'+(inTodo?' active':'')+'" data-action="cal-set-subview" data-value="todo">To-do'+(todoCount?'<i class="fu-tn">'+todoCount+'</i>':'')+'</button>'
+    + '<button class="seg-btn fu-tab'+(inUp?' active':'')+'" data-action="cal-set-subview" data-value="upcoming">Upcoming'+(upcomingCount?'<i class="fu-tn">'+(upcomingCount)+'</i>':'')+'</button>'
     + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='checkins'?' active':'')+'" data-action="cal-set-subview" data-value="checkins">Check-ins'+(checkInCount?'<i class="fu-tn">'+checkInCount+'</i>':'')+'</button>'
-    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='calendar'?' active':'')+'" data-action="cal-set-subview" data-value="calendar">Calendar'+(0?'<i class="fu-tn">'+(0)+'</i>':'')+'</button>'
+    + '<button class="seg-btn fu-tab'+(CAL_SUBVIEW==='all'?' active':'')+'" data-action="cal-set-subview" data-value="all">All</button>'
     + '</div>'
     + '</div>'
     + '<div class="px" style="padding-top:12px;">'
-    + (CAL_SUBVIEW==='overdue' ? renderNeedsAttentionBlock(s, true) : CAL_SUBVIEW==='today' ? renderNeedsAttentionBlock(s, false) : CAL_SUBVIEW==='tomorrow' ? renderTomorrowFollowUpsList() : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : CAL_SUBVIEW==='checkins' ? renderCheckInsList() : (renderCalendarGrid() + renderCalendarDayDetail()))
+    + subChips
+    + (CAL_SUBVIEW==='overdue' ? renderNeedsAttentionBlock(s, true) : CAL_SUBVIEW==='today' ? renderNeedsAttentionBlock(s, false) : CAL_SUBVIEW==='tomorrow' ? renderTomorrowFollowUpsList() : CAL_SUBVIEW==='upcoming' ? renderUpcomingFollowUpsList() : CAL_SUBVIEW==='checkins' ? renderCheckInsList() : CAL_SUBVIEW==='all' ? renderAllFollowUpsList() : (renderCalendarGrid() + renderCalendarDayDetail()))
     + '</div>'
     + '</div>';
 }
@@ -11995,6 +12054,7 @@ function fillDeskRail() {
   if (act) { const br = box.getBoundingClientRect(), ar = act.getBoundingClientRect(); box.scrollTop += (ar.top - br.top) - (box.clientHeight - ar.height) / 2; }
 }
 document.addEventListener('input', function (e) { const t = e.target; if (t && t.id === 'cmp-range' && CMP) { CMP.pos = +t.value; const top = document.getElementById('cmp-top'), ln = document.getElementById('cmp-line'), kn = document.getElementById('cmp-knob'); if (top) top.style.clipPath = 'inset(0 0 0 ' + CMP.pos + '%)'; if (ln) ln.style.left = CMP.pos + '%'; if (kn) kn.style.left = CMP.pos + '%'; } });
+document.addEventListener('input', function (e) { if (e.target && e.target.id === 'fu-all-q') { FU_ALL_Q = e.target.value; FU_ALL_LIMIT = 40; fuAllRefresh(); } });
 document.addEventListener('input', function (e) { if (e.target && e.target.id === 'rail-q') { try { fillDeskRail(); } catch (x) {} } });
 window.addEventListener('resize', function () { if (VIEW === 'detail') { try { fillDeskRail(); } catch (x) {} } });
 document.addEventListener('keydown', function (e) {
@@ -17142,7 +17202,14 @@ document.addEventListener('click', async (e) => {
     toast(result === 'Needs visit' ? 'Noted \u2014 open the patient to book a visit' : result === 'No answer' ? 'Noted \u2014 it will come back in 3 days' : result === 'Skipped' ? 'Skipped' : 'Great \u2014 noted');
     return;
   }
-  if (action === 'cal-set-subview') { CAL_SUBVIEW = el.dataset.value; ATTN_FILTER = null; REMINDER_FORM_OPEN = false; BULK_RESCHEDULE_OPEN = false; render(); return; }
+  if (action === 'cal-set-subview') {
+    let v = el.dataset.value;
+    if (v === 'todo') { const st = computeDashboardStats(); v = st.important.some(i => i.isOverdue) ? 'overdue' : st.important.length ? 'today' : st.dueTomorrowList.length ? 'tomorrow' : 'overdue'; }
+    if (v === 'all') FU_ALL_LIMIT = 40;
+    CAL_SUBVIEW = v; ATTN_FILTER = null; REMINDER_FORM_OPEN = false; BULK_RESCHEDULE_OPEN = false; render(); return;
+  }
+  if (action === 'fu-all-filter') { FU_ALL_FILTER = el.dataset.value; FU_ALL_LIMIT = 40; render(); return; }
+  if (action === 'fu-all-more') { FU_ALL_LIMIT += 40; fuAllRefresh(); return; }
   if (action === 'cal-prev-month') { CAL_MONTH--; if (CAL_MONTH<0) { CAL_MONTH=11; CAL_YEAR--; } render(); return; }
   if (action === 'cal-next-month') { CAL_MONTH++; if (CAL_MONTH>11) { CAL_MONTH=0; CAL_YEAR++; } render(); return; }
   if (action === 'cal-today') { const t = todayStr(); CAL_YEAR = parseInt(t.slice(0,4),10); CAL_MONTH = parseInt(t.slice(5,7),10)-1; CAL_SELECTED_DATE = t; render(); return; }
